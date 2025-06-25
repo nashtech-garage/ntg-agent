@@ -1,0 +1,6 @@
+@NTG.Agent.Orchestrator_HostAddress = http://localhost:5068
+
+GET {{NTG.Agent.Orchestrator_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
