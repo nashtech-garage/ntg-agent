@@ -1,4 +1,5 @@
 ﻿@page "/"
+@using System.Diagnostics.CodeAnalysis
 @rendermode InteractiveServer
 
 @inject ChatClient ChatClient;
@@ -6,17 +7,24 @@
 <PageTitle>Home</PageTitle>
 
 <div class="mt-4">
-    <h2>Chat History</h2>
-    <ul class="list-group">
-        @foreach (var item in chatHistory)
+    <h2>Let's Chat</h2>
+    @foreach (var item in chatHistory)
+    {
+        if (item.IsSystem)
         {
-            <li class="list-group-item">@item.Message</li>
+            <div>
+                <Markdown IsViewer="true" Value="@item.Message" @ref="MarkdownSetValue"></Markdown>
+            </div>
         }
-    </ul>
+        else
+        {
+            <div class="text-end">@item.Message</div>
+        }
+    }
 </div>
-<div class="form-group">
+<div class="form-group text-end">
     <label for="userInput">Type your message:</label>
-    <input type="text" id="userInput" class="form-control" @bind="userInput" />
+    <input type="text" id="userInput" class="form-control" @bind="userInput" @onkeydown="@Enter" @bind:event="oninput" />
     <button class="btn btn-primary mt-2" @onclick="SendMessage">Send</button>
 </div>
 
@@ -24,22 +32,42 @@
 @code {
     private string userInput = string.Empty;
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
+    [NotNull]
+    private BootstrapBlazor.Components.Markdown? MarkdownSetValue { get; set; }
 
     private async Task SendMessage()
     {
         if (!string.IsNullOrWhiteSpace(userInput))
         {
-            chatHistory.Add(new ChatMessage{ IsSystem = false, Message = userInput});         
-            var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput));
-            userInput = string.Empty;
+            chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
+
             var response = new ChatMessage { IsSystem = true, Message = "Agent:" };
             chatHistory.Add(response);
+            StateHasChanged();
+       
+            var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput));
+            userInput = string.Empty;
+
+            var index = 0;
             await foreach (var item in result)
-            {
-                await Task.Delay(1);
+            {                
                 response.Message += item.Content;
-                StateHasChanged();
+                await Task.Delay(1);
+
+                if(index > 0)
+                {
+                    await MarkdownSetValue.SetValue(response.Message);
+                }              
+                index++;
             }            
+        }
+    }
+
+    public async Task Enter(KeyboardEventArgs e)
+    {
+        if (e.Code == "Enter" || e.Code == "NumpadEnter")
+        {
+            await SendMessage();
         }
     }
 

@@ -9,6 +9,8 @@
   <ItemGroup>    
 	<ProjectReference Include="..\..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.WebClient.Client\NTG.Agent.WebClient.Client.csproj" />
+    <PackageReference Include="BootstrapBlazor" Version="9.7.4" />
+    <PackageReference Include="BootstrapBlazor.Markdown" Version="9.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="9.0.6" />
   </ItemGroup>
 

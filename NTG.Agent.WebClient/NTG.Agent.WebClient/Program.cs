@@ -10,6 +10,8 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
+builder.Services.AddBootstrapBlazor();
+
 builder.Services.AddHttpClient<ChatClient>(client =>
 {
     client.BaseAddress = new("https+http://ntg-agent-orchestrator"); ;
