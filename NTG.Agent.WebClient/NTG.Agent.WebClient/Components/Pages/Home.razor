@@ -46,17 +46,11 @@
             var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput));
             userInput = string.Empty;
 
-            var index = 0;
             await foreach (var item in result)
             {                
                 response.Message += item.Content;
                 await Task.Delay(1);
-
-                if(index > 0)
-                {
-                    await MarkdownSetValue!.SetValue(response.Message);
-                }              
-                index++;
+                await MarkdownSetValue!.SetValue(response.Message);            
             }            
         }
     }
@@ -72,6 +66,6 @@
     class ChatMessage
     {
         public bool IsSystem { get; set; }
-        public string Message { get; set; }
+        public string Message { get; set; } = string.Empty;
     }
 }
