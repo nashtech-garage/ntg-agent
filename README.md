@@ -26,4 +26,13 @@ This project aims to practice building a multi-agent chatbot in C#
 
 You can read more about GitHub model at https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models
 
+## Contributing
+- Give us a star
+- Reporting a bug
+- Participate discussions
+- Propose new features
+- Submit pull requests. If you are new to GitHub, consider to [learn how to contribute to a project through forking](https://docs.github.com/en/get-started/quickstart/contributing-to-projects)
+
+By contributing, you agree that your contributions will be licensed under Apache-2.0 license. 
+
 
