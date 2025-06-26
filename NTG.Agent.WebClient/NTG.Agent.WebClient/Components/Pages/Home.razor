@@ -1,5 +1,4 @@
 ﻿@page "/"
-@using System.Diagnostics.CodeAnalysis
 @rendermode InteractiveServer
 
 @inject ChatClient ChatClient;
@@ -32,7 +31,6 @@
 @code {
     private string userInput = string.Empty;
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
-    [NotNull]
     private BootstrapBlazor.Components.Markdown? MarkdownSetValue { get; set; }
 
     private async Task SendMessage()
@@ -56,7 +54,7 @@
 
                 if(index > 0)
                 {
-                    await MarkdownSetValue.SetValue(response.Message);
+                    await MarkdownSetValue!.SetValue(response.Message);
                 }              
                 index++;
             }            
