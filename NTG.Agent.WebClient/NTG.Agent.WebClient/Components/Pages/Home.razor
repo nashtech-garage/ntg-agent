@@ -39,7 +39,7 @@
         {
             chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
 
-            var response = new ChatMessage { IsSystem = true, Message = "Agent:" };
+            var response = new ChatMessage { IsSystem = true, Message = "Agent: " };
             chatHistory.Add(response);
             StateHasChanged();
        

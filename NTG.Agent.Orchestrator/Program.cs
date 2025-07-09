@@ -1,5 +1,6 @@
 using Microsoft.SemanticKernel;
 using NTG.Agent.Orchestrator.Agents;
+using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
 
@@ -38,8 +39,11 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
             modelId: config["GitHub:Models:ModelId"]!,
             serviceId: "github");
     }
-
+    
     var kernel = kernelBuilder.Build();
+
+    kernel.Plugins.Add(KernelPluginFactory.CreateFromType<DateTimePlugin>());
+
     return kernel;
 });
 
