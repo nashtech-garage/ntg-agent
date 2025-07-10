@@ -75,7 +75,7 @@ h1:focus {
     width: 100%;
     border-radius: 10px;
     padding: 10px;
-    height: 50px;
+    height: 60px;
 }
 #chatContainer {
     overflow-y: auto;
@@ -83,4 +83,10 @@ h1:focus {
 }
 .user-input #userInput {
     height: 60px;
+}
+.input-group-append {
+    margin-left: -50px !important;
+    z-index: 100;
+    font-size: 32px;
+    height:60px;
 }
