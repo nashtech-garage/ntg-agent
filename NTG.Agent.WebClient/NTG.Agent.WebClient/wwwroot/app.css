@@ -61,29 +61,16 @@ h1:focus {
     text-align: start;
 }
 
-.user-chat {
-    margin-left: auto;
-    width: 50%;
-    background-color: #f2f0f0;
-    padding: 13px;
-    border-radius: 5px;
-}
-.user-input {
-    position: fixed;
-    bottom: 30px;
-    margin: auto;
-    width: 100%;
-    border-radius: 10px;
-    padding: 10px;
-    height: 60px;
-}
-#chatContainer {
+.chatContainer {
     overflow-y: auto;
-    margin-bottom:70px;
+    margin-bottom: 6vh;
 }
-.user-input #userInput {
-    height: 60px;
+
+.chat-response {
+    min-height: 10vh;
+    overflow-y: auto;
 }
+
 .input-group-append {
     margin-left: -50px !important;
     z-index: 100;
