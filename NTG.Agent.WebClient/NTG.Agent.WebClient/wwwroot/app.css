@@ -1,5 +1,7 @@
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    height: 100%;
+    margin: 0;
 }
 
 a, .btn-link {
@@ -57,4 +59,28 @@ h1:focus {
 
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
+}
+
+.user-chat {
+    margin-left: auto;
+    width: 50%;
+    background-color: #f2f0f0;
+    padding: 13px;
+    border-radius: 5px;
+}
+.user-input {
+    position: fixed;
+    bottom: 30px;
+    margin: auto;
+    width: 100%;
+    border-radius: 10px;
+    padding: 10px;
+    height: 50px;
+}
+#chatContainer {
+    overflow-y: auto;
+    margin-bottom:70px;
+}
+.user-input #userInput {
+    height: 60px;
 }

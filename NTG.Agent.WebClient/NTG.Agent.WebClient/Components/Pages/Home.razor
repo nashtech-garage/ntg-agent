@@ -7,6 +7,8 @@
 
 <div class="mt-4">
     <h2>Let's Chat</h2>
+</div>
+<div id="chatContainer">
     @foreach (var item in chatHistory)
     {
         if (item.IsSystem)
@@ -17,16 +19,30 @@
         }
         else
         {
-            <div class="text-end">@item.Message</div>
+            <div class="text-end user-chat">@item.Message</div>
         }
     }
 </div>
-<div class="form-group text-end">
-    <label for="userInput">Type your message:</label>
-    <input type="text" id="userInput" class="form-control" @bind="userInput" @onkeydown="@Enter" @bind:event="oninput" />
-    <button class="btn btn-primary mt-2" @onclick="SendMessage">Send</button>
+<div class="form-group user-input row">
+    <div class="col-2"></div>
+    <div class="col-5">
+        <div class="input-group">
+            <input type="text"
+                   id="userInput"
+                   class="form-control"
+                   @bind="userInput"
+                   @onkeydown="@Enter"
+                   @bind:event="oninput"
+                   placeholder="Type your message..." />
+            <button class="btn" @onclick="SendMessage" type="button" style="margin-left:-50px;z-index:100;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="grey" class="bi bi-send" viewBox="0 0 16 16">
+                    <path d="M15.854.146a.5.5 0 0 1 .11.54l-5.819 14.547a.75.75 0 0 1-1.329.124l-3.178-4.995L.643 7.184a.75.75 0 0 1 .124-1.33L15.314.037a.5.5 0 0 1 .54.11ZM6.636 10.07l2.761 4.338L14.13 2.576zm6.787-8.201L1.591 6.602l4.339 2.76z" />
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="col-4"></div>
 </div>
-
 
 @code {
     private string userInput = string.Empty;
@@ -39,7 +55,7 @@
         {
             chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
 
-            var response = new ChatMessage { IsSystem = true, Message = "Agent: " };
+            var response = new ChatMessage { IsSystem = true, Message = "<b>Agent</b>: " };
             chatHistory.Add(response);
             StateHasChanged();
        
