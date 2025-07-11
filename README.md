@@ -27,7 +27,10 @@ This project aims to practice building a multi-agent chatbot in C#
 
 - Repeat the same steps for the NTG.Agent.Orchestrator project.
 
-- Start the NTG.Agent.AppHost, then open the NTG.Agent.WebClient
+- Start the NTG.Agent.AppHost
+  - NTG.Agent.WebClient is the website for end users.
+  - NTG.Agent.Admin is the website for administrators.
+  - NTG.Agent.Orchestrator is the backend API.
 
 You can read more about GitHub model at https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models
 
