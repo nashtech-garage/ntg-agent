@@ -24,7 +24,7 @@
     {
         if (!_disposed)
         {
-            await BeautyCodeBlocks();
+            await BeautifyCodeBlocks();
         }
     }
 
@@ -33,17 +33,17 @@
         if (MarkdownRef != null && !_disposed)
         {
             await MarkdownRef.SetValue(value);
-            await BeautyCodeBlocks();
+            await BeautifyCodeBlocks();
         }
     }
 
-    private async Task BeautyCodeBlocks()
+    private async Task BeautifyCodeBlocks()
     {
         if (_disposed) return;
         
         try
         {
-            await JSRuntime.InvokeVoidAsync("beautyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
             await JSRuntime.InvokeVoidAsync("highlighCodeBlocks");
         }
         catch (JSDisconnectedException)

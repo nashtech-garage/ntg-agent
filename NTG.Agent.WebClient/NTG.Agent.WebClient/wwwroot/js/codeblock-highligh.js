@@ -5,7 +5,7 @@ window.highlighCodeBlocks = () => {
 };
 
 
-window.beautyCodeBlocks = function () {
+window.beautifyCodeBlocks = function () {
     const codeBlocks = document.querySelectorAll('pre code:not(.enhanced)');
 
     codeBlocks.forEach(codeBlock => {
