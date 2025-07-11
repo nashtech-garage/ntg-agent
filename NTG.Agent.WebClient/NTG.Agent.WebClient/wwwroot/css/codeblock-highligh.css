@@ -73,28 +73,9 @@
     color: #e2e8f0;
 }
 
-/* Light theme adjustments */
-/*@media (prefers-color-scheme: light) {
-    .code-block-header {
-        background-color: #f7fafc;
-        color: #2d3748;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    
-    .copy-button {
-        color: #4a5568;
-    }
-    
-    .copy-button:hover {
-        color: #2d3748;
-        background-color: #e2e8f0;
-    }
-    
-    .enhanced-pre {
-        background-color: #f8f9fa !important;
-    }
-    
-    .enhanced-pre code {
-        color: #2d3748;
-    }
-}*/
+/* Override default values */
+code[class*=language-], pre[class*=language-]
+{
+    text-shadow:none !important;
+    font-size: 1.3em !important;
+}

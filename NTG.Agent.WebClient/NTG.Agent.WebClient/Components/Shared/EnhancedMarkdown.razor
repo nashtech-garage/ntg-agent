@@ -24,7 +24,7 @@
     {
         if (!_disposed)
         {
-            await EnhanceCodeBlocks();
+            await BeautyCodeBlocks();
         }
     }
 
@@ -33,17 +33,18 @@
         if (MarkdownRef != null && !_disposed)
         {
             await MarkdownRef.SetValue(value);
-            await EnhanceCodeBlocks();
+            await BeautyCodeBlocks();
         }
     }
 
-    private async Task EnhanceCodeBlocks()
+    private async Task BeautyCodeBlocks()
     {
         if (_disposed) return;
         
         try
         {
-            await JSRuntime.InvokeVoidAsync("enhanceCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("beautyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlighCodeBlocks");
         }
         catch (JSDisconnectedException)
         {
