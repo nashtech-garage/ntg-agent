@@ -1,4 +1,4 @@
-window.highlighCodeBlocks = () => {
+window.highlightCodeBlocks = () => {
     document.querySelectorAll('pre code').forEach((el) => {
         hljs.highlightElement(el);
     });
