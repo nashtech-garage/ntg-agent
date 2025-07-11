@@ -1,5 +1,7 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using NTG.Agent.Orchestrator.Agents;
+using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
@@ -8,7 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
 
-// Add services to the container.
+builder.Services.AddDbContext<AgentDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
