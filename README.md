@@ -22,9 +22,22 @@ This project aims to practice building a multi-agent chatbot in C#
   }
 }
 ```
-- Start the NTG.Agent.AppHost, then open the NTG.Agent.WebClient
+
+- In the NTG.Agent.Admin project, update the connection string if needed. Then run Update-Database if you are using Visual Studio, or dotnet ef database update if you are using the CLI.
+
+- Repeat the same steps for the NTG.Agent.Orchestrator project.
+
+- Start the NTG.Agent.AppHost
+  - NTG.Agent.WebClient is the website for end users.
+  - NTG.Agent.Admin is the website for administrators.
+  - NTG.Agent.Orchestrator is the backend API.
 
 You can read more about GitHub model at https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models
+
+## How authentication work
+
+We use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
+Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server.
 
 ## Contributing
 - Give us a star

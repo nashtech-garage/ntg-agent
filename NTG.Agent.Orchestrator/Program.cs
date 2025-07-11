@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using NTG.Agent.Orchestrator.Agents;
@@ -5,6 +7,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +19,10 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
+    .SetApplicationName("NTGAgent");
 
 builder.Services.AddSingleton<Kernel>(serviceBuilder => { 
     var config = serviceBuilder.GetRequiredService<IConfiguration>();
@@ -52,6 +59,10 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
 
 builder.Services.AddScoped<IAgentService, AgentService>();
 
+builder.Services.AddAuthentication("Identity.Application")
+    .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -61,6 +72,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
