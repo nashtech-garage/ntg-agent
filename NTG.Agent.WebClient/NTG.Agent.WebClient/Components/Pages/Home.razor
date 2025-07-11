@@ -14,7 +14,7 @@
         if (item.IsSystem)
         {
             <div class="p-2 w-100">
-                <Markdown IsViewer="true" Value="@item.Message" @ref="MarkdownSetValue" class="p-2 rounded rounded-4 border chat-response"></Markdown>
+                <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
             </div>
         }
         else
@@ -51,7 +51,7 @@
 @code {
     private string userInput = string.Empty;
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
-    private BootstrapBlazor.Components.Markdown? MarkdownSetValue { get; set; }
+    private EnhancedMarkdown? MarkdownSetValue { get; set; }
 
     private async Task SendMessage()
     {

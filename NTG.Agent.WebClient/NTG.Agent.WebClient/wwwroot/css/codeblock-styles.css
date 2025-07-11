@@ -1,0 +1,100 @@
+.code-block-container {
+    margin: 1rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #2d3748;
+    color: #e2e8f0;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 1px solid #4a5568;
+}
+
+.language-label {
+    text-transform: capitalize;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    color: #a0aec0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 12px;
+}
+
+.copy-button:hover {
+    color: #ffffff;
+    background-color: #4a5568;
+}
+
+.copy-button.copied {
+    color: #68d391;
+}
+
+.copy-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+.enhanced-pre {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    background-color: #1a202c !important;
+    padding: 16px !important;
+    overflow-x: auto;
+}
+
+.enhanced-pre code {
+    background: transparent !important;
+    padding: 0 !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #e2e8f0;
+}
+
+/* Dark theme for code blocks */
+.code-block-container pre {
+    background-color: #1a202c;
+    color: #e2e8f0;
+}
+
+/* Light theme adjustments */
+/*@media (prefers-color-scheme: light) {
+    .code-block-header {
+        background-color: #f7fafc;
+        color: #2d3748;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .copy-button {
+        color: #4a5568;
+    }
+    
+    .copy-button:hover {
+        color: #2d3748;
+        background-color: #e2e8f0;
+    }
+    
+    .enhanced-pre {
+        background-color: #f8f9fa !important;
+    }
+    
+    .enhanced-pre code {
+        color: #2d3748;
+    }
+}*/
