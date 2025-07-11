@@ -1,0 +1,67 @@
+@using BootstrapBlazor.Components
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div @ref="containerRef">
+    <Markdown IsViewer="true" Value="@Value" @ref="MarkdownRef" class="@CssClass" />
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = string.Empty;
+    [Parameter] public string CssClass { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnValueChanged { get; set; }
+
+    private Markdown? MarkdownRef { get; set; }
+    private ElementReference containerRef;
+    private bool _disposed = false;
+
+    protected override void OnInitialized()
+    {
+        _disposed = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_disposed)
+        {
+            await BeautifyCodeBlocks();
+        }
+    }
+
+    public async Task SetValue(string value)
+    {
+        if (MarkdownRef != null && !_disposed)
+        {
+            await MarkdownRef.SetValue(value);
+            await BeautifyCodeBlocks();
+        }
+    }
+
+    private async Task BeautifyCodeBlocks()
+    {
+        if (_disposed) return;
+        
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit disconnected, ignore
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("circuit has disconnected"))
+        {
+            // Circuit disconnected, ignore
+        }
+        catch (Exception ex)
+        {
+            System.Console.WriteLine($"Error enhancing code blocks: {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+    }
+}

@@ -1,0 +1,67 @@
+.code-block-container {
+    margin: 1rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f9f9f9;
+    color: #807d7d;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 1px solid #f2f0f0;
+}
+
+.language-label {
+    text-transform: capitalize;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.copy-button {
+    background: none;
+    border: none;
+    color: #a0aec0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+.copy-text {
+    font-size: 14px;
+}
+
+.copy-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+.enhanced-pre {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: 16px !important;
+    overflow-x: auto;
+}
+
+.enhanced-pre code {
+    background: transparent !important;
+    padding: 0 !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #e2e8f0;
+}
+
+/* Override default values */
+code[class*=language-], pre[class*=language-] {
+    text-shadow: none !important;
+    font-size: 1.19em !important;
+}

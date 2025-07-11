@@ -6,8 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["css/app.css"]" />
     <link rel="stylesheet" href="@Assets["NTG.Agent.WebClient.styles.css"]" />
+    <link rel="stylesheet" href="@Assets["css/codeblock-highlight.css"]" />
+    <!-- Highligh theme https://cdnjs.com/libraries/highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/a11y-light.min.css" />
     <link rel="stylesheet" href="_content/BootstrapBlazor/css/bootstrap.blazor.bundle.min.css" />
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
@@ -18,6 +21,9 @@
     <Routes />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/BootstrapBlazor/js/bootstrap.blazor.bundle.min.js"></script>
+    <!-- Highlight.js script https://cdnjs.com/libraries/highlight.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="js/codeblock-highlight.js"></script>
 </body>
 
 </html>
