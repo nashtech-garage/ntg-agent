@@ -1,4 +1,11 @@
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using NTG.Agent.WebClient.Client.Services;
 using NTG.Agent.WebClient.Components;
+using NTG.Agent.WebClient.Components.Account;
+using NTG.Agent.WebClient.Data;
 using NTG.Agent.WebClient.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,9 +15,48 @@ builder.AddServiceDefaults();
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
-    .AddInteractiveWebAssemblyComponents();
+    .AddInteractiveWebAssemblyComponents()
+    .AddAuthenticationStateSerialization();
+
+builder.Services.AddReverseProxy()
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+    .AddServiceDiscoveryDestinationResolver();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo("../../key/"))
+    .SetApplicationName("NTGAgent");
+
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<IdentityUserAccessor>();
+builder.Services.AddScoped<IdentityRedirectManager>();
+builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = IdentityConstants.ApplicationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+})
+    .AddIdentityCookies();
+
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(connectionString));
+builder.Services.AddDatabaseDeveloperPageExceptionFilter();
+
+builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 builder.Services.AddBootstrapBlazor();
+
+builder.Services.AddHttpClient<TestClient>(client =>
+{
+    //TODO Remove the hardcoded URL
+    client.BaseAddress = new("https://localhost:7065");
+});
 
 builder.Services.AddHttpClient<ChatClient>(client =>
 {
@@ -43,4 +89,6 @@ app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(NTG.Agent.WebClient.Client._Imports).Assembly);
 
 app.MapDefaultEndpoints();
+app.MapAdditionalIdentityEndpoints();
+app.MapReverseProxy();
 app.Run();
