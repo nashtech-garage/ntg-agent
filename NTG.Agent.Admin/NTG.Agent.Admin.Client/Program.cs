@@ -9,6 +9,7 @@ builder.Services.AddAuthenticationStateDeserialization();
 
 builder.Services.AddHttpClient<TestClient>(client =>
 {
+    //TODO Remove the hardcoded URL
     client.BaseAddress = new("https://localhost:7097");
 });
 
