@@ -8,18 +8,18 @@
 <div class="mt-4">
     <h2>Let's Chat</h2>
 </div>
-<div class="chatContainer">
+<div class="chat-container">
     @foreach (var item in chatHistory)
     {
         if (item.IsSystem)
         {
-            <div class="p-2 w-full">
+            <div class="p-2 w-100">
                 <Markdown IsViewer="true" Value="@item.Message" @ref="MarkdownSetValue" class="p-2 rounded rounded-4 border chat-response"></Markdown>
             </div>
         }
         else
         {
-            <div class="text-end p-2 w-full">
+            <div class="text-end p-2 w-100">
                 <span class="text-white bg-primary p-2 rounded rounded-4">
                     @item.Message
                 </span>
@@ -29,10 +29,10 @@
 </div>
 <div class="form-group row">
     <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom">
-        <div class="input-group mb-3 offset-md-1 offset-md-2">
+        <div class="input-group mb-3 offset-md-2">
             <input type="text"
                    id="userInput"
-                   class="form-control"
+                   class="form-control rounded rounded-4"
                    @bind="userInput"
                    @onkeydown="@Enter"
                    @bind:event="oninput"

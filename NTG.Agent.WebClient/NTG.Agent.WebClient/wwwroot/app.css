@@ -61,7 +61,7 @@ h1:focus {
     text-align: start;
 }
 
-.chatContainer {
+.chat-container {
     overflow-y: auto;
     margin-bottom: 6vh;
 }
