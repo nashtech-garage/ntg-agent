@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0" />
 
@@ -18,7 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.Admin\NTG.Agent.Admin\NTG.Agent.Admin.csproj" />
     <ProjectReference Include="..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
-    <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="..\NTG.Agent.WebClient\NTG.Agent.WebClient\NTG.Agent.WebClient.csproj" />
   </ItemGroup>
 
