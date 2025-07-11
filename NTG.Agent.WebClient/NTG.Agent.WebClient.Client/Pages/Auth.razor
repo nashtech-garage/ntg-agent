@@ -1,0 +1,27 @@
+﻿@page "/auth"
+
+@using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@inject Services.TestClient TestClient
+
+<PageTitle>Auth</PageTitle>
+
+<h1>You are authenticated</h1>
+
+<AuthorizeView>
+    Hello @context.User.Identity?.Name!
+    Hello <strong>@currentUser</strong>
+</AuthorizeView>
+
+@code {
+
+    private string currentUser = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = await TestClient.Test();
+    }
+}
