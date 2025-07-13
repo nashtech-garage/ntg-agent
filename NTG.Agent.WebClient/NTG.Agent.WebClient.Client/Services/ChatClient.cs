@@ -1,4 +1,4 @@
-﻿using NTG.Agent.WebClient.Client.ViewModels;
+﻿using NTG.Agent.Shared.Dtos.Chats;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.WebClient.Client.Services;

@@ -16,10 +16,12 @@
     </PackageReference>
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.60.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.60.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
   </ItemGroup>
 
 </Project>

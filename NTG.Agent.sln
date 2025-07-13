@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Admin", "NTG.Agen
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Admin.Client", "NTG.Agent.Admin\NTG.Agent.Admin.Client\NTG.Agent.Admin.Client.csproj", "{7FCA62B2-ED32-0DD4-3684-9F61CEA019ED}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Shared.Dtos", "NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj", "{D956E923-624E-4619-837D-30C697183E87}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -57,6 +59,10 @@ Global
 		{7FCA62B2-ED32-0DD4-3684-9F61CEA019ED}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7FCA62B2-ED32-0DD4-3684-9F61CEA019ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7FCA62B2-ED32-0DD4-3684-9F61CEA019ED}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D956E923-624E-4619-837D-30C697183E87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D956E923-624E-4619-837D-30C697183E87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D956E923-624E-4619-837D-30C697183E87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D956E923-624E-4619-837D-30C697183E87}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

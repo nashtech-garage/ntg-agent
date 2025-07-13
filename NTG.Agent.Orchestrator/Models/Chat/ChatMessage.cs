@@ -11,8 +11,8 @@ public class ChatMessage
     public Guid Id { get; set; }
     public string Content { get; set; } = string.Empty;
     public Guid? UserId { get; set; }
-    public Guid? ConversationId { get; set; }
-    public Conversation? Conversation { get; set; }
+    public Guid ConversationId { get; set; }
+    public Conversation Conversation { get; set; } = null!;
     public ChatRole Role { get; set; } = ChatRole.User;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

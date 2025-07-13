@@ -21,4 +21,9 @@ builder.Services.AddHttpClient<ChatClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<ConversationClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 await builder.Build().RunAsync();

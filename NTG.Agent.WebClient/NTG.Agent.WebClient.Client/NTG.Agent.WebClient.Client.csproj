@@ -16,4 +16,8 @@
     <PackageReference Include="BootstrapBlazor.Markdown" Version="9.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
+  </ItemGroup>
+
 </Project>

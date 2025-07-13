@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Extentions;
-using NTG.Agent.Orchestrator.ViewModels;
+using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -21,7 +21,7 @@ public class AgentsController : ControllerBase
     {
         Guid? userId = User.GetUserId();
 
-        await foreach (var response in _agentService.InvokePromptStreamingAsync(userId, promptRequest.ConversationId, promptRequest.Prompt))
+        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest))
         {
             yield return new PromptResponse(response);
         }

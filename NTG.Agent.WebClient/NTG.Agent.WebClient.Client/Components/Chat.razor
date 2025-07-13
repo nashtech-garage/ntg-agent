@@ -1,4 +1,8 @@
-﻿@inject ChatClient ChatClient;
+﻿@using NTG.Agent.Shared.Dtos.Chats
+
+@inject ChatClient ChatClient;
+@inject NavigationManager Navigation
+@inject ConversationClient ConversationClient;
 
 <div class="mt-4">
     <h2>Let's Chat</h2>
@@ -26,12 +30,12 @@
     <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom">
         <div class="input-group mb-3 offset-md-2">
             <input type="text"
-                   id="userInput"
-                   class="form-control rounded rounded-4"
-                   @bind="userInput"
-                   @onkeydown="@Enter"
-                   @bind:event="oninput"
-                   placeholder="Type your message..." />
+            id="userInput"
+            class="form-control rounded rounded-4"
+            @bind="userInput"
+            @onkeydown="@Enter"
+            @bind:event="oninput"
+            placeholder="Type your message..." />
             <div class="input-group-append">
                 <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="grey" class="bi bi-send" viewBox="0 0 16 16">
@@ -44,29 +48,41 @@
 </div>
 
 @code {
+
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
     private string userInput = string.Empty;
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
 
     private async Task SendMessage()
     {
-        if (!string.IsNullOrWhiteSpace(userInput))
+        if (string.IsNullOrWhiteSpace(userInput))
         {
-            chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
+            return;
+        }
 
-            var response = new ChatMessage { IsSystem = true, Message = "<b>Agent</b>: " };
-            chatHistory.Add(response);
-            StateHasChanged();
+        if (!ConversationId.HasValue)
+        {
+            var conversation = await ConversationClient.Create();
+            ConversationId = conversation.Id;
+        }
 
-            var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput));
-            userInput = string.Empty;
+        chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
 
-            await foreach (var item in result)
-            {
-                response.Message += item.Content;
-                await Task.Delay(1);
-                await MarkdownSetValue!.SetValue(response.Message);
-            }
+        var response = new ChatMessage { IsSystem = true, Message = "<b>Agent</b>: " };
+        chatHistory.Add(response);
+        StateHasChanged();
+
+        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput, ConversationId.Value));
+        userInput = string.Empty;
+
+        await foreach (var item in result)
+        {
+            response.Message += item.Content;
+            await Task.Delay(1);
+            await MarkdownSetValue!.SetValue(response.Message);
         }
     }
 
