@@ -18,7 +18,7 @@ builder.Services.AddHttpClient<TestClient>(client =>
 
 builder.Services.AddHttpClient<ChatClient>(client =>
 {
-    client.BaseAddress = baseUri; ;
+    client.BaseAddress = baseUri;
 });
 
 await builder.Build().RunAsync();
