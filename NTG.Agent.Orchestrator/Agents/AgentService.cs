@@ -5,14 +5,27 @@ namespace NTG.Agent.Orchestrator.Agents;
 
 public interface IAgentService
 {
-    IAsyncEnumerable<string> InvokePromptStreamingAsync(string prompt);
+    IAsyncEnumerable<string> InvokePromptStreamingAsync(Guid? userId, Guid? conversationId, string prompt);
 }
 
-public class AgentService (Kernel kernel) : IAgentService
+public class AgentService : IAgentService
 {
-    private readonly Kernel _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
+    private readonly Kernel _kernel;
 
-    public async IAsyncEnumerable<string> InvokePromptStreamingAsync(string prompt)
+    public AgentService(Kernel kernel)
+    {
+        _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
+    }
+
+    public async IAsyncEnumerable<string> InvokePromptStreamingAsync(Guid? userId, Guid? conversationId, string prompt)
+    {
+        await foreach (var item in InvokePromptStreamingInternalAsync(prompt))
+        {
+            yield return item;
+        }
+    }
+
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string prompt)
     {
         ChatCompletionAgent agent =
             new()
@@ -33,9 +46,8 @@ public class AgentService (Kernel kernel) : IAgentService
                                   - [Unverified] or [Inference], plus a note that it’s expected behavior, not guaranteed
                                 • If you break this directive, say:
                                   > Correction: I previously made an unverified or speculative claim without labeling it. That was an error.",
-                Kernel = kernel,
+                Kernel = _kernel,
                 Arguments = new KernelArguments(new PromptExecutionSettings() { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() })
-
             };
         var result = agent.InvokeStreamingAsync(prompt);
         await foreach (var item in result)

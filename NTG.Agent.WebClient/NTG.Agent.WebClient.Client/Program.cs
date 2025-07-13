@@ -7,10 +7,18 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
 
+builder.Services.AddBootstrapBlazor();
+
+Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
+
 builder.Services.AddHttpClient<TestClient>(client =>
 {
-    //TODO Remove the hardcoded URL
-    client.BaseAddress = new("https://localhost:7065");
+    client.BaseAddress = baseUri;
+});
+
+builder.Services.AddHttpClient<ChatClient>(client =>
+{
+    client.BaseAddress = baseUri; ;
 });
 
 await builder.Build().RunAsync();

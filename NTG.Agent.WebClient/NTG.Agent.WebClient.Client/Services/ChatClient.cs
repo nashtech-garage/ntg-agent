@@ -1,12 +1,13 @@
-﻿using NTG.Agent.WebClient.ViewModels;
+﻿using NTG.Agent.WebClient.Client.ViewModels;
+using System.Net.Http.Json;
 
-namespace NTG.Agent.WebClient.Services;
+namespace NTG.Agent.WebClient.Client.Services;
 
 public class ChatClient(HttpClient httpClient)
 {
-    private const string REQUEST_URI = "api/agents/chat";
+    private const string REQUEST_URI = "/api/agents/chat";
 
-    public async Task<IAsyncEnumerable<PromptResponse>> InvokeStreamAsync(PromptRequest content)              
+    public async Task<IAsyncEnumerable<PromptResponse>> InvokeStreamAsync(PromptRequest content)
     {
         var response = await httpClient.PostAsJsonAsync<PromptRequest>(REQUEST_URI, content);
         response.EnsureSuccessStatusCode();

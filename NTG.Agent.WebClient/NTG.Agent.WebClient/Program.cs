@@ -2,11 +2,9 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using NTG.Agent.WebClient.Client.Services;
 using NTG.Agent.WebClient.Components;
 using NTG.Agent.WebClient.Components.Account;
 using NTG.Agent.WebClient.Data;
-using NTG.Agent.WebClient.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,17 +49,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.Requ
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
 
 builder.Services.AddBootstrapBlazor();
-
-builder.Services.AddHttpClient<TestClient>(client =>
-{
-    //TODO Remove the hardcoded URL
-    client.BaseAddress = new("https://localhost:7065");
-});
-
-builder.Services.AddHttpClient<ChatClient>(client =>
-{
-    client.BaseAddress = new("https+http://ntg-agent-orchestrator"); ;
-});
 
 var app = builder.Build();
 

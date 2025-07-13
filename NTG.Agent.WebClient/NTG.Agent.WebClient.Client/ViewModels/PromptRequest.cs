@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.WebClient.ViewModels;
+﻿namespace NTG.Agent.WebClient.Client.ViewModels;
 
 public class PromptRequest(string prompt)
 {
