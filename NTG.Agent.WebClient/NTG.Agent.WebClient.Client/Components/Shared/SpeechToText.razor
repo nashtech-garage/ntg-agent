@@ -1,0 +1,61 @@
+@using BootstrapBlazor.Components
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<a @onclick="ToggleListening" class="speech-btn" title="@GetButtonTitle()">
+    @if (isListening)
+    {
+        <i class="bi bi-pause-circle text-secondary fs-5"></i>
+    }
+    else
+    {
+        <i class="bi bi-mic-fill text-secondary fs-5"></i>
+    }
+</a>
+
+@code {
+    private DotNetObjectReference<SpeechToText>? objRef;
+    private bool isListening = false;
+
+    [Parameter] public string Language { get; set; } = "en-US";
+    [Parameter] public EventCallback<string> OnTranscription { get; set; }
+
+    private async Task ToggleListening()
+    {
+        if (!isListening)
+        {
+            objRef = DotNetObjectReference.Create(this);
+            isListening = true;
+            await JSRuntime.InvokeVoidAsync("speechRecognizer.startRecognition", objRef, Language);
+        }
+        else
+        {
+            isListening = false;
+            await JSRuntime.InvokeVoidAsync("speechRecognizer.stopRecognition");
+        }
+
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task ReceiveTranscription(string text)
+    {
+        isListening = false;
+        await OnTranscription.InvokeAsync(text);
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnSpeechEnded()
+    {
+        isListening = false;
+        StateHasChanged();
+    }
+
+    private string GetButtonTitle() => isListening ? "Click to stop" : "Click to dictact";
+
+    public void Dispose()
+    {
+        objRef?.Dispose();
+    }
+}

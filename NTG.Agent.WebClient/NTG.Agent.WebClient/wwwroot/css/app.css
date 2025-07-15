@@ -72,7 +72,7 @@ h1:focus {
 }
 
 .input-group-append {
-    margin-left: -50px !important;
+    margin-left: -80px !important;
     z-index: 100;
     font-size: 32px;
     height:60px;
