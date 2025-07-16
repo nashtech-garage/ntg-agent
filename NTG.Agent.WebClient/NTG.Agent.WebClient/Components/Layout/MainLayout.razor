@@ -1,16 +1,12 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+<div class="page row w-100 m-auto">
+    <div class="header col-12">
+       <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
+    <main class="col-12">
+        <article class="container-fluid content px-4">
             <BootstrapBlazorRoot>
                 @Body
             </BootstrapBlazorRoot>
