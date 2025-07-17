@@ -27,7 +27,7 @@
                 @foreach (var conversation in conversations)
                 {
                     <li class="conversation-item">
-                        <a href="/c/@conversation.Id" class="conversation-link @(IsActiveConversation(conversation.Id) ? "active" : "")" @onclick="() => SetActiveConversation(conversation.Id)" @onclick:preventDefault="false">
+                        <a href="/c/@conversation.Id" class="conversation-link @(IsActiveConversation(conversation.Id) ? "active" : "")" @onclick="() => SetActiveConversation(conversation.Id)">
                             <div class="conversation-content">
                                 <div class="conversation-name">@conversation.Name</div>
                                 <div class="conversation-meta">
