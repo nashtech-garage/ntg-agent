@@ -36,7 +36,7 @@ public class ConversationsController : ControllerBase
     {
         var chatMessages = await _context.ChatMessages
             .Where(x => x.ConversationId == id)
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderBy(x => x.CreatedAt)
             .Select(x => new ChatMessageListItem
             {
                 Id = x.Id,
