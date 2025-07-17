@@ -1,0 +1,23 @@
+﻿@attribute [Authorize]
+
+@using NTG.Agent.Shared.Dtos.Chats
+
+@inject ConversationClient ConversationClient
+
+<a href="/">New Chat</a>
+<h5>Chat history</h5>
+<ul>
+    @foreach (var agent in conversations)
+    {
+        <li><a href="/c/@agent.Id">@agent.Name</a></li>
+    }
+</ul>
+
+@code {
+    private IList<ConversationListItem> conversations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        conversations = await ConversationClient.GetConversationsAsync();
+    }
+}

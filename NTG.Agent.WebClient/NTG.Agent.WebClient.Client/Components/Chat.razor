@@ -58,6 +58,23 @@
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (ConversationId.HasValue)
+        {
+            var chatMessages = await ConversationClient.GetConversationMessagesAsync(ConversationId.Value);
+
+            foreach (var item in chatMessages)
+            {
+                chatHistory.Add(new ChatMessage
+                    {
+                        IsSystem = item.Role == 2,
+                        Message = item.Content
+                    });
+            };
+        }
+    }
+
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(userInput))
