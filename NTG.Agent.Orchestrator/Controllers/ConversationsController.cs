@@ -4,6 +4,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Conversations;
+using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Controllers
 {
@@ -19,22 +20,71 @@ namespace NTG.Agent.Orchestrator.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Conversation>>> GetConversations()
+        public async Task<ActionResult<IEnumerable<ConversationSummary>>> GetConversations()
         {
-            return await _context.Conversations.ToListAsync();
+            Guid? userId = User.GetUserId();
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var conversations = await _context.Conversations
+                .Where(c => c.UserId == userId)
+                .Include(c => c.Messages)
+                .OrderByDescending(c => c.UpdatedAt)
+                .Select(c => new ConversationSummary
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt,
+                    MessageCount = c.Messages.Count,
+                    LastMessage = c.Messages.OrderByDescending(m => m.CreatedAt).FirstOrDefault() != null ? 
+                        c.Messages.OrderByDescending(m => m.CreatedAt).First().Content : null
+                })
+                .ToListAsync();
+
+            return conversations;
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<Conversation>> GetConversation(Guid id)
+        public async Task<ActionResult<ConversationDetails>> GetConversation(Guid id)
         {
-            var conversation = await _context.Conversations.FindAsync(id);
+            Guid? userId = User.GetUserId();
+            if (userId == null)
+            {
+                return Unauthorized();
+            }
+
+            var conversation = await _context.Conversations
+                .Where(c => c.Id == id && c.UserId == userId)
+                .Include(c => c.Messages)
+                .FirstOrDefaultAsync();
 
             if (conversation == null)
             {
                 return NotFound();
             }
 
-            return conversation;
+            var conversationDetails = new ConversationDetails
+            {
+                Id = conversation.Id,
+                Name = conversation.Name,
+                CreatedAt = conversation.CreatedAt,
+                UpdatedAt = conversation.UpdatedAt,
+                Messages = conversation.Messages
+                    .OrderBy(m => m.CreatedAt)
+                    .Select(m => new ChatMessageDto
+                    {
+                        Id = m.Id,
+                        Content = m.Content,
+                        Role = m.Role.ToString(),
+                        CreatedAt = m.CreatedAt
+                    })
+                    .ToList()
+            };
+
+            return conversationDetails;
         }
 
         [HttpPut("{id}")]

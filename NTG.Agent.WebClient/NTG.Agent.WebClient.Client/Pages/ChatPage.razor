@@ -1,0 +1,13 @@
+@page "/chat/{ConversationId:guid}"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+<PageTitle>Chat</PageTitle>
+
+<Chat ConversationId="ConversationId"></Chat>
+
+@code {
+    [Parameter]
+    public Guid ConversationId { get; set; }
+}

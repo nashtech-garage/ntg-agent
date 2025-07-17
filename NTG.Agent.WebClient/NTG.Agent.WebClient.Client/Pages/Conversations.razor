@@ -1,0 +1,86 @@
+@page "/conversations"
+@using Microsoft.AspNetCore.Authorization
+@using NTG.Agent.Shared.Dtos.Conversations
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@inject ConversationClient ConversationClient
+@inject NavigationManager Navigation
+
+<PageTitle>Conversations</PageTitle>
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>My Conversations</h2>
+        <button class="btn btn-primary" @onclick="CreateNewConversation">
+            <i class="bi bi-plus-circle"></i> New Conversation
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (conversations.Count == 0)
+    {
+        <div class="text-center text-muted">
+            <h4>No conversations yet</h4>
+            <p>Start a new conversation to begin chatting!</p>
+        </div>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var conversation in conversations)
+            {
+                <a href="/chat/@conversation.Id" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h6 class="mb-1">@conversation.Name</h6>
+                        <small class="text-muted">@conversation.UpdatedAt.ToString("MMM dd, yyyy")</small>
+                    </div>
+                    @if (!string.IsNullOrEmpty(conversation.LastMessage))
+                    {
+                        <p class="mb-1 text-truncate">@conversation.LastMessage</p>
+                    }
+                    <small class="text-muted">@conversation.MessageCount message(s)</small>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ConversationSummary> conversations = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConversations();
+    }
+
+    private async Task LoadConversations()
+    {
+        try
+        {
+            isLoading = true;
+            conversations = await ConversationClient.GetConversations();
+        }
+        catch (Exception)
+        {
+            // Handle error - could show a toast or error message
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CreateNewConversation()
+    {
+        Navigation.NavigateTo("/");
+    }
+}
