@@ -1,23 +1,104 @@
 ﻿@attribute [Authorize]
 
 @using NTG.Agent.Shared.Dtos.Chats
+@using Microsoft.AspNetCore.Components
 
 @inject ConversationClient ConversationClient
+@inject NavigationManager Navigation
 
-<a href="/">New Chat</a>
-<h5>Chat history</h5>
-<ul>
-    @foreach (var agent in conversations)
-    {
-        <li><a href="/c/@agent.Id">@agent.Name</a></li>
-    }
-</ul>
+@implements IDisposable
+
+<div class="conversation-sidebar">
+    <div class="new-chat-section">
+        <a href="/" class="new-chat-button">
+            <svg class="new-chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14"></path>
+            </svg>
+            New Chat
+        </a>
+    </div>
+    
+    <div class="chat-history-section">
+        <h5 class="section-title">Chat History</h5>
+        
+        @if (conversations.Any())
+        {
+            <ul class="conversation-list">
+                @foreach (var conversation in conversations)
+                {
+                    <li class="conversation-item">
+                        <a href="/c/@conversation.Id" class="conversation-link @(IsActiveConversation(conversation.Id) ? "active" : "")" @onclick="() => SetActiveConversation(conversation.Id)" @onclick:preventDefault="false">
+                            <div class="conversation-content">
+                                <div class="conversation-name">@conversation.Name</div>
+                                <div class="conversation-meta">
+                                    @* Add timestamp or other metadata here if available *@
+                                </div>
+                            </div>
+                        </a>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="empty-state">
+                <div class="empty-state-text">No conversations yet</div>
+                <div class="empty-state-subtext">Start a new chat to begin</div>
+            </div>
+        }
+    </div>
+</div>
 
 @code {
     private IList<ConversationListItem> conversations = [];
+    private Guid? activeConversationId = null;
 
     protected override async Task OnInitializedAsync()
     {
+        UpdateActiveConversationFromUrl();
         conversations = await ConversationClient.GetConversationsAsync();
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        UpdateActiveConversationFromUrl();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateActiveConversationFromUrl()
+    {
+        var currentUri = Navigation.Uri;
+        var uriSegments = currentUri.Split('/');
+
+        // Look for /c/{id} pattern
+        for (int i = 0; i < uriSegments.Length - 1; i++)
+        {
+            if (uriSegments[i] == "c" && i + 1 < uriSegments.Length)
+            {
+                if(Guid.TryParse(uriSegments[i + 1], out var id))
+                {
+                    activeConversationId = id;
+                }
+                return;
+            }
+        }
+        activeConversationId = null;
+    }
+
+    private bool IsActiveConversation(Guid conversationId)
+    {
+        return activeConversationId == conversationId;
+    }
+
+    private void SetActiveConversation(Guid conversationId)
+    {
+        activeConversationId = conversationId;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
