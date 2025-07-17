@@ -6,8 +6,6 @@
 @inject ConversationClient ConversationClient
 @inject NavigationManager Navigation
 
-@implements IDisposable
-
 <div class="conversation-sidebar">
     <div class="new-chat-section">
         <a href="/" class="new-chat-button">
@@ -57,13 +55,6 @@
     {
         UpdateActiveConversationFromUrl();
         conversations = await ConversationClient.GetConversationsAsync();
-        Navigation.LocationChanged += OnLocationChanged;
-    }
-
-    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
-    {
-        UpdateActiveConversationFromUrl();
-        InvokeAsync(StateHasChanged);
     }
 
     private void UpdateActiveConversationFromUrl()
@@ -95,10 +86,5 @@
     {
         activeConversationId = conversationId;
         StateHasChanged();
-    }
-
-    public void Dispose()
-    {
-        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
