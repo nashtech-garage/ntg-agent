@@ -76,7 +76,7 @@
         {
             if (uriSegments[i] == "c" && i + 1 < uriSegments.Length)
             {
-                if(Guid.TryParse(uriSegments[i + 1], out var id))
+                if (Guid.TryParse(uriSegments[i + 1], out var id))
                 {
                     activeConversationId = id;
                 }
