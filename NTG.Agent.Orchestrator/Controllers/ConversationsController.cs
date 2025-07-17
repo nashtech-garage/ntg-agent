@@ -39,7 +39,7 @@ public class ConversationsController : ControllerBase
             .OrderByDescending(x => x.CreatedAt)
             .Select(x => new ChatMessageListItem
             {
-                Id = x.ConversationId,
+                Id = x.Id,
                 Content = x.Content,
                 Role = (int)x.Role
             })
