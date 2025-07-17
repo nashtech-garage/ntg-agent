@@ -46,6 +46,12 @@ public class AgentService : IAgentService
                 yield return item;
             }
 
+            if (conversation.Name == "New Conversation")
+            {
+                conversation.Name = await GenerateConversationName(promptRequest.Prompt);
+                _agentDbContext.Conversations.Update(conversation);
+            }
+
             ChatMessage agentMessage = new()
             {
                 UserId = userId.Value,
@@ -82,5 +88,22 @@ public class AgentService : IAgentService
         {
             yield return item.Message.ToString();
         }
+    }
+
+    private async Task<string> GenerateConversationName(string question)
+    {
+        ChatCompletionAgent agent =
+            new()
+            {
+                Name = "ConversationNameGenerator",
+                Instructions = @"Generate a concise and descriptive name for the conversation based on the user's question. Maxinum 5 words",
+                Kernel = _kernel
+            };
+        var sb = new StringBuilder();
+        await foreach (AgentResponseItem<ChatMessageContent> response in agent.InvokeAsync(question))
+        {
+            sb.Append(response.Message);
+        }
+        return sb.ToString();
     }
 }

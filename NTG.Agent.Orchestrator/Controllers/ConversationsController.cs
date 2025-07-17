@@ -26,8 +26,22 @@ public class ConversationsController : ControllerBase
     {
         return await _context.Conversations
             .Where(c => c.UserId == User.GetUserId())
+            .OrderByDescending(c => c.UpdatedAt)
             .Select(c => new ConversationListItem (c.Id, c.Name))
             .ToListAsync();
+    }
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<Conversation>> GetConversation(Guid id)
+    {
+        var conversation = await _context.Conversations.FindAsync(id);
+
+        if (conversation == null)
+        {
+            return NotFound();
+        }
+
+        return conversation;
     }
 
     [Authorize]
