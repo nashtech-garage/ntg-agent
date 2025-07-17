@@ -7,10 +7,16 @@ builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
 
+Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
+
 builder.Services.AddHttpClient<TestClient>(client =>
 {
-    //TODO Remove the hardcoded URL
-    client.BaseAddress = new("https://localhost:7097");
+    client.BaseAddress = baseUri;
+});
+
+builder.Services.AddHttpClient<AgentClient>(client =>
+{
+    client.BaseAddress = baseUri;
 });
 
 await builder.Build().RunAsync();

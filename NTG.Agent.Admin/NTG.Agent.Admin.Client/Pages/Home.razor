@@ -1,0 +1,36 @@
+﻿@page "/"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@using NTG.Agent.Shared.Dtos.Agents
+@inject AgentClient AgentClient
+
+<PageTitle>Home</PageTitle>
+
+
+@if (agents == null)
+{
+    <p>Loading agents...</p>
+}
+else if (agents.Count == 0)
+{
+    <p>No agents found.</p>
+}
+else
+{
+    <ul>
+        @foreach (var agent in agents)
+        {
+            <li>@agent.Name</li>
+        }
+    </ul>
+}
+
+@code {
+    private IList<AgentListItem>? agents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        agents = await AgentClient.GetListAsync();
+    }
+}
