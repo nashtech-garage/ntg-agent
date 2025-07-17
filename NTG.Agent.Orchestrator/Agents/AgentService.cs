@@ -96,7 +96,7 @@ public class AgentService : IAgentService
             new()
             {
                 Name = "ConversationNameGenerator",
-                Instructions = @"Generate a concise and descriptive name for the conversation based on the user's question. Maxinum 5 words",
+                Instructions = @"Generate a concise and descriptive name for the conversation based on the user's question. Maximum 5 words",
                 Kernel = _kernel
             };
         var sb = new StringBuilder();
