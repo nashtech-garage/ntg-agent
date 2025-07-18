@@ -33,7 +33,7 @@ public class AgentService : IAgentService
             Guid conversationId = promptRequest.ConversationId;
             var conversation = await _agentDbContext.Conversations.FindAsync(conversationId) ?? throw new InvalidOperationException($"Conversation with ID {conversationId} does not exist.");
 
-            var summaryMessage = await _agentDbContext.ChatMessages.FirstOrDefaultAsync(m=> m.ConversationId == conversationId && m.IsSummary);
+            var summaryMessage = await _agentDbContext.ChatMessages.FirstOrDefaultAsync(m => m.ConversationId == conversationId && m.IsSummary);
 
             var messagesToUse = new List<ChatMessage>();
 
@@ -44,7 +44,7 @@ public class AgentService : IAgentService
                                                                 .OrderByDescending(m => m.UpdatedAt)
                                                                 .Take(MAX_LATEST_MESSAGE_TO_KEEP_FULL + 1)
                                                                 .ToListAsync();
-                var hasSummaryMessage = latestMessages.Any(c=> c.IsSummary);
+                var hasSummaryMessage = latestMessages.Any(c => c.IsSummary);
                 var messagesAfterSummary = latestMessages.Where(m => !m.IsSummary && m.UpdatedAt >= summaryMessage.UpdatedAt).ToList();
 
                 if (!hasSummaryMessage || messagesAfterSummary.Count >= MAX_LATEST_MESSAGE_TO_KEEP_FULL)
@@ -71,7 +71,7 @@ public class AgentService : IAgentService
             else
             {
                 var allMessages = await _agentDbContext.ChatMessages
-                                                        .Where(m=>m.ConversationId == conversationId)
+                                                        .Where(m => m.ConversationId == conversationId)
                                                         .OrderByDescending(c => c.UpdatedAt)
                                                         .ToListAsync();
                 if (allMessages.Count > MAX_LATEST_MESSAGE_TO_KEEP_FULL)
