@@ -16,4 +16,5 @@ public class ChatMessage
     public ChatRole Role { get; set; } = ChatRole.User;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsSummary { get; set; } = false;
 }
