@@ -49,7 +49,7 @@ public class ConversationsController : ControllerBase
     public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id)
     {
         var chatMessages = await _context.ChatMessages
-            .Where(x => x.ConversationId == id)
+            .Where(x => x.ConversationId == id && !x.IsSummary)
             .OrderBy(x => x.CreatedAt)
             .Select(x => new ChatMessageListItem
             {
