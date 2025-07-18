@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.Admin\NTG.Agent.Admin\NTG.Agent.Admin.csproj" />
+    <ProjectReference Include="..\NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj" />
     <ProjectReference Include="..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" IsAspireProjectResource="false" />
     <ProjectReference Include="..\NTG.Agent.WebClient\NTG.Agent.WebClient\NTG.Agent.WebClient.csproj" />

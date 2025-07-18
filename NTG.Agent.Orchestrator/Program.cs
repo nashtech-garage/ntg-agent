@@ -1,13 +1,12 @@
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
+using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
-using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +22,16 @@ builder.Services.AddOpenApi();
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
+
+await using IMcpClient mcpClient = await McpClientFactory.CreateAsync(
+    new SseClientTransport(new()
+    {
+        Name = "ntgmcpserver",
+        Endpoint = new Uri("http://localhost:5136")
+    })
+);
+
+var tools = await mcpClient.ListToolsAsync();
 
 builder.Services.AddSingleton<Kernel>(serviceBuilder => { 
     var config = serviceBuilder.GetRequiredService<IConfiguration>();
@@ -51,6 +60,10 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
     }
     
     var kernel = kernelBuilder.Build();
+
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+    kernel.Plugins.AddFromFunctions("ntgmcpserver", tools.Select(x => x.AsKernelFunction()));
+#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     kernel.Plugins.Add(KernelPluginFactory.CreateFromType<DateTimePlugin>());
 
