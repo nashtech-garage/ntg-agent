@@ -33,72 +33,7 @@ public class AgentService : IAgentService
             Guid conversationId = promptRequest.ConversationId;
             var conversation = await _agentDbContext.Conversations.FindAsync(conversationId) ?? throw new InvalidOperationException($"Conversation with ID {conversationId} does not exist.");
 
-            var summaryMessage = await _agentDbContext.ChatMessages.FirstOrDefaultAsync(m => m.ConversationId == conversationId && m.IsSummary);
-
-            var messagesToUse = new List<ChatMessage>();
-
-            if (summaryMessage != null)
-            {
-                var latestMessages = await _agentDbContext.ChatMessages
-                                                                .Where(m => m.ConversationId == conversationId)
-                                                                .OrderByDescending(m => m.UpdatedAt)
-                                                                .Take(MAX_LATEST_MESSAGE_TO_KEEP_FULL + 1)
-                                                                .ToListAsync();
-                var hasSummaryMessage = latestMessages.Any(c => c.IsSummary);
-                var messagesAfterSummary = latestMessages.Where(m => !m.IsSummary && m.UpdatedAt >= summaryMessage.UpdatedAt).ToList();
-
-                if (!hasSummaryMessage || messagesAfterSummary.Count >= MAX_LATEST_MESSAGE_TO_KEEP_FULL)
-                {
-                    var toResummarize = new List<ChatMessage> { summaryMessage };
-                    toResummarize.AddRange(messagesAfterSummary);
-
-                    var summary = await SummarizeMessagesAsync(toResummarize);
-
-                    summaryMessage.Content = $"Summary of earlier conversation: {summary}";
-                    summaryMessage.UpdatedAt = DateTime.UtcNow;
-                    _agentDbContext.ChatMessages.Update(summaryMessage);
-                    await _agentDbContext.SaveChangesAsync();
-
-                    messagesToUse = new List<ChatMessage> { summaryMessage };
-                    messagesToUse.AddRange(messagesAfterSummary);
-                }
-                else
-                {
-                    messagesToUse = new List<ChatMessage> { summaryMessage };
-                    messagesToUse.AddRange(latestMessages);
-                }
-            }
-            else
-            {
-                var allMessages = await _agentDbContext.ChatMessages
-                                                        .Where(m => m.ConversationId == conversationId)
-                                                        .OrderByDescending(c => c.UpdatedAt)
-                                                        .ToListAsync();
-                if (allMessages.Count > MAX_LATEST_MESSAGE_TO_KEEP_FULL)
-                {
-                    var toSummarize = allMessages.Take(allMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
-                    var summary = await SummarizeMessagesAsync(toSummarize);
-
-                    var systemMessage = new ChatMessage
-                    {
-                        UserId = userId.Value,
-                        Conversation = conversation,
-                        Content = $"Summary of earlier conversation: {summary}",
-                        Role = ChatRole.System,
-                        IsSummary = true
-                    };
-
-                    _agentDbContext.ChatMessages.Add(systemMessage);
-                    await _agentDbContext.SaveChangesAsync();
-
-                    messagesToUse = new List<ChatMessage> { systemMessage };
-                    messagesToUse.AddRange(allMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL));
-                }
-                else
-                {
-                    messagesToUse = allMessages;
-                }
-            }
+            List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversationId, conversation);
 
             // Stream agent reply
             var agentMessageSb = new StringBuilder();
@@ -140,6 +75,48 @@ public class AgentService : IAgentService
             {
                 yield return item;
             }
+        }
+    }
+
+    private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Guid conversationId, Conversation conversation)
+    {
+        var historyMessages = await _agentDbContext.ChatMessages
+            .Where(m => m.ConversationId == conversationId)
+            .OrderBy(m => m.UpdatedAt)
+            .ToListAsync();
+
+        if (historyMessages.Count > MAX_LATEST_MESSAGE_TO_KEEP_FULL)
+        {
+            var messagesToResummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
+            var newSummary = await SummarizeMessagesAsync(messagesToResummarize);
+            var summaryMessage = historyMessages.Where(m => m.IsSummary).FirstOrDefault();
+            if (summaryMessage == null)
+            {
+                summaryMessage = new ChatMessage
+                {
+                    UserId = userId,
+                    Conversation = conversation,
+                    Content = $"Summary of earlier conversation: {newSummary}",
+                    Role = ChatRole.System,
+                    IsSummary = true
+                };
+                _agentDbContext.ChatMessages.Add(summaryMessage);
+            }
+            else
+            {
+                summaryMessage.Content = $"Summary of earlier conversation: {newSummary}";
+                summaryMessage.UpdatedAt = DateTime.UtcNow;
+                _agentDbContext.ChatMessages.Update(summaryMessage);
+            }
+
+            var optimizedHistoryMessages = new List<ChatMessage>();
+            optimizedHistoryMessages.Add(summaryMessage);
+            optimizedHistoryMessages.AddRange(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL));
+            return optimizedHistoryMessages;
+        }
+        else
+        {
+            return historyMessages;
         }
     }
 
