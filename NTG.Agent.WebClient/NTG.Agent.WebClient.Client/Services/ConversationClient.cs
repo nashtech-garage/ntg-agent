@@ -30,4 +30,11 @@ public class ConversationClient(HttpClient httpClient)
         var result = await response.Content.ReadFromJsonAsync<IList<ChatMessageListItem>>();
         return result ?? [];
     }
+
+    public async Task<bool> DeleteConversationAsync(Guid conversationId)
+    {
+        var response = await httpClient.DeleteAsync($"/api/conversations/{conversationId}");
+        response.EnsureSuccessStatusCode();
+        return response.IsSuccessStatusCode;
+    }
 }
