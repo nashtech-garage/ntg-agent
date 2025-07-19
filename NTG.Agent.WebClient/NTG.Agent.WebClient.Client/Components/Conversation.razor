@@ -215,15 +215,6 @@
         StateHasChanged();
     }
 
-    private async Task RenameConversation(Guid conversationId)
-    {
-        var conversation = conversations.FirstOrDefault(c => c.Id == conversationId);
-        if (conversation != null)
-        {
-            await StartRename(conversationId, conversation.Name);
-        }
-    }
-
     private async Task DeleteConversation(Guid conversationId)
     {
         contextMenuConversationId = null;
@@ -258,7 +249,8 @@
             }
             catch (Exception ex)
             {
-                throw new InvalidOperationException($"Failed to delete conversation: {ex.Message}", ex);
+                // TODO: Handle error - could show a toast notification
+                Console.WriteLine($"Error: Failed to delete conversation. Exception: {ex.Message}");
             }
         }
 
