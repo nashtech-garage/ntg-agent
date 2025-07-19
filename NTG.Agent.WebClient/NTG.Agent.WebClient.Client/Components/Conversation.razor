@@ -15,10 +15,10 @@
             New Chat
         </a>
     </div>
-    
+
     <div class="chat-history-section">
         <h5 class="section-title">Chat History</h5>
-        
+
         @if (conversations.Any())
         {
             <ul class="conversation-list">
@@ -29,17 +29,30 @@
                            class="conversation-link @(IsActiveConversation(conversation.Id) ? "active" : "")"
                            @onclick="() => SetActiveConversation(conversation.Id)">
                             <div class="conversation-content">
-                                <div class="conversation-name">@conversation.Name</div>
+                                @if (renamingConversationId == conversation.Id)
+                                {
+                                    <input @ref="renameInputRef"
+                                           class="conversation-name-input"
+                                           @bind="renameValue"
+                                           @bind:event="oninput"
+                                           @onkeydown="HandleRenameKeyDown"
+                                           @onblur="CancelRename"
+                                           @onclick:stopPropagation />
+                                }
+                                else
+                                {
+                                    <div class="conversation-name">@conversation.Name</div>
+                                }
                             </div>
                         </a>
                         <div class="menu-toggle" @onclick:stopPropagation @onclick="() => ToggleMenu(conversation.Id)"
-                             style="display: @(hoveredConversationId == conversation.Id ? "inline-block" : "none")">
+                             style="display: @(hoveredConversationId == conversation.Id && renamingConversationId != conversation.Id ? "inline-block" : "none")">
                             <span class="dot-icon">⋯</span>
                         </div>
                         @if (contextMenuConversationId == conversation.Id)
                         {
                             <div class="context-menu">
-                                <button class="rename-conversation" @onclick="() => RenameConversation(conversation.Id)"><i class="bi bi-pencil-square"></i> Rename</button>
+                                <button class="rename-conversation" @onclick="() => StartRename(conversation.Id, conversation.Name)"><i class="bi bi-pencil-square"></i> Rename</button>
                                 <button class="delete-conversation" @onclick="() => DeleteConversation(conversation.Id)"><i class="bi bi-trash3"></i> Delete</button>
                             </div>
                         }
@@ -82,6 +95,9 @@
     private Guid? activeConversationId = null;
     private Guid? hoveredConversationId;
     private Guid? contextMenuConversationId;
+    private Guid? renamingConversationId;
+    private string renameValue = string.Empty;
+    private ElementReference renameInputRef;
     private bool showDeleteConfirmation = false;
     private ConversationListItem? conversationToDelete;
 
@@ -122,8 +138,6 @@
         StateHasChanged();
     }
 
-    
-
     private void ShowMenu(Guid conversationId)
     {
         hoveredConversationId = conversationId;
@@ -148,11 +162,66 @@
         }
     }
 
-    private void RenameConversation(Guid conversationId)
+    private async Task StartRename(Guid conversationId, string currentName)
     {
         contextMenuConversationId = null;
-        // TODO: trigger rename logic here
-        
+        renamingConversationId = conversationId;
+        renameValue = currentName;
+        StateHasChanged();
+
+        // Focus the input after rendering
+        await Task.Delay(50);
+        await renameInputRef.FocusAsync();
+    }
+
+    private async Task HandleRenameKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await ConfirmRename();
+        }
+        else if (e.Key == "Escape")
+        {
+            CancelRename();
+        }
+    }
+
+    private async Task ConfirmRename()
+    {
+        if (renamingConversationId.HasValue && !string.IsNullOrWhiteSpace(renameValue))
+        {
+            try
+            {
+                await ConversationClient.UpdateConversationAsync(renamingConversationId.Value, renameValue.Trim());
+                // Since ConversationListItem is a record type, we need to replace it entirely
+                conversations = conversations.Select(c => c.Id == renamingConversationId.Value
+                    ? new ConversationListItem(c.Id, renameValue.Trim())
+                    : c).ToList();
+            }
+            catch (Exception ex)
+            {
+                // TODO: Handle error - could show a toast notification
+                Console.WriteLine($"Failed to rename conversation: {ex.Message}");
+            }
+        }
+
+        CancelRename();
+    }
+
+    private void CancelRename()
+    {
+        renamingConversationId = null;
+        renameValue = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task RenameConversation(Guid conversationId)
+    {
+        var conversation = conversations.FirstOrDefault(c => c.Id == conversationId);
+        if (conversation != null)
+        {
+            await StartRename(conversationId, conversation.Name);
+        }
     }
 
     private async Task DeleteConversation(Guid conversationId)
@@ -180,7 +249,7 @@
             {
                 await ConversationClient.DeleteConversationAsync(conversationToDelete.Id);
                 conversations = conversations.Where(c => c.Id != conversationToDelete.Id).ToList();
-                
+
                 // If we deleted the active conversation, navigate to home
                 if (activeConversationId == conversationToDelete.Id)
                 {
@@ -191,8 +260,8 @@
             {
                 throw new InvalidOperationException($"Failed to delete conversation: {ex.Message}", ex);
             }
-        } 
-        
+        }
+
         showDeleteConfirmation = false;
         conversationToDelete = null;
         await JS.InvokeVoidAsync("showInputChatContainer");

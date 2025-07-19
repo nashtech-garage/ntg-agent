@@ -1,6 +1,7 @@
 ﻿using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace NTG.Agent.WebClient.Client.Services;
 
@@ -34,6 +35,13 @@ public class ConversationClient(HttpClient httpClient)
     public async Task<bool> DeleteConversationAsync(Guid conversationId)
     {
         var response = await httpClient.DeleteAsync($"/api/conversations/{conversationId}");
+        response.EnsureSuccessStatusCode();
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UpdateConversationAsync(Guid conversationId, string newName)
+    {
+        var response = await httpClient.PutAsync($"/api/conversations/{conversationId}/rename?newName={Uri.EscapeDataString(newName)}", null);
         response.EnsureSuccessStatusCode();
         return response.IsSuccessStatusCode;
     }
