@@ -91,6 +91,35 @@ public class ConversationsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPut("{id}/rename")]
+    public async Task<IActionResult> RenameConversation(Guid id, string newName)
+    {
+        var conversationToUpdate = await _context.Conversations.FindAsync(id);
+        if (conversationToUpdate == null)
+        {
+            return BadRequest();
+        }
+        conversationToUpdate.Name = newName;
+        _context.Entry(conversationToUpdate).State = EntityState.Modified;
+
+        try
+        {
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!ConversationExists(id))
+            {
+                return NotFound();
+            }
+            else
+            {
+                throw;
+            }
+        }
+        return NoContent();
+    }
+
     [HttpPost]
     public async Task<ActionResult<Conversation>> PostConversation()
     {
