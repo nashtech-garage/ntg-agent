@@ -100,6 +100,7 @@ public class ConversationsController : ControllerBase
             return BadRequest();
         }
         conversationToUpdate.Name = newName;
+        conversationToUpdate.UpdatedAt = DateTime.UtcNow;
         _context.Entry(conversationToUpdate).State = EntityState.Modified;
 
         try
