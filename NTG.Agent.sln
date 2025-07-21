@@ -23,6 +23,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Shared.Dtos", "NT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server", "NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj", "{BAFC9973-3BF1-C228-4602-6B61468FCD1B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Knowledge", "NTG.Agent.Knowledge\NTG.Agent.Knowledge.csproj", "{15FCA65E-D1A4-E478-581A-49B72C37AF9A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestKernelMemory", "TestKernelMemory\TestKernelMemory.csproj", "{54C17CE7-A314-4021-A62E-9376C2A4F7F9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +73,14 @@ Global
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
