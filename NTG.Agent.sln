@@ -23,6 +23,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Shared.Dtos", "NT
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server", "NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj", "{BAFC9973-3BF1-C228-4602-6B61468FCD1B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server.Tests", "NTG.Agent.MCP.Server.Tests\NTG.Agent.MCP.Server.Tests.csproj", "{F3E3EBD1-59EA-46E8-A88C-E33012E7B906}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Orchestrator.Tests", "NTG.Agent.Orchestrator.Tests\NTG.Agent.Orchestrator.Tests.csproj", "{6C14DD4D-C240-42E8-89A8-4F38CA6D250B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +73,14 @@ Global
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BAFC9973-3BF1-C228-4602-6B61468FCD1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F3E3EBD1-59EA-46E8-A88C-E33012E7B906}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F3E3EBD1-59EA-46E8-A88C-E33012E7B906}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F3E3EBD1-59EA-46E8-A88C-E33012E7B906}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F3E3EBD1-59EA-46E8-A88C-E33012E7B906}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6C14DD4D-C240-42E8-89A8-4F38CA6D250B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6C14DD4D-C240-42E8-89A8-4F38CA6D250B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6C14DD4D-C240-42E8-89A8-4F38CA6D250B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6C14DD4D-C240-42E8-89A8-4F38CA6D250B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
