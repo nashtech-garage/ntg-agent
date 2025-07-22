@@ -16,4 +16,6 @@ builder.AddProject<Projects.NTG_Agent_Admin>("ntg-agent-admin")
     .WithReference(orchestrator)
     .WaitFor(orchestrator);
 
+builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-knowledge");
+
 builder.Build().Run();

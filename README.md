@@ -27,19 +27,41 @@ This project aims to practice building a multi-agent chatbot in C#
 
 - Repeat the same steps for the NTG.Agent.Orchestrator project.
 
+- If you want to run the Knowledge service, then configure the embeddings model and text generation model for the NTG.Agent.Knowledge project
+
+```json
+  "KernelMemory": {
+    "Services": {
+      "AzureOpenAIEmbedding": {
+        "Endpoint": "your endpoint",
+        "APIKey": "your api key",
+        "Deployment": "text-embedding-ada-002"
+      },
+      "AzureOpenAIText": {
+        "Endpoint": "your endpoint",
+        "APIKey": "your api key",
+        "Deployment": "gpt-4o-mini"
+      }
+    }
+  }
+```
+
 - Start the NTG.Agent.AppHost
   - NTG.Agent.WebClient is the website for end users.
   - NTG.Agent.Admin is the website for administrators.
   - NTG.Agent.Orchestrator is the backend API.
+  - NTG.Agent.Knowledge is the service responsible for ingesting documents. It extracts the content of uploaded files, generates embeddings, and stores them in a vector database. It also provides an API to search for relevant documents
 
 You can read more about GitHub model at https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models
 
 ## How authentication work
 
-We use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
-Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server.
+To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
+Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
+
 
 ## Contributing
+
 - Give us a star
 - Reporting a bug
 - Participate discussions

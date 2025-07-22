@@ -4,7 +4,7 @@
     <div class="header col-12">
        <NavMenu />
     </div>
-    <div class="col-2">
+    <div id="sidebarColumn" class="col-2">
         <AuthorizeView>
             <Authorized>
                 <div class="sidebar">
@@ -13,7 +13,7 @@
             </Authorized>
         </AuthorizeView>
     </div>
-    <main class="col-10">
+    <main id="mainContent" class="col-10">
         <article class="container-fluid content px-4">
             <BootstrapBlazorRoot>
                 @Body

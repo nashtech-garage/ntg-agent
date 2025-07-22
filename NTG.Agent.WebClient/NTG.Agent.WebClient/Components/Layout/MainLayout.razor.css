@@ -2,6 +2,26 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+    transition: all 0.3s ease;
+}
+
+main.expanded-content {
+    padding-left: 0;
+}
+
+#sidebarColumn, #mainContent {
+    transition: all 0.3s ease;
+}
+
+@media (max-width: 768px) {
+    main.expanded-content {
+        margin-left: 0;
+    }
 }
 
 .header {
@@ -86,9 +106,13 @@
     z-index: 1000;
 }
 
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+.sidebarcolumn-collapsed {
+    width: 5% !important;
+}

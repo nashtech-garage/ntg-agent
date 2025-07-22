@@ -6,13 +6,31 @@
 @inject ConversationClient ConversationClient
 @inject NavigationManager Navigation
 
-<div class="conversation-sidebar">
+<div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")">
+    <div class="conversation-header">
+        <div class="header-content">
+            <div class="app-logo">
+                <img src="@Assets["img/icon.png"]" class="img img-responsive" alt="NTG Agent - Chat" />
+                <span class="app-title">NTG Agent</span>
+            </div>
+        </div>
+        <div class="sidebar-toggle">
+            <button @onclick="ToggleSidebar" class="toggle-btn" aria-label="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")" title="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="toggle-icon">
+                    <path fill-rule="evenodd" d="@(IsSidebarCollapsed ? "M3.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L9.293 8 3.646 2.354a.5.5 0 0 1 0-.708z" : "M9.354 1.646a.5.5 0 0 0-.708 0l-6 6a.5.5 0 0 0 0 .708l6 6a.5.5 0 0 0 .708-.708L4.707 8l4.647-5.646a.5.5 0 0 0 0-.708z")" />
+                </svg>
+            </button>
+        </div>
+    </div>
     <div class="new-chat-section">
-        <a href="/" class="new-chat-button">
+        <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="new-chat-button">
             <svg class="new-chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 5v14M5 12h14"></path>
             </svg>
             New Chat
+        </a>
+        <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="new-chat-button-collapsed">
+            <i class="bi bi-chat" title="New Chat"></i>
         </a>
     </div>
 
@@ -69,12 +87,15 @@
             </div>
         }
     </div>
+    <div class="conversation-footer">
+        @*TODO*@
+    </div>
 </div>
 
 @if (showDeleteConfirmation)
 {
     <div class="modal-overlay" @onclick="CancelDelete">
-        <div class="delete-confirmation-modal" @onclick:stopPropagation="true">
+        <div class="delete-confirmation-modal" @onclick:stopPropagation>
             <h3 class="modal-title">Delete chat?</h3>
             <p class="modal-message">
                 This will delete <strong>@conversationToDelete?.Name</strong>.
@@ -100,13 +121,16 @@
     private ElementReference renameInputRef;
     private bool showDeleteConfirmation = false;
     private ConversationListItem? conversationToDelete;
+    private bool IsSidebarCollapsed { get; set; } = false;
 
     protected override async Task OnInitializedAsync()
     {
         UpdateActiveConversationFromUrl();
         conversations = await ConversationClient.GetConversationsAsync();
+        await LoadSidebarStateAsync();
     }
 
+    #region Active Conversation Item
     private void UpdateActiveConversationFromUrl()
     {
         var currentUri = Navigation.Uri;
@@ -138,6 +162,9 @@
         StateHasChanged();
     }
 
+    #endregion
+
+    #region Handle Context Menu
     private void ShowMenu(Guid conversationId)
     {
         hoveredConversationId = conversationId;
@@ -162,6 +189,22 @@
         }
     }
 
+    [JSInvokable]
+    public void OnOutsideClick()
+    {
+        contextMenuConversationId = null;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Unregister from location changes
+        Navigation.LocationChanged -= HandleLocationChanged;
+        await JS.InvokeVoidAsync("removeClickOutsideHandler");
+    }
+    #endregion
+   
+    #region Rename Conversation
     private async Task RenameConversation(Guid conversationId, string currentName)
     {
         contextMenuConversationId = null;
@@ -215,6 +258,9 @@
         StateHasChanged();
     }
 
+    #endregion
+
+    #region Delete A Conversation
     private async Task DeleteConversation(Guid conversationId)
     {
         contextMenuConversationId = null;
@@ -259,16 +305,85 @@
         await JS.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
+    #endregion
 
-    [JSInvokable]
-    public void OnOutsideClick()
+    #region Toggle Slide Bar
+    private async Task LoadSidebarStateAsync()
     {
-        contextMenuConversationId = null;
-        StateHasChanged();
+        try
+        {
+            // Use the new JS function that returns a proper boolean
+            IsSidebarCollapsed = await JS.InvokeAsync<bool>("getSidebarState");
+        }
+        catch (Exception ex)
+        {
+            // Provide a fallback in case of JS interop errors
+            Console.WriteLine($"Error loading sidebar state: {ex.Message}");
+            IsSidebarCollapsed = false;
+        }
     }
 
-    public async ValueTask DisposeAsync()
+    private async Task SaveSidebarStateAsync()
     {
-        await JS.InvokeVoidAsync("removeClickOutsideHandler");
+        try
+        {
+            // Use the new JS function for setting state
+            await JS.InvokeVoidAsync("setSidebarState", IsSidebarCollapsed);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving sidebar state: {ex.Message}");
+        }
     }
+
+    private async Task ToggleSidebar()
+    {
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+        await SaveSidebarStateAsync();
+        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+    }
+
+    #endregion
+
+    #region Navigate To New Chat
+    private async Task NavigateToNewChat()
+    {
+        // Save state before navigation
+        await SaveSidebarStateAsync();
+
+        // Use NavigateTo with forceLoad: false to prevent full page reload
+        Navigation.NavigateTo("/", forceLoad: false);
+
+        // Apply sidebar state after a more substantial delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            await InvokeAsync(async () =>
+            {
+                // Must be invoked on the UI thread
+                await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                StateHasChanged();
+            });
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Register for location changes to maintain sidebar state
+            Navigation.LocationChanged += HandleLocationChanged;
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async void HandleLocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        // When the location changes, reapply the sidebar state
+        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        await InvokeAsync(StateHasChanged);
+    }
+    #endregion
+
 }
