@@ -3,7 +3,7 @@ using Microsoft.KernelMemory;
 
 Console.WriteLine("Hello, World!");
 
-var memory = new MemoryWebClient("https://localhost:7181", "FfxFT4Twbyv3RBocPY00gXFnaIDt3z3PsYiiChH4eEqhlfsdfsdfsdHv6XJ3w3AAABACOGIgye"); // <== URL of KM web service
+var memory = new MemoryWebClient("https://localhost:7181", "Blm8d7sFx7arM9EN2QUxGy7yUjCyvRjx"); // <== URL of KM web service
 
 // Import a file
 await memory.ImportDocumentAsync("C:\\DATA\\test.docx");
