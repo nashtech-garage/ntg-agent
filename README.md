@@ -34,12 +34,12 @@ This project aims to practice building a multi-agent chatbot in C#
     "Services": {
       "AzureOpenAIEmbedding": {
         "Endpoint": "your endpoint",
-        "APIKey": "you api key",
+        "APIKey": "your api key",
         "Deployment": "text-embedding-ada-002"
       },
       "AzureOpenAIText": {
         "Endpoint": "your endpoint",
-        "APIKey": "you api key",
+        "APIKey": "your api key",
         "Deployment": "gpt-4o-mini"
       }
     }
