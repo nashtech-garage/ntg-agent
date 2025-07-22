@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj" />
+    <ProjectReference Include="..\..\NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
+    <ProjectReference Include="..\..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
   </ItemGroup>
 
   <ItemGroup>
