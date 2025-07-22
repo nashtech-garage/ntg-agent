@@ -11,6 +11,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
+    public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

@@ -18,15 +18,12 @@
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.60.0" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.3" />
+    <PackageReference Include="Microsoft.KernelMemory.WebClient" Version="0.98.250508.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="Models\Documents\" />
   </ItemGroup>
 
 </Project>
