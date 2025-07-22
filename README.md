@@ -23,28 +23,26 @@ This project aims to practice building a multi-agent chatbot in C#
 }
 ```
 
-- In the NTG.Agent.Admin project, update the connection string if needed. Then run Update-Database if you are using Visual Studio, or dotnet ef database update if you are using the CLI.
-
-- Repeat the same steps for the NTG.Agent.Orchestrator project.
-
-- If you want to run the Knowledge service, then configure the embeddings model and text generation model for the NTG.Agent.Knowledge project
+- In the NTG.Agent.Knowledge project, add your GitHub access token and update the database connection string in the secrets.json as below
 
 ```json
+{
   "KernelMemory": {
     "Services": {
-      "AzureOpenAIEmbedding": {
-        "Endpoint": "your endpoint",
-        "APIKey": "your api key",
-        "Deployment": "text-embedding-ada-002"
+      "OpenAI": {
+        "APIKey": "your GitHub token"
       },
-      "AzureOpenAIText": {
-        "Endpoint": "your endpoint",
-        "APIKey": "your api key",
-        "Deployment": "gpt-4o-mini"
+	  "SqlServer": {
+        "ConnectionString": "Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true"
       }
     }
   }
+}
 ```
+
+- In the NTG.Agent.Admin project, update the connection string if needed. Then run Update-Database if you are using Visual Studio, or dotnet ef database update if you are using the CLI.
+
+- Repeat the same step for the NTG.Agent.Orchestrator project.
 
 - Start the NTG.Agent.AppHost
   - NTG.Agent.WebClient is the website for end users.
