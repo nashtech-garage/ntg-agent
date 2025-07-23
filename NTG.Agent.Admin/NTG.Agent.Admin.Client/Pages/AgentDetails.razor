@@ -1,0 +1,55 @@
+﻿@page "/agents/{id:guid}"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Admin.Client.Components
+
+<PageTitle>Agent Details</PageTitle>
+
+<h3>Agent Details</h3>
+
+<div class="agent-details">
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab == settingsTab ? "active" : "")" 
+                    @onclick="() => SetActiveTab(settingsTab)" 
+                    type="button" role="tab">
+                Agent Settings
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab == documentsTab ? "active" : "")" 
+                    @onclick="() => SetActiveTab(documentsTab)" 
+                    type="button" role="tab">
+                Documents
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content mt-3">
+        @if (activeTab == settingsTab)
+        {
+            <AgentSettingsTab AgentId="Id" />
+        }
+        else if (activeTab == documentsTab)
+        {
+            <DocumentsTab AgentId="Id" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private const string settingsTab = "settings";
+    private const string documentsTab = "documents";
+    private string activeTab = settingsTab;
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+}
+

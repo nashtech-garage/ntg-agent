@@ -1,0 +1,118 @@
+<div class="tab-pane fade show active">
+    <h4>Document Management</h4>
+    
+    <!-- Upload Section -->
+    <div class="mb-4">
+        <h5>Upload New Document</h5>
+        <div class="mb-3">
+            <InputFile OnChange="HandleFileUpload" class="form-control" accept=".pdf,.doc,.docx,.txt" />
+        </div>
+        @if (!string.IsNullOrEmpty(uploadStatus))
+        {
+            <div class="alert alert-info">@uploadStatus</div>
+        }
+    </div>
+
+    <!-- Documents List -->
+    <div>
+        <h5>Existing Documents</h5>
+        @if (documents.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Upload Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in documents)
+                        {
+                            <tr>
+                                <td>@doc.Name</td>
+                                <td>@doc.Type</td>
+                                <td>@doc.UploadDate.ToString("MM/dd/yyyy")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">No documents uploaded yet.</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    private string uploadStatus = string.Empty;
+    
+    private List<DocumentInfo> documents = new()
+    {
+        new DocumentInfo { Name = "Sample Document 1.pdf", Type = "PDF", UploadDate = DateTime.Now.AddDays(-5) },
+        new DocumentInfo { Name = "User Manual.docx", Type = "Word Document", UploadDate = DateTime.Now.AddDays(-2) }
+    };
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            uploadStatus = $"Uploading {file.Name}...";
+            
+            // TODO: Implement actual file upload logic
+            await Task.Delay(1000);
+            
+            var newDoc = new DocumentInfo
+            {
+                Name = file.Name,
+                Type = GetFileType(file.Name),
+                UploadDate = DateTime.Now
+            };
+            
+            documents.Add(newDoc);
+            uploadStatus = $"Successfully uploaded {file.Name}";
+            
+            await Task.Delay(2000);
+            uploadStatus = string.Empty;
+        }
+    }
+
+    private void RemoveDocument(DocumentInfo document)
+    {
+        // TODO: Implement API call to remove document
+        documents.Remove(document);
+        uploadStatus = $"Removed {document.Name}";
+    }
+
+    private string GetFileType(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
+        return extension switch
+        {
+            ".pdf" => "PDF",
+            ".doc" or ".docx" => "Word Document",
+            ".txt" => "Text File",
+            _ => "Document"
+        };
+    }
+
+    private class DocumentInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public DateTime UploadDate { get; set; }
+    }
+}

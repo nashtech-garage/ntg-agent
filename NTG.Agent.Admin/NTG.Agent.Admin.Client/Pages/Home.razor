@@ -4,6 +4,7 @@
 
 @using NTG.Agent.Shared.Dtos.Agents
 @inject AgentClient AgentClient
+@inject NavigationManager Navigation
 
 <PageTitle>Home</PageTitle>
 
@@ -21,7 +22,7 @@ else
     <ul>
         @foreach (var agent in agents)
         {
-            <li>@agent.Name</li>
+            <li><a href="@($"/agents/{agent.Id}")">@agent.Name</a></li>
         }
     </ul>
 }

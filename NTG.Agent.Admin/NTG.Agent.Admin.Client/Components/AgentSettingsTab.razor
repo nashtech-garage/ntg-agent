@@ -1,0 +1,34 @@
+<div class="tab-pane fade show active">
+    <h4>System Prompt Configuration</h4>
+    <EditForm Model="this" OnValidSubmit="SaveSystemPrompt">
+        <div class="mb-3">
+            <label for="systemPrompt" class="form-label">System Prompt:</label>
+            <InputTextArea id="systemPrompt" 
+                         @bind-Value="systemPrompt" 
+                         class="form-control" 
+                         rows="10" 
+                         placeholder="Enter the system prompt for this agent..." />
+        </div>
+        <button type="submit" class="btn btn-primary">Save System Prompt</button>
+    </EditForm>
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="alert alert-info mt-3">@statusMessage</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    private string systemPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
+    private string statusMessage = string.Empty;
+
+    private async Task SaveSystemPrompt()
+    {
+        // TODO: Implement API call to save system prompt
+        statusMessage = "System prompt saved successfully!";
+        await Task.Delay(2000);
+        statusMessage = string.Empty;
+    }
+}
