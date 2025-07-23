@@ -36,7 +36,7 @@
                         {
                             <tr>
                                 <td>@doc.Name</td>
-                                <td>@doc.CreatedAt.ToString("MM/dd/yyyy")</td>
+                                <td>@GetFileType(doc.Name)</td>
                                 <td>@doc.UpdatedAt.ToString("MM/dd/yyyy")</td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
@@ -78,6 +78,7 @@
             await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile>{ file });
 
             uploadStatus = $"Successfully uploaded {file.Name}";
+            await Task.Delay(3000); // Wait for 3 seconds before clearing the message
             uploadStatus = string.Empty;
         }
 

@@ -12,7 +12,7 @@ public class AgentsController : ControllerBase
 {
     private readonly IAgentService _agentService;
 
-    public AgentsController(IAgentService agentService, AgentDbContext agentDbContext)
+    public AgentsController(IAgentService agentService)
     {
         _agentService = agentService ?? throw new ArgumentNullException(nameof(agentService));
     }
