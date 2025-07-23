@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Shared.Dtos.Documents;
+using NTG.Agent.Orchestrator.Models.Documents;
+using NTG.Agent.Orchestrator.Extentions;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 [Route("api/[controller]")]
@@ -26,4 +28,46 @@ public class DocumentsController : ControllerBase
         return Ok(documents);
     }
 
+    [HttpPost("upload/{agentId}")]
+    [Authorize]
+    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files)
+    {
+        if (files == null || files.Count == 0)
+        {
+            return BadRequest("No files uploaded.");
+        }
+
+        var userId = User.GetUserId()?? throw new UnauthorizedAccessException("User is not authenticated.");
+
+        var documents = new List<Document>();
+
+        foreach (var file in files)
+        {
+            if (file.Length > 0)
+            {
+                //TODO: add to indexing service
+
+                var document = new Document
+                {
+                    Id = Guid.NewGuid(),
+                    Name = file.FileName,
+                    AgentId = agentId,
+                    CreatedByUserId = userId,
+                    UpdatedByUserId = userId,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    Type = DocumentType.File
+                };
+                documents.Add(document);
+            }
+        }
+
+        if (documents.Any())
+        {
+            _agentDbContext.Documents.AddRange(documents);
+            await _agentDbContext.SaveChangesAsync();
+        }
+
+        return Ok(new { message = "Files uploaded successfully." });
+    }
 }

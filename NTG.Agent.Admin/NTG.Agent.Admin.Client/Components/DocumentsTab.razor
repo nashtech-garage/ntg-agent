@@ -8,7 +8,7 @@
     <div class="mb-4">
         <h5>Upload New Document</h5>
         <div class="mb-3">
-            <InputFile OnChange="HandleFileUpload" class="form-control" accept=".pdf,.doc,.docx,.txt" />
+            <InputFile OnChange="HandleFileUpload" class="form-control" multiple accept=".pdf,.doc,.docx,.txt" />
         </div>
         @if (!string.IsNullOrEmpty(uploadStatus))
         {
@@ -71,19 +71,17 @@
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
-        var file = e.File;
-        if (file != null)
+        foreach (var file in e.GetMultipleFiles())
         {
             uploadStatus = $"Uploading {file.Name}...";
-            
-            // TODO: Implement actual file upload logic
-            await Task.Delay(1000);
+
+            await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile>{ file });
 
             uploadStatus = $"Successfully uploaded {file.Name}";
-            
-            await Task.Delay(2000);
             uploadStatus = string.Empty;
         }
+
+        documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
     }
 
     private void RemoveDocument(DocumentListItem document)
