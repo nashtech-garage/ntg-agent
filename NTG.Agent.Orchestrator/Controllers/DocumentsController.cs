@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Shared.Dtos.Documents;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
+using NTG.Agent.Orchestrator.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 [Route("api/[controller]")]
@@ -12,9 +13,12 @@ namespace NTG.Agent.Orchestrator.Controllers;
 public class DocumentsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
-    public DocumentsController(AgentDbContext agentDbContext)
+    private readonly IKnowledgeService _knowledgeService;
+
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
+        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
     }
 
     [HttpGet("{agentId}")]
@@ -45,7 +49,7 @@ public class DocumentsController : ControllerBase
         {
             if (file.Length > 0)
             {
-                //TODO: add to indexing service
+                await _knowledgeService.ImportDocument(file.OpenReadStream(), file.FileName, agentId);
 
                 var document = new Document
                 {
