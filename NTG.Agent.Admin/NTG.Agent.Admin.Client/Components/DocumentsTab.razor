@@ -1,3 +1,6 @@
+@using NTG.Agent.Shared.Dtos.Documents
+@inject DocumentClient DocumentClient
+
 <div class="tab-pane fade show active">
     <h4>Document Management</h4>
     
@@ -33,8 +36,8 @@
                         {
                             <tr>
                                 <td>@doc.Name</td>
-                                <td>@doc.Type</td>
-                                <td>@doc.UploadDate.ToString("MM/dd/yyyy")</td>
+                                <td>@doc.CreatedAt.ToString("MM/dd/yyyy")</td>
+                                <td>@doc.UpdatedAt.ToString("MM/dd/yyyy")</td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
                                         Remove
@@ -58,12 +61,13 @@
     public Guid AgentId { get; set; }
 
     private string uploadStatus = string.Empty;
-    
-    private List<DocumentInfo> documents = new()
+
+    private IList<DocumentListItem> documents = [];
+
+    protected override async Task OnInitializedAsync()
     {
-        new DocumentInfo { Name = "Sample Document 1.pdf", Type = "PDF", UploadDate = DateTime.Now.AddDays(-5) },
-        new DocumentInfo { Name = "User Manual.docx", Type = "Word Document", UploadDate = DateTime.Now.AddDays(-2) }
-    };
+        documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+    }
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
@@ -74,15 +78,7 @@
             
             // TODO: Implement actual file upload logic
             await Task.Delay(1000);
-            
-            var newDoc = new DocumentInfo
-            {
-                Name = file.Name,
-                Type = GetFileType(file.Name),
-                UploadDate = DateTime.Now
-            };
-            
-            documents.Add(newDoc);
+
             uploadStatus = $"Successfully uploaded {file.Name}";
             
             await Task.Delay(2000);
@@ -90,11 +86,9 @@
         }
     }
 
-    private void RemoveDocument(DocumentInfo document)
+    private void RemoveDocument(DocumentListItem document)
     {
-        // TODO: Implement API call to remove document
-        documents.Remove(document);
-        uploadStatus = $"Removed {document.Name}";
+
     }
 
     private string GetFileType(string fileName)
@@ -107,12 +101,5 @@
             ".txt" => "Text File",
             _ => "Document"
         };
-    }
-
-    private class DocumentInfo
-    {
-        public string Name { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public DateTime UploadDate { get; set; }
     }
 }

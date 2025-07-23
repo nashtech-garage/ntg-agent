@@ -2,10 +2,14 @@
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using NTG.Agent.Admin.Client.Components
+@using NTG.Agent.Shared.Dtos.Agents
+
+@inject AgentClient AgentClient
+@inject NavigationManager Navigation
 
 <PageTitle>Agent Details</PageTitle>
 
-<h3>Agent Details</h3>
+<h3>Agent: @agentDetail?.Name</h3>
 
 <div class="agent-details">
     <!-- Tab Navigation -->
@@ -43,6 +47,8 @@
     [Parameter]
     public Guid Id { get; set; }
 
+    private AgentDetail? agentDetail;
+
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private string activeTab = settingsTab;
@@ -50,6 +56,16 @@
     private void SetActiveTab(string tab)
     {
         activeTab = tab;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fetch agent details based on the provided Id
+        agentDetail = await AgentClient.GetAgentDetails(Id);
+        if (agentDetail == null)
+        {
+            Navigation.NavigateTo("/agents");
+        }
     }
 }
 
