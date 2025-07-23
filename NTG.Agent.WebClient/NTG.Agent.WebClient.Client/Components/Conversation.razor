@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
 @inject NavigationManager Navigation
+@inject ConversationState ConversationState
 
 <div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")">
     <div class="conversation-header">
@@ -125,11 +126,18 @@
 
     protected override async Task OnInitializedAsync()
     {
-        UpdateActiveConversationFromUrl();
-        conversations = await ConversationClient.GetConversationsAsync();
+        await LoadAndActiveConversations();
+        ConversationState.OnConversationAdded += HandleConversationAdded;
+        Navigation.LocationChanged += HandleLocationChanged;
         await LoadSidebarStateAsync();
     }
-
+    #region Load Conversations
+    private async Task LoadAndActiveConversations()
+    {
+        UpdateActiveConversationFromUrl();
+        conversations = await ConversationClient.GetConversationsAsync();
+    }
+    #endregion
     #region Active Conversation Item
     private void UpdateActiveConversationFromUrl()
     {
@@ -162,6 +170,16 @@
         StateHasChanged();
     }
 
+    private async void HandleConversationAdded()
+    {
+        // Handle conversation added event
+        await LoadAndActiveConversations();
+        StateHasChanged();
+    }
+    public void Dispose()
+    {
+        ConversationState.OnConversationAdded -= HandleConversationAdded;
+    }
     #endregion
 
     #region Handle Context Menu
@@ -203,7 +221,7 @@
         await JS.InvokeVoidAsync("removeClickOutsideHandler");
     }
     #endregion
-   
+
     #region Rename Conversation
     private async Task RenameConversation(Guid conversationId, string currentName)
     {
@@ -365,6 +383,9 @@
                 StateHasChanged();
             });
         });
+
+        // Remove the selected conversation
+        activeConversationId = null;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -380,6 +401,7 @@
 
     private async void HandleLocationChanged(object sender, LocationChangedEventArgs e)
     {
+        UpdateActiveConversationFromUrl();
         // When the location changes, reapply the sidebar state
         await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
         await InvokeAsync(StateHasChanged);

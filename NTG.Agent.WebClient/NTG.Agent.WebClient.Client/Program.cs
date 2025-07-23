@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using NTG.Agent.WebClient.Client.Services;
+using NTG.Agent.WebClient.Client.States;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -8,6 +9,8 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAuthenticationStateDeserialization();
 
 builder.Services.AddBootstrapBlazor();
+
+builder.Services.AddScoped<ConversationState>();
 
 Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
 

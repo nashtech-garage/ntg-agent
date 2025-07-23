@@ -3,6 +3,7 @@
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
+@inject ConversationState ConversationState
 
 <div class="mt-4">
     <h2>Let's Chat</h2>
@@ -81,11 +82,12 @@
         {
             return;
         }
-
+        var newConversation = false;
         if (!ConversationId.HasValue)
         {
             var conversation = await ConversationClient.Create();
             ConversationId = conversation.Id;
+            newConversation = true;
         }
 
         chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
@@ -102,6 +104,14 @@
             response.Message += item.Content;
             await Task.Delay(1);
             await MarkdownSetValue!.SetValue(response.Message);
+        }
+
+        if (newConversation)
+        {
+            // Fire Conversation Added event
+            ConversationState.NotifyConversationAdded();
+            // Update the URL
+            Navigation.NavigateTo($"/c/{ConversationId}", false);
         }
     }
 
