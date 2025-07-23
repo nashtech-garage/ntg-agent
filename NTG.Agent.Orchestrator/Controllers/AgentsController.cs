@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NTG.Agent.Orchestrator.Agents;
-using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Shared.Dtos.Chats;
 
@@ -10,9 +9,9 @@ namespace NTG.Agent.Orchestrator.Controllers;
 [ApiController]
 public class AgentsController : ControllerBase
 {
-    private readonly IAgentService _agentService;
+    private readonly AgentService _agentService;
 
-    public AgentsController(IAgentService agentService)
+    public AgentsController(AgentService agentService)
     {
         _agentService = agentService ?? throw new ArgumentNullException(nameof(agentService));
     }

@@ -71,7 +71,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
     return kernel;
 });
 
-builder.Services.AddScoped<IAgentService, AgentService>();
+builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 
 builder.Services.AddAuthentication("Identity.Application")

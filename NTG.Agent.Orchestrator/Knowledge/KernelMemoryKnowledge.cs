@@ -1,5 +1,4 @@
-﻿
-using Microsoft.KernelMemory;
+﻿using Microsoft.KernelMemory;
 
 namespace NTG.Agent.Orchestrator.Knowledge;
 
@@ -16,13 +15,15 @@ public class KernelMemoryKnowledge : IKnowledgeService
         await _memoryWebClient.ImportDocumentAsync(content, fileName);
     }
 
-    public Task<string> SearchKnowledgeAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
+    public async Task<SearchResult> SearchAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var result = await _memoryWebClient.SearchAsync(query);
+        return result;
     }
 
-    public Task<string> SearchKnowledgeAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var result = await _memoryWebClient.SearchAsync(query);
+        return result;
     }
 }
