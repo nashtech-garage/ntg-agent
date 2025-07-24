@@ -7,7 +7,7 @@ This project aims to practice building a chatbot in C#
 - Blazor
 - Semantic Kernel
 - Kernel Memory
-- Support muliple LLMs: GitHub Models, Open AI, Azure Open AI etc.
+- Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
 
 ## Getting started
