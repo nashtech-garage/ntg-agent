@@ -399,7 +399,7 @@
         await base.OnAfterRenderAsync(firstRender);
     }
 
-    private async void HandleLocationChanged(object sender, LocationChangedEventArgs e)
+    private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         UpdateActiveConversationFromUrl();
         // When the location changes, reapply the sidebar state
