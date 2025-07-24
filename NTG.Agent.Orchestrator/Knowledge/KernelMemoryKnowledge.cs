@@ -1,28 +1,29 @@
-﻿
-using Microsoft.KernelMemory;
+﻿using Microsoft.KernelMemory;
 
 namespace NTG.Agent.Orchestrator.Knowledge;
 
-public class KernelMemoryKnowledge : IKnowledge
+public class KernelMemoryKnowledge : IKnowledgeService
 {
     private readonly MemoryWebClient _memoryWebClient;
 
     public KernelMemoryKnowledge()
     {
-        var _memoryWebClient = new MemoryWebClient("https://localhost:7181", "Blm8d7sFx7arM9EN2QUxGy7yUjCyvRjx");
+        _memoryWebClient = new MemoryWebClient("https://localhost:7181", "Blm8d7sFx7arM9EN2QUxGy7yUjCyvRjx");
     }
-    public Task ImportDocument(Stream content, Guid agentId)
+    public async Task ImportDocument(Stream content, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
-    }
-
-    public Task<string> SearchKnowledgeAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
-    {
-        throw new NotImplementedException();
+        await _memoryWebClient.ImportDocumentAsync(content, fileName);
     }
 
-    public Task<string> SearchKnowledgeAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<SearchResult> SearchAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        var result = await _memoryWebClient.SearchAsync(query);
+        return result;
+    }
+
+    public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var result = await _memoryWebClient.SearchAsync(query);
+        return result;
     }
 }

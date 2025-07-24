@@ -1,0 +1,71 @@
+﻿@page "/agents/{id:guid}"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Admin.Client.Components
+@using NTG.Agent.Shared.Dtos.Agents
+
+@inject AgentClient AgentClient
+@inject NavigationManager Navigation
+
+<PageTitle>Agent Details</PageTitle>
+
+<h3>Agent: @agentDetail?.Name</h3>
+
+<div class="agent-details">
+    <!-- Tab Navigation -->
+    <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab == settingsTab ? "active" : "")" 
+                    @onclick="() => SetActiveTab(settingsTab)" 
+                    type="button" role="tab">
+                Agent Settings
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(activeTab == documentsTab ? "active" : "")" 
+                    @onclick="() => SetActiveTab(documentsTab)" 
+                    type="button" role="tab">
+                Documents
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content mt-3">
+        @if (activeTab == settingsTab)
+        {
+            <AgentSettingsTab AgentId="Id" />
+        }
+        else if (activeTab == documentsTab)
+        {
+            <DocumentsTab AgentId="Id" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private AgentDetail? agentDetail;
+
+    private const string settingsTab = "settings";
+    private const string documentsTab = "documents";
+    private string activeTab = settingsTab;
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Fetch agent details based on the provided Id
+        agentDetail = await AgentClient.GetAgentDetails(Id);
+        if (agentDetail == null)
+        {
+            Navigation.NavigateTo("/agents");
+        }
+    }
+}
+

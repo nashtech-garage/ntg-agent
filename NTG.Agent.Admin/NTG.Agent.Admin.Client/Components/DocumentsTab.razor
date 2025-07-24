@@ -1,0 +1,104 @@
+@using NTG.Agent.Shared.Dtos.Documents
+@inject DocumentClient DocumentClient
+
+<div class="tab-pane fade show active">
+    <h4>Document Management</h4>
+    
+    <!-- Upload Section -->
+    <div class="mb-4">
+        <h5>Upload New Document</h5>
+        <div class="mb-3">
+            <InputFile OnChange="HandleFileUpload" class="form-control" multiple accept=".pdf,.doc,.docx,.txt" />
+        </div>
+        @if (!string.IsNullOrEmpty(uploadStatus))
+        {
+            <div class="alert alert-info">@uploadStatus</div>
+        }
+    </div>
+
+    <!-- Documents List -->
+    <div>
+        <h5>Existing Documents</h5>
+        @if (documents.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Type</th>
+                            <th>Upload Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var doc in documents)
+                        {
+                            <tr>
+                                <td>@doc.Name</td>
+                                <td>@GetFileType(doc.Name)</td>
+                                <td>@doc.UpdatedAt.ToString("MM/dd/yyyy")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
+                                        Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">No documents uploaded yet.</p>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    private string uploadStatus = string.Empty;
+
+    private IList<DocumentListItem> documents = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            uploadStatus = $"Uploading {file.Name}...";
+
+            await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile>{ file });
+
+            uploadStatus = $"Successfully uploaded {file.Name}";
+            await Task.Delay(3000); // Wait for 3 seconds before clearing the message
+            uploadStatus = string.Empty;
+        }
+
+        documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+    }
+
+    private void RemoveDocument(DocumentListItem document)
+    {
+
+    }
+
+    private string GetFileType(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
+        return extension switch
+        {
+            ".pdf" => "PDF",
+            ".doc" or ".docx" => "Word Document",
+            ".txt" => "Text File",
+            _ => "Document"
+        };
+    }
+}

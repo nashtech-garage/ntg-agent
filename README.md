@@ -1,16 +1,18 @@
 # NTG Agent
-This project aims to practice building a multi-agent chatbot in C#
+This project aims to practice building a chatbot in C#
 
 ## Tentative technologies and frameworks
 - .NET 9
 - .NET Aspire
+- Blazor
 - Semantic Kernel
-- Azure AI Foundry
-- Native Vector Support in Azure SQL Database
+- Kernel Memory
+- Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
+- SQL Server
 
 ## Getting started
 
-- Create your Fine-grained personal access tokens in GitHub https://github.com/settings/personal-access-tokens. The token needs to have **models:read** permissions.
+- Setup [GitHub models](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models) (free): Create your Fine-grained personal access tokens in GitHub https://github.com/settings/personal-access-tokens. The token needs to have **models:read** permissions.
 - Update file secrets.json for the NTG.Agent.Orchestrator with content below Or run the cli command `dotnet user-secrets set "GitHub:Models:GitHubToken" "<your_token_here>"`. Read [this link](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) if you don't know how to set the secrets
 
 ```json
@@ -32,7 +34,7 @@ This project aims to practice building a multi-agent chatbot in C#
       "OpenAI": {
         "APIKey": "your GitHub token"
       },
-	  "SqlServer": {
+    "SqlServer": {
         "ConnectionString": "Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true"
       }
     }
@@ -44,19 +46,16 @@ This project aims to practice building a multi-agent chatbot in C#
 
 - Repeat the same step for the NTG.Agent.Orchestrator project.
 
-- Start the NTG.Agent.AppHost
-  - NTG.Agent.WebClient is the website for end users.
-  - NTG.Agent.Admin is the website for administrators.
-  - NTG.Agent.Orchestrator is the backend API.
+- Start the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
+  - NTG.Agent.WebClient is the website for end users
+  - NTG.Agent.Admin is the website for administrators
+  - NTG.Agent.Orchestrator is the backend API
   - NTG.Agent.Knowledge is the service responsible for ingesting documents. It extracts the content of uploaded files, generates embeddings, and stores them in a vector database. It also provides an API to search for relevant documents
-
-You can read more about GitHub model at https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models
 
 ## How authentication work
 
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
 Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
-
 
 ## Contributing
 

@@ -4,6 +4,7 @@ using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
@@ -70,7 +71,8 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
     return kernel;
 });
 
-builder.Services.AddScoped<IAgentService, AgentService>();
+builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
