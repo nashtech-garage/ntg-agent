@@ -34,7 +34,7 @@ This project aims to practice building a chatbot in C#
       "OpenAI": {
         "APIKey": "your GitHub token"
       },
-    "SqlServer": {
+      "SqlServer": {
         "ConnectionString": "Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true"
       }
     }

@@ -5,8 +5,6 @@ VisualStudioVersion = 17.13.35931.197
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Orchestrator", "NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj", "{3C10E607-0834-4673-AF30-0D745694BA42}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Core", "NTG.Agent.Core\NTG.Agent.Core.csproj", "{5A083F69-80D7-46E0-BAE2-770EF0C15A27}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.AppHost", "NTG.Agent.AppHost\NTG.Agent.AppHost.csproj", "{D7E75C3D-AADA-4C15-8F53-064DD7A0032D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.ServiceDefaults", "NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj", "{C40FAD86-D475-E609-D9DB-03663D28DA1F}"
@@ -41,10 +39,6 @@ Global
 		{3C10E607-0834-4673-AF30-0D745694BA42}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3C10E607-0834-4673-AF30-0D745694BA42}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3C10E607-0834-4673-AF30-0D745694BA42}.Release|Any CPU.Build.0 = Release|Any CPU
-		{5A083F69-80D7-46E0-BAE2-770EF0C15A27}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{5A083F69-80D7-46E0-BAE2-770EF0C15A27}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{5A083F69-80D7-46E0-BAE2-770EF0C15A27}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{5A083F69-80D7-46E0-BAE2-770EF0C15A27}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D7E75C3D-AADA-4C15-8F53-064DD7A0032D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D7E75C3D-AADA-4C15-8F53-064DD7A0032D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D7E75C3D-AADA-4C15-8F53-064DD7A0032D}.Release|Any CPU.ActiveCfg = Release|Any CPU
