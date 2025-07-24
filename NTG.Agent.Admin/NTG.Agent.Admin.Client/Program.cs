@@ -9,11 +9,6 @@ builder.Services.AddAuthenticationStateDeserialization();
 
 Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
 
-builder.Services.AddHttpClient<TestClient>(client =>
-{
-    client.BaseAddress = baseUri;
-});
-
 builder.Services.AddHttpClient<AgentClient>(client =>
 {
     client.BaseAddress = baseUri;

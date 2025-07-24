@@ -25,8 +25,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server", "NTG
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Knowledge", "NTG.Agent.Knowledge\NTG.Agent.Knowledge.csproj", "{15FCA65E-D1A4-E478-581A-49B72C37AF9A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestKernelMemory", "TestKernelMemory\TestKernelMemory.csproj", "{54C17CE7-A314-4021-A62E-9376C2A4F7F9}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server.Tests", "tests\NTG.Agent.MCP.Server.Tests\NTG.Agent.MCP.Server.Tests.csproj", "{04C7961E-C03B-311E-D911-E53AB602C694}"
@@ -83,10 +81,6 @@ Global
 		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{15FCA65E-D1A4-E478-581A-49B72C37AF9A}.Release|Any CPU.Build.0 = Release|Any CPU
-		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{54C17CE7-A314-4021-A62E-9376C2A4F7F9}.Release|Any CPU.Build.0 = Release|Any CPU
 		{04C7961E-C03B-311E-D911-E53AB602C694}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{04C7961E-C03B-311E-D911-E53AB602C694}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{04C7961E-C03B-311E-D911-E53AB602C694}.Release|Any CPU.ActiveCfg = Release|Any CPU
