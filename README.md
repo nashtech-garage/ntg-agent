@@ -3,7 +3,7 @@ This project aims to practice building a chatbot in C#
 
 ## High level architecture
 
-![NGT Agent - High level architecture](ntg-agent-components.png)
+![NTG Agent - High level architecture](ntg-agent-components.png)
 
 ## Technologies and frameworks
 - .NET 9
