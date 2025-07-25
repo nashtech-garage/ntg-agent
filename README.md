@@ -1,7 +1,11 @@
 # NTG Agent
 This project aims to practice building a chatbot in C#
 
-## Tentative technologies and frameworks
+## High level architecture
+
+![NGT Agent - High level architecture](ntg-agent-components.png)
+
+## Technologies and frameworks
 - .NET 9
 - .NET Aspire
 - Blazor
