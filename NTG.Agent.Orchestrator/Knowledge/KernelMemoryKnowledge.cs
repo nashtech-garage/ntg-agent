@@ -17,7 +17,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
     {
-        var result = await _memoryWebClient.SearchAsync(query);
+        var result = await _memoryWebClient.SearchAsync(query, limit: 3);
         return result;
     }
 

@@ -90,15 +90,16 @@
             newConversation = true;
         }
 
-        chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
+        var query = userInput.Trim();
+        chatHistory.Add(new ChatMessage { IsSystem = false, Message = query });
 
-        var response = new ChatMessage { IsSystem = true, Message = "<b>Agent</b>: " };
+        var response = new ChatMessage { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
+        userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput, ConversationId.Value));
-        userInput = string.Empty;
-
+        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value));
+        response.Message = string.Empty;
         await foreach (var item in result)
         {
             response.Message += item.Content;
