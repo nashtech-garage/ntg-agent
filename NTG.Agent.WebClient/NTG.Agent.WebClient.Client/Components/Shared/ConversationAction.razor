@@ -1,0 +1,229 @@
+@using NTG.Agent.Shared.Dtos.Chats
+@using System.Threading
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ConversationClient ConversationClient
+
+<div class="cta-chat-section">
+    <div class="button-container">
+        <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="sidebar-button new-chat-button">
+            <div class="button-icon">
+                <i class="bi bi-chat"></i>
+            </div>
+            <span class="button-text">New chat</span>
+        </a>
+        <a @onclick="ShowSearchModal" @onclick:preventDefault href="javascript:void(0)" class="sidebar-button search-chats-button">
+            <div class="button-icon">
+                <i class="bi bi-search"></i>
+            </div>
+            <span class="button-text">Search chats</span>
+        </a>
+    </div>
+    <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="new-chat-button-collapsed">
+        <i class="bi bi-chat" title="New Chat"></i>
+    </a>
+    <a @onclick="ShowSearchModal" @onclick:preventDefault href="javascript:void(0)" class="search-chats-button-collapsed">
+        <i class="bi bi-search" title="Search Chats"></i>
+    </a>
+</div>
+
+@if (isSearchModalVisible)
+{
+    <div class="modal-overlay search-modal-overlay" @onclick="CloseSearchModal">
+        <div class="search-modal-container" @onclick:stopPropagation>
+            <div class="search-header">
+                <div class="search-input-container">
+                    <i class="bi bi-search search-icon"></i>
+                    <input 
+                        @ref="searchInputElement"
+                        type="text" 
+                        class="search-input" 
+                        placeholder="Search chats..." 
+                        @bind-value="searchTerm" 
+                        @oninput="HandleSearchInput" 
+                        @onkeydown="HandleSearchInputKeyDown"
+                        autocomplete="off" />
+                    @if (!string.IsNullOrEmpty(searchTerm))
+                    {
+                        <button class="clear-search-button" @onclick="ClearSearch">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    }
+                </div>
+                <button class="close-search-button" @onclick="CloseSearchModal">
+                    <i class="bi bi-x"></i>
+                </button>
+            </div>
+            
+            <div class="search-results">
+                <div class="new-chat-option" @onclick="NavigateToNewChatFromSearch">
+                    <i class="bi bi-chat new-chat-icon"></i>
+                    <span>New chat</span>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    @if (chatSearchResultItem.Any())
+                    {
+                        @foreach (var conversation in chatSearchResultItem)
+                        {
+                            <div class="conversation-item" @onclick="() => SelectSearchConversation(conversation.ConversationId)">
+                                <div class="conversation-icon">
+                                    <i class="bi bi-chat-left-text"></i>
+                                </div>
+                                <div class="conversation-title">
+                                    @conversation.Content
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="no-results">
+                            <p>No conversations found</p>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsSidebarCollapsed { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid?> OnActiveConversationChanged { get; set; }
+
+    private bool isSearchModalVisible = false;
+    private string searchTerm = string.Empty;
+    private ElementReference searchInputElement;
+    private IList<ChatSearchResultItem> chatSearchResultItem = [];
+    private Timer? searchDebounceTimer;
+    private const int SearchDebounceDelay = 300; // milliseconds
+
+    #region Navigate To New Chat
+    private async Task NavigateToNewChat()
+    {
+        Navigation.NavigateTo("/", forceLoad: false);
+
+        // Apply sidebar state after a more substantial delay
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            await InvokeAsync(async () =>
+            {
+                // Must be invoked on the UI thread
+                await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                StateHasChanged();
+            });
+        });
+
+        // Notify parent that active conversation should be null
+        await OnActiveConversationChanged.InvokeAsync(null);
+    }
+
+    private async Task NavigateToNewChatFromSearch()
+    {
+        await CloseSearchModal();
+        await NavigateToNewChat();
+    }
+    #endregion
+
+    #region Handle Search Chats
+    private async Task ShowSearchModal()
+    {
+        isSearchModalVisible = true;
+        searchTerm = string.Empty;
+        chatSearchResultItem = [];
+        await JS.InvokeVoidAsync("hideInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task CloseSearchModal()
+    {
+        isSearchModalVisible = false;
+        await JS.InvokeVoidAsync("showInputChatContainer");
+        // Clean up the timer when closing the modal
+        searchDebounceTimer?.Dispose();
+        searchDebounceTimer = null;
+        StateHasChanged();
+    }
+
+    private void ClearSearch()
+    {
+        searchTerm = string.Empty;
+        chatSearchResultItem = [];
+        // Cancel any pending search
+        searchDebounceTimer?.Dispose();
+        searchDebounceTimer = null;
+        StateHasChanged();
+    }
+
+    private async Task HandleSearchInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape")
+        {
+            DebounceSearch();
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(searchTerm))
+            {
+                await CloseSearchModal();
+            }
+            else
+            {
+                ClearSearch();
+            }
+        }
+    }
+    
+    private void HandleSearchInput(ChangeEventArgs e)
+    {
+        searchTerm = e.Value?.ToString() ?? string.Empty;
+        DebounceSearch();
+    }
+    
+    private void DebounceSearch()
+    {
+        // Cancel any existing timer
+        searchDebounceTimer?.Dispose();
+        
+        // Only set up a new timer if we have something to search for
+        if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Trim().Length >= 3)
+        {
+            // Create a new timer that will trigger after the delay
+            searchDebounceTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    await TriggerSearch();
+                    StateHasChanged();
+                });
+            }, null, SearchDebounceDelay, Timeout.Infinite);
+        }
+    }
+    
+    private async Task TriggerSearch()
+    {
+        if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Trim().Length >= 3)
+        {
+            chatSearchResultItem = await ConversationClient.SearchChatMessages(searchTerm.Trim());
+        }
+    }
+
+    private async Task SelectSearchConversation(Guid conversationId)
+    {
+        await CloseSearchModal();
+        Navigation.NavigateTo($"/c/{conversationId}", false);
+        await OnActiveConversationChanged.InvokeAsync(conversationId);
+    }
+
+    public void Dispose()
+    {
+        searchDebounceTimer?.Dispose();
+    }
+    #endregion
+}

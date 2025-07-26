@@ -2,6 +2,7 @@
 
 @using NTG.Agent.Shared.Dtos.Chats
 @using Microsoft.AspNetCore.Components
+@using System.Threading
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
 @inject NavigationManager Navigation
@@ -23,17 +24,10 @@
             </button>
         </div>
     </div>
-    <div class="new-chat-section">
-        <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="new-chat-button">
-            <svg class="new-chat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12h14"></path>
-            </svg>
-            New Chat
-        </a>
-        <a @onclick="NavigateToNewChat" @onclick:preventDefault href="/" class="new-chat-button-collapsed">
-            <i class="bi bi-chat" title="New Chat"></i>
-        </a>
-    </div>
+    
+    <ConversationAction 
+        IsSidebarCollapsed="IsSidebarCollapsed" 
+        OnActiveConversationChanged="HandleActiveConversationChanged" />
 
     <div class="chat-history-section">
         <h5 class="section-title">Chat History</h5>
@@ -131,6 +125,26 @@
         Navigation.LocationChanged += HandleLocationChanged;
         await LoadSidebarStateAsync();
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Register for location changes to maintain sidebar state
+            Navigation.LocationChanged += HandleLocationChanged;
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        UpdateActiveConversationFromUrl();
+        // When the location changes, reapply the sidebar state
+        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        await InvokeAsync(StateHasChanged);
+    }
+
     #region Load Conversations
     private async Task LoadAndActiveConversations()
     {
@@ -170,6 +184,12 @@
         StateHasChanged();
     }
 
+    private void HandleActiveConversationChanged(Guid? conversationId)
+    {
+        activeConversationId = conversationId;
+        StateHasChanged();
+    }
+
     private async void HandleConversationAdded()
     {
         // Handle conversation added event
@@ -180,6 +200,7 @@
     {
         ConversationState.OnConversationAdded -= HandleConversationAdded;
     }
+
     #endregion
 
     #region Handle Context Menu
@@ -360,52 +381,5 @@
         await SaveSidebarStateAsync();
         await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
     }
-
     #endregion
-
-    #region Navigate To New Chat
-    private async Task NavigateToNewChat()
-    {
-        // Save state before navigation
-        await SaveSidebarStateAsync();
-
-        // Use NavigateTo with forceLoad: false to prevent full page reload
-        Navigation.NavigateTo("/", forceLoad: false);
-
-        // Apply sidebar state after a more substantial delay
-        _ = Task.Run(async () =>
-        {
-            await Task.Delay(100);
-            await InvokeAsync(async () =>
-            {
-                // Must be invoked on the UI thread
-                await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
-                StateHasChanged();
-            });
-        });
-
-        // Remove the selected conversation
-        activeConversationId = null;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            // Register for location changes to maintain sidebar state
-            Navigation.LocationChanged += HandleLocationChanged;
-        }
-
-        await base.OnAfterRenderAsync(firstRender);
-    }
-
-    private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        UpdateActiveConversationFromUrl();
-        // When the location changes, reapply the sidebar state
-        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
-        await InvokeAsync(StateHasChanged);
-    }
-    #endregion
-
 }

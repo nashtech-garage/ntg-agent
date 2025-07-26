@@ -62,6 +62,94 @@ public class ConversationsController : ControllerBase
         return chatMessages;
     }
 
+    [Authorize]
+    [HttpGet("search")]
+    public async Task<ActionResult<IList<ChatSearchResultItem>>> SearchConversationMessages([FromQuery]string keyword)
+    {
+        if (string.IsNullOrWhiteSpace(keyword))
+        {
+            return Ok(new List<ChatSearchResultItem>());
+        }
+
+        var userId = User.GetUserId();
+        
+        // Execute both queries separately and then combine the results
+        
+        // Query for conversations - using standard string Contains instead of full-text search
+        var conversationResults = await _context.Conversations
+            .Where(c => c.UserId == userId && 
+                  c.Name.Contains(keyword))
+            .Select(c => new ChatSearchResultItem
+            {
+                ConversationId = c.Id,
+                Content = c.Name,
+                Role = (int)ChatRole.User,
+                IsConversation = true
+            })
+            .ToListAsync();
+        
+        // Query for messages - using standard string Contains instead of full-text search
+        var messagesQuery = await _context.ChatMessages
+            .Where(m => m.UserId == userId && 
+                  m.Content.Contains(keyword))
+            .Select(m => new 
+            {
+                m.ConversationId,
+                m.Content,
+                m.Role
+            })
+            .ToListAsync();
+            
+        // Process message results with client-side method
+        var messageResults = messagesQuery
+            .Select(m => new ChatSearchResultItem
+            {
+                ConversationId = m.ConversationId,
+                Content = GetContentWithKeywordContext(m.Content, keyword, m.Role == ChatRole.Assistant),
+                Role = (int)m.Role,
+                IsConversation = false
+            })
+            .ToList();
+        
+        // Combine the results
+        var combinedResults = conversationResults.Concat(messageResults).ToList();
+        
+        return Ok(combinedResults);
+    }
+
+    /// <summary>
+    /// Extracts content around the matched keyword to provide context
+    /// </summary>
+    private string GetContentWithKeywordContext(string content, string keyword, bool isAssistant)
+    {
+        // For non-assistant messages or short messages, return the full content
+        if (!isAssistant || content.Length <= 200)
+        {
+            return content;
+        }
+        
+        // For assistant messages, extract content around the keyword
+        int maxContextLength = 200; // Max characters to show
+        int keywordPos = content.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
+        
+        if (keywordPos < 0) // Shouldn't happen, but just in case
+            return content.Length <= maxContextLength ? content : content.Substring(0, maxContextLength) + "...";
+        
+        int startPos = Math.Max(0, keywordPos - maxContextLength / 2);
+        int endPos = Math.Min(content.Length, keywordPos + keyword.Length + maxContextLength / 2);
+        int length = endPos - startPos;
+        
+        string result = content.Substring(startPos, length);
+        
+        // Add ellipses if we've trimmed the text
+        if (startPos > 0)
+            result = "..." + result;
+        if (endPos < content.Length)
+            result = result + "...";
+        
+        return result;
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> PutConversation(Guid id, Conversation conversation)
     {
