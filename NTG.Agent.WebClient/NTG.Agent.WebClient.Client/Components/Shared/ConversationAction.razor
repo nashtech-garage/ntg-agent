@@ -56,7 +56,7 @@
             </div>
             
             <div class="search-results">
-                <div class="new-chat-option" @onclick="NavigateToNewChat">
+                <div class="new-chat-option" @onclick="NavigateToNewChatFromSearch">
                     <i class="bi bi-chat new-chat-icon"></i>
                     <span>New chat</span>
                 </div>
@@ -122,6 +122,12 @@
 
         // Notify parent that active conversation should be null
         await OnActiveConversationChanged.InvokeAsync(null);
+    }
+
+    private async Task NavigateToNewChatFromSearch()
+    {
+        await CloseSearchModal();
+        await NavigateToNewChat();
     }
     #endregion
 
