@@ -2,8 +2,6 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using NTG.Agent.Admin.Client.Pages;
-using NTG.Agent.Admin.Client.Services;
 using NTG.Agent.Admin.Components;
 using NTG.Agent.Admin.Components.Account;
 using NTG.Agent.Admin.Data;
@@ -21,12 +19,6 @@ builder.Services.AddRazorComponents()
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
     .AddServiceDiscoveryDestinationResolver();
-
-builder.Services.AddHttpClient<TestClient>(client =>
-{
-    //TODO Remove the hardcoded URL
-    client.BaseAddress = new("https://localhost:7097");
-});
 
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../../key/"))
@@ -74,7 +66,6 @@ else
 }
 
 app.UseHttpsRedirection();
-
 
 app.UseAntiforgery();
 

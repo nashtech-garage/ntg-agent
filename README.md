@@ -1,7 +1,11 @@
 # NTG Agent
 This project aims to practice building a chatbot in C#
 
-## Tentative technologies and frameworks
+## High level architecture
+
+![NTG Agent - High level architecture](ntg-agent-components.png)
+
+## Technologies and frameworks
 - .NET 9
 - .NET Aspire
 - Blazor
@@ -34,7 +38,7 @@ This project aims to practice building a chatbot in C#
       "OpenAI": {
         "APIKey": "your GitHub token"
       },
-    "SqlServer": {
+      "SqlServer": {
         "ConnectionString": "Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true"
       }
     }

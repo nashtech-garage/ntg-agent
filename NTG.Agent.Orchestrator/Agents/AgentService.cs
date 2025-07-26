@@ -139,7 +139,7 @@ public class AgentService
         var prompt = $@"
            Search to knowledge base: {message}
            Knowledge base will answer: {{memory.search}}
-           If the answer is empty say 'I don't know', otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
+           If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
 
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
@@ -154,7 +154,7 @@ public class AgentService
         ChatCompletionAgent agent = new()
         {
             Name = "NTG-Assistant",
-            Instructions = @"Do not present speculation, deduction, or hallucination as fact.",
+            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
             Kernel = agentKernel,
             Arguments = arguments,
         };
