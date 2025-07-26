@@ -192,7 +192,7 @@
         searchDebounceTimer?.Dispose();
         
         // Only set up a new timer if we have something to search for
-        if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Trim().Length >= 2)
+        if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Trim().Length >= 3)
         {
             // Create a new timer that will trigger after the delay
             searchDebounceTimer = new Timer(async _ =>
