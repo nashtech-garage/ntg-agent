@@ -8,24 +8,129 @@
 
 <PageTitle>Home</PageTitle>
 
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="bi bi-house-door-fill me-2"></i>
+                Agent Dashboard
+            </h1>
+        </div>
+    </div>
 
-@if (agents == null)
-{
-    <p>Loading agents...</p>
-}
-else if (agents.Count == 0)
-{
-    <p>No agents found.</p>
-}
-else
-{
-    <ul>
-        @foreach (var agent in agents)
-        {
-            <li><a href="@($"/agents/{agent.Id}")">@agent.Name</a></li>
-        }
-    </ul>
-}
+    @if (agents == null)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="text-muted">Loading agents...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (agents.Count == 0)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <div>
+                        No agents found. Create your first agent to get started!
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12 mb-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="h4 mb-0">
+                        <i class="bi bi-robot me-2"></i>
+                        Your Agents
+                        <span class="badge bg-secondary ms-2">@agents.Count</span>
+                    </h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            @foreach (var agent in agents)
+            {
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm border-0" style="border-left: 4px solid #1b6ec2 !important;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <h5 class="card-title mb-0 text-truncate" title="@agent.Name">
+                                    <i class="bi bi-robot me-2 text-primary"></i>
+                                    @agent.Name
+                                </h5>
+                                <small class="text-muted">
+                                    ID: @agent.Id.ToString()[..8]...
+                                </small>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="row g-2">
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-person-circle me-2 text-info"></i>
+                                            <div class="flex-grow-1">
+                                                <small class="text-muted d-block">Owner</small>
+                                                <span class="fw-medium text-truncate d-block" title="@agent.OwnerEmail">
+                                                    @agent.OwnerEmail
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-pencil-square me-2 text-warning"></i>
+                                            <div class="flex-grow-1">
+                                                <small class="text-muted d-block">Updated By</small>
+                                                <span class="fw-medium text-truncate d-block" title="@agent.UpdatedByEmail">
+                                                    @agent.UpdatedByEmail
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-clock me-2 text-success"></i>
+                                    <div>
+                                        <small class="text-muted d-block">Last Updated</small>
+                                        <span class="fw-medium">
+                                            @agent.UpdatedAt.ToString("MMM dd, yyyy")
+                                        </span>
+                                        <small class="text-muted d-block">
+                                            @agent.UpdatedAt.ToString("HH:mm")
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-transparent border-0 pt-0">
+                            <a href="@($"/agents/{agent.Id}")" class="btn btn-primary w-100">
+                                <i class="bi bi-arrow-right-circle me-2"></i>
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
 
 @code {
     private IList<AgentListItem>? agents;
