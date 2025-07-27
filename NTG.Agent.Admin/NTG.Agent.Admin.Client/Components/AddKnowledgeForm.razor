@@ -1,0 +1,43 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using NTG.Agent.Shared.Dtos.Documents
+@inject DocumentClient DocumentClient
+
+<div class="mb-4">
+    <h5>Upload New Document</h5>
+    <div class="mb-3">
+        <InputFile OnChange="HandleFileUpload" class="form-control" multiple accept=".pdf,.doc,.docx,.txt" />
+    </div>
+    @if (!string.IsNullOrEmpty(uploadStatus))
+    {
+        <div class="alert alert-info">@uploadStatus</div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    [Parameter]
+    public EventCallback OnUploadCompleted { get; set; }
+
+    private string uploadStatus = string.Empty;
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            uploadStatus = $"Uploading {file.Name}...";
+            StateHasChanged();
+
+            await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file });
+
+            uploadStatus = $"Successfully uploaded {file.Name}";
+            StateHasChanged();
+            await Task.Delay(3000); // Wait for 3 seconds before clearing the message
+            uploadStatus = string.Empty;
+            StateHasChanged();
+        }
+
+        await OnUploadCompleted.InvokeAsync();
+    }
+}
