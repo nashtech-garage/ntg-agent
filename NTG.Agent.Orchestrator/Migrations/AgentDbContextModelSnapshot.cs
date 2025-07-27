@@ -39,7 +39,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("OwerUserId")
+                    b.Property<Guid>("OwnerUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -50,7 +50,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OwerUserId");
+                    b.HasIndex("OwnerUserId");
 
                     b.HasIndex("UpdatedByUserId");
 
@@ -63,7 +63,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
                             Name = "Default Agent",
-                            OwerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
+                            OwnerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
                         });
@@ -223,9 +223,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
                 {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "OwerUser")
+                    b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "OwnerUser")
                         .WithMany()
-                        .HasForeignKey("OwerUserId")
+                        .HasForeignKey("OwnerUserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -235,7 +235,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("OwerUser");
+                    b.Navigation("OwnerUser");
 
                     b.Navigation("UpdatedByUser");
                 });

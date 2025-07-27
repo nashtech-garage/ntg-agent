@@ -19,7 +19,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 defaultValue: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
 
             migrationBuilder.AddColumn<Guid>(
-                name: "OwerUserId",
+                name: "OwnerUserId",
                 table: "Agents",
                 type: "uniqueidentifier",
                 nullable: false,
@@ -43,13 +43,13 @@ namespace NTG.Agent.Orchestrator.Migrations
                 table: "Agents",
                 keyColumn: "Id",
                 keyValue: new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
-                columns: new[] { "CreatedAt", "OwerUserId", "UpdatedAt", "UpdatedByUserId" },
+                columns: new[] { "CreatedAt", "OwnerUserId", "UpdatedAt", "UpdatedByUserId" },
                 values: new object[] { new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"), new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71") });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Agents_OwerUserId",
+                name: "IX_Agents_OwnerUserId",
                 table: "Agents",
-                column: "OwerUserId");
+                column: "OwnerUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Agents_UpdatedByUserId",
@@ -60,9 +60,8 @@ namespace NTG.Agent.Orchestrator.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-
             migrationBuilder.DropIndex(
-                name: "IX_Agents_OwerUserId",
+                name: "IX_Agents_OwnerUserId",
                 table: "Agents");
 
             migrationBuilder.DropIndex(
@@ -74,7 +73,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 table: "Agents");
 
             migrationBuilder.DropColumn(
-                name: "OwerUserId",
+                name: "OwnerUserId",
                 table: "Agents");
 
             migrationBuilder.DropColumn(

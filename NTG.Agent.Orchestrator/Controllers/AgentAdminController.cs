@@ -22,7 +22,7 @@ public class AgentAdminController : ControllerBase
     public async Task<IActionResult> GetAgents()
     {
         var agents = await _agentDbContext.Agents
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt))
             .ToListAsync();
         return Ok(agents);
     }

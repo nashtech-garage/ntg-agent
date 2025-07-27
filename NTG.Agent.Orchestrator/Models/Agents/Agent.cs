@@ -21,9 +21,9 @@ public class Agent
 
     public DateTime UpdatedAt { get; set; }
 
-    public Guid OwerUserId { get; set; }
+    public Guid OwnerUserId { get; set; }
 
-    public User OwerUser { get; set; } = null!;
+    public User OwnerUser { get; set; } = null!;
 
     public Guid UpdatedByUserId { get; set; }
 

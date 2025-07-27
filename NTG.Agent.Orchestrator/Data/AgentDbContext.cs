@@ -38,7 +38,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         {
             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
             UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
-            OwerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
+            OwnerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
             CreatedAt = new DateTime(2025, 6, 24),
             UpdatedAt = new DateTime(2025, 6, 24),
             Name = "Default Agent",
