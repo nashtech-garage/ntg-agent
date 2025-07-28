@@ -8,7 +8,7 @@ namespace NTG.Agent.Orchestrator.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize]
+[Authorize(Roles = "Admin")]
 public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;

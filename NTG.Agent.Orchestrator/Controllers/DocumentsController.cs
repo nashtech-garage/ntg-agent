@@ -10,6 +10,7 @@ using NTG.Agent.Orchestrator.Knowledge;
 namespace NTG.Agent.Orchestrator.Controllers;
 [Route("api/[controller]")]
 [ApiController]
+[Authorize(Roles = "Admin")]
 public class DocumentsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
