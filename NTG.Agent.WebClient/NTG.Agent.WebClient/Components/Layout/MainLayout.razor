@@ -4,22 +4,31 @@
     <div class="header col-12">
        <NavMenu />
     </div>
-    <div id="sidebarColumn" class="col-2">
-        <AuthorizeView>
-            <Authorized>
+    <AuthorizeView>
+        <Authorized>
+            <div id="sidebarColumn" class="col-2">
                 <div class="sidebar">
                     <Conversation @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
                 </div>
-            </Authorized>
-        </AuthorizeView>
-    </div>
-    <main id="mainContent" class="col-10">
-        <article class="container-fluid content px-4">
-            <BootstrapBlazorRoot>
-                @Body
-            </BootstrapBlazorRoot>
-        </article>
-    </main>
+            </div>
+            <main id="mainContent" class="col-10">
+                <article class="container-fluid content px-4">
+                    <BootstrapBlazorRoot>
+                        @Body
+                    </BootstrapBlazorRoot>
+                </article>
+            </main>
+        </Authorized>
+        <NotAuthorized>
+            <main id="mainContent" class="col-12">
+                <article class="container-fluid content px-4">
+                    <BootstrapBlazorRoot>
+                        @Body
+                    </BootstrapBlazorRoot>
+                </article>
+            </main>
+        </NotAuthorized>
+    </AuthorizeView>
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>

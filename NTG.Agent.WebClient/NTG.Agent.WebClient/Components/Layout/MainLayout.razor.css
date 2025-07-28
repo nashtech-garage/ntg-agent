@@ -2,7 +2,6 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
 }
 
 main {
@@ -26,6 +25,7 @@ main.expanded-content {
 
 .header {
     background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    height: 100%;
 }
 
 .top-row {
