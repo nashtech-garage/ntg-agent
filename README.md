@@ -52,7 +52,7 @@ This project aims to practice building a chatbot in C#
 
 - Start the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
   - NTG.Agent.WebClient is the website for end users
-  - NTG.Agent.Admin is the website for administrators
+  - NTG.Agent.Admin is the website for administrators. The default admin account is admin@ntgagent.com / Ntg@123
   - NTG.Agent.Orchestrator is the backend API
   - NTG.Agent.Knowledge is the service responsible for ingesting documents. It extracts the content of uploaded files, generates embeddings, and stores them in a vector database. It also provides an API to search for relevant documents
 
