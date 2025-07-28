@@ -19,7 +19,14 @@ public class ConversationsController : ControllerBase
     {
         _context = context;
     }
-
+    /// <summary>
+    /// Retrieves a list of conversations for the current user.
+    /// </summary>
+    /// <remarks>The conversations are returned in descending order based on the last update time. This method
+    /// requires the user to be authenticated.</remarks>
+    /// <returns>A task that represents the asynchronous operation. The task result contains an  <see cref="ActionResult{T}"/> of
+    /// <see cref="IEnumerable{T}"/> containing  <see cref="ConversationListItem"/> objects, each representing a
+    /// conversation.</returns>
     [Authorize]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ConversationListItem>>> GetConversations()
@@ -31,6 +38,14 @@ public class ConversationsController : ControllerBase
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Retrieves a conversation by its unique identifier.
+    /// </summary>
+    /// <remarks>This method performs an asynchronous operation to find a conversation in the database using
+    /// the specified identifier. If the conversation is not found, it returns a 404 Not Found response.</remarks>
+    /// <param name="id">The unique identifier of the conversation to retrieve.</param>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the <see cref="Conversation"/> if found; otherwise, a <see
+    /// cref="NotFoundResult"/> if the conversation does not exist.</returns>
     [HttpGet("{id}")]
     public async Task<ActionResult<Conversation>> GetConversation(Guid id)
     {
@@ -44,7 +59,14 @@ public class ConversationsController : ControllerBase
         return conversation;
     }
 
-
+    /// <summary>
+    /// Retrieves a list of chat messages for a specified conversation.
+    /// </summary>
+    /// <remarks>Only messages that are not marked as summaries are included in the result. The messages are
+    /// returned in chronological order based on their creation time.</remarks>
+    /// <param name="id">The unique identifier of the conversation whose messages are to be retrieved.</param>
+    /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see
+    /// cref="ChatMessageListItem"/> representing the messages in the conversation, ordered by creation time.</returns>
     [HttpGet("{id}/messages")]
     public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id)
     {
@@ -62,6 +84,15 @@ public class ConversationsController : ControllerBase
         return chatMessages;
     }
 
+    /// <summary>
+    /// Searches for conversation messages and conversation names containing the specified keyword.
+    /// </summary>
+    /// <remarks>This method searches both conversation names and messages for the specified keyword. The
+    /// search is case-sensitive and uses a simple string containment check. The results include both conversation names
+    /// and message contents, with each result indicating whether it is a conversation or a message.</remarks>
+    /// <param name="keyword">The keyword to search for within conversation names and messages. Cannot be null or whitespace.</param>
+    /// <returns>A list of <see cref="ChatSearchResultItem"/> containing the search results. Returns an empty list if the keyword
+    /// is null, whitespace, or no matches are found.</returns>
     [Authorize]
     [HttpGet("search")]
     public async Task<ActionResult<IList<ChatSearchResultItem>>> SearchConversationMessages([FromQuery]string keyword)
@@ -150,6 +181,16 @@ public class ConversationsController : ControllerBase
         return result;
     }
 
+    /// <summary>
+    /// Updates an existing conversation with the specified identifier.
+    /// </summary>
+    /// <param name="id">The unique identifier of the conversation to update. Must match the <paramref name="conversation"/>.Id.</param>
+    /// <param name="conversation">The conversation object containing updated data. The <see cref="Conversation.Id"/> must match the <paramref
+    /// name="id"/>.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation. Returns <see cref="BadRequestResult"/> if
+    /// the <paramref name="id"/> does not match the <paramref name="conversation"/>.Id. Returns <see
+    /// cref="NotFoundResult"/> if the conversation does not exist. Returns <see cref="NoContentResult"/> if the update
+    /// is successful.</returns>
     [HttpPut("{id}")]
     public async Task<IActionResult> PutConversation(Guid id, Conversation conversation)
     {
@@ -179,6 +220,14 @@ public class ConversationsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Renames an existing conversation for the current user.
+    /// </summary>
+    /// <param name="id">The unique identifier of the conversation to rename.</param>
+    /// <param name="newName">The new name to assign to the conversation. Cannot be null or empty.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation. Returns <see cref="BadRequestResult"/> if
+    /// the conversation is not found or the user is unauthorized. Returns <see cref="NoContentResult"/> if the rename
+    /// operation is successful.</returns>
     [Authorize]
     [HttpPut("{id}/rename")]
     public async Task<IActionResult> RenameConversation(Guid id, string newName)
@@ -210,6 +259,13 @@ public class ConversationsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Creates a new conversation and saves it to the database.
+    /// </summary>
+    /// <remarks>This method initializes a new conversation with a default name and timestamps, associates it
+    /// with the current user if authenticated, and assigns a session ID for anonymous users. The conversation is then
+    /// added to the database.</remarks>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Conversation"/> object with its ID and name.</returns>
     [HttpPost]
     public async Task<ActionResult<Conversation>> PostConversation()
     {
@@ -220,7 +276,7 @@ public class ConversationsController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             UserId = userId,
-            SessionId = !userId.HasValue ? Guid.NewGuid() : null // Set SessionId if user is not authenticated
+            SessionId = !userId.HasValue ? Guid.NewGuid() : null // Set SessionId if user is not authenticated. TODO: Implement a clean-up job/mechanism for the anonymous conversations + chats.
         };
         _context.Conversations.Add(conversation);
         await _context.SaveChangesAsync();
@@ -228,6 +284,15 @@ public class ConversationsController : ControllerBase
         return CreatedAtAction("GetConversation", new { id = conversation.Id }, new ConversationCreated { Id = conversation.Id, Name = conversation.Name });
     }
 
+    /// <summary>
+    /// Deletes a conversation identified by the specified ID.
+    /// </summary>
+    /// <remarks>This method requires the user to be authorized. It deletes the conversation only if it
+    /// belongs to the current user.</remarks>
+    /// <param name="id">The unique identifier of the conversation to delete.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.  Returns <see cref="NotFoundResult"/> if
+    /// the conversation does not exist or the user is not authorized to delete it. Returns <see
+    /// cref="NoContentResult"/> if the deletion is successful.</returns>
     [Authorize]
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteConversation(Guid id)
