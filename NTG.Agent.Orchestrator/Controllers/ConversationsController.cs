@@ -44,7 +44,7 @@ public class ConversationsController : ControllerBase
         return conversation;
     }
 
-    [Authorize]
+
     [HttpGet("{id}/messages")]
     public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id)
     {
@@ -219,7 +219,8 @@ public class ConversationsController : ControllerBase
             Name = "New Conversation", // Default name, can be modified later
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
-            UserId = userId
+            UserId = userId,
+            SessionId = !userId.HasValue ? Guid.NewGuid() : null // Set SessionId if user is not authenticated
         };
         _context.Conversations.Add(conversation);
         await _context.SaveChangesAsync();

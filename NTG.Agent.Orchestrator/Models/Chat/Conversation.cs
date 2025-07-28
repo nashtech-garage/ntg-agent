@@ -14,6 +14,7 @@ public class Conversation
     public string Name { get; set; } = string.Empty;
 
     public Guid? UserId { get; set; }
+    public Guid? SessionId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
