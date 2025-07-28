@@ -9,49 +9,211 @@
 
 <PageTitle>Agent Details</PageTitle>
 
-<h3>Agent: @agentDetail?.Name</h3>
+<div class="container-fluid px-4 py-3">
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (agentDetail == null)
+    {
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>
+                Agent not found. <a href="/agents" class="alert-link">Return to agents list</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Header Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/agents" class="text-decoration-none">Agents</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">@agentDetail.Name</li>
+                    </ol>
+                </nav>
+                
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" 
+                             style="width: 48px; height: 48px;">
+                            <i class="bi bi-robot text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="h2 mb-1">@agentDetail.Name</h1>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Edit Agent</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-copy me-2"></i>Duplicate Agent</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-trash me-2"></i>Delete Agent</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-<div class="agent-details">
-    <!-- Tab Navigation -->
-    <ul class="nav nav-tabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link @(activeTab == settingsTab ? "active" : "")" 
-                    @onclick="() => SetActiveTab(settingsTab)" 
-                    type="button" role="tab">
-                Agent Settings
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link @(activeTab == documentsTab ? "active" : "")" 
-                    @onclick="() => SetActiveTab(documentsTab)" 
-                    type="button" role="tab">
-                Documents
-            </button>
-        </li>
-    </ul>
+        <!-- Main Content -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <!-- Enhanced Tab Navigation -->
+                    <div class="card-header bg-white border-bottom">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == settingsTab ? "active" : "") d-flex align-items-center" 
+                                        @onclick="() => SetActiveTab(settingsTab)" 
+                                        type="button" role="tab">
+                                    <i class="bi bi-gear me-2"></i>
+                                    Agent Settings
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == documentsTab ? "active" : "") d-flex align-items-center" 
+                                        @onclick="() => SetActiveTab(documentsTab)" 
+                                        type="button" role="tab">
+                                    <i class="bi bi-files me-2"></i>
+                                    Knowledge Base
+                                    <span class="badge bg-secondary ms-2">@documentCount</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
 
-    <!-- Tab Content -->
-    <div class="tab-content mt-3">
-        @if (activeTab == settingsTab)
+                    <!-- Tab Content -->
+                    <div class="card-body p-0">
+                        <div class="tab-content">
+                            @if (activeTab == settingsTab)
+                            {
+                                <div class="tab-pane fade show active p-4">
+                                    <AgentSettingsTab AgentId="Id" />
+                                </div>
+                            }
+                            else if (activeTab == documentsTab)
+                            {
+                                <div class="tab-pane fade show active p-4">
+                                    <DocumentsTab AgentId="Id" @bind-DocumentCount="documentCount" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agent Info Sidebar (Optional - can be added later) -->
+        @if (showSidebar)
         {
-            <AgentSettingsTab AgentId="Id" />
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Agent Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted">Agent ID</small>
+                            <div class="font-monospace small">@agentDetail.Id</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Name</small>
+                            <div>@agentDetail.Name</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Status</small>
+                            <div><span class="badge bg-success">Active</span></div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Created</small>
+                            <div>January 15, 2024</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Last Modified</small>
+                            <div>2 hours ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         }
-        else if (activeTab == documentsTab)
-        {
-            <DocumentsTab AgentId="Id" />
-        }
-    </div>
+    }
 </div>
+
+<style>
+    .breadcrumb {
+        background: none;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        content: "›";
+        color: #6c757d;
+    }
+    
+    .nav-tabs .nav-link {
+        border: none;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 1rem 1.5rem;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        border-color: transparent;
+        color: #495057;
+        background-color: #f8f9fa;
+    }
+    
+    .nav-tabs .nav-link.active {
+        background-color: transparent;
+        border-color: transparent transparent #0d6efd transparent;
+        color: #0d6efd;
+        font-weight: 600;
+    }
+    
+    .card {
+        border: 1px solid #e9ecef;
+        border-radius: 0.5rem;
+    }
+    
+    .card-header {
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .dropdown-menu {
+        border: 1px solid #e9ecef;
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+    
+    .agent-avatar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+</style>
 
 @code {
     [Parameter]
     public Guid Id { get; set; }
 
     private AgentDetail? agentDetail;
+    private bool isLoading = true;
+    private bool showSidebar = false; // Can be toggled based on screen size or user preference
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private string activeTab = settingsTab;
+    private int documentCount = 0;
 
     private void SetActiveTab(string tab)
     {
@@ -60,11 +222,24 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Fetch agent details based on the provided Id
-        agentDetail = await AgentClient.GetAgentDetails(Id);
-        if (agentDetail == null)
+        try
         {
-            Navigation.NavigateTo("/agents");
+            isLoading = true;
+            // Fetch agent details based on the provided Id
+            agentDetail = await AgentClient.GetAgentDetails(Id);
+            if (agentDetail == null)
+            {
+                Navigation.NavigateTo("/agents");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error and show appropriate message
+            Console.WriteLine($"Error loading agent details: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 }

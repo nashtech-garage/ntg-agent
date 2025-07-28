@@ -1,19 +1,129 @@
 <div class="tab-pane fade show active">
-    <EditForm Model="this" OnValidSubmit="SaveSystemPrompt">
-        <div class="mb-3">
-            <label for="systemPrompt" class="form-label">System Prompt:</label>
-            <InputTextArea id="systemPrompt" 
-                         @bind-Value="systemPrompt" 
-                         class="form-control" 
-                         rows="10" 
-                         placeholder="Enter the system prompt for this agent..." />
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="mb-4">
+                <h5 class="mb-1">Agent Configuration</h5>
+                <p class="text-muted mb-0">Configure the behavior and personality of your agent</p>
+            </div>
+
+            <EditForm Model="this" OnValidSubmit="SaveSystemPrompt">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="systemPrompt" class="form-label fw-semibold">
+                                <i class="bi bi-chat-text me-2"></i>System Prompt
+                            </label>
+                            <div class="form-text mb-2">
+                                Define how your agent should behave, respond, and interact with users. This sets the personality and guidelines for the AI.
+                            </div>
+                            <InputTextArea id="systemPrompt" 
+                                         @bind-Value="systemPrompt" 
+                                         class="form-control" 
+                                         rows="12" 
+                                         placeholder="Enter the system prompt for this agent...
+                                         
+Example:
+You are a helpful AI assistant specialized in customer support. Always be polite, professional, and provide accurate information. If you don't know something, admit it and offer to help find the answer." />
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Character count: @(systemPrompt?.Length ?? 0)
+                            </small>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary me-2" @onclick="ResetToDefault">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Reset to Default
+                                </button>
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                    @if (isSaving)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-check-circle me-2"></i>
+                                    }
+                                    Save System Prompt
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </EditForm>
+
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="alert @(isSuccess ? "alert-success" : "alert-danger") d-flex align-items-center mt-3" role="alert">
+                    <i class="@(isSuccess ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+                    <div>@statusMessage</div>
+                </div>
+            }
         </div>
-        <button type="submit" class="btn btn-primary">Save System Prompt</button>
-    </EditForm>
-    @if (!string.IsNullOrEmpty(statusMessage))
-    {
-        <div class="alert alert-info mt-3">@statusMessage</div>
-    }
+        
+        <div class="col-lg-4">
+            <div class="card border-0 bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-lightbulb me-2"></i>Tips for Writing System Prompts
+                    </h6>
+                    <ul class="list-unstyled small">
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success me-1"></i>
+                            Be specific about the agent's role and expertise
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success me-1"></i>
+                            Define the tone and communication style
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success me-1"></i>
+                            Set clear boundaries and limitations
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success me-1"></i>
+                            Include examples of desired responses
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check text-success me-1"></i>
+                            Keep it concise but comprehensive
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="card border-0 bg-light mt-3">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-gear me-2"></i>Additional Settings
+                    </h6>
+                    <div class="mb-3">
+                        <label class="form-label small">Temperature</label>
+                        <input type="range" class="form-range" min="0" max="1" step="0.1" @bind="temperature">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Conservative</small>
+                            <small class="text-muted">Creative</small>
+                        </div>
+                        <small class="text-muted">Current: @temperature.ToString("F1")</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small">Max Response Length</label>
+                        <select class="form-select form-select-sm" @bind="maxTokens">
+                            <option value="150">Short (150 tokens)</option>
+                            <option value="500">Medium (500 tokens)</option>
+                            <option value="1000">Long (1000 tokens)</option>
+                            <option value="2000">Very Long (2000 tokens)</option>
+                        </select>
+                    </div>
+                    
+                    <button class="btn btn-outline-primary btn-sm w-100" @onclick="SaveAdvancedSettings">
+                        <i class="bi bi-gear me-1"></i>Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @code {
@@ -22,12 +132,64 @@
 
     private string systemPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
     private string statusMessage = string.Empty;
+    private bool isSaving = false;
+    private bool isSuccess = false;
+    
+    // Advanced settings
+    private double temperature = 0.7;
+    private int maxTokens = 500;
+    
+    private readonly string defaultPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
 
     private async Task SaveSystemPrompt()
     {
-        // TODO: Implement API call to save system prompt
-        statusMessage = "System prompt saved successfully!";
-        await Task.Delay(2000);
-        statusMessage = string.Empty;
+        try
+        {
+            isSaving = true;
+            statusMessage = string.Empty;
+            
+            // TODO: Implement API call to save system prompt
+            await Task.Delay(1000); // Simulate API call
+            
+            statusMessage = "System prompt saved successfully!";
+            isSuccess = true;
+            
+            // Clear message after 3 seconds
+            await Task.Delay(3000);
+            statusMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error saving system prompt: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetToDefault()
+    {
+        systemPrompt = defaultPrompt;
+    }
+
+    private async Task SaveAdvancedSettings()
+    {
+        try
+        {
+            // TODO: Implement API call to save advanced settings
+            await Task.Delay(500);
+            statusMessage = "Advanced settings saved successfully!";
+            isSuccess = true;
+            
+            await Task.Delay(2000);
+            statusMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error saving settings: {ex.Message}";
+            isSuccess = false;
+        }
     }
 }

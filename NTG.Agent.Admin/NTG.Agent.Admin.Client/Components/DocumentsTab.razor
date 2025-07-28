@@ -3,35 +3,68 @@
 
 <div class="tab-pane fade show active">
     <!-- Add Knowledge Button -->
-    <div class="mb-4 d-flex justify-content-end">
-        <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">Add Knowledge</button>
+    <div class="mb-4 d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-1">Knowledge Base</h5>
+            <p class="text-muted mb-0">Manage documents and knowledge for this agent</p>
+        </div>
+        <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">
+            <i class="bi bi-plus-circle me-2"></i>Add Knowledge
+        </button>
     </div>
 
     <!-- Documents List -->
     <div>
-        @if (documents.Any())
+        @if (isLoading)
+        {
+            <div class="d-flex justify-content-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading documents...</span>
+                </div>
+            </div>
+        }
+        else if (documents.Any())
         {
             <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
+                <table class="table table-hover">
+                    <thead class="table-light">
                         <tr>
-                            <th>Name</th>
-                            <th>Type</th>
-                            <th>Upload Date</th>
-                            <th>Actions</th>
+                            <th><i class="bi bi-file-text me-2"></i>Name</th>
+                            <th><i class="bi bi-tag me-2"></i>Type</th>
+                            <th><i class="bi bi-calendar me-2"></i>Upload Date</th>
+                            <th><i class="bi bi-hdd me-2"></i>Size</th>
+                            <th><i class="bi bi-gear me-2"></i>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var doc in documents)
                         {
                             <tr>
-                                <td>@doc.Name</td>
-                                <td>@GetFileType(doc.Name)</td>
-                                <td>@doc.UpdatedAt.ToString("MM/dd/yyyy")</td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveDocument(doc)">
-                                        Remove
-                                    </button>
+                                    <div class="d-flex align-items-center">
+                                        <i class="@GetFileIcon(doc.Name) me-2"></i>
+                                        <span>@doc.Name</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge @GetTypeBadgeClass(doc.Name)">
+                                        @GetFileType(doc.Name)
+                                    </span>
+                                </td>
+                                <td>@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                <td><span class="text-muted">--</span></td>
+                                <td>
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary" title="Download">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" title="View">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" @onclick="() => RemoveDocument(doc)" title="Remove">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -41,7 +74,16 @@
         }
         else
         {
-            <p class="text-muted">No documents uploaded yet.</p>
+            <div class="text-center py-5">
+                <div class="mb-3">
+                    <i class="bi bi-folder2-open display-1 text-muted"></i>
+                </div>
+                <h5 class="text-muted">No documents uploaded yet</h5>
+                <p class="text-muted">Upload documents to provide knowledge to your agent</p>
+                <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">
+                    <i class="bi bi-plus-circle me-2"></i>Add First Document
+                </button>
+            </div>
         }
     </div>
 </div>
@@ -50,10 +92,12 @@
 @if (isAddKnowledgeDialogOpen)
 {
     <div class="modal fade show" style="display: block;" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Knowledge</h5>
+                    <h5 class="modal-title">
+                        <i class="bi bi-plus-circle me-2"></i>Add Knowledge
+                    </h5>
                     <button type="button" class="btn-close" @onclick="CloseAddKnowledgeDialog"></button>
                 </div>
                 <div class="modal-body">
@@ -69,7 +113,14 @@
     [Parameter]
     public Guid AgentId { get; set; }
 
+    [Parameter]
+    public int DocumentCount { get; set; }
+
+    [Parameter]
+    public EventCallback<int> DocumentCountChanged { get; set; }
+
     private bool isAddKnowledgeDialogOpen = false;
+    private bool isLoading = true;
 
     private IList<DocumentListItem> documents = [];
 
@@ -80,7 +131,26 @@
 
     private async Task LoadDocuments()
     {
-        documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+        try
+        {
+            isLoading = true;
+            documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+            await UpdateDocumentCount();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading documents: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateDocumentCount()
+    {
+        DocumentCount = documents.Count;
+        await DocumentCountChanged.InvokeAsync(DocumentCount);
     }
 
     private void OpenAddKnowledgeDialog()
@@ -110,9 +180,42 @@
         return extension switch
         {
             ".pdf" => "PDF",
-            ".doc" or ".docx" => "Word Document",
-            ".txt" => "Text File",
+            ".doc" or ".docx" => "Word",
+            ".txt" => "Text",
+            ".md" => "Markdown",
+            ".json" => "JSON",
+            ".xml" => "XML",
             _ => "Document"
+        };
+    }
+
+    private string GetFileIcon(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
+        return extension switch
+        {
+            ".pdf" => "bi bi-file-earmark-pdf-fill text-danger",
+            ".doc" or ".docx" => "bi bi-file-earmark-word-fill text-primary",
+            ".txt" => "bi bi-file-earmark-text-fill text-secondary",
+            ".md" => "bi bi-file-earmark-code-fill text-info",
+            ".json" => "bi bi-file-earmark-code-fill text-warning",
+            ".xml" => "bi bi-file-earmark-code-fill text-success",
+            _ => "bi bi-file-earmark-fill text-muted"
+        };
+    }
+
+    private string GetTypeBadgeClass(string fileName)
+    {
+        var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
+        return extension switch
+        {
+            ".pdf" => "bg-danger",
+            ".doc" or ".docx" => "bg-primary",
+            ".txt" => "bg-secondary",
+            ".md" => "bg-info",
+            ".json" => "bg-warning",
+            ".xml" => "bg-success",
+            _ => "bg-light text-dark"
         };
     }
 }
