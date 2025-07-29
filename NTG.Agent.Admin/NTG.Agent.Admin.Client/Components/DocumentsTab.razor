@@ -109,6 +109,34 @@
     <div class="modal-backdrop fade show"></div>
 }
 
+<!-- Delete Confirmation Modal -->
+@if (isDeleteConfirmationOpen)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Confirm Deletion
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelDeleteDocument"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete this document? This action cannot be undone.</p>
+                    <p class="fw-bold">@documentToDelete?.Name</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDeleteDocument">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteDocument">
+                        <i class="bi bi-trash me-2"></i>Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
 @code {
     [Parameter]
     public Guid AgentId { get; set; }
@@ -121,8 +149,10 @@
 
     private bool isAddKnowledgeDialogOpen = false;
     private bool isLoading = true;
+    private bool isDeleteConfirmationOpen = false;
 
     private IList<DocumentListItem> documents = [];
+    private DocumentListItem? documentToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -171,7 +201,31 @@
 
     private void RemoveDocument(DocumentListItem document)
     {
+        documentToDelete = document;
+        isDeleteConfirmationOpen = true;
+    }
 
+    private async Task ConfirmDeleteDocument()
+    {
+        if (documentToDelete == null) return;
+        
+        try {
+            await DocumentClient.DeleteDocumentByIdAsync(AgentId, documentToDelete.Id);
+            await LoadDocuments();
+        }
+        catch (Exception ex) {
+            Console.WriteLine($"Error deleting document: {ex.Message}");
+        }
+        finally {
+            isDeleteConfirmationOpen = false;
+            documentToDelete = null;
+        }
+    }
+
+    private void CancelDeleteDocument()
+    {
+        isDeleteConfirmationOpen = false;
+        documentToDelete = null;
     }
 
     private string GetFileType(string fileName)

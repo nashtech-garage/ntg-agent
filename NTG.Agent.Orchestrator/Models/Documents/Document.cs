@@ -5,6 +5,7 @@ public class Document
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
+    public string KnowledgeDocId { get; set; } = string.Empty;
     public Guid AgentId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }

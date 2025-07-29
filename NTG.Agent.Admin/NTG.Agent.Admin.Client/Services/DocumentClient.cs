@@ -30,4 +30,10 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}", content);
         response.EnsureSuccessStatusCode();
     }
+    
+    public async Task DeleteDocumentByIdAsync(Guid agentId, Guid documentId)
+    {
+        var response = await httpClient.DeleteAsync($"api/documents/{documentId}/{agentId}");
+        response.EnsureSuccessStatusCode();
+    }
 }

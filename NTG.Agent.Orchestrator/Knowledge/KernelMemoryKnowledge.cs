@@ -10,9 +10,14 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         _memoryWebClient = new MemoryWebClient("https://localhost:7181", "Blm8d7sFx7arM9EN2QUxGy7yUjCyvRjx");
     }
-    public async Task ImportDocument(Stream content, string fileName, Guid agentId, CancellationToken cancellationToken = default)
+    public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        await _memoryWebClient.ImportDocumentAsync(content, fileName);
+        return await _memoryWebClient.ImportDocumentAsync(content, fileName);
+    }
+
+    public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
+    {
+        await _memoryWebClient.DeleteDocumentAsync(documentId);
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
