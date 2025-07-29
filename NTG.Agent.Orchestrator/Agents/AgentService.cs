@@ -35,7 +35,7 @@ public class AgentService
         List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversationId, conversation);
 
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, userId))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -110,7 +110,7 @@ public class AgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages, Guid? userId)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages)
     {
         ChatHistory chatHistory = [];
         if (previousMessages is not null)
@@ -134,21 +134,13 @@ public class AgentService
 
         Kernel agentKernel = _kernel.Clone();
 
-        // Anonymous user does not have access to knowledge base
-        if (userId.HasValue)
-        {
-            var prompt = $@"
+        var prompt = $@"
                Search to knowledge base: {message}
                Knowledge base will answer: {{memory.search}}
                If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
-            chatHistory.AddMessage(AuthorRole.User, prompt);
+        chatHistory.AddMessage(AuthorRole.User, prompt);
 
-            agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
-        }
-        else
-        {
-            chatHistory.AddMessage(AuthorRole.User, message);
-        }
+        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
 
         ChatCompletionAgent agent = new()
         {

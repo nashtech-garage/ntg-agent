@@ -85,6 +85,7 @@ public class ConversationsControllerTests
     {
         // Arrange
         var conversationId = Guid.NewGuid();
+        var currentSessionId = string.Empty;
         var expectedConversation = new Conversation
         {
             Id = conversationId,
@@ -97,7 +98,7 @@ public class ConversationsControllerTests
         await _context.SaveChangesAsync();
 
         // Act
-        var result = await _controller.GetConversation(conversationId);
+        var result = await _controller.GetConversation(conversationId, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -115,9 +116,10 @@ public class ConversationsControllerTests
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversation(nonExistentId);
+        var result = await _controller.GetConversation(nonExistentId, currentSessionId);
 
         // Assert
         Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
@@ -128,9 +130,10 @@ public class ConversationsControllerTests
     {
         // Arrange
         var (conversationId, _) = await SeedMessagesData();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(conversationId);
+        var result = await _controller.GetConversationMessage(conversationId, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -152,9 +155,10 @@ public class ConversationsControllerTests
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = _testUserId, Name = "Empty Convo" };
         await _context.Conversations.AddAsync(conversation);
         await _context.SaveChangesAsync();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(conversation.Id);
+        var result = await _controller.GetConversationMessage(conversation.Id, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -166,9 +170,10 @@ public class ConversationsControllerTests
     {
         // Arrange
         var (_, otherUserConversationId) = await SeedMessagesData();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(otherUserConversationId);
+        var result = await _controller.GetConversationMessage(otherUserConversationId, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);

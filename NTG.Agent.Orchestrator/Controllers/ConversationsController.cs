@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
+using System;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -41,35 +42,79 @@ public class ConversationsController : ControllerBase
     /// <summary>
     /// Retrieves a conversation by its unique identifier.
     /// </summary>
-    /// <remarks>This method performs an asynchronous operation to find a conversation in the database using
-    /// the specified identifier. If the conversation is not found, it returns a 404 Not Found response.</remarks>
+    /// <remarks>This method supports both authenticated and unauthenticated users. Authenticated users are
+    /// identified by their user ID, while unauthenticated users must provide a valid session ID. The method returns a
+    /// conversation only if it is associated with the requesting user's ID or session ID.</remarks>
     /// <param name="id">The unique identifier of the conversation to retrieve.</param>
+    /// <param name="currentSessionId">The session identifier for the current user session. This parameter is required for unauthenticated requests.</param>
     /// <returns>An <see cref="ActionResult{T}"/> containing the <see cref="Conversation"/> if found; otherwise, a <see
-    /// cref="NotFoundResult"/> if the conversation does not exist.</returns>
+    /// cref="NotFoundResult"/> if the conversation does not exist or a <see cref="BadRequestResult"/> if the session ID
+    /// is invalid for unauthenticated requests.</returns>
     [HttpGet("{id}")]
-    public async Task<ActionResult<Conversation>> GetConversation(Guid id)
+    public async Task<ActionResult<Conversation>> GetConversation(Guid id, [FromQuery] string? currentSessionId)
     {
-        var conversation = await _context.Conversations.FindAsync(id);
+        Guid? userId = User.GetUserId();
+        Conversation? conversation;
 
-        if (conversation == null)
+        if (userId.HasValue)
         {
-            return NotFound();
+            // Authenticated user
+            conversation = await _context.Conversations
+                .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId.Value);
+        }
+        else
+        {
+            // Anonymous user: sessionId must be provided and valid
+            if (!Guid.TryParse(currentSessionId, out Guid sessionId))
+            {
+                return BadRequest("A valid Session ID is required for unauthenticated requests.");
+            }
+
+            conversation = await _context.Conversations
+                .FirstOrDefaultAsync(c => c.Id == id && c.SessionId == sessionId);
         }
 
-        return conversation;
+        return conversation is not null ? Ok(conversation) : NotFound();
     }
+
 
     /// <summary>
     /// Retrieves a list of chat messages for a specified conversation.
     /// </summary>
-    /// <remarks>Only messages that are not marked as summaries are included in the result. The messages are
-    /// returned in chronological order based on their creation time.</remarks>
-    /// <param name="id">The unique identifier of the conversation whose messages are to be retrieved.</param>
-    /// <returns>A task that represents the asynchronous operation. The task result contains a list of <see
-    /// cref="ChatMessageListItem"/> representing the messages in the conversation, ordered by creation time.</returns>
+    /// <remarks>This method supports both authenticated and unauthenticated users. Authenticated users must
+    /// have a valid user ID associated with the conversation. Unauthenticated users must provide a valid session ID to
+    /// access the conversation.</remarks>
+    /// <param name="id">The unique identifier of the conversation.</param>
+    /// <param name="currentSessionId">The session ID for unauthenticated requests. Must be a valid GUID.</param>
+    /// <returns>A list of <see cref="ChatMessageListItem"/> representing the messages in the conversation, ordered by creation
+    /// time. Returns <see cref="NotFoundResult"/> if the conversation is not found or the user is not authorized.</returns>
     [HttpGet("{id}/messages")]
-    public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id)
+    public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id, [FromQuery] string? currentSessionId)
     {
+        Guid? userId = User.GetUserId();
+        bool isAuthorized = false;
+
+        if (userId.HasValue)
+        {
+            isAuthorized = await _context.Conversations
+                .AnyAsync(c => c.Id == id && c.UserId == userId.Value);
+        }
+        else
+        {
+            if (!Guid.TryParse(currentSessionId, out Guid sessionId))
+            {
+                return BadRequest("A valid Session ID is required for unauthenticated requests.");
+            }
+
+            isAuthorized = await _context.Conversations
+                .AnyAsync(c => c.Id == id && c.SessionId == sessionId);
+        }
+
+        if (!isAuthorized)
+        {
+            return Unauthorized();
+        }
+
         var chatMessages = await _context.ChatMessages
             .Where(x => x.ConversationId == id && !x.IsSummary)
             .OrderBy(x => x.CreatedAt)
@@ -81,8 +126,9 @@ public class ConversationsController : ControllerBase
             })
             .ToListAsync();
 
-        return chatMessages;
+        return Ok(chatMessages);
     }
+
 
     /// <summary>
     /// Searches for conversation messages and conversation names containing the specified keyword.
@@ -262,12 +308,15 @@ public class ConversationsController : ControllerBase
     /// <summary>
     /// Creates a new conversation and saves it to the database.
     /// </summary>
-    /// <remarks>This method initializes a new conversation with a default name and timestamps, associates it
-    /// with the current user if authenticated, and assigns a session ID for anonymous users. The conversation is then
-    /// added to the database.</remarks>
-    /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Conversation"/> object with its ID and name.</returns>
+    /// <remarks>If the user is authenticated, the conversation is associated with the user's ID. If the user
+    /// is not authenticated and a valid session ID is provided, the conversation is associated with the session
+    /// ID.</remarks>
+    /// <param name="currentSessionId">The session identifier for the current user session. This parameter is used to associate the conversation with a
+    /// session if the user is not authenticated.</param>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Conversation"/> object, with a status code
+    /// indicating the result of the operation.</returns>
     [HttpPost]
-    public async Task<ActionResult<Conversation>> PostConversation()
+    public async Task<ActionResult<Conversation>> PostConversation([FromQuery]string? currentSessionId)
     {
         Guid? userId = User.GetUserId();
         var conversation = new Conversation
@@ -276,7 +325,7 @@ public class ConversationsController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             UserId = userId,
-            SessionId = !userId.HasValue ? Guid.NewGuid() : null // Set SessionId if user is not authenticated. TODO: Implement a clean-up job/mechanism for the anonymous conversations + chats.
+            SessionId = (!userId.HasValue && !string.IsNullOrWhiteSpace(currentSessionId))? Guid.Parse(currentSessionId): null // Set SessionId if user is not authenticated. TODO: Implement a clean-up job/mechanism for the anonymous conversations + chats.
         };
         _context.Conversations.Add(conversation);
         await _context.SaveChangesAsync();
