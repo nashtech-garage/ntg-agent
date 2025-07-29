@@ -1,4 +1,4 @@
-﻿using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
 using System.Net;
 using System.Net.Http.Json;
@@ -9,16 +9,16 @@ public class ConversationClient(HttpClient httpClient)
 {
     public async Task<ConversationCreated> Create(string currentSessionId)
     {
-            string url = string.IsNullOrWhiteSpace(currentSessionId)
-            ? "/api/conversations"
-            : $"/api/conversations?currentSessionId={currentSessionId}";
+        string url = string.IsNullOrWhiteSpace(currentSessionId)
+        ? "/api/conversations"
+        : $"/api/conversations?currentSessionId={currentSessionId}";
 
-            var response = await httpClient.PostAsync(url, null);
+        var response = await httpClient.PostAsync(url, null);
 
-            response.EnsureSuccessStatusCode();
+        response.EnsureSuccessStatusCode();
 
-            var result = await response.Content.ReadFromJsonAsync<ConversationCreated>();
-            return result!;
+        var result = await response.Content.ReadFromJsonAsync<ConversationCreated>();
+        return result!;
     }
 
 
@@ -70,5 +70,19 @@ public class ConversationClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<IList<ChatSearchResultItem>>();
         return result ?? [];
+    }
+
+    public async Task<bool> UpdateMessageReactionAsync(Guid conversationId, Guid messageId, ReactionType reaction)
+    {
+        var request = new UpdateReactionRequest { Reaction = reaction };
+        var response = await httpClient.PutAsJsonAsync($"/api/conversations/{conversationId}/messages/{messageId}/reaction", request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UpdateMessageCommentAsync(Guid conversationId, Guid messageId, string comment)
+    {
+        var request = new UpdateCommentRequest { Comment = comment };
+        var response = await httpClient.PutAsJsonAsync($"/api/conversations/{conversationId}/messages/{messageId}/comment", request);
+        return response.IsSuccessStatusCode;
     }
 }
