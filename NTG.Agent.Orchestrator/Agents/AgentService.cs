@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory.Context;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -28,11 +29,9 @@ public class AgentService
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
     {
-        Guid? userIdValue = userId.HasValue ? userId.Value : null;
-        Guid conversationId = promptRequest.ConversationId;
-        var conversation = await _agentDbContext.Conversations.FindAsync(conversationId) ?? throw new InvalidOperationException($"Conversation with ID {conversationId} does not exist.");
+        var conversation = await ValidateConversation(userId, promptRequest);
 
-        List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversationId, conversation);
+        List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, promptRequest.ConversationId, conversation);
 
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
@@ -50,7 +49,7 @@ public class AgentService
 
         var userMessage = new ChatMessage
         {
-            UserId = userIdValue,
+            UserId = userId,
             Conversation = conversation,
             Content = promptRequest.Prompt,
             Role = ChatRole.User
@@ -58,7 +57,7 @@ public class AgentService
 
         var assistantMessage = new ChatMessage
         {
-            UserId = userIdValue,
+            UserId = userId,
             Conversation = conversation,
             Content = agentMessageSb.ToString(),
             Role = ChatRole.Assistant
@@ -66,6 +65,32 @@ public class AgentService
 
         _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
         await _agentDbContext.SaveChangesAsync();
+    }
+
+    private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequest promptRequest)
+    {
+        Guid conversationId = promptRequest.ConversationId;
+        Conversation? conversation;
+        if (userId.HasValue)
+        {
+            conversation = await _agentDbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+        }
+        else
+        {
+            if (!Guid.TryParse(promptRequest.SessionId, out Guid sessionId))
+            {
+                throw new InvalidOperationException("A valid Session ID is required for unauthenticated requests.");
+            }
+            conversation = await _agentDbContext.Conversations
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.SessionId == sessionId);
+        }
+
+        if (conversation is null)
+        {
+            throw new InvalidOperationException($"Conversation with ID {conversationId} does not exist.");
+        }
+        return conversation;
     }
 
     private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Guid conversationId, Conversation conversation)

@@ -164,7 +164,7 @@ else
         userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value));
+        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value, currentSessionId));
         response.Message = string.Empty;
         await foreach (var item in result)
         {
