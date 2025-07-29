@@ -12,7 +12,7 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    [Migration("20250729074839_AddKnowledgeDocId2DocumentTable")]
+    [Migration("20250729223708_AddKnowledgeDocId2DocumentTable")]
     partial class AddKnowledgeDocId2DocumentTable
     {
         /// <inheritdoc />
@@ -147,7 +147,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("KnowledgeDocId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")

@@ -144,7 +144,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("KnowledgeDocId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")

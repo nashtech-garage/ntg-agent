@@ -14,8 +14,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 name: "KnowledgeDocId",
                 table: "Documents",
                 type: "nvarchar(max)",
-                nullable: false,
-                defaultValue: "");
+                nullable: true);
         }
 
         /// <inheritdoc />

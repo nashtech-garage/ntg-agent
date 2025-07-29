@@ -93,7 +93,10 @@ public class DocumentsController : ControllerBase
             return NotFound();
         }
 
-        await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
+        if (document.KnowledgeDocId!= null)
+        {
+            await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
+        }
 
         _agentDbContext.Documents.Remove(document);
         await _agentDbContext.SaveChangesAsync();
