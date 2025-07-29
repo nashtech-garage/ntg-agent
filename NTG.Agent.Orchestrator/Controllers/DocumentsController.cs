@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
@@ -8,6 +8,7 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Controllers;
+
 [Route("api/[controller]")]
 [ApiController]
 [Authorize(Roles = "Admin")]
@@ -28,7 +29,7 @@ public class DocumentsController : ControllerBase
     {
         var documents = await _agentDbContext.Documents
             .Where(x => x.AgentId == agentId)
-            .Select(x => new DocumentListItem (x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
+            .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
             .ToListAsync();
         return Ok(documents);
     }
@@ -42,7 +43,7 @@ public class DocumentsController : ControllerBase
             return BadRequest("No files uploaded.");
         }
 
-        var userId = User.GetUserId()?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
         var documents = new List<Document>();
 
@@ -86,24 +87,58 @@ public class DocumentsController : ControllerBase
         }
 
         var document = await _agentDbContext.Documents.FindAsync(id);
-        
+
         if (document == null)
         {
             return NotFound();
         }
-        
+
+        await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
+
+        _agentDbContext.Documents.Remove(document);
+        await _agentDbContext.SaveChangesAsync();
+
+        return NoContent();
+    }
+    
+    [HttpPost("import-webpage/{agentId}")]
+    [Authorize]
+    public async Task<IActionResult> ImportWebPage(Guid agentId, [FromBody] ImportWebPageRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Url))
+        {
+            return BadRequest("URL is required.");
+        }
+
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+
         try
         {
-            await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
-            
-            _agentDbContext.Documents.Remove(document);
+            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId);
+
+            var document = new Document
+            {
+                Id = Guid.NewGuid(),
+                Name = request.Url,
+                AgentId = agentId,
+                KnowledgeDocId = documentId,
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Type = DocumentType.WebPage
+            };
+
+            _agentDbContext.Documents.Add(document);
             await _agentDbContext.SaveChangesAsync();
-            
-            return NoContent();
+
+            return Ok(documentId);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = $"An error occurred while deleting the document: {ex.Message}" });
+            return BadRequest($"Failed to import webpage: {ex.Message}");
         }
     }
 }
+
+public record ImportWebPageRequest(string Url);

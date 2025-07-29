@@ -202,20 +202,19 @@
         isUploading = true;
         generalMessage = string.Empty;
 
+        var uploadItem = new UploadItem
+        {
+            Name = urlInput,
+            Status = UploadStatus.Uploading,
+            Message = "Fetching from URL...",
+            Progress = 50
+        };
+        uploadItems.Add(uploadItem);
+        StateHasChanged();
+
         try
         {
-            var uploadItem = new UploadItem
-            {
-                Name = urlInput,
-                Status = UploadStatus.Uploading,
-                Message = "Fetching from URL...",
-                Progress = 50
-            };
-            uploadItems.Add(uploadItem);
-            StateHasChanged();
-
-            // TODO: Implement URL upload
-            await Task.Delay(2000); // Simulate API call
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";
@@ -229,8 +228,11 @@
         }
         catch (Exception ex)
         {
+            uploadItem.Status = UploadStatus.Error;
+            uploadItem.Message = $"Error: {ex.Message}";
             generalMessage = $"URL upload failed: {ex.Message}";
             isError = true;
+            StateHasChanged();
         }
         finally
         {
