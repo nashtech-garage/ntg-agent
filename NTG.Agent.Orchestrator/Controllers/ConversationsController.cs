@@ -74,7 +74,7 @@ public class ConversationsController : ControllerBase
                 .FirstOrDefaultAsync(c => c.Id == id && c.SessionId == sessionId);
         }
 
-        return conversation is not null ? Ok(conversation) : NotFound();
+        return conversation is not null ? conversation : NotFound();
     }
 
 
@@ -126,7 +126,7 @@ public class ConversationsController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(chatMessages);
+        return chatMessages;
     }
 
 
