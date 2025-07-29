@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250806060822_AddReactionsAndComments")]
+    partial class AddReactionsAndComments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -136,70 +139,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Conversations");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("SharedConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SharedConversationId");
-
-                    b.ToTable("SharedChatMessages");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Type")
-                       .HasColumnType("int");
-
-                    b.Property<Guid>("OriginalConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SharedConversations");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
@@ -401,17 +340,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Conversation");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", "SharedConversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("SharedConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SharedConversation");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", null)
@@ -429,11 +357,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
-                {
-                    b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
                 {
                     b.Navigation("Messages");
                 });

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
@@ -86,7 +86,7 @@ public class ConversationsController : ControllerBase
     /// access the conversation.</remarks>
     /// <param name="id">The unique identifier of the conversation.</param>
     /// <param name="currentSessionId">The session ID for unauthenticated requests. Must be a valid GUID.</param>
-    /// <returns>A list of <see cref="ChatMessageListItem"/> representing the messages in the conversation, ordered by creation
+    /// <returns>A list of <see cref="ChatMessageItem"/> representing the messages in the conversation, ordered by creation
     /// time. Returns <see cref="NotFoundResult"/> if the conversation is not found or the user is not authorized.</returns>
     [HttpGet("{id}/messages")]
     public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id, [FromQuery] string? currentSessionId)
@@ -121,7 +121,9 @@ public class ConversationsController : ControllerBase
             {
                 Id = x.Id,
                 Content = x.Content,
-                Role = (int)x.Role
+                Role = (int)x.Role,
+                Reaction = x.Reaction,
+                UserComment = x.UserComment
             })
             .ToListAsync();
 
@@ -140,7 +142,7 @@ public class ConversationsController : ControllerBase
     /// is null, whitespace, or no matches are found.</returns>
     [Authorize]
     [HttpGet("search")]
-    public async Task<ActionResult<IList<ChatSearchResultItem>>> SearchConversationMessages([FromQuery]string keyword)
+    public async Task<ActionResult<IList<ChatSearchResultItem>>> SearchConversationMessages([FromQuery] string keyword)
     {
         if (string.IsNullOrWhiteSpace(keyword))
         {
@@ -148,12 +150,12 @@ public class ConversationsController : ControllerBase
         }
 
         var userId = User.GetUserId();
-        
+
         // Execute both queries separately and then combine the results
-        
+
         // Query for conversations - using standard string Contains instead of full-text search
         var conversationResults = await _context.Conversations
-            .Where(c => c.UserId == userId && 
+            .Where(c => c.UserId == userId &&
                   c.Name.Contains(keyword))
             .Select(c => new ChatSearchResultItem
             {
@@ -163,19 +165,19 @@ public class ConversationsController : ControllerBase
                 IsConversation = true
             })
             .ToListAsync();
-        
+
         // Query for messages - using standard string Contains instead of full-text search
         var messagesQuery = await _context.ChatMessages
-            .Where(m => m.UserId == userId && 
+            .Where(m => m.UserId == userId &&
                   m.Content.Contains(keyword))
-            .Select(m => new 
+            .Select(m => new
             {
                 m.ConversationId,
                 m.Content,
                 m.Role
             })
             .ToListAsync();
-            
+
         // Process message results with client-side method
         var messageResults = messagesQuery
             .Select(m => new ChatSearchResultItem
@@ -186,10 +188,10 @@ public class ConversationsController : ControllerBase
                 IsConversation = false
             })
             .ToList();
-        
+
         // Combine the results
         var combinedResults = conversationResults.Concat(messageResults).ToList();
-        
+
         return Ok(combinedResults);
     }
 
@@ -203,26 +205,26 @@ public class ConversationsController : ControllerBase
         {
             return content;
         }
-        
+
         // For assistant messages, extract content around the keyword
         int maxContextLength = 200; // Max characters to show
         int keywordPos = content.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
-        
+
         if (keywordPos < 0) // Shouldn't happen, but just in case
             return content.Length <= maxContextLength ? content : content.Substring(0, maxContextLength) + "...";
-        
+
         int startPos = Math.Max(0, keywordPos - maxContextLength / 2);
         int endPos = Math.Min(content.Length, keywordPos + keyword.Length + maxContextLength / 2);
         int length = endPos - startPos;
-        
+
         string result = content.Substring(startPos, length);
-        
+
         // Add ellipses if we've trimmed the text
         if (startPos > 0)
             result = "..." + result;
         if (endPos < content.Length)
             result = result + "...";
-        
+
         return result;
     }
 
@@ -315,7 +317,7 @@ public class ConversationsController : ControllerBase
     /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Conversation"/> object, with a status code
     /// indicating the result of the operation.</returns>
     [HttpPost]
-    public async Task<ActionResult<Conversation>> PostConversation([FromQuery]string? currentSessionId)
+    public async Task<ActionResult<Conversation>> PostConversation([FromQuery] string? currentSessionId)
     {
         Guid? userId = User.GetUserId();
         var conversation = new Conversation
@@ -324,7 +326,7 @@ public class ConversationsController : ControllerBase
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             UserId = userId,
-            SessionId = (!userId.HasValue && !string.IsNullOrWhiteSpace(currentSessionId))? Guid.Parse(currentSessionId): null // Set SessionId if user is not authenticated. TODO: Implement a clean-up job/mechanism for the anonymous conversations + chats.
+            SessionId = (!userId.HasValue && !string.IsNullOrWhiteSpace(currentSessionId)) ? Guid.Parse(currentSessionId) : null // Set SessionId if user is not authenticated. TODO: Implement a clean-up job/mechanism for the anonymous conversations + chats.
         };
         _context.Conversations.Add(conversation);
         await _context.SaveChangesAsync();
@@ -352,6 +354,76 @@ public class ConversationsController : ControllerBase
         }
 
         _context.Conversations.Remove(conversation);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Updates the reaction (like/dislike) for a specific chat message.
+    /// </summary>
+    /// <param name="messageId">The unique identifier of the chat message.</param>
+    /// <param name="request">The reaction update request containing the new reaction type.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.</returns>
+    [HttpPut("{id}/messages/{messageId}/reaction")]
+    public async Task<IActionResult> UpdateMessageReaction(Guid id, Guid messageId, [FromBody] UpdateReactionRequest request)
+    {
+        var userId = User.GetUserId();
+        var message = await _context.ChatMessages
+            .Include(m => m.Conversation)
+            .FirstOrDefaultAsync(m => m.ConversationId == id && m.Id == messageId);
+
+        if (message == null) return NotFound();
+
+        // Check authorization
+        if (userId.HasValue)
+        {
+            if (message.Conversation.UserId != userId.Value) return Unauthorized();
+        }
+        else
+        {
+            // For anonymous users, we need session validation but that would require session ID
+            // For now, allow updates to assistant messages only
+            if (message.Role != ChatRole.Assistant) return Unauthorized();
+        }
+
+        message.Reaction = request.Reaction;
+        message.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Updates the user comment for a specific chat message.
+    /// </summary>
+    /// <param name="messageId">The unique identifier of the chat message.</param>
+    /// <param name="request">The comment update request containing the new comment text.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.</returns>
+    [HttpPut("{id}/messages/{messageId}/comment")]
+    public async Task<IActionResult> UpdateMessageComment(Guid id, Guid messageId, [FromBody] UpdateCommentRequest request)
+    {
+        var userId = User.GetUserId();
+        var message = await _context.ChatMessages
+            .Include(m => m.Conversation)
+            .FirstOrDefaultAsync(m => m.ConversationId == id && m.Id == messageId);
+
+        if (message == null) return NotFound();
+
+        // Check authorization
+        if (userId.HasValue)
+        {
+            if (message.Conversation.UserId != userId.Value) return Unauthorized();
+        }
+        else
+        {
+            // For anonymous users, we need session validation but that would require session ID
+            // For now, allow updates to assistant messages only
+            if (message.Role != ChatRole.Assistant) return Unauthorized();
+        }
+
+        message.UserComment = request.Comment ?? string.Empty;
+        message.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return NoContent();

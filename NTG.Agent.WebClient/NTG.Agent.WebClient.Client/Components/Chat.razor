@@ -33,7 +33,33 @@ else if (ConversationId.HasValue)
             if (item.IsSystem)
             {
                 <div class="p-2 w-100">
-                    <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                    <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
+                        CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                    <div class="chat-actions mt-2 ms-2">
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
+                            <i
+                                class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleDislike(item))"
+                            title="Dislike">
+                            <i
+                                class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ToggleComment(item))" title="Comment">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
+                    </div>
+                    @if (showCommentFor == item.Id)
+                    {
+                        <div class="comment-section mt-2 ms-2">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" placeholder="Add a comment..." @bind="currentComment" />
+                                <button class="btn btn-outline-primary" type="button" @onclick="@(() => SaveComment(item))">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
                 </div>
             }
             else
@@ -49,17 +75,9 @@ else if (ConversationId.HasValue)
     <div class="form-group row">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
             <div class="input-group mb-3">
-                <input type="text"
-                       id="userInput"
-                       class="form-control rounded rounded-4"
-                       @bind="userInput"
-                       @onkeydown="@Enter"
-                       @bind:event="oninput"
-                       autocomplete="off"
-                       spellcheck="false"
-                       autocorrect="off"
-                       autocapitalize="off"
-                       placeholder="Type your message..." />
+                <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
+                    @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
+                    autocapitalize="off" placeholder="Type your message..." />
                 <div class="input-group-append">
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
                     <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
@@ -77,20 +95,13 @@ else
         <div class="form-group w-100">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
                 <div class="input-group mb-3">
-                    <input type="text"
-                           id="userInput"
-                           class="form-control rounded rounded-4"
-                           @bind="userInput"
-                           @onkeydown="@Enter"
-                           @bind:event="oninput"
-                           autocomplete="off"
-                           spellcheck="false"
-                           autocorrect="off"
-                           autocapitalize="off"
-                           placeholder="Ask anything" />
+                    <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
+                        @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
+                        autocapitalize="off" placeholder="Ask anything" />
                     <div class="input-group-append">
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                        <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
+                        <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message"
+                            title="Send message">
                             <i class="bi bi-send fs-6"></i>
                         </button>
                     </div>
@@ -121,6 +132,8 @@ else
     private bool isAuthenticated = false;
     private bool unauthorized = false;
     private bool showShareModal = false;
+    private Guid? showCommentFor = null;
+    private string currentComment = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -237,6 +250,16 @@ else
         {
             showShareModal = true;
             await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+        }
+    }
+    
+    private async Task ToggleLike(ChatMessageItem message)
+    {
+        var newReaction = message.Reaction == ReactionType.Like ? ReactionType.None : ReactionType.Like;
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
+        if (success)
+        {
+            message.Reaction = newReaction;
             StateHasChanged();
         }
     }
@@ -251,5 +274,42 @@ else
     private void HandleSharedConversationChanged()
     {
         StateHasChanged();
+    }
+    private async Task ToggleDislike(ChatMessageItem message)
+    {
+        var newReaction = message.Reaction == ReactionType.Dislike ? ReactionType.None : ReactionType.Dislike;
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
+        if (success)
+        {
+            message.Reaction = newReaction;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleComment(ChatMessageItem message)
+    {
+        if (showCommentFor == message.Id)
+        {
+            showCommentFor = null;
+            currentComment = string.Empty;
+        }
+        else
+        {
+            showCommentFor = message.Id;
+            currentComment = message.UserComment;
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveComment(ChatMessageItem message)
+    {
+        var success = await ConversationClient.UpdateMessageCommentAsync(ConversationId!.Value, message.Id, currentComment);
+        if (success)
+        {
+            message.UserComment = currentComment;
+            showCommentFor = null;
+            currentComment = string.Empty;
+            StateHasChanged();
+        }
     }
 }
