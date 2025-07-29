@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Forms;
 using NTG.Agent.Shared.Dtos.Documents;
 using System.Net.Http.Json;
 
@@ -29,5 +29,14 @@ public class DocumentClient(HttpClient httpClient)
         }
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}", content);
         response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string> ImportWebPageAsync(Guid agentId, string url)
+    {
+        var request = new { Url = url };
+        var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadAsStringAsync();
+        return result;
     }
 }

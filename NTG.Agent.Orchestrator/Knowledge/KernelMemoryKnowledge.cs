@@ -26,4 +26,15 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var result = await _memoryWebClient.SearchAsync(query);
         return result;
     }
+
+    public async Task<string> ImportWebPageAsync(string url, Guid agentId, CancellationToken cancellationToken = default)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Invalid URL provided.", nameof(url));
+        }
+
+        var documentId = await _memoryWebClient.ImportWebPageAsync(url, cancellationToken: cancellationToken);
+        return documentId;
+    }
 }
