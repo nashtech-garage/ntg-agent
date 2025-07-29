@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -24,6 +24,7 @@
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
+    <ProjectReference Include="..\NTG.Agent.Shared.Logging\NTG.Agent.Shared.Logging.csproj" />
   </ItemGroup>
 
 </Project>

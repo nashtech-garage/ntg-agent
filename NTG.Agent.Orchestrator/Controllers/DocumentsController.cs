@@ -6,6 +6,8 @@ using NTG.Agent.Shared.Dtos.Documents;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.Shared.Logging;
+using NTG.Agent.Shared.Logging.Metrics;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -16,21 +18,35 @@ public class DocumentsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IApplicationLogger<DocumentsController> _logger;
+    private readonly IMetricsCollector _metrics;
 
-    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService)
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, IApplicationLogger<DocumentsController> logger, IMetricsCollector metrics)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
 
     [HttpGet("{agentId}")]
     [Authorize]
     public async Task<IActionResult> GetDocumentsByAgentId(Guid agentId)
     {
+        using var scope = _logger.BeginScope("GetDocuments", new { AgentId = agentId });
+        using var timer = _metrics.StartTimer("documents.get", ("agent_id", agentId.ToString()));
+
+        _logger.LogUserAction(User.GetUserId()?.ToString() ?? "anonymous", "GetDocuments", new { AgentId = agentId });
+        _metrics.IncrementCounter("documents.requests", 1, ("operation", "get"), ("agent_id", agentId.ToString()));
+
         var documents = await _agentDbContext.Documents
             .Where(x => x.AgentId == agentId)
             .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
             .ToListAsync();
+
+        _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
+        _metrics.RecordBusinessMetric("DocumentsRetrieved", new { AgentId = agentId, documents.Count });
+
         return Ok(documents);
     }
 
@@ -93,7 +109,7 @@ public class DocumentsController : ControllerBase
             return NotFound();
         }
 
-        if (document.KnowledgeDocId!= null)
+        if (document.KnowledgeDocId != null)
         {
             await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
         }
@@ -103,7 +119,7 @@ public class DocumentsController : ControllerBase
 
         return NoContent();
     }
-    
+
     [HttpPost("import-webpage/{agentId}")]
     [Authorize]
     public async Task<IActionResult> ImportWebPage(Guid agentId, [FromBody] ImportWebPageRequest request)
