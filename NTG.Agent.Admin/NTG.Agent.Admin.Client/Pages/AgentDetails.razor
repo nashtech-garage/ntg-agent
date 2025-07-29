@@ -1,0 +1,193 @@
+﻿@page "/agents/{id:guid}"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Admin.Client.Components
+@using NTG.Agent.Shared.Dtos.Agents
+
+@inject AgentClient AgentClient
+@inject NavigationManager Navigation
+
+<PageTitle>Agent Details</PageTitle>
+
+<div class="container-fluid px-4 py-3 agent-details">
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (agentDetail == null)
+    {
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>
+                Agent not found. <a href="/agents" class="alert-link">Return to agents list</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Header Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Agents</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">@agentDetail.Name</li>
+                    </ol>
+                </nav>
+                
+                <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3 agent-avatar" 
+                             style="width: 48px; height: 48px;">
+                            <i class="bi bi-robot text-white fs-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="h2 mb-1">@agentDetail.Name</h1>
+                            <span class="badge bg-success">Active</span>
+                        </div>
+                    </div>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            Actions
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Edit Agent</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="bi bi-copy me-2"></i>Duplicate Agent</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-trash me-2"></i>Delete Agent</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <!-- Enhanced Tab Navigation -->
+                    <div class="card-header bg-white border-bottom">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == settingsTab ? "active" : "") d-flex align-items-center" 
+                                        @onclick="() => SetActiveTab(settingsTab)" 
+                                        type="button" role="tab">
+                                    <i class="bi bi-gear me-2"></i>
+                                    Agent Settings
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == documentsTab ? "active" : "") d-flex align-items-center" 
+                                        @onclick="() => SetActiveTab(documentsTab)" 
+                                        type="button" role="tab">
+                                    <i class="bi bi-files me-2"></i>
+                                    Knowledge Base
+                                    <span class="badge bg-secondary ms-2">@documentCount</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="card-body p-0">
+                        <div class="tab-content">
+                            @if (activeTab == settingsTab)
+                            {
+                                <div class="tab-pane fade show active p-4">
+                                    <AgentSettingsTab AgentId="Id" />
+                                </div>
+                            }
+                            else if (activeTab == documentsTab)
+                            {
+                                <div class="tab-pane fade show active p-4">
+                                    <DocumentsTab AgentId="Id" @bind-DocumentCount="documentCount" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agent Info Sidebar (Optional - can be added later) -->
+        @if (showSidebar)
+        {
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Agent Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <small class="text-muted">Agent ID</small>
+                            <div class="font-monospace small">@agentDetail.Id</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Name</small>
+                            <div>@agentDetail.Name</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Status</small>
+                            <div><span class="badge bg-success">Active</span></div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Created</small>
+                            <div>January 15, 2024</div>
+                        </div>
+                        <div class="mb-3">
+                            <small class="text-muted">Last Modified</small>
+                            <div>2 hours ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private AgentDetail? agentDetail;
+    private bool isLoading = true;
+    private bool showSidebar = false; // Can be toggled based on screen size or user preference
+
+    private const string settingsTab = "settings";
+    private const string documentsTab = "documents";
+    private string activeTab = settingsTab;
+    private int documentCount = 0;
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            // Fetch agent details based on the provided Id
+            agentDetail = await AgentClient.GetAgentDetails(Id);
+            if (agentDetail == null)
+            {
+                Navigation.NavigateTo("/agents");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error and show appropriate message
+            Console.WriteLine($"Error loading agent details: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

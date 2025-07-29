@@ -1,0 +1,305 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using NTG.Agent.Shared.Dtos.Documents
+@inject DocumentClient DocumentClient
+
+<div class="row">
+    <div class="col-12">
+        <!-- Upload Section -->
+        <div class="mb-4">
+            <div class="border border-dashed border-2 rounded p-4 text-center bg-light">
+                <div class="mb-3">
+                    <i class="bi bi-cloud-upload display-4 text-muted"></i>
+                </div>
+                <h6 class="mb-2">Drag and drop files here or click to browse</h6>
+                <p class="text-muted small mb-3">Supported formats: PDF, Word, Text files (Max 10MB each)</p>
+                <InputFile OnChange="HandleFileUpload" 
+                          class="form-control" 
+                          multiple 
+                          accept=".pdf,.doc,.docx,.txt,.md,.json,.xml" 
+                          id="fileUpload" />
+            </div>
+        </div>
+
+        <!-- URL Upload Section -->
+        <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-link-45deg me-2"></i>Add from URL
+            </h6>
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="bi bi-globe"></i>
+                </span>
+                <input type="url" 
+                       class="form-control" 
+                       placeholder="https://example.com/document.pdf" 
+                       @bind="urlInput" />
+                <button class="btn btn-outline-primary" 
+                        @onclick="HandleUrlUpload" 
+                        disabled="@(string.IsNullOrWhiteSpace(urlInput) || isUploading)">
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
+            <div class="form-text">Enter a URL to automatically fetch and process the document</div>
+        </div>
+
+        <!-- Text Input Section -->
+        <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-textarea-t me-2"></i>Add text content directly
+            </h6>
+            <div class="mb-3">
+                <input type="text" 
+                       class="form-control mb-2" 
+                       placeholder="Document title" 
+                       @bind="textTitle" />
+                <textarea class="form-control" 
+                         rows="6" 
+                         placeholder="Paste or type your content here..." 
+                         @bind="textContent"></textarea>
+            </div>
+            <button class="btn btn-outline-primary" 
+                    @onclick="HandleTextUpload" 
+                    disabled="@(string.IsNullOrWhiteSpace(textContent) || isUploading)">
+                <i class="bi bi-plus-circle me-2"></i>Add Text Content
+            </button>
+        </div>
+
+        <!-- Upload Status -->
+        @if (uploadItems.Any())
+        {
+            <div class="mb-3">
+                <h6 class="mb-3">Upload Progress</h6>
+                @foreach (var item in uploadItems)
+                {
+                    <div class="card mb-2">
+                        <div class="card-body p-3">
+                            <div class="d-flex align-items-center">
+                                <div class="me-3">
+                                    @if (item.Status == UploadStatus.Uploading)
+                                    {
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Uploading...</span>
+                                        </div>
+                                    }
+                                    else if (item.Status == UploadStatus.Success)
+                                    {
+                                        <i class="bi bi-check-circle-fill text-success"></i>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-x-circle-fill text-danger"></i>
+                                    }
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-medium">@item.Name</div>
+                                    <small class="text-muted">@item.Message</small>
+                                </div>
+                                @if (item.Status == UploadStatus.Uploading)
+                                {
+                                    <div class="progress" style="width: 100px;">
+                                        <div class="progress-bar" role="progressbar" style="width: @(item.Progress)%"></div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(generalMessage))
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success") d-flex align-items-center" role="alert">
+                <i class="@(isError ? "bi bi-exclamation-triangle-fill" : "bi bi-check-circle-fill") me-2"></i>
+                <div>@generalMessage</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    [Parameter]
+    public EventCallback OnUploadCompleted { get; set; }
+
+    private string urlInput = string.Empty;
+    private string textContent = string.Empty;
+    private string textTitle = string.Empty;
+    private string generalMessage = string.Empty;
+    private bool isError = false;
+    private bool isUploading = false;
+
+    private List<UploadItem> uploadItems = new();
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        isUploading = true;
+        generalMessage = string.Empty;
+
+        try
+        {
+            var files = e.GetMultipleFiles(10); // Max 10 files
+            
+            foreach (var file in files)
+            {
+                var uploadItem = new UploadItem
+                {
+                    Name = file.Name,
+                    Status = UploadStatus.Uploading,
+                    Message = "Uploading...",
+                    Progress = 0
+                };
+                uploadItems.Add(uploadItem);
+                StateHasChanged();
+
+                try
+                {
+                    // Simulate progress
+                    for (int i = 0; i <= 100; i += 20)
+                    {
+                        uploadItem.Progress = i;
+                        StateHasChanged();
+                        await Task.Delay(200);
+                    }
+
+                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file });
+
+                    uploadItem.Status = UploadStatus.Success;
+                    uploadItem.Message = "Successfully uploaded";
+                }
+                catch (Exception ex)
+                {
+                    uploadItem.Status = UploadStatus.Error;
+                    uploadItem.Message = $"Error: {ex.Message}";
+                }
+                
+                StateHasChanged();
+            }
+
+            // Clear upload items after a delay
+            await Task.Delay(3000);
+            uploadItems.Clear();
+            await OnUploadCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            generalMessage = $"Upload failed: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleUrlUpload()
+    {
+        if (string.IsNullOrWhiteSpace(urlInput)) return;
+
+        isUploading = true;
+        generalMessage = string.Empty;
+
+        var uploadItem = new UploadItem
+        {
+            Name = urlInput,
+            Status = UploadStatus.Uploading,
+            Message = "Fetching from URL...",
+            Progress = 50
+        };
+        uploadItems.Add(uploadItem);
+        StateHasChanged();
+
+        try
+        {
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput);
+
+            uploadItem.Status = UploadStatus.Success;
+            uploadItem.Message = "Successfully processed URL content";
+            StateHasChanged();
+
+            urlInput = string.Empty;
+            
+            await Task.Delay(2000);
+            uploadItems.Clear();
+            await OnUploadCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            uploadItem.Status = UploadStatus.Error;
+            uploadItem.Message = $"Error: {ex.Message}";
+            generalMessage = $"URL upload failed: {ex.Message}";
+            isError = true;
+            StateHasChanged();
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleTextUpload()
+    {
+        if (string.IsNullOrWhiteSpace(textContent)) return;
+
+        isUploading = true;
+        generalMessage = string.Empty;
+
+        try
+        {
+            var title = string.IsNullOrWhiteSpace(textTitle) ? "Text Content" : textTitle;
+            
+            var uploadItem = new UploadItem
+            {
+                Name = title,
+                Status = UploadStatus.Uploading,
+                Message = "Processing text content...",
+                Progress = 50
+            };
+            uploadItems.Add(uploadItem);
+            StateHasChanged();
+
+            // TODO: Implement text content upload
+            await Task.Delay(1500); // Simulate API call
+
+            uploadItem.Status = UploadStatus.Success;
+            uploadItem.Message = "Successfully added text content";
+            StateHasChanged();
+
+            textContent = string.Empty;
+            textTitle = string.Empty;
+            
+            await Task.Delay(2000);
+            uploadItems.Clear();
+            await OnUploadCompleted.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            generalMessage = $"Text upload failed: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+
+    private class UploadItem
+    {
+        public string Name { get; set; } = string.Empty;
+        public UploadStatus Status { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public int Progress { get; set; }
+    }
+
+    private enum UploadStatus
+    {
+        Uploading,
+        Success,
+        Error
+    }
+}

@@ -3,27 +3,27 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
-public interface IAgentService
-{
-    IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest);
-}
 
-public class AgentService : IAgentService
+public class AgentService
 {
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
+    private readonly IKnowledgeService _knowledgeService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
-    public AgentService(Kernel kernel, AgentDbContext agentDbContext)
+    public AgentService(Kernel kernel, AgentDbContext agentDbContext, IKnowledgeService knowledgeService)
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
+        _knowledgeService = knowledgeService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
@@ -35,7 +35,6 @@ public class AgentService : IAgentService
 
             List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversationId, conversation);
 
-            // Stream agent reply
             var agentMessageSb = new StringBuilder();
             await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
             {
@@ -120,9 +119,9 @@ public class AgentService : IAgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string prompt, List<ChatMessage>? previousMessages)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages)
     {
-        var messages = new List<ChatMessageContent>();
+        ChatHistory chatHistory = [];
         if (previousMessages is not null)
         {
             foreach (var msg in previousMessages.OrderBy(m => m.CreatedAt))
@@ -133,26 +132,34 @@ public class AgentService : IAgentService
                     ChatRole.Assistant => AuthorRole.Assistant,
                     _ => AuthorRole.System
                 };
-                messages.Add(new ChatMessageContent(role, msg.Content));
+                chatHistory.AddMessage(role, msg.Content);
             }
         }
 
-        messages.Add(new ChatMessageContent(AuthorRole.User, prompt));
+        var prompt = $@"
+           Search to knowledge base: {message}
+           Knowledge base will answer: {{memory.search}}
+           If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
+
+        chatHistory.AddMessage(AuthorRole.User, prompt);
 
         var arguments = new KernelArguments(new PromptExecutionSettings
         {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
         });
 
+        Kernel agentKernel = _kernel.Clone();
+        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
+
         ChatCompletionAgent agent = new()
         {
             Name = "NTG-Assistant",
-            Instructions = @"Do not present speculation, deduction, or hallucination as fact.",
-            Kernel = _kernel,
-            Arguments = arguments
+            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
+            Kernel = agentKernel,
+            Arguments = arguments,
         };
 
-        var result = agent.InvokeStreamingAsync(messages);
+        var result = agent.InvokeStreamingAsync(chatHistory);
         await foreach (var item in result)
         {
             yield return item.Message.ToString();

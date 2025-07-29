@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using NTG.Agent.WebClient.Client.Services;
+using NTG.Agent.WebClient.Client.States;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
@@ -9,12 +10,9 @@ builder.Services.AddAuthenticationStateDeserialization();
 
 builder.Services.AddBootstrapBlazor();
 
-Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
+builder.Services.AddScoped<ConversationState>();
 
-builder.Services.AddHttpClient<TestClient>(client =>
-{
-    client.BaseAddress = baseUri;
-});
+Uri baseUri = new Uri(builder.HostEnvironment.BaseAddress);
 
 builder.Services.AddHttpClient<ChatClient>(client =>
 {

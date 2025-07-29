@@ -3,48 +3,82 @@
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
+@inject ConversationState ConversationState
 
-<div class="mt-4">
-    <h2>Let's Chat</h2>
-</div>
-<div class="chat-container">
-    @foreach (var item in chatHistory)
-    {
-        if (item.IsSystem)
+@if (ConversationId.HasValue)
+{
+    <div class="chat-container">
+        @foreach (var item in chatHistory)
         {
-            <div class="p-2 w-100">
-                <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
-            </div>
+            if (item.IsSystem)
+            {
+                <div class="p-2 w-100">
+                    <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                </div>
+            }
+            else
+            {
+                <div class="text-end p-2 w-100">
+                    <span class="text-white bg-primary p-2 rounded rounded-4">
+                        @item.Message
+                    </span>
+                </div>
+            }
         }
-        else
-        {
-            <div class="text-end p-2 w-100">
-                <span class="text-white bg-primary p-2 rounded rounded-4">
-                    @item.Message
-                </span>
-            </div>
-        }
-    }
-</div>
-<div class="form-group row">
-    <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
-        <div class="input-group mb-3">
-            <input type="text"
-            id="userInput"
-            class="form-control rounded rounded-4"
-            @bind="userInput"
-            @onkeydown="@Enter"
-            @bind:event="oninput"
-            placeholder="Type your message..." />
-            <div class="input-group-append">
-                <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
-                    <i class="bi bi-send fs-6"></i>
-                </button>
+    </div>
+    <div class="form-group row">
+        <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            <div class="input-group mb-3">
+                <input type="text"
+                       id="userInput"
+                       class="form-control rounded rounded-4"
+                       @bind="userInput"
+                       @onkeydown="@Enter"
+                       @bind:event="oninput"
+                       autocomplete="off"
+                       spellcheck="false"
+                       autocorrect="off"
+                       autocapitalize="off"
+                       placeholder="Type your message..." />
+                <div class="input-group-append">
+                    <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                    <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
+                        <i class="bi bi-send fs-6"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
+else
+{
+    <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
+        <h2 class="mb-4">What can I help with?</h2>
+        <div class="form-group w-100">
+            <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
+                <div class="input-group mb-3">
+                    <input type="text"
+                           id="userInput"
+                           class="form-control rounded rounded-4"
+                           @bind="userInput"
+                           @onkeydown="@Enter"
+                           @bind:event="oninput"
+                           autocomplete="off"
+                           spellcheck="false"
+                           autocorrect="off"
+                           autocapitalize="off"
+                           placeholder="Ask anything" />
+                    <div class="input-group-append">
+                        <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                        <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
+                            <i class="bi bi-send fs-6"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
 
@@ -81,27 +115,37 @@
         {
             return;
         }
-
+        var newConversation = false;
         if (!ConversationId.HasValue)
         {
             var conversation = await ConversationClient.Create();
             ConversationId = conversation.Id;
+            newConversation = true;
         }
 
-        chatHistory.Add(new ChatMessage { IsSystem = false, Message = userInput });
+        var query = userInput.Trim();
+        chatHistory.Add(new ChatMessage { IsSystem = false, Message = query });
 
-        var response = new ChatMessage { IsSystem = true, Message = "<b>Agent</b>: " };
+        var response = new ChatMessage { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
+        userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(userInput, ConversationId.Value));
-        userInput = string.Empty;
-
+        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value));
+        response.Message = string.Empty;
         await foreach (var item in result)
         {
             response.Message += item.Content;
             await Task.Delay(1);
             await MarkdownSetValue!.SetValue(response.Message);
+        }
+
+        if (newConversation)
+        {
+            // Fire Conversation Added event
+            ConversationState.NotifyConversationAdded();
+            // Update the URL
+            Navigation.NavigateTo($"/c/{ConversationId}", false);
         }
     }
 
