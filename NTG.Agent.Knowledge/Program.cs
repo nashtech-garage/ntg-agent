@@ -142,29 +142,29 @@ internal static class Program
             app.Logger.LogError("ASPNETCORE_ENVIRONMENT env var not defined.");
         }
 
-        Console.WriteLine("***************************************************************************************************************************");
-        Console.WriteLine("* Environment         : " + (string.IsNullOrEmpty(env) ? "WARNING: ASPNETCORE_ENVIRONMENT env var not defined" : env));
-        Console.WriteLine("* Memory type         : " + memoryType);
-        Console.WriteLine("* Pipeline handlers   : " + $"{syncHandlersCount} synchronous / {asyncHandlersCount} asynchronous");
-        Console.WriteLine("* Web service         : " + (config.Service.RunWebService ? "Enabled" : "Disabled"));
+        app.Logger.LogInformation("***************************************************************************************************************************");
+        app.Logger.LogInformation("* Environment         : {Environment}", string.IsNullOrEmpty(env) ? "WARNING: ASPNETCORE_ENVIRONMENT env var not defined" : env);
+        app.Logger.LogInformation("* Memory type         : {MemoryType}", memoryType);
+        app.Logger.LogInformation("* Pipeline handlers   : {Handlers}", $"{syncHandlersCount} synchronous / {asyncHandlersCount} asynchronous");
+        app.Logger.LogInformation("* Web service         : {WebServiceStatus}", config.Service.RunWebService ? "Enabled" : "Disabled");
 
         if (config.Service.RunWebService)
         {
             const double AspnetDefaultMaxUploadSize = 30000000d / 1024 / 1024;
-            Console.WriteLine("* Web service auth    : " + (config.ServiceAuthorization.Enabled ? "Enabled" : "Disabled"));
-            Console.WriteLine("* Max HTTP req size   : " + (config.Service.MaxUploadSizeMb ?? AspnetDefaultMaxUploadSize).ToString("0.#", CultureInfo.CurrentCulture) + " Mb");
-            Console.WriteLine("* OpenAPI swagger     : " + (config.Service.OpenApiEnabled ? "Enabled (/swagger/index.html)" : "Disabled"));
+            app.Logger.LogInformation("* Web service auth    : {AuthStatus}", config.ServiceAuthorization.Enabled ? "Enabled" : "Disabled");
+            app.Logger.LogInformation("* Max HTTP req size   : {MaxSize} Mb", (config.Service.MaxUploadSizeMb ?? AspnetDefaultMaxUploadSize).ToString("0.#", CultureInfo.CurrentCulture));
+            app.Logger.LogInformation("* OpenAPI swagger     : {SwaggerStatus}", config.Service.OpenApiEnabled ? "Enabled (/swagger/index.html)" : "Disabled");
         }
 
-        Console.WriteLine("* Memory Db           : " + app.Services.GetService<IMemoryDb>()?.GetType().FullName);
-        Console.WriteLine("* Document storage    : " + app.Services.GetService<IDocumentStorage>()?.GetType().FullName);
-        Console.WriteLine("* Embedding generation: " + app.Services.GetService<ITextEmbeddingGenerator>()?.GetType().FullName);
-        Console.WriteLine("* Text generation     : " + app.Services.GetService<ITextGenerator>()?.GetType().FullName);
+        app.Logger.LogInformation("* Memory Db           : {MemoryDb}", app.Services.GetService<IMemoryDb>()?.GetType().FullName);
+        app.Logger.LogInformation("* Document storage    : {DocumentStorage}", app.Services.GetService<IDocumentStorage>()?.GetType().FullName);
+        app.Logger.LogInformation("* Embedding generation: {EmbeddingGenerator}", app.Services.GetService<ITextEmbeddingGenerator>()?.GetType().FullName);
+        app.Logger.LogInformation("* Text generation     : {TextGenerator}", app.Services.GetService<ITextGenerator>()?.GetType().FullName);
 #pragma warning disable KMEXP05 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        Console.WriteLine("* Content moderation  : " + app.Services.GetService<IContentModeration>()?.GetType().FullName);
+        app.Logger.LogInformation("* Content moderation  : {ContentModeration}", app.Services.GetService<IContentModeration>()?.GetType().FullName);
 #pragma warning restore KMEXP05 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        Console.WriteLine("* Log level           : " + app.Logger.GetLogLevelName());
-        Console.WriteLine("***************************************************************************************************************************");
+        app.Logger.LogInformation("* Log level           : {LogLevel}", app.Logger.GetLogLevelName());
+        app.Logger.LogInformation("***************************************************************************************************************************");
 
         app.Logger.LogInformation(
             "Starting Kernel Memory service, .NET Env: {EnvironmentType}, Log Level: {LogLevel}, Web service: {WebServiceEnabled}, Auth: {WebServiceAuthEnabled}, Pipeline handlers: {HandlersEnabled}",
@@ -181,7 +181,7 @@ internal static class Program
         }
         catch (IOException e)
         {
-            Console.WriteLine($"I/O error: {e.Message}");
+            app.Logger.LogError("I/O error: {ErrorMessage}", e.Message);
             Environment.Exit(-1);
         }
     }

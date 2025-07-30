@@ -1,4 +1,5 @@
 @using NTG.Agent.Shared.Dtos.Documents
+@inject ILogger<DocumentsTab> Logger
 @inject DocumentClient DocumentClient
 
 <div class="tab-pane fade show active">
@@ -169,7 +170,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading documents: {ex.Message}");
+            Logger.LogError($"Error loading documents: {ex.Message}");
         }
         finally
         {
@@ -214,7 +215,7 @@
             await LoadDocuments();
         }
         catch (Exception ex) {
-            Console.WriteLine($"Error deleting document: {ex.Message}");
+            Logger.LogError($"Error deleting document: {ex.Message}");
         }
         finally {
             isDeleteConfirmationOpen = false;

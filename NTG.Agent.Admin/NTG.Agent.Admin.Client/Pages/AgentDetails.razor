@@ -3,7 +3,7 @@
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using NTG.Agent.Admin.Client.Components
 @using NTG.Agent.Shared.Dtos.Agents
-
+@inject ILogger<AgentDetails> Logger
 @inject AgentClient AgentClient
 @inject NavigationManager Navigation
 
@@ -182,7 +182,7 @@
         catch (Exception ex)
         {
             // Log error and show appropriate message
-            Console.WriteLine($"Error loading agent details: {ex.Message}");
+            Logger.LogError($"Error loading agent details: {ex.Message}");
         }
         finally
         {
