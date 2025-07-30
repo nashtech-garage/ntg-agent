@@ -14,6 +14,9 @@ This project aims to practice building a chatbot in C#
 - Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
 
+## Documentation
+Details about the project can be referenced at DeepWiki: https://deepwiki.com/nashtech-garage/ntg-agent
+
 ## Getting started
 
 - Setup [GitHub models](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models) (free): Create your Fine-grained personal access tokens in GitHub https://github.com/settings/personal-access-tokens. The token needs to have **models:read** permissions.
