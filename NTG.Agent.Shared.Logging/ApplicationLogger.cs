@@ -2,14 +2,9 @@ using Microsoft.Extensions.Logging;
 
 namespace NTG.Agent.Shared.Logging;
 
-public class ApplicationLogger<T> : IApplicationLogger<T>
+public class ApplicationLogger<T>(ILogger<T> logger) : IApplicationLogger<T>
 {
-    private readonly ILogger<T> _logger;
-
-    public ApplicationLogger(ILogger<T> logger)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger<T> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull
         => _logger.BeginScope(state);

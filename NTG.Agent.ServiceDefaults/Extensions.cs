@@ -103,7 +103,6 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        // Add logging middleware
         app.UseApplicationLogging();
 
         // Adding health checks endpoints to applications in non-development environments has security implications.
