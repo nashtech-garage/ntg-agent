@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.KernelMemory.Context;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -11,7 +10,6 @@ using NTG.Agent.Shared.Dtos.Chats;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
-
 
 public class AgentService
 {
@@ -31,7 +29,7 @@ public class AgentService
     {
         var conversation = await ValidateConversation(userId, promptRequest);
 
-        List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, promptRequest.ConversationId, conversation);
+        List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
 
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
@@ -93,17 +91,17 @@ public class AgentService
         return conversation;
     }
 
-    private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Guid conversationId, Conversation conversation)
+    private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
     {
         var historyMessages = await _agentDbContext.ChatMessages
-            .Where(m => m.ConversationId == conversationId)
+            .Where(m => m.ConversationId == conversation.Id)
             .OrderBy(m => m.UpdatedAt)
             .ToListAsync();
 
         if (historyMessages.Count > MAX_LATEST_MESSAGE_TO_KEEP_FULL)
         {
             var messagesToResummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
-            var newSummary = await SummarizeMessagesAsync(messagesToResummarize);
+            var summarizedContent = await SummarizeMessagesAsync(messagesToResummarize);
             var summaryMessage = historyMessages.Where(m => m.IsSummary).FirstOrDefault();
             if (summaryMessage == null)
             {
@@ -111,7 +109,7 @@ public class AgentService
                 {
                     UserId = userId,
                     Conversation = conversation,
-                    Content = $"Summary of earlier conversation: {newSummary}",
+                    Content = $"Summary of earlier conversation: {summarizedContent}",
                     Role = ChatRole.System,
                     IsSummary = true
                 };
@@ -119,13 +117,15 @@ public class AgentService
             }
             else
             {
-                summaryMessage.Content = $"Summary of earlier conversation: {newSummary}";
+                summaryMessage.Content = $"Summary of earlier conversation: {summarizedContent}";
                 summaryMessage.UpdatedAt = DateTime.UtcNow;
                 _agentDbContext.ChatMessages.Update(summaryMessage);
             }
 
-            var optimizedHistoryMessages = new List<ChatMessage>();
-            optimizedHistoryMessages.Add(summaryMessage);
+            var optimizedHistoryMessages = new List<ChatMessage>
+            {
+                summaryMessage
+            };
             optimizedHistoryMessages.AddRange(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL));
             return optimizedHistoryMessages;
         }
