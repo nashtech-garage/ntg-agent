@@ -56,7 +56,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError($"Error enhancing code blocks: {ex.Message}");
+            Logger.LogError(ex, "Error enhancing code blocks");
         }
     }
 

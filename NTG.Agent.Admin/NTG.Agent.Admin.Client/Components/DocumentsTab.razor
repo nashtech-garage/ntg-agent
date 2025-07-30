@@ -170,7 +170,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError($"Error loading documents: {ex.Message}");
+            Logger.LogError(ex, "Error loading documents");
         }
         finally
         {
@@ -215,7 +215,7 @@
             await LoadDocuments();
         }
         catch (Exception ex) {
-            Logger.LogError($"Error deleting document: {ex.Message}");
+            Logger.LogError(ex, "Error deleting document");
         }
         finally {
             isDeleteConfirmationOpen = false;

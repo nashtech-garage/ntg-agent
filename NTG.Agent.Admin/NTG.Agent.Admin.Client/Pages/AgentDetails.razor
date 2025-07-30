@@ -182,7 +182,7 @@
         catch (Exception ex)
         {
             // Log error and show appropriate message
-            Logger.LogError($"Error loading agent details: {ex.Message}");
+            Logger.LogError(ex, "Error loading agent details");
         }
         finally
         {
