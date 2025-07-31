@@ -109,7 +109,6 @@ public class ConversationsController : ControllerBase
         }
         else
         {
-            isAuthorized = false;
         }
 
         if (!isAuthorized)
