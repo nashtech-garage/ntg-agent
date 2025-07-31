@@ -6,7 +6,6 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
-using System;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -93,13 +92,12 @@ public class ConversationsController : ControllerBase
     {
         Guid? userId = User.GetUserId();
         bool isAuthorized = false;
-
         if (userId.HasValue)
         {
             isAuthorized = await _context.Conversations
                 .AnyAsync(c => c.Id == id && c.UserId == userId.Value);
         }
-        else
+        else if (!string.IsNullOrWhiteSpace(currentSessionId))
         {
             if (!Guid.TryParse(currentSessionId, out Guid sessionId))
             {
@@ -108,6 +106,10 @@ public class ConversationsController : ControllerBase
 
             isAuthorized = await _context.Conversations
                 .AnyAsync(c => c.Id == id && c.SessionId == sessionId);
+        }
+        else
+        {
+            isAuthorized = false;
         }
 
         if (!isAuthorized)
