@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace NTG.Agent.Shared.Logging;
+namespace NTG.Agent.ServiceDefaults.Logging;
 
 public class ApplicationLogger<T>(ILogger<T> logger) : IApplicationLogger<T>
 {

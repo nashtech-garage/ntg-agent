@@ -6,8 +6,8 @@ using NTG.Agent.Shared.Dtos.Documents;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Knowledge;
-using NTG.Agent.Shared.Logging;
-using NTG.Agent.Shared.Logging.Metrics;
+using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.ServiceDefaults.Logging.Metrics;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

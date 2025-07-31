@@ -1,4 +1,5 @@
 using NTG.Agent.MCP.Server.Services;
+using NTG.Agent.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 

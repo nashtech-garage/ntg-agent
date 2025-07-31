@@ -2,14 +2,15 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ServiceDiscovery;
-using NTG.Agent.Shared.Logging.Extensions;
+using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace Microsoft.Extensions.Hosting;
+namespace NTG.Agent.ServiceDefaults;
 
 // Adds common .NET Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
 // This project should be referenced by each service project in your solution.
@@ -22,7 +23,22 @@ public static class Extensions
 
         builder.AddDefaultHealthChecks();
 
-        builder.Services.AddApplicationLogging(builder.Configuration, builder.Environment);
+        builder.Services.AddLogging(loggingBuilder =>
+        {
+            loggingBuilder.ClearProviders();
+            loggingBuilder.AddConsole();
+
+            loggingBuilder.SetMinimumLevel(builder.Environment.IsProduction() ? LogLevel.Information : LogLevel.Debug);
+        });
+
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metricsBuilder =>
+            {
+                metricsBuilder.AddMeter("NTG.Agent");
+            });
+
+        builder.Services.AddScoped(typeof(IApplicationLogger<>), typeof(ApplicationLogger<>));
+        builder.Services.AddScoped<IMetricsCollector, MetricsCollector>();
 
         builder.Services.AddServiceDiscovery();
 
@@ -103,7 +119,8 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.UseApplicationLogging();
+        app.UseMiddleware<ErrorTrackingMiddleware>();
+        app.UseMiddleware<LoggingMiddleware>();
 
         // Adding health checks endpoints to applications in non-development environments has security implications.
         // See https://aka.ms/dotnet/aspire/healthchecks for details before enabling these endpoints in non-development environments.

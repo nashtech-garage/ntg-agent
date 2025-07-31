@@ -1,4 +1,4 @@
-namespace NTG.Agent.Shared.Logging.Metrics;
+namespace NTG.Agent.ServiceDefaults.Logging.Metrics;
 
 public interface IMetricsCollector
 {

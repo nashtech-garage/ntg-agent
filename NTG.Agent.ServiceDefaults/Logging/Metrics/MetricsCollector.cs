@@ -2,12 +2,12 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
-namespace NTG.Agent.Shared.Logging.Metrics;
+namespace NTG.Agent.ServiceDefaults.Logging.Metrics;
 
-public class MetricsCollector(IApplicationLogger<MetricsCollector> logger, string meterName = "NTG.Agent") : IMetricsCollector, IDisposable
+public class MetricsCollector(ILogger<MetricsCollector> logger, string meterName = "NTG.Agent") : IMetricsCollector, IDisposable
 {
     private readonly Meter _meter = new(meterName);
-    private readonly IApplicationLogger<MetricsCollector> _logger = logger;
+    private readonly ILogger<MetricsCollector> _logger = logger;
     private readonly Dictionary<string, Counter<double>> _counters = [];
     // Histograms are used to record distributions of values, such as response times or sizes.
     // They allow you to analyze the distribution of recorded values over time.
@@ -39,7 +39,8 @@ public class MetricsCollector(IApplicationLogger<MetricsCollector> logger, strin
     {
         RecordValue($"{name}.duration_ms", duration.TotalMilliseconds, tags);
 
-        _logger.LogPerformance(name, duration, new { Tags = tags });
+        _logger.LogInformation("Performance metric: {Operation} completed in {Duration}ms with tags {@Tags}",
+            name, duration.TotalMilliseconds, tags);
     }
 
     public IDisposable StartTimer(string name, params (string Key, string Value)[] tags)
@@ -51,7 +52,8 @@ public class MetricsCollector(IApplicationLogger<MetricsCollector> logger, strin
     {
         IncrementCounter($"business.{eventName}", 1, tags);
 
-        _logger.LogBusinessEvent(eventName, new { Data = data, Tags = tags });
+        _logger.LogInformation("Business event: {EventName} with data {@Data} and tags {@Tags}",
+            eventName, data, tags);
     }
 
     private Counter<double> GetOrCreateCounter(string name)

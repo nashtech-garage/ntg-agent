@@ -24,7 +24,6 @@
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
-    <ProjectReference Include="..\NTG.Agent.Shared.Logging\NTG.Agent.Shared.Logging.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,30 +1,27 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
-namespace NTG.Agent.Shared.Logging;
+namespace NTG.Agent.ServiceDefaults.Logging;
 
 public class ErrorTrackingMiddleware(RequestDelegate next)
 {
     private readonly RequestDelegate _next = next;
 
     // Only Singleton services can be resolved by constructor injection in Middleware
-    public async Task InvokeAsync(HttpContext context, IApplicationLogger<ErrorTrackingMiddleware> logger)
+    public async Task InvokeAsync(HttpContext context, ILogger<ErrorTrackingMiddleware> logger)
     {
-        logger.LogInformation("Handling request: {Method} {Path}", context.Request.Method, context.Request.Path);
+        try
         {
-            try
-            {
-                await _next(context);
-            }
-            catch (Exception ex)
-            {
-                await HandleExceptionAsync(context, ex, logger);
-                throw; // Re-throw to maintain the exception flow
-            }
+            await _next(context);
+        }
+        catch (Exception ex)
+        {
+            await HandleExceptionAsync(context, ex, logger);
+            throw; // Re-throw to maintain the exception flow
         }
     }
 
-    private Task HandleExceptionAsync(HttpContext context, Exception exception, IApplicationLogger<ErrorTrackingMiddleware> logger)
+    private static Task HandleExceptionAsync(HttpContext context, Exception exception, ILogger<ErrorTrackingMiddleware> logger)
     {
         var correlationId = context.TraceIdentifier;
         var userId = context.User?.FindFirst("sub")?.Value ?? "anonymous";
@@ -35,7 +32,7 @@ public class ErrorTrackingMiddleware(RequestDelegate next)
             UserId = userId,
             RequestPath = context.Request.Path.Value,
             RequestMethod = context.Request.Method,
-            UserAgent = context.Request.Headers["User-Agent"].ToString(), // Capture browser/client info for debugging context
+            UserAgent = context.Request.Headers.UserAgent.ToString(), // Capture browser/client info for debugging context
             IPAddress = context.Connection.RemoteIpAddress?.ToString(),
             QueryString = context.Request.QueryString.Value,
             Headers = context.Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString()),
@@ -57,7 +54,8 @@ public class ErrorTrackingMiddleware(RequestDelegate next)
                 correlationId, errorDetails);
         }
 
-        logger.LogSecurity("UnhandledException", userId, errorDetails);
+        logger.LogWarning("Security event - Unhandled exception. UserId: {UserId}, Details: {@ErrorDetails}",
+            userId, errorDetails);
 
         return Task.CompletedTask;
     }

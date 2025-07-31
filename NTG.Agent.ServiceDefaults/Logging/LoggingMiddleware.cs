@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 
-namespace NTG.Agent.Shared.Logging;
+namespace NTG.Agent.ServiceDefaults.Logging;
 
 public class LoggingMiddleware(RequestDelegate next, ILogger<LoggingMiddleware> logger)
 {
@@ -19,7 +19,7 @@ public class LoggingMiddleware(RequestDelegate next, ILogger<LoggingMiddleware> 
             ["CorrelationId"] = correlationId,
             ["RequestPath"] = context.Request.Path,
             ["RequestMethod"] = context.Request.Method,
-            ["UserAgent"] = context.Request.Headers["User-Agent"].ToString()
+            ["UserAgent"] = context.Request.Headers.UserAgent.ToString()
         }))
         {
             _logger.LogInformation("Request started: {Method} {Path}",

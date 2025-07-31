@@ -19,8 +19,4 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\NTG.Agent.Shared.Logging\NTG.Agent.Shared.Logging.csproj" />
-  </ItemGroup>
-
 </Project>

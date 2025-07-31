@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.ServiceDefaults;
 using OpenAI;
 using System.ClientModel;
 
@@ -34,7 +35,8 @@ await using IMcpClient mcpClient = await McpClientFactory.CreateAsync(
 
 var tools = await mcpClient.ListToolsAsync();
 
-builder.Services.AddSingleton<Kernel>(serviceBuilder => { 
+builder.Services.AddSingleton<Kernel>(serviceBuilder =>
+{
     var config = serviceBuilder.GetRequiredService<IConfiguration>();
     var kernelBuilder = Kernel.CreateBuilder();
 
@@ -59,7 +61,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder => {
             modelId: config["GitHub:Models:ModelId"]!,
             serviceId: "github");
     }
-    
+
     var kernel = kernelBuilder.Build();
 
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
