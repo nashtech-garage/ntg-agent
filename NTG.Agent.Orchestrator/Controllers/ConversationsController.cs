@@ -107,9 +107,6 @@ public class ConversationsController : ControllerBase
             isAuthorized = await _context.Conversations
                 .AnyAsync(c => c.Id == id && c.SessionId == sessionId);
         }
-        else
-        {
-        }
 
         if (!isAuthorized)
         {
