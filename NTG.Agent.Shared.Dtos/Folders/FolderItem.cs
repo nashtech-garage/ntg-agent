@@ -1,6 +1,4 @@
-﻿using System.Reflection.Metadata;
-
-namespace NTG.Agent.Shared.Dtos.Folders;
+﻿namespace NTG.Agent.Shared.Dtos.Folders;
 public class FolderItem
 {
     public Guid Id { get; set; }
@@ -10,7 +8,6 @@ public class FolderItem
     public bool IsDeletable { get; set; }
     public int? SortOrder { get; set; }
     public ICollection<FolderItem> Children { get; set; } = new List<FolderItem>();
-    public ICollection<Document> Documents { get; set; } = new List<Document>();
     public Guid AgentId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }
