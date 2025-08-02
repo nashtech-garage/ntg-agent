@@ -122,6 +122,9 @@
     public Guid AgentId { get; set; }
 
     [Parameter]
+    public Guid? FolderId { get; set; }
+
+    [Parameter]
     public EventCallback OnUploadCompleted { get; set; }
 
     private string urlInput = string.Empty;
@@ -164,7 +167,7 @@
                         await Task.Delay(200);
                     }
 
-                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file });
+                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId);
 
                     uploadItem.Status = UploadStatus.Success;
                     uploadItem.Message = "Successfully uploaded";
@@ -214,7 +217,7 @@
 
         try
         {
-            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput);
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";

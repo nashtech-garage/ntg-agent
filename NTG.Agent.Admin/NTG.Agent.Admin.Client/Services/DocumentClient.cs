@@ -6,15 +6,15 @@ namespace NTG.Agent.Admin.Client.Services;
 
 public class DocumentClient(HttpClient httpClient)
 {
-    public async Task<IList<DocumentListItem>> GetDocumentsByAgentIdAsync(Guid agentId)
+    public async Task<IList<DocumentListItem>> GetDocumentsByAgentIdAsync(Guid agentId, Guid? folderId)
     {
-        var response = await httpClient.GetAsync($"api/documents/{agentId}");
+        var response = await httpClient.GetAsync($"api/documents/{agentId}?folderId={folderId}");
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<IList<DocumentListItem>>();
         return result ?? [];
     }
 
-    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files)
+    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId)
     {
         long maxFileSize = 50 * 1024L * 1024L; // 50 MB
         using var content = new MultipartFormDataContent();
@@ -27,7 +27,7 @@ public class DocumentClient(HttpClient httpClient)
                 content.Add(fileContent, "files", file.Name);
             }
         }
-        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}", content);
+        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}?folderId={folderId}", content);
         response.EnsureSuccessStatusCode();
     }
 
@@ -36,9 +36,9 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.DeleteAsync($"api/documents/{documentId}/{agentId}");
         response.EnsureSuccessStatusCode();
     }
-    public async Task<string> ImportWebPageAsync(Guid agentId, string url)
+    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId)
     {
-        var request = new { Url = url };
+        var request = new { Url = url , FolderId = folderId};
         var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();

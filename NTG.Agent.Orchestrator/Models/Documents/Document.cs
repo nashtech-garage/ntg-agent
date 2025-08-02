@@ -2,10 +2,17 @@
 
 public class Document
 {
+    public Document()
+    {
+        Id = Guid.NewGuid();
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string? KnowledgeDocId { get; set; }
+    public Guid? FolderId { get; set; }
     public Guid AgentId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }

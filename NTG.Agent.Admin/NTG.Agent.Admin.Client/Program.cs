@@ -19,4 +19,9 @@ builder.Services.AddHttpClient<DocumentClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<FolderClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 await builder.Build().RunAsync();

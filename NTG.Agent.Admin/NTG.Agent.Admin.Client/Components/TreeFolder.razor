@@ -1,0 +1,658 @@
+﻿@using NTG.Agent.Shared.Dtos.Folders
+@using Microsoft.JSInterop
+@inject FolderClient FolderClient
+@inject ILogger<TreeFolder> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="tree-folder" @onclick:stopPropagation>
+    <div class="folder-header mb-3">
+        <h6>Knowledge Base Management</h6>
+    </div>
+    @if (isLoading)
+    {
+        <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    }
+    else
+    {
+        <div class="folder-tree">
+            @foreach (var item in folderStructure)
+            {
+                @RenderTreeItem(item, 0)
+            }
+        </div>
+    }
+
+    @if (isContextMenuVisible && contextFolderId != null)
+    {
+        var folder = FindFolderById(folderStructure, contextFolderId.Value);
+        <div class="context-menu" style="top:@contextMenuY; left:@contextMenuX;" @onclick:stopPropagation>
+            <ul>
+                <li @onclick="@(() => AddNewFolder(folder))">➕ Add Folder</li>
+                <li @onclick="@(() => AddKnowledge(folder))">➕ Add Knowledge</li>
+                @if (folder?.IsDeletable == true)
+                {
+                    <li @onclick="@(() => RenameFolder(folder))">✏️ Rename</li>
+                    
+                    @if (!folder.Children?.Any() ?? true)
+                    {
+                        <li class="danger" @onclick="@(() => DeleteFolder(folder))">🗑️ Delete</li>
+                    }
+                }
+            </ul>
+        </div>
+    }
+
+    @if (isAddFolderDialogOpen)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="bi bi-folder-plus me-2"></i>Add New Folder
+                        </h5>
+                        <button type="button" class="btn-close" @onclick="CloseAddFolderDialog"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label for="folderName" class="form-label">Folder Name</label>
+                            <input type="text" class="form-control" id="folderName" 
+                                  @bind="newFolderName" 
+                                  @bind:event="oninput" 
+                                  placeholder="Enter folder name" 
+                                  autofocus />
+                            @if (showNewFolderError)
+                            {
+                                <div class="text-danger mt-1 small">Folder name cannot be empty</div>
+                            }
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Parent Folder</label>
+                            <div class="ps-2 py-1 border-start">
+                                @if (folderToAddUnder != null)
+                                {
+                                    <i class="bi bi-folder2 text-warning me-2"></i>
+                                    <span>@folderToAddUnder.Name</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-folder2 text-warning me-2"></i>
+                                    <span>Root</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseAddFolderDialog">Cancel</button>
+                        <button type="button" class="btn btn-primary" 
+                               @onclick="ConfirmAddFolder" 
+                               disabled="@string.IsNullOrWhiteSpace(newFolderName)">
+                            <i class="bi bi-plus-circle me-2"></i>Create Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    @if (isDeleteFolderDialogOpen && folderToDelete != null)
+    {
+        <div class="modal fade show" style="display: block;" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-danger text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete Folder
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" @onclick="CloseDeleteFolderDialog"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-2">Are you sure you want to delete this folder?</p>
+                        <div class="d-flex align-items-center mb-3 p-2 border-start border-warning border-4 bg-light">
+                            <i class="bi bi-folder2 text-warning me-2 fs-4"></i>
+                            <span class="fw-bold">@folderToDelete.Name</span>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Warning:</strong> This action will delete all documents in this folder and cannot be undone.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseDeleteFolderDialog">Cancel</button>
+                        <button type="button" class="btn btn-danger" @onclick="ConfirmDeleteFolder">
+                            <i class="bi bi-trash me-2"></i>Delete Folder
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+</div>
+
+@code {
+    private DotNetObjectReference<TreeFolder>? objRef;
+    [Parameter] public Guid AgentId { get; set; }
+    [Parameter] public EventCallback<Guid?> OnFolderSelected { get; set; }
+    [Parameter] public EventCallback<Guid?> OnAddKnowledgeRequested { get; set; }
+
+    private bool isLoading = true;
+    private Guid? selectedFolderId;
+    private Dictionary<Guid, bool> expandedFolders = new();
+    private List<FolderItem> folderStructure = new();
+
+    private Guid? contextFolderId;
+    private bool isContextMenuVisible;
+    private string? contextMenuX;
+    private string? contextMenuY;
+
+    private bool isAddFolderDialogOpen = false;
+    private string newFolderName = string.Empty;
+    private bool showNewFolderError = false;
+    private FolderItem? folderToAddUnder;
+
+    private Guid? editingFolderId;
+    private string editingFolderName = string.Empty;
+    private bool showRenameFolderError = false;
+
+    private bool isDeleteFolderDialogOpen = false;
+    private FolderItem? folderToDelete;
+    private bool isDeleting = false;
+
+    protected override void OnInitialized()
+    {
+        objRef = DotNetObjectReference.Create(this);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            var flatFolders = await FolderClient.GetFoldersByAgentIdAsync(AgentId);
+            var folderItems = flatFolders.Select(f => new FolderItem
+            {
+                Id = f.Id,
+                Name = f.Name,
+                ParentId = f.ParentId,
+                IsDeletable = f.IsDeletable
+            }).ToList();
+
+            folderStructure = BuildFolderTree(folderItems);
+
+            foreach (var root in folderStructure)
+                expandedFolders[root.Id] = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading folders");
+            folderStructure = new();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    #region Build Folder Tree
+    private List<FolderItem> BuildFolderTree(List<FolderItem> flatList)
+    {
+        var lookup = flatList.ToDictionary(f => f.Id);
+        var rootNodes = new List<FolderItem>();
+
+        foreach (var folder in flatList)
+        {
+            if (folder.ParentId.HasValue)
+            {
+                if (lookup.TryGetValue(folder.ParentId.Value, out var parent))
+                {
+                    parent.Children.Add(folder);
+                    parent.Children = parent.Children
+                        .OrderBy(f => f.SortOrder ?? int.MaxValue)
+                        .ThenBy(f => f.Name)
+                        .ToList();
+                }
+            }
+            else
+            {
+                rootNodes.Add(folder);
+            }
+        }
+
+        return rootNodes;
+    }
+
+    private FolderItem? FindFolderById(IEnumerable<FolderItem> folders, Guid id)
+    {
+        foreach (var folder in folders)
+        {
+            if (folder.Id == id) return folder;
+            var match = FindFolderById(folder.Children, id);
+            if (match != null) return match;
+        }
+        return null;
+    }
+    private RenderFragment RenderTreeItem(FolderItem item, int level) => __builder =>
+    {
+        <div class="tree-item-container">
+            <div id="folder-@item.Id"
+                 class="tree-item @(selectedFolderId == item.Id ? "selected" : "") @(item.IsDeletable ? "" : "system-folder")"
+                 style="padding-left:@(level * 16)px"
+                 @onclick="@(() => editingFolderId == item.Id ? null : SelectFolder(item))"
+                 @oncontextmenu:preventDefault
+                 @oncontextmenu:stopPropagation
+                 @oncontextmenu="@((e) => editingFolderId == null ? ShowContextMenu(e, item) : null)">
+
+                <span class="toggle-icon" @onclick="@((e) => ToggleFolder(item.Id))">
+                    <i class="@((expandedFolders.GetValueOrDefault(item.Id)) ? "bi bi-chevron-down" : "bi bi-chevron-right")"></i>
+                </span>
+
+                <span class="item-icon">
+                    @if (!item.IsDeletable)
+                    {
+                        <i class="@((expandedFolders.GetValueOrDefault(item.Id)) ? "bi bi-lock-fill" : "bi bi-lock") text-secondary"
+                           title="System Folder (cannot delete or rename)" aria-hidden="true"></i>
+                    }
+                    else
+                    {
+                        <i class="@((expandedFolders.GetValueOrDefault(item.Id)) ? "bi bi-folder2-open" : "bi bi-folder2")"
+                           title="@item.Name" aria-hidden="true"></i>
+                    }
+                </span>
+
+                @if (editingFolderId == item.Id)
+                {
+                    <div class="rename-input-container">
+                        <input id="rename-folder-@item.Id"
+                               class="form-control form-control-sm rename-input"
+                               value="@editingFolderName"
+                               @oninput="@(e => editingFolderName = e.Value?.ToString() ?? string.Empty)"
+                               @onblur="@(() => SaveFolderRename(item.Id, editingFolderName))"
+                               @onkeydown="@(async (e) => {
+                               if (e.Key == "Enter")
+                                   await SaveFolderRename(item.Id, editingFolderName, true);
+                               else if (e.Key == "Escape")
+                                   CancelFolderRename();
+                           })" />
+                    @if (showRenameFolderError && editingFolderId == item.Id)
+                    {
+                        <div class="text-danger mt-1 small">Folder name cannot be empty</div>
+                    }
+                </div>
+            }
+                else
+                {
+        <span class="item-name">@item.Name</span>
+                }
+    </div>
+
+    @if (expandedFolders.GetValueOrDefault(item.Id) && item.Children?.Any() == true)
+    {
+        <div class="folder-children">
+            @foreach (var child in item.Children)
+                    {
+            @RenderTreeItem(child, level + 1)
+                    }
+        </div>
+    }
+    </div>
+    };
+    #endregion
+    #region Show Menu Conxt
+    private async Task SelectFolder(FolderItem item)
+    {
+        selectedFolderId = item.Id;
+
+        if (OnFolderSelected.HasDelegate)
+        {
+            await OnFolderSelected.InvokeAsync(item.Id);
+        }
+    }
+    private void ToggleFolder(Guid folderId)
+    {
+        expandedFolders[folderId] = !expandedFolders.GetValueOrDefault(folderId, false);
+    }
+
+    private async Task ShowContextMenu(MouseEventArgs e, FolderItem item)
+    {
+        if (isContextMenuVisible)
+        {
+            await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+        }
+
+        var elementId = $"folder-{item.Id}";
+        var boundingRect = await JSRuntime.InvokeAsync<BoundingClientRect>("getBoundingClientRectById", elementId);
+
+        contextFolderId = item.Id;
+        isContextMenuVisible = true;
+
+        contextMenuX = $"{boundingRect.Right}px";
+        contextMenuY = $"{boundingRect.Top}px";
+
+        StateHasChanged();
+
+        await JSRuntime.InvokeVoidAsync("addDocumentClickListener", objRef);
+    }
+
+    [JSInvokable]
+    public void HideContextMenuFromJS()
+    {
+        if (isContextMenuVisible)
+        {
+            isContextMenuVisible = false;
+            contextFolderId = null;
+            StateHasChanged();
+        }
+    }
+
+    private void HideContextMenu()
+    {
+        if (isContextMenuVisible)
+        {
+            _ = JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            isContextMenuVisible = false;
+            contextFolderId = null;
+        }
+    }
+    public void Dispose()
+    {
+        if (isContextMenuVisible)
+        {
+            _ = JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+        }
+        objRef?.Dispose();
+    }
+    #endregion
+    #region Add New Folder
+    private void AddNewFolder(FolderItem? parent)
+    {
+        folderToAddUnder = parent;
+        newFolderName = string.Empty;
+        showNewFolderError = false;
+        isAddFolderDialogOpen = true;
+        HideContextMenu();
+    }
+
+    private void CloseAddFolderDialog()
+    {
+        isAddFolderDialogOpen = false;
+        newFolderName = string.Empty;
+        showNewFolderError = false;
+    }
+
+    private async Task ConfirmAddFolder()
+    {
+        if (string.IsNullOrWhiteSpace(newFolderName))
+        {
+            showNewFolderError = true;
+            return;
+        }
+
+        try
+        {
+            var createFolderDto = new CreateFolderDto
+            {
+                Name = newFolderName.Trim(),
+                ParentId = folderToAddUnder?.Id,
+                AgentId = AgentId
+            };
+
+            var newFolder = await FolderClient.CreateFolderAsync(createFolderDto);
+
+            var newFolderItem = new FolderItem
+            {
+                Id = newFolder.Id,
+                Name = newFolder.Name,
+                ParentId = newFolder.ParentId,
+                IsDeletable = newFolder.IsDeletable,
+                Children = new List<FolderItem>()
+            };
+
+            if (newFolder.ParentId.HasValue)
+            {
+                var parent = FindFolderById(folderStructure, newFolder.ParentId.Value);
+                if (parent != null)
+                {
+                    parent.Children.Add(newFolderItem);
+                    expandedFolders[parent.Id] = true;
+                }
+            }
+            else
+            {
+                folderStructure.Add(newFolderItem);
+            }
+
+            CloseAddFolderDialog();
+
+            selectedFolderId = newFolder.Id;
+            if (OnFolderSelected.HasDelegate)
+            {
+                await OnFolderSelected.InvokeAsync(newFolder.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating folder");
+            showNewFolderError = true;
+        }
+    }
+    #endregion
+    #region Add Knowledge
+    private async Task AddKnowledge(FolderItem? parent)
+    {
+        if (parent != null && OnAddKnowledgeRequested.HasDelegate)
+        {
+            await OnAddKnowledgeRequested.InvokeAsync(parent.Id);
+        }
+        HideContextMenu();
+    }
+    #endregion
+    #region Delete Folder
+    private void DeleteFolder(FolderItem folder)
+    {
+        folderToDelete = folder;
+        isDeleteFolderDialogOpen = true;
+        HideContextMenu();
+    }
+
+    private void CloseDeleteFolderDialog()
+    {
+        isDeleteFolderDialogOpen = false;
+        folderToDelete = null;
+    }
+
+    private async Task ConfirmDeleteFolder()
+    {
+        if (folderToDelete == null || isDeleting) return;
+
+        try
+        {
+            isDeleting = true;
+
+            await FolderClient.DeleteFolderAsync(folderToDelete.Id);
+
+            RemoveFolderFromTree(folderToDelete.Id);
+
+            // Select root or parent folder
+            if (folderToDelete.ParentId.HasValue)
+            {
+                var parentFolder = FindFolderById(folderStructure, folderToDelete.ParentId.Value);
+                if (parentFolder != null)
+                {
+                    await SelectFolder(parentFolder);
+                }
+                else
+                {
+                    var rootFolder = folderStructure.FirstOrDefault();
+                    if (rootFolder != null)
+                    {
+                        await SelectFolder(rootFolder);
+                    }
+                    else
+                    {
+                        await OnFolderSelected.InvokeAsync(null);
+                    }
+                }
+            }
+            else
+            {
+                var rootFolder = folderStructure.FirstOrDefault();
+                if (rootFolder != null)
+                {
+                    await SelectFolder(rootFolder);
+                }
+                else
+                {
+                    await OnFolderSelected.InvokeAsync(null);
+                }
+            }
+
+            CloseDeleteFolderDialog();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting folder: {Message}", ex.Message);
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void RemoveFolderFromTree(Guid folderId)
+    {
+        for (int i = 0; i < folderStructure.Count; i++)
+        {
+            if (folderStructure[i].Id == folderId)
+            {
+                folderStructure.RemoveAt(i);
+                return;
+            }
+        }
+
+        RemoveFolderFromChildren(folderStructure, folderId);
+    }
+
+    private bool RemoveFolderFromChildren(IList<FolderItem> folders, Guid folderId)
+    {
+        foreach (var folder in folders)
+        {
+            if (folder.Children != null)
+            {
+                var childrenList = folder.Children.ToList();
+                for (int i = 0; i < childrenList.Count; i++)
+                {
+                    if (childrenList[i].Id == folderId)
+                    {
+                        folder.Children.Remove(childrenList[i]);
+                        return true;
+                    }
+                }
+
+                if (RemoveFolderFromChildren(folder.Children.ToList(), folderId))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+    #endregion
+    #region Rename Folder
+    private void RenameFolder(FolderItem folder)
+    {
+        editingFolderId = folder.Id;
+        editingFolderName = folder.Name;
+        showRenameFolderError = false;
+        HideContextMenu();
+        StateHasChanged();
+        _ = Task.Delay(50).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                try
+                {
+                    JSRuntime.InvokeVoidAsync("document.querySelector", $"#rename-folder-{folder.Id}").AsTask().ContinueWith(t =>
+                    {
+                        if (!t.IsFaulted)
+                        {
+                            JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('#rename-folder-{folder.Id}').focus()");
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error focusing rename input");
+                }
+            });
+        });
+    }
+
+    private async Task SaveFolderRename(Guid folderId, string newName, bool isEnterKey = false)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(newName))
+            {
+                showRenameFolderError = true;
+                return;
+            }
+
+            showRenameFolderError = false;
+
+            var folder = FindFolderById(folderStructure, folderId);
+            if (folder == null)
+            {
+                CancelFolderRename();
+                return;
+            }
+
+            if (folder.Name == newName.Trim())
+            {
+                CancelFolderRename();
+                return;
+            }
+
+            var updateFolderDto = new UpdateFolderDto
+            {
+                Name = newName.Trim(),
+                ParentId = folder.ParentId,
+                AgentId = AgentId,
+                Id = folderId
+            };
+
+            await FolderClient.UpdateFolderAsync(folderId, updateFolderDto);
+
+            folder.Name = newName.Trim();
+
+            if (selectedFolderId == folderId && OnFolderSelected.HasDelegate)
+            {
+                await OnFolderSelected.InvokeAsync(folderId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error renaming folder: {Message}", ex.Message);
+            showRenameFolderError = true;
+            StateHasChanged();
+        }
+        finally
+        {
+            CancelFolderRename();
+        }
+    }
+
+    private void CancelFolderRename()
+    {
+        editingFolderId = null;
+        editingFolderName = string.Empty;
+        showRenameFolderError = false;
+    }
+
+    #endregion
+}
