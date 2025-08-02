@@ -1,5 +1,3 @@
-﻿using System.Reflection.Metadata;
-
 namespace NTG.Agent.Shared.Dtos.Folders;
 public class FolderItem
 {
