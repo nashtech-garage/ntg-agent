@@ -187,6 +187,7 @@ public class DocumentsController : ControllerBase
                 AgentId = agentId,
                 KnowledgeDocId = documentId,
                 FolderId = request.FolderId,
+                Url = request.Url,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,

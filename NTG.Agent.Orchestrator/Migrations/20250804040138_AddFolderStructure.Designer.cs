@@ -12,8 +12,8 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    [Migration("20250801033634_SeedFolderData")]
-    partial class SeedFolderData
+    [Migration("20250804040138_AddFolderStructure")]
+    partial class AddFolderStructure
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -205,6 +205,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid?>("ParentId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("SortOrder")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -238,6 +241,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                             IsDeletable = false,
                             Name = "Default Folder",
                             ParentId = new Guid("d1f8c2b3-4e5f-4c6a-8b7c-9d0e1f2a3b4c"),
+                            SortOrder = 0,
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
                         });
