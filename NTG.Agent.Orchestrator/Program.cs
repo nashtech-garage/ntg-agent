@@ -82,6 +82,8 @@ builder.Services.AddAuthentication("Identity.Application")
 
 var app = builder.Build();
 
+app.ConfigureGlobalExceptionHandler();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {

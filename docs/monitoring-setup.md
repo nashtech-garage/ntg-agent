@@ -1,85 +1,70 @@
-# NTG Agent - Comprehensive Monitoring & Error Tracking Setup
+# NTG Agent - Monitoring & Logging Setup
 
-## 🎯 What We've Built
+## 🎯 Overview
 
-### **Production-Ready Monitoring System**
-- **Error Tracking**: Global exception handling with detailed context
-- **Performance Metrics**: Custom business metrics and timing data
-- **Health Monitoring**: Database, memory, and service health checks
-- **Correlation Tracking**: Request tracing across all services
-- **Application Insights**: Cloud-based telemetry and analytics
-- **Environment-Specific Logging**: Production, development configurations
+### **Built-in Monitoring System**
+- **Exception Handling**: IExceptionHandler-based global error tracking
+- **Performance Metrics**: OpenTelemetry metrics and custom business tracking
+- **Health Monitoring**: ASP.NET Core health checks
+- **Structured Logging**: Built-in ASP.NET Core logging with OpenTelemetry
+- **Configuration-Driven**: Log levels controlled via appsettings.json
 
 ---
 
-## 🚀 Features Overview
+## 🚀 Features
 
-### **1. Enhanced Error Tracking**
+### **1. Exception Handling (IExceptionHandler)**
+- **GlobalExceptionHandler**: Modern ASP.NET Core exception handling
 - **Critical Error Detection**: Automatic identification of system-threatening issues
-- **Detailed Context**: Request headers, user info, stack traces, correlation IDs
-- **Security Event Logging**: Authentication failures, unauthorized access attempts
-- **Real-time Alerting**: Critical errors trigger immediate notifications
+- **Detailed Context**: Request info, user data, correlation IDs, stack traces
+- **Security Event Logging**: Tracks unhandled exceptions as security events
 
-### **2. Performance Monitoring**
-- **Custom Metrics**: Business events, user actions, performance counters
-- **Automatic Timing**: Request/response duration tracking
-- **Resource Monitoring**: Memory usage, database performance
-- **Business Intelligence**: Document operations, agent usage statistics
+### **2. Structured Logging**
+- **Built-in ASP.NET Core Logging**: No external dependencies
+- **OpenTelemetry Integration**: Tracing and metrics collection
+- **Configuration-Driven**: Log levels set via `Logging:LogLevel:Default` in appsettings
+- **ApplicationLogger**: Custom wrapper for business events and user actions
 
-### **3. Health Checks**
-- **Basic Health Monitoring**: Standard ASP.NET Core health checks
-- **Service Dependencies**: External service availability monitoring
-- **Liveness Probes**: Simple application responsiveness checks
+### **3. Performance Metrics**
+- **MetricsCollector**: Custom business metrics using .NET Diagnostics.Metrics
+- **OpenTelemetry**: Built-in ASP.NET Core and HTTP instrumentation
+- **Business Intelligence**: Document operations, user actions, performance timers
 
-### **4. Centralized Logging**
-- **Structured Logging**: JSON-formatted logs for easy parsing
-- **Correlation IDs**: Track requests across microservices
-- **Environment Enrichment**: Machine name, application, environment data
-- **File Rotation**: Automatic log file management with retention policies
+### **4. Health Checks**
+- **Standard Health Checks**: Basic application responsiveness
+- **Development Endpoints**: `/health` and `/alive` in development mode
 
 ---
 
 ## 🔧 Configuration Examples
 
-### **Application Insights Setup**
+
+### **Development Logging Configuration**
 ```json
 {
-  "ApplicationInsights": {
-    "InstrumentationKey": "your-app-insights-key",
-    "ConnectionString": "InstrumentationKey=your-key;IngestionEndpoint=..."
+  "Logging": {
+    "LogLevel": {
+      "Default": "Debug",
+      "Microsoft.AspNetCore": "Information",
+      "Microsoft.EntityFrameworkCore": "Information",
+      "NTG.Agent": "Debug"
+    },
+    "Console": {
+      "FormatterName": "simple",
+      "FormatterOptions": {
+        "SingleLine": false,
+        "IncludeScopes": true,
+        "TimestampFormat": "HH:mm:ss.fff "
+      }
+    }
   }
 }
 ```
 
-### **Production Logging Configuration**
+### **OpenTelemetry Configuration**
 ```json
 {
-  "Serilog": {
-    "MinimumLevel": "Information",
-    "WriteTo": [
-      {
-        "Name": "Console",
-        "Args": { "restrictedToMinimumLevel": "Warning" }
-      },
-      {
-        "Name": "File",
-        "Args": {
-          "path": "logs/ntg-agent-.log",
-          "rollingInterval": "Day",
-          "retainedFileCountLimit": 30
-        }
-      },
-      {
-        "Name": "File",
-        "Args": {
-          "path": "logs/errors/ntg-agent-errors-.log",
-          "rollingInterval": "Day",
-          "restrictedToMinimumLevel": "Error",
-          "retainedFileCountLimit": 90
-        }
-      }
-    ]
-  }
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4317"
 }
 ```
 
@@ -107,73 +92,91 @@
 
 ---
 
-## 🔍 Log Sample Output
+## 🔍 Usage Examples
 
+### **ApplicationLogger in Controllers**
+```csharp
+public class DocumentsController : ControllerBase
+{
+    private readonly IApplicationLogger<DocumentsController> _logger;
+    private readonly IMetricsCollector _metrics;
+
+    public async Task<IActionResult> GetDocuments(Guid agentId)
+    {
+        using var scope = _logger.BeginScope("GetDocuments", new { AgentId = agentId });
+        using var timer = _metrics.StartTimer("documents.get");
+
+        _logger.LogUserAction(User.GetUserId()?.ToString(), "GetDocuments", new { AgentId = agentId });
+        _metrics.IncrementCounter("documents.requests", 1, ("operation", "get"));
+
+        // ... business logic ...
+
+        _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, Count = documents.Count });
+        return Ok(documents);
+    }
+}
 ```
-[2025-01-30 10:15:23.456 +00:00] [INF] [abc123-def456] [NTG.Agent.Orchestrator] 
-User action performed. UserId: user123, Action: GetDocuments, Data: {"AgentId": "guid-here"}
 
-[2025-01-30 10:15:23.789 +00:00] [INF] [abc123-def456] [NTG.Agent.Orchestrator] 
-Business event occurred. Event: DocumentsRetrieved, Data: {"AgentId": "guid-here", "Count": 5}
-
-[2025-01-30 10:15:23.999 +00:00] [ERR] [abc123-def456] [NTG.Agent.Orchestrator] 
-CRITICAL ERROR - Immediate attention required. CorrelationId: abc123-def456, Details: {...}
+### **Sample Log Output**
+```
+info: Request started: GET /api/documents/123
+info: User action performed. UserId: user123, Action: GetDocuments, Data: {"AgentId": "123"}
+info: Business event occurred. Event: DocumentsRetrieved, Data: {"AgentId": "123", "Count": 5}
+info: Request completed: GET /api/documents/123 - 200 in 45ms
 ```
 
 ---
 
-## 🚨 Production Deployment Checklist
+## 🚨 Production Setup
 
-### **Before Deployment**
-- [ ] Configure Application Insights connection string
-- [ ] Set up log file permissions and directories
-- [ ] Set up alerting rules for critical errors
-- [ ] Test correlation ID propagation across services
-- [ ] Configure external health monitoring if needed
+### **ServiceDefaults Integration**
+All logging and exception handling is automatically configured when using `builder.AddServiceDefaults()` in your Program.cs:
 
-### **Monitoring Setup**
-- [ ] Configure log retention policies
-- [ ] Set up dashboard for key metrics
-- [ ] Configure automated alerts for:
-  - Critical error rates
-  - Response time degradation
-  - Application availability
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.AddServiceDefaults(); // Sets up logging, metrics, and exception handling
 
-### **Security Considerations**
-- [ ] Mask sensitive data in logs
-- [ ] Secure log file access
-- [ ] Configure proper user authentication tracking
-- [ ] Set up security event monitoring
+var app = builder.Build();
+app.MapDefaultEndpoints(); // Adds exception handling and logging middleware
+```
 
----
+### **Configuration Checklist**
+- [ ] Set appropriate log levels in `appsettings.json`
+- [ ] Configure OpenTelemetry endpoint if using external monitoring
+- [ ] Test exception handling produces proper logs
+- [ ] Verify health check endpoints work in development
 
-## 🎛️ Key Metrics to Monitor
-
-### **Performance Metrics**
-- Request duration (p95, p99)
-- Custom business metrics
-- Error rates by endpoint
-- Response time trends
-
-### **Business Metrics**
-- Document upload/download counts
-- User activity patterns
-- Agent usage statistics
-- Knowledge base interactions
-
-### **System Health**
-- Service availability
-- Application responsiveness
-- Error frequency
-- Critical error detection
+### **Key Features**
+- **No External Dependencies**: Uses only built-in ASP.NET Core logging
+- **Modern Exception Handling**: IExceptionHandler instead of middleware
+- **OpenTelemetry Ready**: Built-in metrics and tracing support
+- **Configuration-Driven**: Log levels controlled via appsettings.json
 
 ---
 
-## 🔄 Next Steps
+## 🔄 Available Components
 
-1. **Configure Application Insights** for cloud monitoring
-2. **Set up alerting rules** for critical errors and performance degradation
-3. **Create monitoring dashboards** for key business and technical metrics
-4. **Test correlation tracking** across all microservices
-5. **Implement log aggregation** for centralized analysis
-6. **Add custom health checks** as needed for specific business requirements
+### **Logging Components (NTG.Agent.ServiceDefaults.Logging)**
+- `IApplicationLogger<T>` - Enhanced logger with business methods
+- `ApplicationLogger<T>` - Implementation with LogUserAction, LogBusinessEvent, etc.
+- `IMetricsCollector` - Custom metrics collection interface
+- `MetricsCollector` - OpenTelemetry-compatible metrics implementation
+- `GlobalExceptionHandler` - IExceptionHandler implementation
+- `LoggingMiddleware` - Request/response logging middleware
+
+### **Built-in Logging Methods**
+- `LogUserAction(userId, action, data)` - Track user activities
+- `LogBusinessEvent(eventName, data)` - Record business events
+- `LogPerformance(operation, duration, metadata)` - Performance tracking
+- `LogSecurity(eventType, userId, data)` - Security event logging
+
+---
+
+## 📊 Monitoring
+
+The system automatically provides:
+- **Request/Response Logging**: Via LoggingMiddleware
+- **Exception Tracking**: Via GlobalExceptionHandler with correlation IDs
+- **OpenTelemetry Metrics**: ASP.NET Core, HTTP, and custom business metrics
+- **Health Checks**: Basic liveness and readiness probes
+- **Structured Logging**: JSON or simple format based on environment

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
@@ -23,22 +24,11 @@ public static class Extensions
 
         builder.AddDefaultHealthChecks();
 
-        builder.Services.AddLogging(loggingBuilder =>
-        {
-            loggingBuilder.ClearProviders();
-            loggingBuilder.AddConsole();
-
-            loggingBuilder.SetMinimumLevel(builder.Environment.IsProduction() ? LogLevel.Information : LogLevel.Debug);
-        });
-
-        builder.Services.AddOpenTelemetry()
-            .WithMetrics(metricsBuilder =>
-            {
-                metricsBuilder.AddMeter("NTG.Agent");
-            });
-
         builder.Services.AddScoped(typeof(IApplicationLogger<>), typeof(ApplicationLogger<>));
         builder.Services.AddScoped<IMetricsCollector, MetricsCollector>();
+
+        // Register exception handler
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
         builder.Services.AddServiceDiscovery();
 
@@ -73,7 +63,8 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter("NTG.Agent");
             })
             .WithTracing(tracing =>
             {
@@ -119,9 +110,6 @@ public static class Extensions
 
     public static WebApplication MapDefaultEndpoints(this WebApplication app)
     {
-        app.UseMiddleware<ErrorTrackingMiddleware>();
-        app.UseMiddleware<LoggingMiddleware>();
-
         // Adding health checks endpoints to applications in non-development environments has security implications.
         // See https://aka.ms/dotnet/aspire/healthchecks for details before enabling these endpoints in non-development environments.
         if (app.Environment.IsDevelopment())
@@ -136,6 +124,20 @@ public static class Extensions
             });
         }
 
+        return app;
+    }
+
+    public static WebApplication ConfigureGlobalExceptionHandler(this WebApplication app)
+    {
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+        }
+        else
+        {
+            app.UseExceptionHandler("/Error");
+            app.UseHsts();
+        }
         return app;
     }
 }
