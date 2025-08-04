@@ -79,15 +79,16 @@ builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
 
-
 var app = builder.Build();
 
-app.ConfigureGlobalExceptionHandler();
-
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
+    app.UseExceptionHandler("/error-development");
     app.MapOpenApi();
+}
+else
+{
+    app.UseExceptionHandler("/error");
 }
 
 app.UseHttpsRedirection();
