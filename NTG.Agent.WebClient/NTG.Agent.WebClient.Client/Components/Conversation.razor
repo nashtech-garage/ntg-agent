@@ -3,6 +3,7 @@
 @using NTG.Agent.Shared.Dtos.Chats
 @using Microsoft.AspNetCore.Components
 @using System.Threading
+@inject ILogger<Conversation> Logger
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
 @inject NavigationManager Navigation
@@ -283,7 +284,7 @@
             catch (Exception ex)
             {
                 // TODO: Handle error - could show a toast notification
-                Console.WriteLine($"Failed to rename conversation: {ex.Message}");
+                Logger.LogError(ex, "Failed to rename conversation");
             }
         }
 
@@ -335,7 +336,7 @@
             catch (Exception ex)
             {
                 // TODO: Handle error - could show a toast notification
-                Console.WriteLine($"Error: Failed to delete conversation. Exception: {ex.Message}");
+                Logger.LogError(ex, "Error: Failed to delete conversation.");
             }
         }
 
@@ -357,7 +358,7 @@
         catch (Exception ex)
         {
             // Provide a fallback in case of JS interop errors
-            Console.WriteLine($"Error loading sidebar state: {ex.Message}");
+            Logger.LogError(ex, "Error loading sidebar state");
             IsSidebarCollapsed = false;
         }
     }
@@ -371,7 +372,7 @@
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving sidebar state: {ex.Message}");
+            Logger.LogError(ex, "Error saving sidebar state");
         }
     }
 

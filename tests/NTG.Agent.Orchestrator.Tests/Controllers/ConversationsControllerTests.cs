@@ -85,19 +85,21 @@ public class ConversationsControllerTests
     {
         // Arrange
         var conversationId = Guid.NewGuid();
+        var currentSessionId = Guid.NewGuid();
         var expectedConversation = new Conversation
         {
             Id = conversationId,
             Name = "Test Conversation",
             UserId = _testUserId,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            SessionId = currentSessionId,
+            CreatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
+            UpdatedAt = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc)
         };
         await _context.Conversations.AddAsync(expectedConversation);
         await _context.SaveChangesAsync();
 
         // Act
-        var result = await _controller.GetConversation(conversationId);
+        var result = await _controller.GetConversation(conversationId, currentSessionId.ToString());
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -115,9 +117,10 @@ public class ConversationsControllerTests
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversation(nonExistentId);
+        var result = await _controller.GetConversation(nonExistentId, currentSessionId);
 
         // Assert
         Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
@@ -128,9 +131,10 @@ public class ConversationsControllerTests
     {
         // Arrange
         var (conversationId, _) = await SeedMessagesData();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(conversationId);
+        var result = await _controller.GetConversationMessage(conversationId, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -152,9 +156,10 @@ public class ConversationsControllerTests
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = _testUserId, Name = "Empty Convo" };
         await _context.Conversations.AddAsync(conversation);
         await _context.SaveChangesAsync();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(conversation.Id);
+        var result = await _controller.GetConversationMessage(conversation.Id, currentSessionId);
 
         // Assert
         Assert.That(result.Value, Is.Not.Null);
@@ -162,19 +167,59 @@ public class ConversationsControllerTests
     }
 
     [Test]
-    public async Task GetConversationMessage_ProvideUserConversationIdCorrect_ReturnUsersMessages()
+    public async Task GetConversationMessage_WhenAccessingOtherUsersConversation_ReturnsUnAuthorized()
     {
         // Arrange
         var (_, otherUserConversationId) = await SeedMessagesData();
+        var currentSessionId = string.Empty;
 
         // Act
-        var result = await _controller.GetConversationMessage(otherUserConversationId);
+        var result = await _controller.GetConversationMessage(otherUserConversationId, currentSessionId);
 
         // Assert
-        Assert.That(result.Value, Is.Not.Null);
-        Assert.That(result.Value, Is.Not.Empty);
-        Assert.That(result.Value, Has.Count.EqualTo(1));
-        Assert.That(result.Value[0].Content, Is.EqualTo("Secret message"));
+        Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
+
+    }
+
+    [Test]
+    public async Task GetConversation_WhenAccessingOtherUsersConversation_ReturnsNotFound()
+    {
+        // Arrange
+        var otherUserId = Guid.NewGuid();
+        var otherUserConversation = new Conversation 
+        { 
+            Id = Guid.NewGuid(), 
+            UserId = otherUserId, 
+            Name = "Other User's Conversation",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        
+        await _context.Conversations.AddAsync(otherUserConversation);
+        await _context.SaveChangesAsync();
+        
+        var currentSessionId = string.Empty;
+
+        // Act
+        var result = await _controller.GetConversation(otherUserConversation.Id, currentSessionId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
+    }
+
+    // Rename the existing test and fix its assertion to expect NotFound
+    [Test]
+    public async Task GetConversationMessage_AccessingOtherUsersConversation_ReturnsUnAuthorized()
+    {
+        // Arrange
+        var (_, otherUserConversationId) = await SeedMessagesData();
+        var currentSessionId = string.Empty;
+
+        // Act
+        var result = await _controller.GetConversationMessage(otherUserConversationId, currentSessionId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
     }
 
     private async Task SeedConversationsData()

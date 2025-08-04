@@ -1,11 +1,21 @@
 ﻿@using NTG.Agent.Shared.Dtos.Chats
-
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
 @inject ConversationState ConversationState
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
 
-@if (ConversationId.HasValue)
+
+@if (unauthorized)
+{
+    <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
+        <h2 class="mb-4">Unauthorized</h2>
+        <p class="text-muted">You are not authorized to view this conversation.</p>
+        <button class="btn btn-primary" @onclick="@GoHome">Go to Home</button>
+    </div>
+}
+else if (ConversationId.HasValue)
 {
     <div class="chat-container">
         @foreach (var item in chatHistory)
@@ -91,23 +101,41 @@ else
     private string userInput = string.Empty;
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
+    private string currentSessionId = string.Empty;
+    private bool isAuthenticated = false;
+    private bool unauthorized = false;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
         if (ConversationId.HasValue)
         {
-            var chatMessages = await ConversationClient.GetConversationMessagesAsync(ConversationId.Value);
-
-            foreach (var item in chatMessages)
+            if (!isAuthenticated)
             {
-                chatHistory.Add(new ChatMessage
+                currentSessionId = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "CurrentSessionId");
+            }
+            try
+            {
+                var chatMessages = await ConversationClient.GetConversationMessagesAsync(ConversationId.Value, currentSessionId);
+
+                foreach (var item in chatMessages)
+                {
+                    chatHistory.Add(new ChatMessage
                     {
                         IsSystem = item.Role == 2,
                         Message = item.Content
                     });
-            };
+                }
+            }
+            catch (UnauthorizedAccessException)
+            {
+                unauthorized = true;
+            }
         }
     }
+
 
     private async Task SendMessage()
     {
@@ -118,7 +146,12 @@ else
         var newConversation = false;
         if (!ConversationId.HasValue)
         {
-            var conversation = await ConversationClient.Create();
+            if (!isAuthenticated)
+            {
+                currentSessionId = Guid.NewGuid().ToString();
+                await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "CurrentSessionId", currentSessionId);
+            }
+            var conversation = await ConversationClient.Create(currentSessionId);
             ConversationId = conversation.Id;
             newConversation = true;
         }
@@ -131,7 +164,7 @@ else
         userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value));
+        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value, currentSessionId));
         response.Message = string.Empty;
         await foreach (var item in result)
         {
@@ -167,5 +200,10 @@ else
     {
         userInput = result;
         StateHasChanged();
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/", true);
     }
 }

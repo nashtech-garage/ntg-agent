@@ -1,7 +1,7 @@
 @using BootstrapBlazor.Components
 @inject IJSRuntime JSRuntime
 @implements IDisposable
-
+@inject ILogger<EnhancedMarkdown> Logger
 <div @ref="containerRef">
     <Markdown IsViewer="true" Value="@Value" @ref="MarkdownRef" class="@CssClass" />
 </div>
@@ -56,7 +56,7 @@
         }
         catch (Exception ex)
         {
-            System.Console.WriteLine($"Error enhancing code blocks: {ex.Message}");
+            Logger.LogError(ex, "Error enhancing code blocks");
         }
     }
 

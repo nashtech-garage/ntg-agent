@@ -1,12 +1,12 @@
 @using NTG.Agent.Shared.Dtos.Documents
+@inject ILogger<DocumentsTab> Logger
 @inject DocumentClient DocumentClient
 
 <div class="tab-pane fade show active">
     <!-- Add Knowledge Button -->
     <div class="mb-4 d-flex justify-content-between align-items-center">
         <div>
-            <h5 class="mb-1">Knowledge Base</h5>
-            <p class="text-muted mb-0">Manage documents and knowledge for this agent</p>
+            <p class="text-muted mb-0">Manage documents and knowledge for this folder</p>
         </div>
         <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">
             <i class="bi bi-plus-circle me-2"></i>Add Knowledge
@@ -101,7 +101,7 @@
                     <button type="button" class="btn-close" @onclick="CloseAddKnowledgeDialog"></button>
                 </div>
                 <div class="modal-body">
-                    <AddKnowledgeForm AgentId="AgentId" OnUploadCompleted="HandleUploadCompleted" />
+                    <AddKnowledgeForm AgentId="AgentId" OnUploadCompleted="HandleUploadCompleted" FolderId="FolderId" />
                 </div>
             </div>
         </div>
@@ -142,10 +142,16 @@
     public Guid AgentId { get; set; }
 
     [Parameter]
+    public Guid? FolderId { get; set; }
+
+    [Parameter]
     public int DocumentCount { get; set; }
 
     [Parameter]
     public EventCallback<int> DocumentCountChanged { get; set; }
+
+    [Parameter]
+    public bool OpenAddKnowledgeDialogOnLoad { get; set; }
 
     private bool isAddKnowledgeDialogOpen = false;
     private bool isLoading = true;
@@ -154,22 +160,40 @@
     private IList<DocumentListItem> documents = [];
     private DocumentListItem? documentToDelete;
 
+    private Guid? _previousFolderId;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadDocuments();
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (FolderId != _previousFolderId)
+        {
+            _previousFolderId = FolderId;
+            await LoadDocuments();
+        }
+
+        if (OpenAddKnowledgeDialogOnLoad)
+        {
+            OpenAddKnowledgeDialog();
+            OpenAddKnowledgeDialogOnLoad = false;
+        }
+    }
+    #region Load Documents
     private async Task LoadDocuments()
     {
         try
         {
             isLoading = true;
-            documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId);
+            documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId, FolderId);
             await UpdateDocumentCount();
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error loading documents: {ex.Message}");
+            Logger.LogError(ex, "Error loading documents");
         }
         finally
         {
@@ -181,51 +205,6 @@
     {
         DocumentCount = documents.Count;
         await DocumentCountChanged.InvokeAsync(DocumentCount);
-    }
-
-    private void OpenAddKnowledgeDialog()
-    {
-        isAddKnowledgeDialogOpen = true;
-    }
-
-    private void CloseAddKnowledgeDialog()
-    {
-        isAddKnowledgeDialogOpen = false;
-    }
-
-    private async Task HandleUploadCompleted()
-    {
-        await LoadDocuments();
-        CloseAddKnowledgeDialog();
-    }
-
-    private void RemoveDocument(DocumentListItem document)
-    {
-        documentToDelete = document;
-        isDeleteConfirmationOpen = true;
-    }
-
-    private async Task ConfirmDeleteDocument()
-    {
-        if (documentToDelete == null) return;
-        
-        try {
-            await DocumentClient.DeleteDocumentByIdAsync(AgentId, documentToDelete.Id);
-            await LoadDocuments();
-        }
-        catch (Exception ex) {
-            Console.WriteLine($"Error deleting document: {ex.Message}");
-        }
-        finally {
-            isDeleteConfirmationOpen = false;
-            documentToDelete = null;
-        }
-    }
-
-    private void CancelDeleteDocument()
-    {
-        isDeleteConfirmationOpen = false;
-        documentToDelete = null;
     }
 
     private string GetFileType(string fileName)
@@ -272,4 +251,60 @@
             _ => "bg-light text-dark"
         };
     }
+
+    #endregion
+
+    #region Upload Documents
+    public void OpenAddKnowledgeDialog()
+    {
+        isAddKnowledgeDialogOpen = true;
+        StateHasChanged();
+    }
+
+    private void CloseAddKnowledgeDialog()
+    {
+        isAddKnowledgeDialogOpen = false;
+    }
+
+    private async Task HandleUploadCompleted()
+    {
+        await LoadDocuments();
+        CloseAddKnowledgeDialog();
+    }
+
+    #endregion
+
+    #region Delete Documents
+    private void RemoveDocument(DocumentListItem document)
+    {
+        documentToDelete = document;
+        isDeleteConfirmationOpen = true;
+    }
+
+    private async Task ConfirmDeleteDocument()
+    {
+        if (documentToDelete == null) return;
+
+        try
+        {
+            await DocumentClient.DeleteDocumentByIdAsync(AgentId, documentToDelete.Id);
+            await LoadDocuments();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting document");
+        }
+        finally
+        {
+            isDeleteConfirmationOpen = false;
+            documentToDelete = null;
+        }
+    }
+
+    private void CancelDeleteDocument()
+    {
+        isDeleteConfirmationOpen = false;
+        documentToDelete = null;
+    }
+    #endregion
 }

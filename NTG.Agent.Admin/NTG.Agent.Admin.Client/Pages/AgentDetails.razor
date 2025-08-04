@@ -3,7 +3,7 @@
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @using NTG.Agent.Admin.Client.Components
 @using NTG.Agent.Shared.Dtos.Agents
-
+@inject ILogger<AgentDetails> Logger
 @inject AgentClient AgentClient
 @inject NavigationManager Navigation
 
@@ -103,8 +103,34 @@
                             }
                             else if (activeTab == documentsTab)
                             {
-                                <div class="tab-pane fade show active p-4">
-                                    <DocumentsTab AgentId="Id" @bind-DocumentCount="documentCount" />
+                                <div class="tab-pane fade show active p-0">
+                                    <div class="row g-0">
+                                        <div class="col-md-3 border-end">
+                                            <TreeFolder AgentId="Id" 
+                                                       OnFolderSelected="HandleFolderSelected" 
+                                                       OnAddKnowledgeRequested="HandleAddKnowledgeRequested" />
+                                        </div>
+                                        <div class="col-md-9 p-4">
+                                            @if (selectedFolderId.HasValue)
+                                            {
+                                                <DocumentsTab @ref="documentsTabRef"
+                                                             AgentId="Id" 
+                                                             @bind-DocumentCount="documentCount" 
+                                                             FolderId="selectedFolderId"
+                                                             OpenAddKnowledgeDialogOnLoad="openAddKnowledgeDialog" />
+                                            }
+                                            else
+                                            {
+                                                <div class="text-center py-5">
+                                                    <div class="mb-3">
+                                                        <i class="bi bi-folder-symlink text-muted" style="font-size: 4rem;"></i>
+                                                    </div>
+                                                    <h5 class="text-muted">Please select a folder</h5>
+                                                    <p class="text-muted">Select a folder from the left panel to view its documents</p>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
                             }
                         </div>
@@ -152,27 +178,23 @@
 @code {
     [Parameter]
     public Guid Id { get; set; }
-
     private AgentDetail? agentDetail;
     private bool isLoading = true;
-    private bool showSidebar = false; // Can be toggled based on screen size or user preference
+    private bool showSidebar = false;
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private string activeTab = settingsTab;
     private int documentCount = 0;
-
-    private void SetActiveTab(string tab)
-    {
-        activeTab = tab;
-    }
+    private Guid? selectedFolderId;
+    private DocumentsTab? documentsTabRef;
+    private bool openAddKnowledgeDialog = false;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
             isLoading = true;
-            // Fetch agent details based on the provided Id
             agentDetail = await AgentClient.GetAgentDetails(Id);
             if (agentDetail == null)
             {
@@ -181,12 +203,41 @@
         }
         catch (Exception ex)
         {
-            // Log error and show appropriate message
-            Console.WriteLine($"Error loading agent details: {ex.Message}");
+            Logger.LogError(ex, "Error loading agent details");
         }
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private void HandleFolderSelected(Guid? folderId)
+    {
+        selectedFolderId = folderId;
+        StateHasChanged();
+    }
+
+    private void HandleAddKnowledgeRequested(Guid? folderId)
+    {
+        if (folderId.HasValue)
+        {
+            // If the requested folder is already selected, open the dialog directly
+            if (selectedFolderId == folderId && documentsTabRef != null)
+            {
+                documentsTabRef.OpenAddKnowledgeDialog();
+            }
+            else
+            {
+                // Otherwise, select the folder first and set the flag to open the dialog after render
+                selectedFolderId = folderId;
+                openAddKnowledgeDialog = true;
+                StateHasChanged();
+            }
         }
     }
 }
