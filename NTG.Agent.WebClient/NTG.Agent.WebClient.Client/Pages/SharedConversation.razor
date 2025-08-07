@@ -1,0 +1,11 @@
+﻿@page "/share/{id:guid}"
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+<PageTitle>Shared Conversation</PageTitle>
+
+<SharedChat ConversationId="Id"></SharedChat>
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+}

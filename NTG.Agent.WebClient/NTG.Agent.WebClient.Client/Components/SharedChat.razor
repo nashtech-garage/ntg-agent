@@ -1,0 +1,34 @@
+﻿@inject SharedConversationClient SharedConversationClient
+<div class="chat-container">
+    @foreach (var item in chatHistory)
+    {
+        if (item.IsSystem)
+        {
+            <div class="p-2 w-100">
+                <EnhancedMarkdown Value="@item.Message" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+            </div>
+        }
+        else
+        {
+            <div class="text-end p-2 w-100">
+                <span class="text-white bg-primary p-2 rounded rounded-4">
+                    @item.Message
+                </span>
+            </div>
+        }
+    }
+</div>
+@code {
+    [Parameter]
+    public Guid ConversationId { get; set; }
+    private List<ChatMessage> chatHistory = new List<ChatMessage>();
+    protected override async Task OnInitializedAsync()
+    {
+        var chatMessages = await SharedConversationClient.GetPublicSharedConversationAsync(ConversationId);
+        foreach (var item in chatMessages)
+        {
+            chatHistory.Add(new ChatMessage(item.Role == 2, item.Content));
+        }
+    }
+    record ChatMessage(bool IsSystem, string Message);
+}

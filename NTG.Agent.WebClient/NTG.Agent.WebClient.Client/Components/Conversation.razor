@@ -68,6 +68,7 @@
                             <div class="context-menu">
                                 <button class="rename-conversation" @onclick="() => RenameConversation(conversation.Id, conversation.Name)"><i class="bi bi-pencil-square"></i> Rename</button>
                                 <button class="delete-conversation" @onclick="() => DeleteConversation(conversation.Id)"><i class="bi bi-trash3"></i> Delete</button>
+                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id)"><i class="bi bi-pencil-square"></i> Share</button>
                             </div>
                         }
                     </li>
@@ -343,6 +344,14 @@
         showDeleteConfirmation = false;
         conversationToDelete = null;
         await JS.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+    #endregion
+
+    #region Share Conversation
+    private async Task ShareConversation(Guid conversationId)
+    {
+        // This method should handle sharing the conversation
         StateHasChanged();
     }
     #endregion
