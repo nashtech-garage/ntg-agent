@@ -362,6 +362,7 @@ public class ConversationsController : ControllerBase
     /// <summary>
     /// Updates the reaction (like/dislike) for a specific chat message.
     /// </summary>
+    /// <param name="id">The unique identifier of the conversation.</param>
     /// <param name="messageId">The unique identifier of the chat message.</param>
     /// <param name="request">The reaction update request containing the new reaction type.</param>
     /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.</returns>
@@ -397,6 +398,7 @@ public class ConversationsController : ControllerBase
     /// <summary>
     /// Updates the user comment for a specific chat message.
     /// </summary>
+    /// <param name="id">The unique identifier of the conversation.</param>
     /// <param name="messageId">The unique identifier of the chat message.</param>
     /// <param name="request">The comment update request containing the new comment text.</param>
     /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.</returns>
