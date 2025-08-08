@@ -22,12 +22,14 @@
     [Parameter]
     public Guid ConversationId { get; set; }
     private List<ChatMessage> chatHistory = new List<ChatMessage>();
+    
     protected override async Task OnInitializedAsync()
     {
         var chatMessages = await SharedConversationClient.GetPublicSharedConversationAsync(ConversationId);
         foreach (var item in chatMessages)
         {
-            chatHistory.Add(new ChatMessage(item.Role == 2, item.Content));
+            var chatMessage = new ChatMessage(item.Role == 2, item.Content);
+            chatHistory.Add(chatMessage);
         }
     }
     record ChatMessage(bool IsSystem, string Message);

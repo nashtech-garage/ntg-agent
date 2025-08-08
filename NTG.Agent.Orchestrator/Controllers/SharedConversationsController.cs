@@ -33,7 +33,7 @@ public class SharedConversationsController : ControllerBase
 
         // Get messages to snapshot
         var messages = await _context.ChatMessages
-            .Where(m => m.ConversationId == conversationId)
+            .Where(m => m.ConversationId == conversationId && !m.IsSummary)
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
 
@@ -71,25 +71,27 @@ public class SharedConversationsController : ControllerBase
     }
     
     /// <summary>
-    /// Retrieves the shared conversation messages associated with the specified share ID.
+    /// Retrieves the shared chat messages associated with the specified share ID.
     /// </summary>
-    /// <remarks>The shared conversation must be active and not expired for its messages to be retrieved. 
+    /// <remarks>The shared chat must be active and not expired for its messages to be retrieved. 
     /// Messages are returned in ascending order of their creation time.</remarks>
-    /// <param name="shareId">The unique identifier of the shared conversation to retrieve.</param>
+    /// <param name="shareId">The unique identifier of the shared chat to retrieve.</param>
     /// <returns>An <see cref="ActionResult{T}"/> containing an <see cref="IEnumerable{T}"/> of  <see cref="SharedChatMessage"/>
-    /// objects if the shared conversation is found and active;  otherwise, a <see cref="NotFoundResult"/>.</returns>
+    /// objects if the shared chat is found and active;  otherwise, a <see cref="NotFoundResult"/>.</returns>
     [HttpGet("public/{shareId}")]
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<SharedChatMessage>>> GetSharedConversation(Guid shareId)
     {
-        var shared = await _context.SharedConversations
-            .Include(s => s.Messages)
-            .FirstOrDefaultAsync(s => s.Id == shareId && s.IsActive && (s.ExpiresAt.HasValue && s.ExpiresAt > DateTime.Now));
+        var sharedMessages = await _context.SharedChatMessages
+            .Include(s => s.SharedConversation)
+            .Where(s => s.SharedConversationId == shareId && s.SharedConversation.IsActive &&
+                        (s.SharedConversation.ExpiresAt.HasValue && s.SharedConversation.ExpiresAt > DateTime.Now))
+            .ToListAsync();
 
-        if (shared == null)
+        if (sharedMessages == null)
             return NotFound();
 
-        return Ok(shared.Messages.OrderBy(m => m.CreatedAt));
+        return Ok(sharedMessages.OrderBy(m => m.CreatedAt));
     }
 
     /// <summary>

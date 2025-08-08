@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Admin.Components;
 using NTG.Agent.Admin.Components.Account;
 using NTG.Agent.Admin.Data;
+using NTG.Agent.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 

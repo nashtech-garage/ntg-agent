@@ -1,11 +1,13 @@
 ﻿@attribute [Authorize]
 
 @using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.SharedConversations
 @using Microsoft.AspNetCore.Components
 @using System.Threading
 @inject ILogger<Conversation> Logger
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
+@inject SharedConversationClient SharedConversationClient
 @inject NavigationManager Navigation
 @inject ConversationState ConversationState
 
@@ -68,7 +70,7 @@
                             <div class="context-menu">
                                 <button class="rename-conversation" @onclick="() => RenameConversation(conversation.Id, conversation.Name)"><i class="bi bi-pencil-square"></i> Rename</button>
                                 <button class="delete-conversation" @onclick="() => DeleteConversation(conversation.Id)"><i class="bi bi-trash3"></i> Delete</button>
-                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id)"><i class="bi bi-pencil-square"></i> Share</button>
+                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id)"><i class="bi bi-share"></i> Share</button>
                             </div>
                         }
                     </li>
@@ -108,6 +110,118 @@
     </div>
 }
 
+@if (showShareModal)
+{
+    <div class="modal-overlay" @onclick="CancelShare">
+        <div class="share-modal" @onclick:stopPropagation>
+            @if (!shareCreated)
+            {
+                <div class="share-modal-header">
+                    <div class="share-modal-title-container">
+                        <h3 class="modal-title">Share public link to chat</h3>
+                    </div>
+                    <button class="close-button" @onclick="CancelShare">×</button>
+                </div>
+                <div class="share-warning">
+                    <div class="warning-icon">⚠️</div>
+                    <div>
+                        <strong>This conversation may include personal information.</strong><br />
+                        Take a moment to check the content before sharing the link.
+                    </div>
+                </div>
+                <p class="share-description">
+                    Your name, custom instructions, and any messages you add after sharing stay private. 
+                    <a href="#" class="learn-more-link">Learn more</a>
+                </p>
+                <div class="share-expiration-container">
+                    <label class="share-expiration-label">Link expires:</label>
+                    <select class="share-expiration-select" @bind="selectedExpirationOption">
+                        <option value="never">Never</option>
+                        <option value="1hour">1 hour</option>
+                        <option value="24hours">24 hours</option>
+                        <option value="7days">7 days</option>
+                        <option value="30days">30 days</option>
+                    </select>
+                </div>
+                <div class="share-url-container">
+                    <input type="text" class="share-url-input" value="@(Navigation.BaseUri.TrimEnd('/'))/share/..." readonly />
+                    <button class="create-link-button" @onclick="CreateShareLink" disabled="@isCreatingLink">
+                        @if (isCreatingLink)
+                        {
+                            <span>Creating...</span>
+                        }
+                        else
+                        {
+                            <span>Create link</span>
+                        }
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="share-modal-header">
+                    <div class="share-modal-title-container">
+                        <h3 class="modal-title">Public link created</h3>
+                    </div>
+                    <button class="close-button" @onclick="CancelShare">×</button>
+                </div>
+                <div class="share-warning">
+                    <div class="warning-icon">⚠️</div>
+                    <div>
+                        <strong>This conversation may include personal information.</strong><br />
+                        Take a moment to check the content before sharing the link.
+                    </div>
+                </div>
+                <p class="share-success-description">
+                    A public link to your chat has been created. Manage previously shared chats at any time via Settings.
+                </p>
+                @if (selectedExpirationOption != "never")
+                {
+                    <p class="share-expiration-info">
+                        <i class="bi bi-clock"></i>
+                        This link will expire @GetExpirationText()
+                    </p>
+                }
+                <div class="share-url-container">
+                    <input type="text" class="share-url-input" value="@shareUrl" readonly />
+                    <button class="copy-link-button @(linkCopied ? "copied" : "")" @onclick="CopyShareLink">
+                        @if (linkCopied)
+                        {
+                            <span>Copied</span>
+                        }
+                        else
+                        {
+                            <span>Copy link</span>
+                        }
+                    </button>
+                </div>
+                <div class="share-social-buttons">
+                    <button class="social-button linkedin" @onclick="@(() => ShareToSocial("linkedin"))">
+                        <i class="bi bi-linkedin"></i>
+                        LinkedIn
+                    </button>
+                    <button class="social-button reddit" @onclick="@(() => ShareToSocial("reddit"))">
+                        <i class="bi bi-reddit"></i>
+                        Reddit
+                    </button>
+                    <button class="social-button twitter" @onclick="@(() => ShareToSocial("twitter"))">
+                        <i class="bi bi-twitter-x"></i>
+                        X
+                    </button>
+                    <button class="social-button facebook" @onclick="@(() => ShareToSocial("facebook"))">
+                        <i class="bi bi-facebook"></i>
+                        Facebook
+                    </button>
+                    <button class="social-button slack" @onclick="@(() => ShareToSocial("slack"))">
+                        <i class="bi bi-slack"></i>
+                        Slack
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 @code {
     private IList<ConversationListItem> conversations = [];
     private Guid? activeConversationId = null;
@@ -119,6 +233,14 @@
     private bool showDeleteConfirmation = false;
     private ConversationListItem? conversationToDelete;
     private bool IsSidebarCollapsed { get; set; } = false;
+    
+    private bool showShareModal = false;
+    private bool shareCreated = false;
+    private bool isCreatingLink = false;
+    private bool linkCopied = false;
+    private string shareUrl = string.Empty;
+    private Guid? shareConversationId = null;
+    private string selectedExpirationOption = "never"; // Default to never expires
 
     protected override async Task OnInitializedAsync()
     {
@@ -351,8 +473,131 @@
     #region Share Conversation
     private async Task ShareConversation(Guid conversationId)
     {
-        // This method should handle sharing the conversation
+        contextMenuConversationId = null;
+        shareConversationId = conversationId;
+        showShareModal = true;
+        shareCreated = false;
+        shareUrl = string.Empty;
+        linkCopied = false;
+        await JS.InvokeVoidAsync("hideInputChatContainer");
         StateHasChanged();
+    }
+
+    private async Task CancelShare()
+    {
+        showShareModal = false;
+        shareCreated = false;
+        shareConversationId = null;
+        shareUrl = string.Empty;
+        isCreatingLink = false;
+        linkCopied = false;
+        selectedExpirationOption = "never"; // Reset to default
+        await JS.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task CreateShareLink()
+    {
+        if (!shareConversationId.HasValue) return;
+
+        try
+        {
+            isCreatingLink = true;
+            StateHasChanged();
+
+            DateTime? expiresAt = selectedExpirationOption switch
+            {
+                "1hour" => DateTime.UtcNow.AddHours(1),
+                "24hours" => DateTime.UtcNow.AddDays(1),
+                "7days" => DateTime.UtcNow.AddDays(7),
+                "30days" => DateTime.UtcNow.AddDays(30),
+                _ => null 
+            };
+
+            var request = new ShareConversationRequest
+            {
+                Note = "Shared conversation",
+                ExpiresAt = expiresAt
+            };
+
+            var shareId = await SharedConversationClient.ShareConversationAsync(shareConversationId.Value, request);
+            
+            var baseUrl = Navigation.BaseUri.TrimEnd('/');
+            var trimmedShareId = shareId.Trim('"');
+            shareUrl = $"{baseUrl}/share/{trimmedShareId}";
+            
+            shareCreated = true;
+            isCreatingLink = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to create share link for conversation {ConversationId}", shareConversationId);
+            isCreatingLink = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CopyShareLink()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+            linkCopied = true;
+            StateHasChanged();
+
+            // Reset the "Copied" state after 5 seconds
+            await Task.Delay(5000);
+            linkCopied = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to copy share link to clipboard");
+        }
+    }
+
+    private async Task ShareToSocial(string platform)
+    {
+        try
+        {
+            var encodedUrl = Uri.EscapeDataString(shareUrl);
+            
+            if (platform == "slack")
+            {
+                // For Slack, we'll copy the URL to clipboard and show a message
+                await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+                await JS.InvokeVoidAsync("alert", "Link copied to clipboard! You can now paste it in Slack.");
+                return;
+            }
+            
+            var socialUrl = platform switch
+            {
+                "linkedin" => $"https://www.linkedin.com/sharing/share-offsite/?url={encodedUrl}",
+                "reddit" => $"https://reddit.com/submit?url={encodedUrl}",
+                "twitter" => $"https://twitter.com/intent/tweet?url={encodedUrl}",
+                "facebook" => $"https://www.facebook.com/sharer/sharer.php?u={encodedUrl}",
+                _ => shareUrl
+            };
+
+            await JS.InvokeVoidAsync("open", socialUrl, "_blank");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to share to {Platform}", platform);
+        }
+    }
+
+    private string GetExpirationText()
+    {
+        return selectedExpirationOption switch
+        {
+            "1hour" => "in 1 hour",
+            "24hours" => "in 24 hours",
+            "7days" => "in 7 days",
+            "30days" => "in 30 days",
+            _ => ""
+        };
     }
     #endregion
 

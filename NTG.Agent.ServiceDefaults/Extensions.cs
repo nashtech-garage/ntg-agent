@@ -2,13 +2,15 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.ServiceDiscovery;
+using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace Microsoft.Extensions.Hosting;
+namespace NTG.Agent.ServiceDefaults;
 
 // Adds common .NET Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
 // This project should be referenced by each service project in your solution.
@@ -20,6 +22,12 @@ public static class Extensions
         builder.ConfigureOpenTelemetry();
 
         builder.AddDefaultHealthChecks();
+
+        builder.Services.AddScoped(typeof(IApplicationLogger<>), typeof(ApplicationLogger<>));
+        builder.Services.AddScoped<IMetricsCollector, MetricsCollector>();
+
+        // Register exception handler
+        builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
         builder.Services.AddServiceDiscovery();
 
@@ -54,7 +62,8 @@ public static class Extensions
             {
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddMeter("NTG.Agent");
             })
             .WithTracing(tracing =>
             {

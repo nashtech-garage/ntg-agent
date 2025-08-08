@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Chat;
+﻿using System.Text.Json.Serialization;
+
+namespace NTG.Agent.Orchestrator.Models.Chat;
 
 public class SharedChatMessage
 {
@@ -14,6 +16,7 @@ public class SharedChatMessage
     public ChatRole Role { get; set; } = ChatRole.User;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    [JsonIgnore]
     public SharedConversation SharedConversation { get; set; } = null!;
 }
 

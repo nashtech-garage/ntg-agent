@@ -6,6 +6,8 @@ using NTG.Agent.Shared.Dtos.Documents;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.ServiceDefaults.Logging.Metrics;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -16,11 +18,15 @@ public class DocumentsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IApplicationLogger<DocumentsController> _logger;
+    private readonly IMetricsCollector _metrics;
 
-    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService)
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, IApplicationLogger<DocumentsController> logger, IMetricsCollector metrics)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
     /// <summary>
     /// Retrieves a list of documents associated with a specific agent and optionally filtered by a folder.
@@ -38,6 +44,9 @@ public class DocumentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetDocumentsByAgentId(Guid agentId, Guid? folderId)
     {
+        using var scope = _logger.BeginScope("GetDocuments", new { AgentId = agentId });
+        using var timer = _metrics.StartTimer("documents.get", ("agent_id", agentId.ToString()));
+
         var isRootfolder = await _agentDbContext.Folders
             .Where(f => f.Id == folderId && f.AgentId == agentId && f.ParentId == null)
             .FirstOrDefaultAsync();
@@ -54,6 +63,9 @@ public class DocumentsController : ControllerBase
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
         .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
         .ToListAsync();
+
+        _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
+        _metrics.RecordBusinessMetric("DocumentsRetrieved", new { AgentId = agentId, documents.Count });
         return Ok(documents);
     }
     /// <summary>
@@ -187,6 +199,7 @@ public class DocumentsController : ControllerBase
                 AgentId = agentId,
                 KnowledgeDocId = documentId,
                 FolderId = request.FolderId,
+                Url = request.Url,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,

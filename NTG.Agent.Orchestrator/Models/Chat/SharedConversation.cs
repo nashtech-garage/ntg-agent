@@ -8,6 +8,7 @@ public class SharedConversation
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         ExpiresAt = DateTime.MaxValue;
+        Messages = new List<SharedChatMessage>();
     }
     public Guid Id { get; set; }
     public Guid OriginalConversationId { get; set; }
