@@ -6,6 +6,13 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.SharedConversations;
 
+/// <summary>
+/// Controller responsible for managing shared conversations in the application.
+/// </summary>
+/// <remarks>
+/// This controller provides endpoints for creating, retrieving, updating, and deleting shared conversations.
+/// Most operations require user authentication except for public access to shared conversations.
+/// </remarks>
 [ApiController]
 [Route("api/[controller]")]
 public class SharedConversationsController : ControllerBase
@@ -16,14 +23,18 @@ public class SharedConversationsController : ControllerBase
     {
         _context = context;
     }
+    
     /// <summary>
-    ///  Creates a new shared conversation snapshot from the specified chat messages.
-    ///  The user must be authenticated to perform this operation. If the user is not authenticated
-    ///  an <see cref="UnauthorizedAccessException"/> is thrown.
+    /// Creates a shared snapshot of an existing conversation.
     /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    /// <exception cref="UnauthorizedAccessException"></exception>
+    /// <remarks>
+    /// This endpoint creates a snapshot of the specified conversation's messages and makes them shareable.
+    /// The user must be authenticated and can only share their own conversations.
+    /// An optional expiration date can be set to automatically expire the shared conversation.
+    /// </remarks>
+    /// <param name="request">The request containing conversation ID, optional expiration date, and optional name.</param>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the unique identifier of the newly created shared conversation.</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [Authorize]
     [HttpPost]
     public async Task<ActionResult<string>> ShareConversation([FromBody] ShareConversationRequest request)
@@ -116,15 +127,20 @@ public class SharedConversationsController : ControllerBase
     }
 
     /// <summary>
-    /// Revokes access to a shared conversation for the authenticated user.
+    /// Updates the active status of a shared conversation.
     /// </summary>
-    /// <param name="sharedConversationId">The unique identifier of the shared conversation to be unshared.</param>
-    /// <returns>A <see cref="NoContentResult"/> if the operation is successful, or a <see cref="NotFoundResult"/>  if the
-    /// specified shared conversation does not exist or does not belong to the authenticated user.</returns>
+    /// <remarks>This endpoint allows the owner to toggle the active status of a shared conversation.
+    /// When a conversation is set to inactive (flag=false), it is effectively unshared and cannot be accessed
+    /// by anyone else. The user must be authenticated to perform this operation.</remarks>
+    /// <param name="sharedConversationId">The unique identifier of the shared conversation to update.</param>
+    /// <param name="flag">The new active status to set (true=active, false=inactive).</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation. Returns <see cref="NotFoundResult"/> if
+    /// the shared conversation does not exist or does not belong to the authenticated user. Returns <see
+    /// cref="NoContentResult"/> if the update is successful.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [Authorize]
-    [HttpDelete("unshare/{sharedConversationId}")]
-    public async Task<IActionResult> Unshare(Guid sharedConversationId)
+    [HttpPut("update-share/{sharedConversationId}/{flag}")]
+    public async Task<IActionResult> Unshare(Guid sharedConversationId, bool flag)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
         var shared = await _context.SharedConversations
@@ -133,7 +149,8 @@ public class SharedConversationsController : ControllerBase
         if (shared == null)
             return NotFound();
 
-        shared.IsActive = false;
+        shared.IsActive = flag;
+        shared.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return NoContent();
     }
@@ -161,6 +178,7 @@ public class SharedConversationsController : ControllerBase
             return NotFound();
 
         shared.ExpiresAt = request.ExpiresAt;
+        shared.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
         return NoContent();
     }

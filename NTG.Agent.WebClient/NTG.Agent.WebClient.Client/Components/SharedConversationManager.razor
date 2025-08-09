@@ -13,7 +13,7 @@
             <button class="close-button" @onclick="@(() => OnClose.InvokeAsync())">×</button>
         </div>
 
-        <div class="modal-content">
+        <div class="shared-modal-content">
             @if (isLoading)
             {
                 <div class="loading-state">
@@ -35,6 +35,7 @@
                     <div class="table-header">
                         <div class="header-cell name-column">Name</div>
                         <div class="header-cell date-column">Shared Date</div>
+                        <div class="header-cell date-column">Updated</div>
                         <div class="header-cell date-column">Expires</div>
                         <div class="header-cell status-column">Status</div>
                         <div class="header-cell actions-column">Actions</div>
@@ -44,17 +45,18 @@
                     {
                         <div class="table-row @(item.IsActive ? "" : "inactive")">
                             <div class="cell name-column">
-                                <div class="conversation-name" title="@GetConversationName(item)">
-                                    @GetConversationName(item)
+                                <div class="conversation-name" title="@item.Name">
+                                    @item.Name
                                 </div>
-                                @if (!string.IsNullOrEmpty(item.Note))
-                                {
-                                    <div class="conversation-note" title="@item.Note">@item.Note</div>
-                                }
                             </div>
                             <div class="cell date-column">
                                 <span title="@item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")">
                                     @item.CreatedAt.ToString("MMM dd, yyyy")
+                                </span>
+                            </div>
+                            <div class="cell date-column">
+                                <span title="@item.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss")">
+                                    @item.UpdatedAt.ToString("MMM dd, yyyy")
                                 </span>
                             </div>
                             <div class="cell date-column">
@@ -143,11 +145,11 @@
                             <span>1 hour</span>
                         </label>
                         <label class="expiration-option">
-                            <input type="radio" name="expiration" value="24hours" @onchange="@(() => selectedExpiration = "24hours")" checked="@(selectedExpiration == "24hours")" />
+                            <input type="radio" name="expiration" value="24hours" @onchange="@(() => selectedExpiration = "1hour")" checked="@(selectedExpiration == "1hour")" />
                             <span>24 hours</span>
                         </label>
                         <label class="expiration-option">
-                            <input type="radio" name="expiration" value="7days" @onchange="@(() => selectedExpiration = "7days")" checked="@(selectedExpiration == "7days")" />
+                            <input type="radio" name="expiration" value="7days" @onchange="@(() => selectedExpiration = "24hours")" checked="@(selectedExpiration == "24hours")" />
                             <span>7 days</span>
                         </label>
                         <label class="expiration-option">
@@ -242,15 +244,6 @@
             isLoading = false;
             StateHasChanged();
         }
-    }
-
-    private string GetConversationName(SharedConversationListItem item)
-    {
-        // For now, we'll use the Note or a default name
-        // In a real scenario, you might want to fetch the original conversation name
-        return !string.IsNullOrEmpty(item.Note) && item.Note != "Shared conversation" 
-            ? item.Note 
-            : $"Shared Conversation {item.CreatedAt:MMM dd}";
     }
 
     private string GetStatusClass(SharedConversationListItem item)
@@ -361,7 +354,7 @@
     {
         selectedItem = item;
         confirmTitle = "Reshare Conversation";
-        confirmMessage = $"Are you sure you want to reshare this conversation? A new shared link will be created.";
+        confirmMessage = $"Are you sure you want to reshare this conversation?";
         confirmButtonText = "Reshare";
         confirmButtonClass = "save-button";
         confirmAction = ReshareConversation;
@@ -422,13 +415,13 @@
     private async Task UnshareConversation()
     {
         if (selectedItem == null) return;
-        await SharedConversationClient.UnshareConversationAsync(selectedItem.Id);
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, false);
     }
 
     private async Task ReshareConversation()
     {
         if (selectedItem == null) return;
-        await SharedConversationClient.ReshareConversationAsync(selectedItem.Id);
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
     }
 
     private async Task DeleteConversation()

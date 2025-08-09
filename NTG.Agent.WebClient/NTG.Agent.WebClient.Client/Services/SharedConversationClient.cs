@@ -36,9 +36,9 @@ public class SharedConversationClient(HttpClient httpClient)
     }
 
     // ✅ Unshare a conversation (soft delete)
-    public async Task<bool> UnshareConversationAsync(Guid shareId)
+    public async Task<bool> UpdateSharedConversationAsync(Guid shareId, bool flag)
     {
-        var response = await _httpClient.DeleteAsync($"/api/sharedconversations/unshare/{shareId}");
+        var response = await _httpClient.PutAsync($"/api/sharedconversations/update-share/{shareId}/{flag}", null);
         return response.IsSuccessStatusCode;
     }
 
@@ -54,13 +54,6 @@ public class SharedConversationClient(HttpClient httpClient)
     {
         var payload = new UpdateExpirationRequest { ExpiresAt = expiresAt };
         var response = await _httpClient.PutAsJsonAsync($"/api/sharedconversations/{shareId}/expiration", payload);
-        return response.IsSuccessStatusCode;
-    }
-
-    // ✅ Reshare a conversation (reactivate unshared conversation)
-    public async Task<bool> ReshareConversationAsync(Guid shareId)
-    {
-        var response = await _httpClient.PutAsync($"/api/sharedconversations/{shareId}/reshare", null);
         return response.IsSuccessStatusCode;
     }
 }
