@@ -178,7 +178,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Note")
+                    b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<Guid>("OriginalConversationId")

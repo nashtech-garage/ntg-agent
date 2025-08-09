@@ -17,24 +17,22 @@ public class SharedConversationsController : ControllerBase
         _context = context;
     }
     /// <summary>
-    /// Shares a conversation by creating a snapshot of its messages and associating it with the requesting user.
+    ///  Creates a new shared conversation snapshot from the specified chat messages.
+    ///  The user must be authenticated to perform this operation. If the user is not authenticated
+    ///  an <see cref="UnauthorizedAccessException"/> is thrown.
     /// </summary>
-    /// <remarks>The method requires the user to be authenticated. If the conversation contains no messages, a
-    /// bad request response is returned. The shared conversation can optionally include an expiration date, as
-    /// specified in the request.</remarks>
-    /// <param name="conversationId">The unique identifier of the conversation to be shared.</param>
-    /// <param name="request">The request containing additional details for sharing the conversation, such as a note or expiration date.</param>
-    /// <returns>A string representing the unique identifier of the newly created shared conversation.</returns>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    /// <exception cref="UnauthorizedAccessException"></exception>
     [Authorize]
-    [HttpPost("{conversationId}")]
-    public async Task<ActionResult<string>> ShareConversation(Guid conversationId, [FromBody] ShareConversationRequest request)
+    [HttpPost]
+    public async Task<ActionResult<string>> ShareConversation([FromBody] ShareConversationRequest request)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
         // Get messages to snapshot
         var messages = await _context.ChatMessages
-            .Where(m => m.ConversationId == conversationId && !m.IsSummary)
+            .Where(m => m.ConversationId == request.ConversationId && !m.IsSummary && m.UserId == userId)
             .OrderBy(m => m.CreatedAt)
             .ToListAsync();
 
@@ -43,9 +41,9 @@ public class SharedConversationsController : ControllerBase
 
         var share = new SharedConversation
         {
-            OriginalConversationId = conversationId,
+            OriginalConversationId = request.ConversationId,
             UserId = userId,
-            Note = request.Note,
+            Name = request.Name,
         };
 
         if (request.ExpiresAt.HasValue && request.ExpiresAt!= DateTime.MinValue)
@@ -136,33 +134,6 @@ public class SharedConversationsController : ControllerBase
             return NotFound();
 
         shared.IsActive = false;
-        await _context.SaveChangesAsync();
-        return NoContent();
-    }
-
-    /// <summary>
-    /// Updates the note associated with a shared conversation.
-    /// </summary>
-    /// <remarks>The user must be authenticated to perform this operation. If the user is not authenticated,
-    /// an <see cref="UnauthorizedAccessException"/> is thrown.</remarks>
-    /// <param name="sharedConversationId">The unique identifier of the shared conversation to update.</param>
-    /// <param name="request">The request containing the updated note.</param>
-    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.  Returns <see cref="NotFoundResult"/> if
-    /// the shared conversation does not exist or does not belong to the authenticated user.  Returns <see
-    /// cref="NoContentResult"/> if the update is successful.</returns>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
-    [Authorize]
-    [HttpPut("{sharedConversationId}")]
-    public async Task<IActionResult> UpdateNote(Guid sharedConversationId, [FromBody] ShareConversationRequest request)
-    {
-        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-        var shared = await _context.SharedConversations
-            .FirstOrDefaultAsync(s => s.Id == sharedConversationId && s.UserId == userId);
-
-        if (shared == null)
-            return NotFound();
-
-        shared.Note = request.Note;
         await _context.SaveChangesAsync();
         return NoContent();
     }

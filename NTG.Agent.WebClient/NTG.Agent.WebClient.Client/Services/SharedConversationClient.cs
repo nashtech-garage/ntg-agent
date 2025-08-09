@@ -6,9 +6,9 @@ public class SharedConversationClient(HttpClient httpClient)
     private readonly HttpClient _httpClient = httpClient;
 
     // ✅ Create a shared conversation snapshot
-    public async Task<string> ShareConversationAsync(Guid conversationId, ShareConversationRequest request)
+    public async Task<string> ShareConversationAsync(ShareConversationRequest request)
     {
-        var response = await _httpClient.PostAsJsonAsync($"/api/sharedconversations/{conversationId}", request);
+        var response = await _httpClient.PostAsJsonAsync($"/api/sharedconversations", request);
         response.EnsureSuccessStatusCode();
 
         var sharedConversationId = await response.Content.ReadAsStringAsync();
@@ -46,14 +46,6 @@ public class SharedConversationClient(HttpClient httpClient)
     public async Task<bool> DeleteSharedConversationAsync(Guid shareId)
     {
         var response = await _httpClient.DeleteAsync($"/api/sharedconversations/{shareId}");
-        return response.IsSuccessStatusCode;
-    }
-
-    // ✅ Update note on a shared conversation
-    public async Task<bool> UpdateSharedConversationNoteAsync(Guid shareId, string? newNote)
-    {
-        var payload = new { Note = newNote };
-        var response = await _httpClient.PutAsJsonAsync($"/api/sharedconversations/{shareId}", payload);
         return response.IsSuccessStatusCode;
     }
 
