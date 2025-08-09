@@ -70,7 +70,7 @@
                             <div class="context-menu">
                                 <button class="rename-conversation" @onclick="() => RenameConversation(conversation.Id, conversation.Name)"><i class="bi bi-pencil-square"></i> Rename</button>
                                 <button class="delete-conversation" @onclick="() => DeleteConversation(conversation.Id)"><i class="bi bi-trash3"></i> Delete</button>
-                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id)"><i class="bi bi-share"></i> Share</button>
+                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id, conversation.Name)"><i class="bi bi-share"></i> Share</button>
                             </div>
                         }
                     </li>
@@ -233,13 +233,13 @@
     private bool showDeleteConfirmation = false;
     private ConversationListItem? conversationToDelete;
     private bool IsSidebarCollapsed { get; set; } = false;
-    
+
     private bool showShareModal = false;
     private bool shareCreated = false;
     private bool isCreatingLink = false;
     private bool linkCopied = false;
     private string shareUrl = string.Empty;
-    private Guid? shareConversationId = null;
+    private ShareConversationRequest? shareConversationRequest = null;
     private string selectedExpirationOption = "never"; // Default to never expires
 
     protected override async Task OnInitializedAsync()
@@ -471,10 +471,13 @@
     #endregion
 
     #region Share Conversation
-    private async Task ShareConversation(Guid conversationId)
+    private async Task ShareConversation(Guid conversationId, string conversationName)
     {
         contextMenuConversationId = null;
-        shareConversationId = conversationId;
+        shareConversationRequest = new ShareConversationRequest();
+        shareConversationRequest.ConversationId = conversationId;
+        shareConversationRequest.Name = conversationName;
+
         showShareModal = true;
         shareCreated = false;
         shareUrl = string.Empty;
@@ -487,18 +490,18 @@
     {
         showShareModal = false;
         shareCreated = false;
-        shareConversationId = null;
+        shareConversationRequest = null;
         shareUrl = string.Empty;
         isCreatingLink = false;
         linkCopied = false;
-        selectedExpirationOption = "never"; // Reset to default
+        selectedExpirationOption = "never";
         await JS.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
 
     private async Task CreateShareLink()
     {
-        if (!shareConversationId.HasValue) return;
+        if (shareConversationRequest is null) return;
 
         try
         {
@@ -514,13 +517,9 @@
                 _ => null 
             };
 
-            var request = new ShareConversationRequest
-            {
-                Note = "Shared conversation",
-                ExpiresAt = expiresAt
-            };
+            shareConversationRequest.ExpiresAt = expiresAt;
 
-            var shareId = await SharedConversationClient.ShareConversationAsync(shareConversationId.Value, request);
+            var shareId = await SharedConversationClient.ShareConversationAsync(shareConversationRequest);
             
             var baseUrl = Navigation.BaseUri.TrimEnd('/');
             var trimmedShareId = shareId.Trim('"');
@@ -532,7 +531,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to create share link for conversation {ConversationId}", shareConversationId);
+            Logger.LogError(ex, "Failed to create share link for conversation {ConversationId}", shareConversationRequest.ConversationId);
             isCreatingLink = false;
             StateHasChanged();
         }
@@ -565,7 +564,6 @@
             
             if (platform == "slack")
             {
-                // For Slack, we'll copy the URL to clipboard and show a message
                 await JS.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
                 await JS.InvokeVoidAsync("alert", "Link copied to clipboard! You can now paste it in Slack.");
                 return;
