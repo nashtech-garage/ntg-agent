@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Shared.Dtos.SharedConversations;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -162,6 +163,33 @@ public class SharedConversationsController : ControllerBase
             return NotFound();
 
         shared.Note = request.Note;
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Updates the expiration date associated with a shared conversation.
+    /// </summary>
+    /// <remarks>The user must be authenticated to perform this operation. If the user is not authenticated,
+    /// an <see cref="UnauthorizedAccessException"/> is thrown.</remarks>
+    /// <param name="sharedConversationId">The unique identifier of the shared conversation to update.</param>
+    /// <param name="request">The request containing the updated expiration date.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation.  Returns <see cref="NotFoundResult"/> if
+    /// the shared conversation does not exist or does not belong to the authenticated user.  Returns <see
+    /// cref="NoContentResult"/> if the update is successful.</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
+    [Authorize]
+    [HttpPut("{sharedConversationId}/expiration")]
+    public async Task<IActionResult> UpdateExpiration(Guid sharedConversationId, [FromBody] UpdateExpirationRequest request)
+    {
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var shared = await _context.SharedConversations
+            .FirstOrDefaultAsync(s => s.Id == sharedConversationId && s.UserId == userId);
+
+        if (shared == null)
+            return NotFound();
+
+        shared.ExpiresAt = request.ExpiresAt;
         await _context.SaveChangesAsync();
         return NoContent();
     }

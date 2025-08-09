@@ -56,4 +56,19 @@ public class SharedConversationClient(HttpClient httpClient)
         var response = await _httpClient.PutAsJsonAsync($"/api/sharedconversations/{shareId}", payload);
         return response.IsSuccessStatusCode;
     }
+
+    // ✅ Update expiration date on a shared conversation
+    public async Task<bool> UpdateSharedConversationExpirationAsync(Guid shareId, DateTime? expiresAt)
+    {
+        var payload = new UpdateExpirationRequest { ExpiresAt = expiresAt };
+        var response = await _httpClient.PutAsJsonAsync($"/api/sharedconversations/{shareId}/expiration", payload);
+        return response.IsSuccessStatusCode;
+    }
+
+    // ✅ Reshare a conversation (reactivate unshared conversation)
+    public async Task<bool> ReshareConversationAsync(Guid shareId)
+    {
+        var response = await _httpClient.PutAsync($"/api/sharedconversations/{shareId}/reshare", null);
+        return response.IsSuccessStatusCode;
+    }
 }
