@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.Shared.Dtos.Folders;
+namespace NTG.Agent.Shared.Dtos.Folders;
 public class FolderItem
 {
     public Guid Id { get; set; }
