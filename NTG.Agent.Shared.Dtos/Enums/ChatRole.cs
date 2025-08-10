@@ -1,5 +1,4 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Chat;
-
+﻿namespace NTG.Agent.Shared.Dtos.Enums;
 public enum ChatRole
 {
     System = 1,

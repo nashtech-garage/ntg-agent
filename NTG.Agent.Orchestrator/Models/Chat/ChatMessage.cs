@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Chat;
+﻿using NTG.Agent.Shared.Dtos.Enums;
+
+namespace NTG.Agent.Orchestrator.Models.Chat;
 
 public class ChatMessage
 {

@@ -214,7 +214,7 @@
     private SharedConversationListItem? selectedItem;
     private string selectedExpiration = "never";
     
-    // Confirmation dialog properties
+
     private string confirmTitle = "";
     private string confirmMessage = "";
     private string confirmButtonText = "";
@@ -260,17 +260,19 @@
         return "Active";
     }
 
+    #region View Shared Conversation
     private async Task ViewSharedConversation(Guid shareId)
     {
         var url = $"{NavigationManager.BaseUri.TrimEnd('/')}/share/{shareId}";
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
+    #endregion
 
+    #region Edit Expiration
     private void EditExpiration(SharedConversationListItem item)
     {
         selectedItem = item;
-        
-        // Set current expiration option
+
         if (!item.ExpiresAt.HasValue)
         {
             selectedExpiration = "never";
@@ -286,7 +288,7 @@
                 _ => "never"
             };
         }
-        
+
         showEditExpirationModal = true;
         StateHasChanged();
     }
@@ -317,13 +319,11 @@
                 _ => null
             };
 
-            // We need to add an API method to update expiration
             await SharedConversationClient.UpdateSharedConversationExpirationAsync(selectedItem.Id, newExpiresAt);
-            
-            // Refresh the list
+
             await LoadSharedConversations();
             await OnSharedConversationChanged.InvokeAsync();
-            
+
             showEditExpirationModal = false;
             selectedItem = null;
         }
@@ -338,6 +338,9 @@
         }
     }
 
+    #endregion
+
+    #region Unshare/Reshare cnversation
     private void ConfirmUnshare(SharedConversationListItem item)
     {
         selectedItem = item;
@@ -362,6 +365,20 @@
         StateHasChanged();
     }
 
+    private async Task UnshareConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, false);
+    }
+
+    private async Task ReshareConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
+    }
+    #endregion
+
+    #region Delete Conversation
     private void ConfirmDelete(SharedConversationListItem item)
     {
         selectedItem = item;
@@ -373,7 +390,14 @@
         showConfirmDialog = true;
         StateHasChanged();
     }
-
+    private async Task DeleteConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.DeleteSharedConversationAsync(selectedItem.Id);
+    }
+    #endregion
+    
+    #region confirm dialog actions
     private void CancelConfirmAction()
     {
         showConfirmDialog = false;
@@ -390,10 +414,9 @@
             {
                 isProcessing = true;
                 StateHasChanged();
-                
+
                 await confirmAction();
-                
-                // Refresh the list
+
                 await LoadSharedConversations();
                 await OnSharedConversationChanged.InvokeAsync();
             }
@@ -411,22 +434,5 @@
             }
         }
     }
-
-    private async Task UnshareConversation()
-    {
-        if (selectedItem == null) return;
-        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, false);
-    }
-
-    private async Task ReshareConversation()
-    {
-        if (selectedItem == null) return;
-        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
-    }
-
-    private async Task DeleteConversation()
-    {
-        if (selectedItem == null) return;
-        await SharedConversationClient.DeleteSharedConversationAsync(selectedItem.Id);
-    }
+    #endregion
 }

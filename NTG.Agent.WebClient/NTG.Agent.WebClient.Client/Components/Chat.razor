@@ -1,4 +1,5 @@
 ﻿@using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.Enums
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
@@ -99,7 +100,7 @@ else
     public string? Language { get; set; } = "en-US";
 
     private string userInput = string.Empty;
-    private List<ChatMessage> chatHistory = new List<ChatMessage>();
+    private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
@@ -122,9 +123,9 @@ else
 
                 foreach (var item in chatMessages)
                 {
-                    chatHistory.Add(new ChatMessage
+                    chatHistory.Add(new ChatMessageItem
                     {
-                        IsSystem = item.Role == 2,
+                        IsSystem = item.Role == (int)ChatRole.Assistant,
                         Message = item.Content
                     });
                 }
@@ -157,9 +158,9 @@ else
         }
 
         var query = userInput.Trim();
-        chatHistory.Add(new ChatMessage { IsSystem = false, Message = query });
+        chatHistory.Add(new ChatMessageItem { IsSystem = false, Message = query });
 
-        var response = new ChatMessage { IsSystem = true, Message = "One moment, the agent is thinking ..." };
+        var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
@@ -188,12 +189,6 @@ else
         {
             await SendMessage();
         }
-    }
-
-    class ChatMessage
-    {
-        public bool IsSystem { get; set; }
-        public string Message { get; set; } = string.Empty;
     }
 
     private void HandleTranscription(string result)

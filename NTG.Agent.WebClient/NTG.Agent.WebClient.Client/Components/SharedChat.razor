@@ -1,36 +1,95 @@
-﻿@inject SharedConversationClient SharedConversationClient
+﻿@using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.Enums
+@using NTG.Agent.Shared.Dtos.SharedConversations
+@inject SharedConversationClient SharedConversationClient
 <div class="chat-container">
-    @foreach (var item in chatHistory)
+    @if (isLoading)
     {
-        if (item.IsSystem)
+        <div class="p-3 text-muted">Loading…</div>
+    }
+    else if (!loadSuccess)
+    {
+        <div class="alert alert-warning m-2" role="alert">
+            @errorMessage
+        </div>
+    }
+    else if (chatHistory.Count == 0)
+    {
+        <div class="p-3 text-muted">No messages in this shared conversation.</div>
+    }
+    else
+    {
+        @foreach (var item in chatHistory)
         {
-            <div class="p-2 w-100">
-                <EnhancedMarkdown Value="@item.Message" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
-            </div>
-        }
-        else
-        {
-            <div class="text-end p-2 w-100">
-                <span class="text-white bg-primary p-2 rounded rounded-4">
-                    @item.Message
-                </span>
-            </div>
+            if (item.IsSystem)
+            {
+                <div class="p-2 w-100">
+                    <EnhancedMarkdown Value="@item.Message" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                </div>
+            }
+            else
+            {
+                <div class="text-end p-2 w-100">
+                    <span class="text-white bg-primary p-2 rounded rounded-4">
+                        @item.Message
+                    </span>
+                </div>
+            }
         }
     }
 </div>
+
 @code {
     [Parameter]
-    public Guid ConversationId { get; set; }
-    private List<ChatMessage> chatHistory = new List<ChatMessage>();
-    
+    public Guid SharedConversationId { get; set; }
+
+    private bool isLoading = true;
+    private bool loadSuccess = false;
+    private string? errorMessage;
+
+    private List<ChatMessageItem> chatHistory = new();
+
     protected override async Task OnInitializedAsync()
     {
-        var chatMessages = await SharedConversationClient.GetPublicSharedConversationAsync(ConversationId);
-        foreach (var item in chatMessages)
+        try
         {
-            var chatMessage = new ChatMessage(item.Role == 2, item.Content);
-            chatHistory.Add(chatMessage);
+            var result = await SharedConversationClient.GetPublicSharedConversationAsync(SharedConversationId);
+
+            if (result.Success)
+            {
+                // Map to local view-model
+                foreach (var item in result.Messages!)
+                {
+                    var chatMessage = new ChatMessageItem
+                    {
+                        IsSystem = item.Role == (int)ChatRole.Assistant,
+                        Message = item.Content
+                    };
+                    chatHistory.Add(chatMessage);
+                }
+
+                loadSuccess = true;
+            }
+            else
+            {
+                errorMessage = result.Reason switch
+                {
+                    "NOT_FOUND" => "This shared conversation was not found.",
+                    "INACTIVE" => "This shared conversation is no longer active.",
+                    "EXPIRED" => "This shared conversation has expired.",
+                    _ => "Unable to load this shared conversation."
+                };
+                loadSuccess = false;
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "An unexpected error occurred while loading the shared conversation.";
+            loadSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
-    record ChatMessage(bool IsSystem, string Message);
 }

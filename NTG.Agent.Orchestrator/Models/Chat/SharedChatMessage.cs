@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using NTG.Agent.Shared.Dtos.Enums;
+using System.Text.Json.Serialization;
 
 namespace NTG.Agent.Orchestrator.Models.Chat;
 

@@ -79,29 +79,44 @@ public class SharedConversationsController : ControllerBase
 
         return Ok(share.Id);
     }
-    
+
     /// <summary>
-    /// Retrieves the shared chat messages associated with the specified share ID.
+    /// Retrieves a shared conversation by its unique identifier.
     /// </summary>
-    /// <remarks>The shared chat must be active and not expired for its messages to be retrieved. 
-    /// Messages are returned in ascending order of their creation time.</remarks>
-    /// <param name="shareId">The unique identifier of the shared chat to retrieve.</param>
-    /// <returns>An <see cref="ActionResult{T}"/> containing an <see cref="IEnumerable{T}"/> of  <see cref="SharedChatMessage"/>
-    /// objects if the shared chat is found and active;  otherwise, a <see cref="NotFoundResult"/>.</returns>
+    /// <remarks>
+    /// This endpoint allows anonymous access to previously shared conversations. It performs several validations:
+    /// - Returns 404 (Not Found) if the conversation doesn't exist
+    /// - Returns 403 (Forbidden) if the conversation is not active
+    /// - Returns 410 (Gone) if the conversation has expired
+    /// If all validations pass, it returns the messages associated with the shared conversation.
+    /// </remarks>
+    /// <param name="shareId">The unique identifier of the shared conversation to retrieve.</param>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the messages of the shared conversation if found and valid.</returns>
     [HttpGet("public/{shareId}")]
     [AllowAnonymous]
     public async Task<ActionResult<IEnumerable<SharedChatMessage>>> GetSharedConversation(Guid shareId)
     {
-        var sharedMessages = await _context.SharedChatMessages
-            .Include(s => s.SharedConversation)
-            .Where(s => s.SharedConversationId == shareId && s.SharedConversation.IsActive &&
-                        (s.SharedConversation.ExpiresAt.HasValue && s.SharedConversation.ExpiresAt > DateTime.Now))
-            .ToListAsync();
+        var shared = await _context.SharedConversations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == shareId);
 
-        if (sharedMessages == null)
+        if (shared is null)
             return NotFound();
 
-        return Ok(sharedMessages.OrderBy(m => m.CreatedAt));
+        if (!shared.IsActive)
+            return StatusCode(StatusCodes.Status403Forbidden);
+
+        var now = DateTime.UtcNow;
+        if (shared.ExpiresAt.HasValue && shared.ExpiresAt.Value <= now)
+            return StatusCode(StatusCodes.Status410Gone);
+
+        var messages = await _context.SharedChatMessages
+            .AsNoTracking()
+            .Where(m => m.SharedConversationId == shareId)
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync();
+
+        return Ok(messages);
     }
 
     /// <summary>

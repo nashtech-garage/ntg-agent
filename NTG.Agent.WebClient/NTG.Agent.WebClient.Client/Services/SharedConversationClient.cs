@@ -1,4 +1,5 @@
 ﻿using NTG.Agent.Shared.Dtos.SharedConversations;
+using System.Net;
 using System.Net.Http.Json;
 
 public class SharedConversationClient(HttpClient httpClient)
@@ -16,14 +17,26 @@ public class SharedConversationClient(HttpClient httpClient)
     }
 
     // ✅ Get public shared messages (read-only)
-    public async Task<IList<SharedMessageDto>> GetPublicSharedConversationAsync(Guid shareId)
+    public record SharedConversationResult(bool Success, IList<SharedMessageDto>? Messages, string? Reason);
+    public async Task<SharedConversationResult> GetPublicSharedConversationAsync(Guid shareId)
     {
         var response = await _httpClient.GetAsync($"/api/sharedconversations/public/{shareId}");
-        response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<IList<SharedMessageDto>>();
-        return result ?? [];
+        if (response.StatusCode == HttpStatusCode.OK)
+        {
+            var data = await response.Content.ReadFromJsonAsync<IList<SharedMessageDto>>();
+            return new(true, data ?? [], null);
+        }
+
+        return response.StatusCode switch
+        {
+            HttpStatusCode.NotFound => new(false, null, "NOT_FOUND"),
+            HttpStatusCode.Forbidden => new(false, null, "INACTIVE"),
+            HttpStatusCode.Gone => new(false, null, "EXPIRED"),
+            _ => new(false, null, "ERROR")
+        };
     }
+
 
     // ✅ Get list of shared conversations by current user
     public async Task<IList<SharedConversationListItem>> GetMySharedConversationsAsync()
