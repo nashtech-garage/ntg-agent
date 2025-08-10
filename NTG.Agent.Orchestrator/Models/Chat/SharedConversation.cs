@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Chat;
+﻿using NTG.Agent.Shared.Dtos.Enums;
+
+namespace NTG.Agent.Orchestrator.Models.Chat;
 
 public class SharedConversation
 {
@@ -18,5 +20,6 @@ public class SharedConversation
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? Name { get; set; }
+    public SharedType Type { get; set; }
     public ICollection<SharedChatMessage> Messages { get; set; } = null!;
 }

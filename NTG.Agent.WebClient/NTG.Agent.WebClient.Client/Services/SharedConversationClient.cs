@@ -20,7 +20,7 @@ public class SharedConversationClient(HttpClient httpClient)
     public record SharedConversationResult(bool Success, IList<SharedMessageDto>? Messages, string? Reason);
     public async Task<SharedConversationResult> GetPublicSharedConversationAsync(Guid shareId)
     {
-        var response = await _httpClient.GetAsync($"/api/sharedconversations/public/{shareId}");
+        var response = await _httpClient.GetAsync($"/api/sharedconversations/public/{shareId}?_ts={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
 
         if (response.StatusCode == HttpStatusCode.OK)
         {

@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Shared.Dtos.SharedConversations;
+﻿using NTG.Agent.Shared.Dtos.Enums;
+
+namespace NTG.Agent.Shared.Dtos.SharedConversations;
 public class SharedConversationListItem
 {
     public Guid Id { get; set; }
@@ -9,4 +11,5 @@ public class SharedConversationListItem
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? Name { get; set; }
+    public SharedType Type { get; set; }
 }

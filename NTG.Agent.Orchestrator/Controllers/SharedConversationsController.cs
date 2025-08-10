@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Shared.Dtos.Enums;
 using NTG.Agent.Shared.Dtos.SharedConversations;
 
 /// <summary>
@@ -50,34 +51,44 @@ public class SharedConversationsController : ControllerBase
         if (!messages.Any())
             return BadRequest("Conversation has no messages.");
 
-        var share = new SharedConversation
+        var sharedConversation = new SharedConversation
         {
             OriginalConversationId = request.ConversationId,
             UserId = userId,
             Name = request.Name,
+            Type = SharedType.Conversation
         };
+
+        if(string.IsNullOrWhiteSpace(request.Name))
+        {
+            var conversationName = await _context.Conversations
+                .Where(c => c.Id == request.ConversationId && c.UserId == userId)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync();
+            sharedConversation.Name = conversationName;
+        }
 
         if (request.ExpiresAt.HasValue && request.ExpiresAt!= DateTime.MinValue)
         {
-            share.ExpiresAt = request.ExpiresAt;
+            sharedConversation.ExpiresAt = request.ExpiresAt;
         }
 
         foreach (var msg in messages)
         {
-            share.Messages.Add(new SharedChatMessage
+            sharedConversation.Messages.Add(new SharedChatMessage
             {
                 Content = msg.Content,
                 Role = msg.Role,
                 CreatedAt = msg.CreatedAt,
                 UpdatedAt = msg.UpdatedAt,
-                SharedConversationId = share.Id
+                SharedConversationId = sharedConversation.Id
             });
         }
 
-        _context.SharedConversations.Add(share);
+        _context.SharedConversations.Add(sharedConversation);
         await _context.SaveChangesAsync();
 
-        return Ok(share.Id);
+        return Ok(sharedConversation.Id);
     }
 
     /// <summary>

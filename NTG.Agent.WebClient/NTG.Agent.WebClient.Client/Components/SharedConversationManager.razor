@@ -34,6 +34,7 @@
                 <div class="shared-conversations-table">
                     <div class="table-header">
                         <div class="header-cell name-column">Name</div>
+                        <div class="header-cell type-column">Type</div>
                         <div class="header-cell date-column">Shared Date</div>
                         <div class="header-cell date-column">Updated</div>
                         <div class="header-cell date-column">Expires</div>
@@ -45,9 +46,14 @@
                     {
                         <div class="table-row @(item.IsActive ? "" : "inactive")">
                             <div class="cell name-column">
-                                <div class="conversation-name" title="@item.Name">
+                                <div class="conversation-name" title="@item.Name" 
+                                     @onclick="() => ViewSharedConversation(item.Id)"
+                                     style="cursor: pointer;">
                                     @item.Name
                                 </div>
+                            </div>
+                            <div class="cell type-column">
+                                <span>@item.Type.ToString()</span>
                             </div>
                             <div class="cell date-column">
                                 <span title="@item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")">
@@ -141,15 +147,11 @@
                             <span>Never expires</span>
                         </label>
                         <label class="expiration-option">
-                            <input type="radio" name="expiration" value="1hour" @onchange="@(() => selectedExpiration = "1hour")" checked="@(selectedExpiration == "1hour")" />
-                            <span>1 hour</span>
-                        </label>
-                        <label class="expiration-option">
-                            <input type="radio" name="expiration" value="24hours" @onchange="@(() => selectedExpiration = "1hour")" checked="@(selectedExpiration == "1hour")" />
+                            <input type="radio" name="expiration" value="24hours" @onchange="@(() => selectedExpiration = "24hours")" checked="@(selectedExpiration == "24hours")" />
                             <span>24 hours</span>
                         </label>
                         <label class="expiration-option">
-                            <input type="radio" name="expiration" value="7days" @onchange="@(() => selectedExpiration = "24hours")" checked="@(selectedExpiration == "24hours")" />
+                            <input type="radio" name="expiration" value="7days" @onchange="@(() => selectedExpiration = "7days")" checked="@(selectedExpiration == "7days")" />
                             <span>7 days</span>
                         </label>
                         <label class="expiration-option">

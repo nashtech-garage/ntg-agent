@@ -181,6 +181,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Type")
+                       .HasColumnType("int");
+
                     b.Property<Guid>("OriginalConversationId")
                         .HasColumnType("uniqueidentifier");
 

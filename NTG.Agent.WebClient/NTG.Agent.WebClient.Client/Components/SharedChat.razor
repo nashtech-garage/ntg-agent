@@ -1,6 +1,7 @@
 ﻿@using NTG.Agent.Shared.Dtos.Chats
 @using NTG.Agent.Shared.Dtos.Enums
 @using NTG.Agent.Shared.Dtos.SharedConversations
+@inject IJSRuntime JSRuntime
 @inject SharedConversationClient SharedConversationClient
 <div class="chat-container">
     @if (isLoading)
@@ -90,6 +91,16 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(2000);
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
         }
     }
 }
