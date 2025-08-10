@@ -242,10 +242,10 @@
             <div id="folder-@item.Id"
                  class="tree-item @(selectedFolderId == item.Id ? "selected" : "") @(item.IsDeletable ? "" : "system-folder")"
                  style="padding-left:@(level * 16)px"
-                 @onclick="@(() => editingFolderId == item.Id ? null : SelectFolder(item))"
+                 @onclick="@(() => editingFolderId == item.Id ? Task.CompletedTask : SelectFolder(item))"
                  @oncontextmenu:preventDefault
                  @oncontextmenu:stopPropagation
-                 @oncontextmenu="@((e) => editingFolderId == null ? ShowContextMenu(e, item) : null)">
+                 @oncontextmenu="@((e) => editingFolderId == null ? ShowContextMenu(e, item) : Task.CompletedTask)">
 
                 <span class="toggle-icon" @onclick="@((e) => ToggleFolder(item.Id))">
                     <i class="@((expandedFolders.GetValueOrDefault(item.Id)) ? "bi bi-chevron-down" : "bi bi-chevron-right")"></i>
@@ -402,6 +402,13 @@
             };
 
             var newFolder = await FolderClient.CreateFolderAsync(createFolderDto);
+
+            if (newFolder == null)
+            {
+                Logger.LogError("Failed to create folder: API returned null");
+                showNewFolderError = true;
+                return;
+            }
 
             var newFolderItem = new FolderItem
             {
