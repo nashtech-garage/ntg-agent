@@ -18,7 +18,7 @@ using System.ClientModel;
 var builder = WebApplication.CreateBuilder(args);
 
 // Endpoint to the Aspire Dashboard
-var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]?? throw new Exception("Please specify otel endpoint");
+var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new Exception("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
 
 var resourceBuilder = ResourceBuilder
     .CreateDefault()
