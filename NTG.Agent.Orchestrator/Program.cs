@@ -120,7 +120,6 @@ builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
 
-
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
