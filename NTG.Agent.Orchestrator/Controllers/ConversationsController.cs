@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
+using NTG.Agent.Shared.Dtos.Enums;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

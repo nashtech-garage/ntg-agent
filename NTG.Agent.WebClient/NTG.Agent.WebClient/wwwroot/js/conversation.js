@@ -51,6 +51,11 @@ window.hideInputChatContainer = function () {
         // Modify to prevent appearing above modal
         item.style.display = 'none';
     });
+
+    const shareConversationButton = document.getElementById('share-conversation-btn');
+    if (shareConversationButton) {
+        shareConversationButton.style.display = 'none';
+    }
 }
 
 window.showInputChatContainer = function () {
@@ -64,6 +69,11 @@ window.showInputChatContainer = function () {
         item.element.style.display = item.display;
     });
     originalDisplays = [];
+    
+    const shareConversationButton = document.getElementById('share-conversation-btn');
+    if (shareConversationButton) {
+        shareConversationButton.style.display = '';
+    }
 }
 
 // Define getSidebarState first, before it's used by other functions
@@ -104,13 +114,11 @@ window.updateSidebarState = function (isCollapsed) {
             
             // Apply the appropriate classes based on state
             if (isCollapsed) {
-                console.log('Setting collapsed layout');
                 mainContent.classList.add('col-11');
                 sidebarCol.classList.add('col-1');
                 sidebarCol.classList.add('sidebarcolumn-collapsed');
                 mainContent.classList.add('expanded-content');
             } else {
-                console.log('Setting expanded layout');
                 mainContent.classList.add('col-10');
                 sidebarCol.classList.add('col-2');
                 sidebarCol.classList.remove('sidebarcolumn-collapsed');

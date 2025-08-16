@@ -1,7 +1,11 @@
 ﻿@using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.Enums
+@using NTG.Agent.Shared.Dtos.SharedConversations
+@using NTG.Agent.WebClient.Client.Components.Shared
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
+@inject SharedConversationClient SharedConversationClient
 @inject ConversationState ConversationState
 @inject IJSRuntime JSRuntime
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -17,6 +21,12 @@
 }
 else if (ConversationId.HasValue)
 {
+    @if (isAuthenticated)
+    {
+        <button id="share-conversation-btn" class="share-button" @onclick="() => ShowShareModal()" title="Share conversation">
+            <i class="bi bi-share"></i>
+        </button>
+    }
     <div class="chat-container">
         @foreach (var item in chatHistory)
         {
@@ -90,6 +100,12 @@ else
     </div>
 }
 
+<ShareConversationModal IsVisible="showShareModal" 
+                        ConversationId="ConversationId" 
+                        ConversationName=""
+                        OnClose="CloseShareModal" 
+                        OnSharedConversationChanged="HandleSharedConversationChanged" />
+
 @code {
 
     [Parameter]
@@ -99,11 +115,12 @@ else
     public string? Language { get; set; } = "en-US";
 
     private string userInput = string.Empty;
-    private List<ChatMessage> chatHistory = new List<ChatMessage>();
+    private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
     private bool unauthorized = false;
+    private bool showShareModal = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -116,18 +133,21 @@ else
             {
                 currentSessionId = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "CurrentSessionId");
             }
+
             try
             {
-                var chatMessages = await ConversationClient.GetConversationMessagesAsync(ConversationId.Value, currentSessionId);
+                var chatMessages = await ConversationClient.GetConversationMessagesAsync(
+                    ConversationId.Value, currentSessionId);
 
                 foreach (var item in chatMessages)
                 {
-                    chatHistory.Add(new ChatMessage
+                    chatHistory.Add(new ChatMessageItem
                     {
-                        IsSystem = item.Role == 2,
+                        IsSystem = item.Role == (int)ChatRole.Assistant,
                         Message = item.Content
                     });
                 }
+                StateHasChanged();
             }
             catch (UnauthorizedAccessException)
             {
@@ -136,6 +156,15 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(2000);
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+        }
+    }
 
     private async Task SendMessage()
     {
@@ -157,9 +186,9 @@ else
         }
 
         var query = userInput.Trim();
-        chatHistory.Add(new ChatMessage { IsSystem = false, Message = query });
+        chatHistory.Add(new ChatMessageItem { IsSystem = false, Message = query });
 
-        var response = new ChatMessage { IsSystem = true, Message = "One moment, the agent is thinking ..." };
+        var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
@@ -190,12 +219,6 @@ else
         }
     }
 
-    class ChatMessage
-    {
-        public bool IsSystem { get; set; }
-        public string Message { get; set; } = string.Empty;
-    }
-
     private void HandleTranscription(string result)
     {
         userInput = result;
@@ -205,5 +228,28 @@ else
     private void GoHome()
     {
         Navigation.NavigateTo("/", true);
+    }
+
+    // Share Modal methods
+    private async Task ShowShareModal()
+    {
+        if (ConversationId.HasValue && isAuthenticated)
+        {
+            showShareModal = true;
+            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+            StateHasChanged();
+        }
+    }
+
+    private void CloseShareModal()
+    {
+        showShareModal = false;
+        JSRuntime.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private void HandleSharedConversationChanged()
+    {
+        StateHasChanged();
     }
 }

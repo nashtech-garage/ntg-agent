@@ -7,6 +7,8 @@ using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Dtos.SharedConversations;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;

@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Enums;
 using System.Security.Claims;
 
 namespace NTG.Agent.Orchestrator.Tests.Controllers;

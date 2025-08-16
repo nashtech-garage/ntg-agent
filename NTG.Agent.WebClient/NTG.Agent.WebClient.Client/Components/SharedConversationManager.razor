@@ -1,0 +1,440 @@
+﻿@using NTG.Agent.Shared.Dtos.SharedConversations
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject SharedConversationClient SharedConversationClient
+@inject IJSRuntime JS
+@inject ILogger<SharedConversationManager> Logger
+@inject NavigationManager NavigationManager
+
+<div class="modal-overlay" @onclick="@(() => OnClose.InvokeAsync())">
+    <div class="manage-shared-modal" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">Manage Shared Conversations</h3>
+            <button class="close-button" @onclick="@(() => OnClose.InvokeAsync())">×</button>
+        </div>
+
+        <div class="shared-modal-content">
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <span>Loading shared conversations...</span>
+                </div>
+            }
+            else if (!sharedConversations.Any())
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">🔗</div>
+                    <h4>No shared conversations</h4>
+                    <p>You haven't shared any conversations yet. Share a conversation to see it here.</p>
+                </div>
+            }
+            else
+            {
+                <div class="shared-conversations-table">
+                    <div class="table-header">
+                        <div class="header-cell name-column">Name</div>
+                        <div class="header-cell type-column">Type</div>
+                        <div class="header-cell date-column">Shared Date</div>
+                        <div class="header-cell date-column">Updated</div>
+                        <div class="header-cell date-column">Expires</div>
+                        <div class="header-cell status-column">Status</div>
+                        <div class="header-cell actions-column">Actions</div>
+                    </div>
+
+                    @foreach (var item in sharedConversations)
+                    {
+                        <div class="table-row @(item.IsActive ? "" : "inactive")">
+                            <div class="cell name-column">
+                                <div class="conversation-name" title="@item.Name" 
+                                     @onclick="() => ViewSharedConversation(item.Id)"
+                                     style="cursor: pointer;">
+                                    @item.Name
+                                </div>
+                            </div>
+                            <div class="cell type-column">
+                                <span>@item.Type.ToString()</span>
+                            </div>
+                            <div class="cell date-column">
+                                <span title="@item.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")">
+                                    @item.CreatedAt.ToString("MMM dd, yyyy")
+                                </span>
+                            </div>
+                            <div class="cell date-column">
+                                <span title="@item.UpdatedAt.ToString("yyyy-MM-dd HH:mm:ss")">
+                                    @item.UpdatedAt.ToString("MMM dd, yyyy")
+                                </span>
+                            </div>
+                            <div class="cell date-column">
+                                @if (item.ExpiresAt.HasValue)
+                                {
+                                    @if (item.ExpiresAt.Value.Date == DateTime.MaxValue.Date)
+                                    {
+                                        <span class="never-expires">Never</span>
+                                    }
+                                    else
+                                    {
+                                        <span title="@item.ExpiresAt.Value.ToString("yyyy-MM-dd HH:mm:ss")" 
+                                              class="@(item.ExpiresAt.Value < DateTime.UtcNow ? "expired" : "")">
+                                            @item.ExpiresAt.Value.ToString("MMM dd, yyyy")
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="never-expires">Never</span>
+                                }
+                            </div>
+                            <div class="cell status-column">
+                                <span class="status-badge @(GetStatusClass(item))">
+                                    @GetStatusText(item)
+                                </span>
+                            </div>
+                            <div class="cell actions-column">
+                                <div class="action-buttons">
+                                    <button class="action-btn view-btn" 
+                                            @onclick="() => ViewSharedConversation(item.Id)"
+                                            title="View shared conversation">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    
+                                    @if (item.IsActive)
+                                    {
+                                        <button class="action-btn edit-btn" 
+                                                @onclick="() => EditExpiration(item)"
+                                                title="Update expiration">
+                                            <i class="bi bi-calendar-event"></i>
+                                        </button>
+                                        
+                                        <button class="action-btn unshare-btn" 
+                                                @onclick="() => ConfirmUnshare(item)"
+                                                title="Unshare">
+                                            <i class="bi bi-link-45deg"></i>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="action-btn reshare-btn" 
+                                                @onclick="() => ConfirmReshare(item)"
+                                                title="Reshare conversation">
+                                            <i class="bi bi-share"></i>
+                                        </button>
+                                    }
+                                    
+                                    <button class="action-btn delete-btn" 
+                                            @onclick="() => ConfirmDelete(item)"
+                                            title="Delete permanently">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (showEditExpirationModal)
+        {
+            <div class="edit-expiration-overlay">
+                <div class="edit-expiration-modal">
+                    <h4>Update Expiration</h4>
+                    <p>Change the expiration date for this shared conversation.</p>
+                    
+                    <div class="expiration-options">
+                        <label class="expiration-option">
+                            <input type="radio" name="expiration" value="never" @onchange="@(() => selectedExpiration = "never")" checked="@(selectedExpiration == "never")" />
+                            <span>Never expires</span>
+                        </label>
+                        <label class="expiration-option">
+                            <input type="radio" name="expiration" value="24hours" @onchange="@(() => selectedExpiration = "24hours")" checked="@(selectedExpiration == "24hours")" />
+                            <span>24 hours</span>
+                        </label>
+                        <label class="expiration-option">
+                            <input type="radio" name="expiration" value="7days" @onchange="@(() => selectedExpiration = "7days")" checked="@(selectedExpiration == "7days")" />
+                            <span>7 days</span>
+                        </label>
+                        <label class="expiration-option">
+                            <input type="radio" name="expiration" value="30days" @onchange="@(() => selectedExpiration = "30days")" checked="@(selectedExpiration == "30days")" />
+                            <span>30 days</span>
+                        </label>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="cancel-button" @onclick="CancelEditExpiration">Cancel</button>
+                        <button class="save-button" @onclick="SaveExpiration" disabled="@isUpdating">
+                            @if (isUpdating)
+                            {
+                                <span>Updating...</span>
+                            }
+                            else
+                            {
+                                <span>Update</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (showConfirmDialog)
+        {
+            <div class="confirm-overlay">
+                <div class="confirm-modal">
+                    <h4>@confirmTitle</h4>
+                    <p>@confirmMessage</p>
+                    <div class="modal-actions">
+                        <button class="cancel-button" @onclick="CancelConfirmAction">Cancel</button>
+                        <button class="@confirmButtonClass" @onclick="ExecuteConfirmAction" disabled="@isProcessing">
+                            @if (isProcessing)
+                            {
+                                <span>Processing...</span>
+                            }
+                            else
+                            {
+                                <span>@confirmButtonText</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSharedConversationChanged { get; set; }
+
+    private IList<SharedConversationListItem> sharedConversations = [];
+    private bool isLoading = true;
+    private bool showEditExpirationModal = false;
+    private bool showConfirmDialog = false;
+    private bool isUpdating = false;
+    private bool isProcessing = false;
+    
+    private SharedConversationListItem? selectedItem;
+    private string selectedExpiration = "never";
+    
+
+    private string confirmTitle = "";
+    private string confirmMessage = "";
+    private string confirmButtonText = "";
+    private string confirmButtonClass = "";
+    private Func<Task>? confirmAction;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSharedConversations();
+    }
+
+    private async Task LoadSharedConversations()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+            
+            sharedConversations = await SharedConversationClient.GetMySharedConversationsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load shared conversations");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetStatusClass(SharedConversationListItem item)
+    {
+        if (!item.IsActive) return "inactive";
+        if (item.ExpiresAt.HasValue && item.ExpiresAt.Value < DateTime.UtcNow) return "expired";
+        return "active";
+    }
+
+    private string GetStatusText(SharedConversationListItem item)
+    {
+        if (!item.IsActive) return "Unshared";
+        if (item.ExpiresAt.HasValue && item.ExpiresAt.Value < DateTime.UtcNow) return "Expired";
+        return "Active";
+    }
+
+    #region View Shared Conversation
+    private async Task ViewSharedConversation(Guid shareId)
+    {
+        var url = $"{NavigationManager.BaseUri.TrimEnd('/')}/share/{shareId}";
+        await JS.InvokeVoidAsync("open", url, "_blank");
+    }
+    #endregion
+
+    #region Edit Expiration
+    private void EditExpiration(SharedConversationListItem item)
+    {
+        selectedItem = item;
+
+        if (!item.ExpiresAt.HasValue)
+        {
+            selectedExpiration = "never";
+        }
+        else
+        {
+            var timeUntilExpiry = item.ExpiresAt.Value - DateTime.UtcNow;
+            selectedExpiration = timeUntilExpiry.TotalDays switch
+            {
+                <= 1.1 and > 0.9 => "24hours",
+                <= 7.1 and > 6.9 => "7days",
+                <= 30.1 and > 29.9 => "30days",
+                _ => "never"
+            };
+        }
+
+        showEditExpirationModal = true;
+        StateHasChanged();
+    }
+
+    private void CancelEditExpiration()
+    {
+        showEditExpirationModal = false;
+        selectedItem = null;
+        selectedExpiration = "never";
+        StateHasChanged();
+    }
+
+    private async Task SaveExpiration()
+    {
+        if (selectedItem == null) return;
+
+        try
+        {
+            isUpdating = true;
+            StateHasChanged();
+
+            DateTime? newExpiresAt = selectedExpiration switch
+            {
+                "1hour" => DateTime.UtcNow.AddHours(1),
+                "24hours" => DateTime.UtcNow.AddDays(1),
+                "7days" => DateTime.UtcNow.AddDays(7),
+                "30days" => DateTime.UtcNow.AddDays(30),
+                _ => null
+            };
+
+            await SharedConversationClient.UpdateSharedConversationExpirationAsync(selectedItem.Id, newExpiresAt);
+
+            await LoadSharedConversations();
+            await OnSharedConversationChanged.InvokeAsync();
+
+            showEditExpirationModal = false;
+            selectedItem = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to update expiration for shared conversation {ShareId}", selectedItem?.Id);
+        }
+        finally
+        {
+            isUpdating = false;
+            StateHasChanged();
+        }
+    }
+
+    #endregion
+
+    #region Unshare/Reshare cnversation
+    private void ConfirmUnshare(SharedConversationListItem item)
+    {
+        selectedItem = item;
+        confirmTitle = "Unshare Conversation";
+        confirmMessage = $"Are you sure you want to unshare this conversation? The shared link will no longer be accessible.";
+        confirmButtonText = "Unshare";
+        confirmButtonClass = "unshare-button";
+        confirmAction = UnshareConversation;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    private void ConfirmReshare(SharedConversationListItem item)
+    {
+        selectedItem = item;
+        confirmTitle = "Reshare Conversation";
+        confirmMessage = $"Are you sure you want to reshare this conversation?";
+        confirmButtonText = "Reshare";
+        confirmButtonClass = "save-button";
+        confirmAction = ReshareConversation;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+
+    private async Task UnshareConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, false);
+    }
+
+    private async Task ReshareConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
+    }
+    #endregion
+
+    #region Delete Conversation
+    private void ConfirmDelete(SharedConversationListItem item)
+    {
+        selectedItem = item;
+        confirmTitle = "Delete Shared Conversation";
+        confirmMessage = $"Are you sure you want to permanently delete this shared conversation? This action cannot be undone.";
+        confirmButtonText = "Delete";
+        confirmButtonClass = "delete-button";
+        confirmAction = DeleteConversation;
+        showConfirmDialog = true;
+        StateHasChanged();
+    }
+    private async Task DeleteConversation()
+    {
+        if (selectedItem == null) return;
+        await SharedConversationClient.DeleteSharedConversationAsync(selectedItem.Id);
+    }
+    #endregion
+    
+    #region confirm dialog actions
+    private void CancelConfirmAction()
+    {
+        showConfirmDialog = false;
+        selectedItem = null;
+        confirmAction = null;
+        StateHasChanged();
+    }
+
+    private async Task ExecuteConfirmAction()
+    {
+        if (confirmAction != null)
+        {
+            try
+            {
+                isProcessing = true;
+                StateHasChanged();
+
+                await confirmAction();
+
+                await LoadSharedConversations();
+                await OnSharedConversationChanged.InvokeAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to execute confirm action for shared conversation {ShareId}", selectedItem?.Id);
+            }
+            finally
+            {
+                isProcessing = false;
+                showConfirmDialog = false;
+                selectedItem = null;
+                confirmAction = null;
+                StateHasChanged();
+            }
+        }
+    }
+    #endregion
+}
