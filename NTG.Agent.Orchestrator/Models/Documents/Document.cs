@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Documents;
+﻿using NTG.Agent.Shared.Dtos.Documents;
+
+namespace NTG.Agent.Orchestrator.Models.Documents;
 
 public class Document
 {
@@ -13,6 +15,7 @@ public class Document
     public string Url { get; set; } = string.Empty;
     public string? KnowledgeDocId { get; set; }
     public Guid? FolderId { get; set; }
+    public AccessLevel AccessLevel { get; set; } = AccessLevel.Public;
     public Guid AgentId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }

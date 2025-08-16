@@ -14,7 +14,7 @@ public class DocumentClient(HttpClient httpClient)
         return result ?? [];
     }
 
-    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId)
+    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId, bool isPublicAccess)
     {
         long maxFileSize = 50 * 1024L * 1024L; // 50 MB
         using var content = new MultipartFormDataContent();
@@ -27,7 +27,7 @@ public class DocumentClient(HttpClient httpClient)
                 content.Add(fileContent, "files", file.Name);
             }
         }
-        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}?folderId={folderId}", content);
+        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}?folderId={folderId}&isPublicAccess={isPublicAccess}", content);
         response.EnsureSuccessStatusCode();
     }
 
@@ -36,9 +36,9 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.DeleteAsync($"api/documents/{documentId}/{agentId}");
         response.EnsureSuccessStatusCode();
     }
-    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId)
+    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId, bool isPublicAccess)
     {
-        var request = new { Url = url , FolderId = folderId};
+        var request = new { Url = url, FolderId = folderId, IsPublicAccess = isPublicAccess };
         var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();

@@ -55,13 +55,13 @@ public class DocumentsController : ControllerBase
             // If the folder is the root folder, we return all documents that are either in the root folder or not associated with any folder.
             var defaultDocuments = await _agentDbContext.Documents
                 .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
-                .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
+                .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt, x.AccessLevel))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
         var documents = await _agentDbContext.Documents
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
-        .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
+        .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt, x.AccessLevel))
         .ToListAsync();
 
         _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
@@ -86,7 +86,7 @@ public class DocumentsController : ControllerBase
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost("upload/{agentId}")]
     [Authorize]
-    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] Guid? folderId)
+    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] bool isPublicAccess, [FromQuery] Guid? folderId)
     {
         if (files == null || files.Count == 0)
         {
@@ -101,7 +101,7 @@ public class DocumentsController : ControllerBase
         {
             if (file.Length > 0)
             {
-                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId);
+                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, isPublicAccess, agentId);
                 var document = new Document
                 {
                     Id = Guid.NewGuid(),
@@ -113,7 +113,8 @@ public class DocumentsController : ControllerBase
                     UpdatedByUserId = userId,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
-                    Type = DocumentType.File
+                    Type = DocumentType.File,
+                    AccessLevel = isPublicAccess ? AccessLevel.Public : AccessLevel.Private
                 };
                 documents.Add(document);
             }
@@ -166,16 +167,21 @@ public class DocumentsController : ControllerBase
 
         return NoContent();
     }
+
     /// <summary>
-    /// Imports a webpage into the system and associates it with the specified agent.
+    /// Imports a web page as a document for a specified agent and optionally associates it with a folder.
     /// </summary>
-    /// <remarks>This method requires the user to be authenticated. The URL provided in the request must not
-    /// be null, empty,  or consist only of whitespace. If the import is successful, the webpage is stored as a document
-    /// in the database  and associated with the specified agent and folder (if provided).</remarks>
-    /// <param name="agentId">The unique identifier of the agent to associate the imported webpage with.</param>
-    /// <param name="request">The request containing the URL of the webpage to import and optional folder information.</param>
-    /// <returns>An <see cref="IActionResult"/> containing the unique identifier of the imported document if successful,  or an
-    /// error response if the operation fails.</returns>
+    /// <remarks>This method requires the user to be authenticated and authorized. If the user is not
+    /// authenticated, an <see cref="UnauthorizedAccessException"/> is thrown. The web page is processed and
+    /// stored as a document associated with the specified agent. The document is saved in the database, and metadata
+    /// such as the URL, creation time, and user information is recorded.</remarks>
+    /// <param name="agentId">The unique identifier of the agent to associate the imported web page with.</param>
+    /// <param name="request">The request containing the URL of the web page to import and an optional folder ID.</param>
+    /// <param name="isPublicAccess">Indicates whether the imported document should be publicly accessible.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation. Returns: <list type="bullet">
+    /// <item><description><see cref="BadRequestObjectResult"/> if the URL is not provided or the import fails.</description></item>
+    /// <item><description><see cref="OkObjectResult"/> with the document ID if the web page is imported successfully.</description></item>
+    /// </list></returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost("import-webpage/{agentId}")]
     [Authorize]
@@ -190,7 +196,7 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId);
+            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, request.IsPublicAccess, agentId);
 
             var document = new Document
             {
@@ -204,7 +210,8 @@ public class DocumentsController : ControllerBase
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Type = DocumentType.WebPage
+                Type = DocumentType.WebPage,
+                AccessLevel = request.IsPublicAccess ? AccessLevel.Public : AccessLevel.Private
             };
 
             _agentDbContext.Documents.Add(document);
@@ -219,4 +226,4 @@ public class DocumentsController : ControllerBase
     }
 }
 
-public record ImportWebPageRequest(string Url, Guid? FolderId);
+public record ImportWebPageRequest(string Url, Guid? FolderId, bool IsPublicAccess);
