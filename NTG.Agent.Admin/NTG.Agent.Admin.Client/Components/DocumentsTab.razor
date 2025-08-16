@@ -33,6 +33,7 @@
                             <th><i class="bi bi-tag me-2"></i>Type</th>
                             <th><i class="bi bi-calendar me-2"></i>Upload Date</th>
                             <th><i class="bi bi-hdd me-2"></i>Size</th>
+                            <th><i class="bi bi-shield-check me-2"></i>Access Level</th>
                             <th><i class="bi bi-gear me-2"></i>Actions</th>
                         </tr>
                     </thead>
@@ -53,6 +54,11 @@
                                 </td>
                                 <td>@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
                                 <td><span class="text-muted">--</span></td>
+                                <td>
+                                    <span class="badge @GetAccessLevelBadgeClass(doc.AccessLevel)">
+                                        <i class="@GetAccessLevelIcon(doc.AccessLevel) me-1"></i>@GetAccessLevelText(doc.AccessLevel)
+                                    </span>
+                                </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
                                         <button class="btn btn-outline-primary" title="Download">
@@ -249,6 +255,36 @@
             ".json" => "bg-warning",
             ".xml" => "bg-success",
             _ => "bg-light text-dark"
+        };
+    }
+
+    private string GetAccessLevelBadgeClass(AccessLevel accessLevel)
+    {
+        return accessLevel switch
+        {
+            AccessLevel.Public => "bg-success",
+            AccessLevel.Private => "bg-warning",
+            _ => "bg-secondary"
+        };
+    }
+
+    private string GetAccessLevelIcon(AccessLevel accessLevel)
+    {
+        return accessLevel switch
+        {
+            AccessLevel.Public => "bi bi-globe",
+            AccessLevel.Private => "bi bi-lock",
+            _ => "bi bi-question-circle"
+        };
+    }
+
+    private string GetAccessLevelText(AccessLevel accessLevel)
+    {
+        return accessLevel switch
+        {
+            AccessLevel.Public => "Public",
+            AccessLevel.Private => "Private",
+            _ => "Unknown"
         };
     }
 

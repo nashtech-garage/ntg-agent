@@ -4,8 +4,44 @@
 
 <div class="row">
     <div class="col-12">
+        <!-- Access Selection -->
+        <div class="mb-4">
+            <h6 class="mb-2">
+                <i class="bi bi-shield-check me-2"></i>Access Level
+            </h6>
+            <div class="d-flex gap-2">
+                <div class="flex-fill">
+                    <input class="btn-check" type="radio" id="accessPublic" name="access" 
+                           checked="@(accessType == "Public")" 
+                           @onchange="@(() => accessType = "Public")" />
+                    <label class="btn btn-outline-success w-100 d-flex align-items-center justify-content-center py-2 px-3" for="accessPublic">
+                        <i class="bi bi-globe me-2"></i>
+                        <div class="text-center">
+                            <div class="fw-semibold small">Public</div>
+                            <small class="@(accessType == "Public" ? "text-white" : "text-muted")" style="font-size: 0.75rem;">Accessible to everyone</small>
+                        </div>
+                    </label>
+                </div>
+                <div class="flex-fill">
+                    <input class="btn-check" type="radio" id="accessPrivate" name="access" 
+                           checked="@(accessType == "Private")" 
+                           @onchange="@(() => accessType = "Private")" />
+                    <label class="btn btn-outline-warning w-100 d-flex align-items-center justify-content-center py-2 px-3" for="accessPrivate">
+                        <i class="bi bi-lock me-2"></i>
+                        <div class="text-center">
+                            <div class="fw-semibold small">Private</div>
+                            <small class="@(accessType == "Private" ? "text-white" : "text-muted")" style="font-size: 0.75rem;">Restricted access only</small>
+                        </div>
+                    </label>
+                </div>
+            </div>
+        </div>
+
         <!-- Upload Section -->
         <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-cloud-upload me-2"></i>Upload Files
+            </h6>
             <div class="border border-dashed border-2 rounded p-4 text-center bg-light">
                 <div class="mb-3">
                     <i class="bi bi-cloud-upload display-4 text-muted"></i>
@@ -134,6 +170,7 @@
     private bool isError = false;
     private bool isUploading = false;
 
+    private string accessType = "Public";
     private List<UploadItem> uploadItems = new();
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
@@ -144,7 +181,8 @@
         try
         {
             var files = e.GetMultipleFiles(10); // Max 10 files
-            
+            bool isPublicAccess = accessType == "Public";
+
             foreach (var file in files)
             {
                 var uploadItem = new UploadItem
@@ -167,7 +205,7 @@
                         await Task.Delay(200);
                     }
 
-                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId);
+                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId, isPublicAccess);
 
                     uploadItem.Status = UploadStatus.Success;
                     uploadItem.Message = "Successfully uploaded";
@@ -177,7 +215,6 @@
                     uploadItem.Status = UploadStatus.Error;
                     uploadItem.Message = $"Error: {ex.Message}";
                 }
-                
                 StateHasChanged();
             }
 
@@ -217,7 +254,9 @@
 
         try
         {
-            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId);
+            bool isPublicAccess = accessType == "Public";
+
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, isPublicAccess);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";

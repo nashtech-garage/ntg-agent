@@ -32,7 +32,7 @@ public class AgentService
         List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
 
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, userId.HasValue))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -135,7 +135,7 @@ public class AgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages, bool isAuthenticated)
     {
         ChatHistory chatHistory = [];
         if (previousMessages is not null)
@@ -156,7 +156,7 @@ public class AgentService
         {
             FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
         });
-
+        
         Kernel agentKernel = _kernel.Clone();
 
         var prompt = $@"
@@ -165,7 +165,7 @@ public class AgentService
                If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
-        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
+        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, isAuthenticated), "memory");
 
         ChatCompletionAgent agent = new()
         {
