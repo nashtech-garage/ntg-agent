@@ -15,7 +15,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 table: "Documents",
                 type: "int",
                 nullable: false,
-                defaultValue: 0);
+                defaultValue: 1);
         }
 
         /// <inheritdoc />
