@@ -1,0 +1,740 @@
+﻿@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject ILogger<UserManagement> Logger
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else
+{
+    <div class="p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3 class="mb-1">
+                    <i class="bi bi-person-gear text-primary me-2"></i>
+                    User Role Assignment
+                </h3>
+                <p class="text-muted mb-0">Manage user role assignments and permissions</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary" @onclick="LoadDataAsync">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <button class="btn btn-primary" @onclick="ShowBulkAssignModal">
+                    <i class="bi bi-people-fill me-1"></i>Bulk Assign
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(infoMessage))
+        {
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle me-2"></i>
+                @((MarkupString)infoMessage)
+                <button type="button" class="btn-close" @onclick="() => infoMessage = null"></button>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                @errorMessage
+                <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+            </div>
+        }
+
+        <!-- Filters and Search -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Search users..."
+                           @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterUsers" />
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" @bind="roleFilter" @bind:after="FilterUsers">
+                    <option value="">All Roles</option>
+                    @foreach (var role in roles)
+                    {
+                        <option value="@role.Name">@role.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" @bind="statusFilter" @bind:after="FilterUsers">
+                    <option value="all">All Users</option>
+                    <option value="with-roles">Users with Roles</option>
+                    <option value="without-roles">Users without Roles</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card border-0 bg-primary bg-opacity-10">
+                    <div class="card-body text-center py-3">
+                        <h5 class="text-primary mb-1">@users.Count</h5>
+                        <small class="text-muted">Total Users</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-success bg-opacity-10">
+                    <div class="card-body text-center py-3">
+                        <h5 class="text-success mb-1">@roles.Count</h5>
+                        <small class="text-muted">Available Roles</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-info bg-opacity-10">
+                    <div class="card-body text-center py-3">
+                        <h5 class="text-info mb-1">@usersWithRoles</h5>
+                        <small class="text-muted">Users with Roles</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card border-0 bg-warning bg-opacity-10">
+                    <div class="card-body text-center py-3">
+                        <h5 class="text-warning mb-1">@totalAssignments</h5>
+                        <small class="text-muted">Total Assignments</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Users Table -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">
+                    <i class="bi bi-table me-2"></i>
+                    User Role Assignments
+                    <span class="badge bg-secondary ms-2">@filteredUsers.Count users</span>
+                </h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="border-0">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" 
+                                           checked="@selectAll" 
+                                           @onchange="ToggleSelectAll">
+                                </div>
+                            </th>
+                            <th class="border-0">User</th>
+                            <th class="border-0">Current Roles</th>
+                            <th class="border-0">Quick Actions</th>
+                            <th class="border-0">Manage Roles</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in filteredUsers)
+                        {
+                            var userRoles = userRoleMap.TryGetValue(user.Id, out var rr) ? rr : new List<string>();
+                            <tr class="@(selectedUsers.Contains(user.Id) ? "table-active" : "")">
+                                <td>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" 
+                                               checked="@GetUserSelection(user.Id)" 
+                                               @onchange="@(e => ToggleUserSelection(user.Id, (bool)e.Value!))">
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="avatar-circle bg-primary text-white me-3">
+                                            @GetUserInitials(user)
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold">@GetUserDisplayName(user)</div>
+                                            <small class="text-muted">@user.Email</small>
+                                            @if (!user.EmailConfirmed)
+                                            {
+                                                <span class="badge bg-warning ms-1">Unconfirmed</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        @if (userRoles.Any())
+                                        {
+                                            @foreach (var role in userRoles)
+                                            {
+                                                <span class="badge @GetRoleBadgeClass(role) position-relative">
+                                                    @role
+                                                    <button type="button" class="btn-close btn-close-white ms-1" 
+                                                            style="font-size: 0.6em;" 
+                                                            @onclick="@(() => QuickRemoveRole(user.Id, role))"
+                                                            title="Remove role">
+                                                    </button>
+                                                </span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">No roles assigned</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        @foreach (var role in roles.Take(3))
+                                        {
+                                            @if (!userRoles.Contains(role.Name ?? ""))
+                                            {
+                                                <button class="btn btn-outline-primary btn-sm" 
+                                                        @onclick="@(() => QuickAssignRole(user.Id, role.Name!))"
+                                                        title="Add @role.Name role">
+                                                    +@role.Name
+                                                </button>
+                                            }
+                                        }
+                                        @if (roles.Count > 3)
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm" 
+                                                    @onclick="@(() => ShowUserRoleModal(user))"
+                                                    title="More options">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-2 align-items-center">
+                                        <select class="form-select form-select-sm" style="width: auto;"
+                                                value="@GetAssign(user.Id)"
+                                                @onchange="e => SetAssign(user.Id, e.Value?.ToString())">
+                                            <option value="">Select role to add...</option>
+                                            @foreach (var role in roles.Where(r => !userRoles.Contains(r.Name ?? "")))
+                                            {
+                                                <option value="@role.Name">@role.Name</option>
+                                            }
+                                        </select>
+                                        <button class="btn btn-success btn-sm" 
+                                                @onclick="() => AddToRole(user.Id)"
+                                                disabled="@(string.IsNullOrEmpty(GetAssign(user.Id)))">
+                                            <i class="bi bi-plus"></i>
+                                        </button>
+                                        <button class="btn btn-outline-info btn-sm" 
+                                                @onclick="@(() => ShowUserRoleModal(user))">
+                                            <i class="bi bi-gear"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (!filteredUsers.Any())
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-people display-4 text-muted"></i>
+                    <p class="text-muted mt-2">No users found matching your criteria.</p>
+                </div>
+            }
+        </div>
+
+        <!-- Selected Users Actions -->
+        @if (selectedUsers.Any())
+        {
+            <div class="fixed-bottom bg-white border-top p-3 shadow">
+                <div class="container-fluid">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">
+                            <i class="bi bi-check-square me-2"></i>
+                            @selectedUsers.Count user(s) selected
+                        </span>
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" @bind="bulkRoleAction" style="width: auto;">
+                                <option value="">Select bulk action...</option>
+                                @foreach (var role in roles)
+                                {
+                                    <option value="add-@role.Name">Add @role.Name</option>
+                                    <option value="remove-@role.Name">Remove @role.Name</option>
+                                }
+                            </select>
+                            <button class="btn btn-primary btn-sm" @onclick="ExecuteBulkAction"
+                                    disabled="@(string.IsNullOrEmpty(bulkRoleAction))">
+                                Apply
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="ClearSelection">
+                                Clear Selection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- User Role Management Modal -->
+@if (showUserModal && selectedUser != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-gear me-2"></i>
+                        Manage Roles for @GetUserDisplayName(selectedUser)
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseUserModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-success">
+                                <i class="bi bi-check-circle me-1"></i>
+                                Assigned Roles
+                            </h6>
+                            <div class="border rounded p-3" style="min-height: 200px;">
+                                @{
+                                    var currentRoles = userRoleMap.TryGetValue(selectedUser.Id, out var roles_assigned) ? roles_assigned : new List<string>();
+                                }
+                                @if (currentRoles.Any())
+                                {
+                                    @foreach (var role in currentRoles)
+                                    {
+                                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 bg-light rounded">
+                                            <span class="badge @GetRoleBadgeClass(role)">@role</span>
+                                            <button class="btn btn-sm btn-outline-danger" 
+                                                    @onclick="@(() => QuickRemoveRole(selectedUser.Id, role))">
+                                                <i class="bi bi-dash"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted py-4">
+                                        <i class="bi bi-shield-x display-6"></i>
+                                        <p class="mt-2">No roles assigned</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-primary">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Available Roles
+                            </h6>
+                            <div class="border rounded p-3" style="min-height: 200px;">
+                                @{
+                                    var availableRoles = roles.Where(r => !currentRoles.Contains(r.Name ?? "")).ToList();
+                                }
+                                @if (availableRoles.Any())
+                                {
+                                    @foreach (var role in availableRoles)
+                                    {
+                                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 border rounded">
+                                            <span>@role.Name</span>
+                                            <button class="btn btn-sm btn-outline-success" 
+                                                    @onclick="@(() => QuickAssignRole(selectedUser.Id, role.Name!))">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted py-4">
+                                        <i class="bi bi-shield-check display-6"></i>
+                                        <p class="mt-2">All roles assigned</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseUserModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .avatar-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 14px;
+    }
+    
+    .btn-close-white {
+        filter: invert(1) grayscale(100%) brightness(200%);
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private List<ApplicationUser> users = new();
+    private List<ApplicationUser> filteredUsers = new();
+    private List<IdentityRole> roles = new();
+    private Dictionary<string, List<string>> userRoleMap = new();
+    private Dictionary<string, string> assignSelections = new();
+    private Dictionary<string, string> removeSelections = new();
+
+    // UI State
+    private string searchTerm = string.Empty;
+    private string roleFilter = string.Empty;
+    private string statusFilter = "all";
+    private bool selectAll = false;
+    private HashSet<string> selectedUsers = new();
+    private string bulkRoleAction = string.Empty;
+
+    // Statistics
+    private int usersWithRoles = 0;
+    private int totalAssignments = 0;
+
+    // Modal state
+    private bool showUserModal = false;
+    private ApplicationUser? selectedUser = null;
+
+    private string? infoMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            isLoading = true;
+            infoMessage = errorMessage = null;
+
+            users = UserManager.Users.OrderBy(u => u.Email).ToList();
+            roles = RoleManager.Roles.OrderBy(r => r.Name).ToList();
+
+            userRoleMap.Clear();
+            assignSelections.Clear();
+            removeSelections.Clear();
+
+            usersWithRoles = 0;
+            totalAssignments = 0;
+
+            foreach (var user in users)
+            {
+                var userRoles = await UserManager.GetRolesAsync(user);
+                userRoleMap[user.Id] = userRoles.ToList();
+                assignSelections[user.Id] = string.Empty;
+                removeSelections[user.Id] = string.Empty;
+
+                if (userRoles.Any())
+                {
+                    usersWithRoles++;
+                    totalAssignments += userRoles.Count;
+                }
+            }
+
+            FilterUsers();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed loading users/roles.");
+            errorMessage = "Failed to load users/roles.";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void FilterUsers()
+    {
+        filteredUsers = users.Where(u =>
+            (string.IsNullOrEmpty(searchTerm) ||
+             u.Email!.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             u.UserName!.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
+             (u.FirstName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true) ||
+             (u.LastName?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true)) &&
+            (string.IsNullOrEmpty(roleFilter) ||
+             userRoleMap.TryGetValue(u.Id, out var roles) && roles.Contains(roleFilter)) &&
+            statusFilter switch
+            {
+                "with-roles" => userRoleMap.TryGetValue(u.Id, out var r1) && r1.Any(),
+                "without-roles" => !userRoleMap.TryGetValue(u.Id, out var r2) || !r2.Any(),
+                _ => true
+            }
+        ).ToList();
+
+        StateHasChanged();
+    }
+
+    private string GetUserDisplayName(ApplicationUser user)
+    {
+        var firstName = user.FirstName ?? "";
+        var lastName = user.LastName ?? "";
+        var fullName = $"{firstName} {lastName}".Trim();
+        return string.IsNullOrEmpty(fullName) ? user.UserName ?? "Unknown" : fullName;
+    }
+
+    private string GetUserInitials(ApplicationUser user)
+    {
+        var firstName = user.FirstName ?? "";
+        var lastName = user.LastName ?? "";
+        
+        if (!string.IsNullOrEmpty(firstName) && !string.IsNullOrEmpty(lastName))
+        {
+            return $"{firstName[0]}{lastName[0]}".ToUpper();
+        }
+        
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            return user.Email[0].ToString().ToUpper();
+        }
+        
+        return "U";
+    }
+
+    private string GetRoleBadgeClass(string role)
+    {
+        return role.ToLower() switch
+        {
+            "admin" => "bg-danger",
+            "superadmin" => "bg-dark",
+            "moderator" => "bg-warning",
+            "user" => "bg-primary",
+            _ => "bg-secondary"
+        };
+    }
+
+    private bool GetUserSelection(string userId)
+    {
+        return selectedUsers.Contains(userId);
+    }
+
+    private void ToggleUserSelection(string userId, bool selected)
+    {
+        if (selected)
+            selectedUsers.Add(userId);
+        else
+            selectedUsers.Remove(userId);
+
+        selectAll = selectedUsers.Count == filteredUsers.Count;
+        StateHasChanged();
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        selectAll = (bool)e.Value!;
+        if (selectAll)
+        {
+            selectedUsers = filteredUsers.Select(u => u.Id).ToHashSet();
+        }
+        else
+        {
+            selectedUsers.Clear();
+        }
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedUsers.Clear();
+        selectAll = false;
+        StateHasChanged();
+    }
+
+    private void ShowUserRoleModal(ApplicationUser user)
+    {
+        selectedUser = user;
+        showUserModal = true;
+    }
+
+    private void CloseUserModal()
+    {
+        showUserModal = false;
+        selectedUser = null;
+    }
+
+    private void ShowBulkAssignModal()
+    {
+        // Implementation for bulk assignment modal
+    }
+
+    private async Task ExecuteBulkAction()
+    {
+        if (string.IsNullOrEmpty(bulkRoleAction) || !selectedUsers.Any()) return;
+
+        try
+        {
+            var parts = bulkRoleAction.Split('-', 2);
+            var action = parts[0];
+            var roleName = parts[1];
+
+            var successCount = 0;
+            foreach (var userId in selectedUsers)
+            {
+                var user = await UserManager.FindByIdAsync(userId);
+                if (user != null)
+                {
+                    var result = action == "add" 
+                        ? await UserManager.AddToRoleAsync(user, roleName)
+                        : await UserManager.RemoveFromRoleAsync(user, roleName);
+                    
+                    if (result.Succeeded) successCount++;
+                }
+            }
+
+            infoMessage = $"Successfully {action}ed role <strong>{roleName}</strong> for <strong>{successCount}</strong> user(s).";
+            ClearSelection();
+            bulkRoleAction = string.Empty;
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk action failed");
+            errorMessage = "Bulk action failed.";
+        }
+    }
+
+    private async Task QuickAssignRole(string userId, string roleName)
+    {
+        try
+        {
+            var user = await UserManager.FindByIdAsync(userId);
+            if (user != null)
+            {
+                var result = await UserManager.AddToRoleAsync(user, roleName);
+                if (result.Succeeded)
+                {
+                    infoMessage = $"Added <strong>{GetUserDisplayName(user)}</strong> to role <strong>{roleName}</strong>.";
+                    await LoadDataAsync();
+                }
+                else
+                {
+                    errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Quick assign failed");
+            errorMessage = "Failed to assign role.";
+        }
+    }
+
+    private async Task QuickRemoveRole(string userId, string roleName)
+    {
+        try
+        {
+            var user = await UserManager.FindByIdAsync(userId);
+            if (user != null)
+            {
+                var result = await UserManager.RemoveFromRoleAsync(user, roleName);
+                if (result.Succeeded)
+                {
+                    infoMessage = $"Removed <strong>{GetUserDisplayName(user)}</strong> from role <strong>{roleName}</strong>.";
+                    await LoadDataAsync();
+                }
+                else
+                {
+                    errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Quick remove failed");
+            errorMessage = "Failed to remove role.";
+        }
+    }
+
+    // Keep existing helper methods
+    private string GetAssign(string id) =>
+        assignSelections.TryGetValue(id, out var v) ? v : string.Empty;
+    private void SetAssign(string id, string? v) =>
+        assignSelections[id] = v ?? string.Empty;
+
+    private string GetRemove(string id) =>
+        removeSelections.TryGetValue(id, out var v) ? v : string.Empty;
+    private void SetRemove(string id, string? v) =>
+        removeSelections[id] = v ?? string.Empty;
+
+    private async Task AddToRole(string userId)
+    {
+        infoMessage = errorMessage = null;
+
+        var role = GetAssign(userId);
+        if (string.IsNullOrWhiteSpace(role)) return;
+
+        try
+        {
+            var user = await UserManager.FindByIdAsync(userId);
+            if (user is null) { errorMessage = "User not found."; return; }
+
+            var result = await UserManager.AddToRoleAsync(user, role);
+            if (result.Succeeded)
+            {
+                infoMessage = $"Added <strong>{GetUserDisplayName(user)}</strong> to role <strong>{role}</strong>.";
+                SetAssign(userId, ""); // Clear selection after successful assignment
+            }
+            else
+            {
+                errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "AddToRole failed for {UserId} / {Role}", userId, role);
+            errorMessage = "Add role failed.";
+        }
+
+        await LoadDataAsync();
+    }
+
+    private async Task RemoveFromRole(string userId)
+    {
+        infoMessage = errorMessage = null;
+
+        var role = GetRemove(userId);
+        if (string.IsNullOrWhiteSpace(role)) return;
+
+        try
+        {
+            var user = await UserManager.FindByIdAsync(userId);
+            if (user is null) { errorMessage = "User not found."; return; }
+
+            var result = await UserManager.RemoveFromRoleAsync(user, role);
+            if (result.Succeeded)
+            {
+                infoMessage = $"Removed <strong>{GetUserDisplayName(user)}</strong> from role <strong>{role}</strong>.";
+            }
+            else
+            {
+                errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RemoveFromRole failed for {UserId} / {Role}", userId, role);
+            errorMessage = "Remove role failed.";
+        }
+
+        await LoadDataAsync();
+    }
+}

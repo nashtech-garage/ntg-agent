@@ -1,0 +1,128 @@
+﻿@page "/users-roles-management"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject NavigationManager Navigation
+@inject ILogger<UserManagement> Logger
+@inject UserManager<ApplicationUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+
+<PageTitle>User Role Management</PageTitle>
+
+@if (isLoading)
+{
+    <p>Loading…</p>
+}
+else
+{
+    <div class="container-fluid px-4 py-3 user-management">
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <!-- Tabs -->
+                    <div class="card-header bg-white border-bottom">
+                        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == userRoleTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(userRoleTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-person-gear me-2"></i>
+                                    User - Role Management
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == usersTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(usersTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-people me-2"></i>
+                                    Users Management
+                                    <span class="badge bg-secondary ms-2">@usersCount</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == rolesTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(rolesTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-shield-check me-2"></i>
+                                    Role Management
+                                    <span class="badge bg-secondary ms-2">@rolesCount</span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="card-body p-0">
+                        @if (!string.IsNullOrWhiteSpace(infoMessage))
+                        {
+                            <div class="alert alert-info m-3">@((MarkupString)infoMessage)</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(errorMessage))
+                        {
+                            <div class="alert alert-danger m-3">@errorMessage</div>
+                        }
+
+                        <div class="tab-content">
+                            <div class="tab-pane fade @(activeTab == userRoleTab ? "show active" : "") p-4" id="user-role-tab">
+                                @if (activeTab == userRoleTab)
+                                {
+                                    <UserRoleTab/>
+                                }
+                            </div>
+                            <div class="tab-pane fade @(activeTab == usersTab ? "show active" : "") p-4" id="users-tab">
+                                @if (activeTab == usersTab)
+                                {
+                                    <UserTab />
+                                }
+                            </div>
+                            <div class="tab-pane fade @(activeTab == rolesTab ? "show active" : "") p-4" id="roles-tab">
+                                @if (activeTab == rolesTab)
+                                {
+                                    <RoleTab />
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private const string usersTab = "users";
+    private const string rolesTab = "roles";
+    private const string userRoleTab = "userrole";
+    private string activeTab = userRoleTab;
+
+    private int usersCount = 0;
+    private int rolesCount = 0;
+
+    private string? infoMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Load counts for the badges
+            usersCount = await Task.Run(() => UserManager.Users.Count());
+            rolesCount = await Task.Run(() => RoleManager.Roles.Count());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load counts");
+            // Don't fail the page if counts can't be loaded
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        Logger.LogInformation($"Setting active tab to: {tab}");
+        activeTab = tab;
+        StateHasChanged();
+    }
+}
