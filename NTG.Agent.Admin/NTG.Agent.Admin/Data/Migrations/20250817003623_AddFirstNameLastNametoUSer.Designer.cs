@@ -12,8 +12,8 @@ using NTG.Agent.Admin.Data;
 namespace NTG.Agent.Admin.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250817003623_AddFirstNameLastNametoUSer")]
-    partial class AddFirstNameLastNametoUSer
+    [Migration("20250817003623_AddFirstNameLastNametoUser")]
+    partial class AddFirstNameLastNametoUser
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
