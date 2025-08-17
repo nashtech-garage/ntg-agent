@@ -105,7 +105,8 @@ else
         try
         {
             usersCount = await Task.Run(() => UserManager.Users.Count());
-            rolesCount = await Task.Run(() => RoleManager.Roles.Count());
+            usersCount = await UserManager.Users.CountAsync();
+            rolesCount = await RoleManager.Roles.CountAsync();
         }
         catch (Exception ex)
         {

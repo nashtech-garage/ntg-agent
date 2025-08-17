@@ -369,7 +369,7 @@ else
                 return;
             }
 
-            users = await Task.Run(() => UserManager.Users?.OrderBy(u => u.Email)?.ToList() ?? new List<ApplicationUser>());
+            users = await (UserManager.Users?.OrderBy(u => u.Email)?.ToListAsync() ?? Task.FromResult(new List<ApplicationUser>()));
             filteredUsers = users;
             FilterUsers();
         }

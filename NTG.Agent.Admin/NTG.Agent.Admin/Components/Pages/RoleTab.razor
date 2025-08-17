@@ -348,7 +348,9 @@ else
                 return;
             }
 
-            roles = await Task.Run(() => RoleManager.Roles?.OrderBy(r => r.Name)?.ToList() ?? new List<IdentityRole>());
+            roles = RoleManager.Roles != null
+                ? await RoleManager.Roles.OrderBy(r => r.Name).ToListAsync()
+                : new List<IdentityRole>();
             
             // Load user counts for each role
             roleUserCounts.Clear();
