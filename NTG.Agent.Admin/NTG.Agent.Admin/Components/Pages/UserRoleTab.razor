@@ -368,22 +368,128 @@ else
     </div>
 }
 
-<style>
-    .avatar-circle {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 14px;
-    }
-    
-    .btn-close-white {
-        filter: invert(1) grayscale(100%) brightness(200%);
-    }
-</style>
+<!-- Bulk Role Assignment Modal -->
+@if (showBulkModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-people-fill me-2"></i>
+                        Bulk Role Assignment - @selectedUsers.Count User(s) Selected
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseBulkModal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Action Selection -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Action to Perform:</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="bulkAction" id="addRoles" 
+                                           checked="@(bulkAssignmentAction == "add")" 
+                                           @onchange="@(() => bulkAssignmentAction = "add")">
+                                    <label class="form-check-label text-success" for="addRoles">
+                                        <i class="bi bi-plus-circle me-1"></i>Add Roles
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="bulkAction" id="removeRoles"
+                                           checked="@(bulkAssignmentAction == "remove")" 
+                                           @onchange="@(() => bulkAssignmentAction = "remove")">
+                                    <label class="form-check-label text-danger" for="removeRoles">
+                                        <i class="bi bi-dash-circle me-1"></i>Remove Roles
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Users Preview -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Selected Users:</label>
+                            <div class="border rounded p-3 bg-light" style="max-height: 150px; overflow-y: auto;">
+                                @foreach (var userId in selectedUsers.Take(10))
+                                {
+                                    var user = users.FirstOrDefault(u => u.Id == userId);
+                                    if (user != null)
+                                    {
+                                        <span class="badge bg-primary me-1 mb-1">@GetUserDisplayName(user)</span>
+                                    }
+                                }
+                                @if (selectedUsers.Count > 10)
+                                {
+                                    <span class="badge bg-secondary">... and @(selectedUsers.Count - 10) more</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Role Selection -->
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">
+                                Select Roles to @(bulkAssignmentAction == "add" ? "Add" : "Remove"):
+                            </label>
+                            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                                @if (roles.Any())
+                                {
+                                    <div class="row">
+                                        @foreach (var role in roles)
+                                        {
+                                            <div class="col-md-6 col-lg-4 mb-2">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" 
+                                                           id="bulk_@role.Id"
+                                                           checked="@selectedRolesForBulk.Contains(role.Name ?? "")"
+                                                           @onchange="@(e => ToggleRoleForBulk(role.Name!, (bool)e.Value!))">
+                                                    <label class="form-check-label" for="bulk_@role.Id">
+                                                        <span class="badge @GetRoleBadgeClass(role.Name!) me-1"></span>
+                                                        @role.Name
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center text-muted py-3">
+                                        <i class="bi bi-shield-x"></i>
+                                        <p class="mb-0">No roles available</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (selectedRolesForBulk.Any())
+                    {
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Preview:</strong> This will @(bulkAssignmentAction) 
+                            <strong>@selectedRolesForBulk.Count role(s)</strong> 
+                            @(bulkAssignmentAction == "add" ? "to" : "from") 
+                            <strong>@selectedUsers.Count user(s)</strong>.
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseBulkModal">Cancel</button>
+                    <button type="button" class="btn @(bulkAssignmentAction == "add" ? "btn-success" : "btn-danger")" 
+                            @onclick="ExecuteBulkRoleAssignment"
+                            disabled="@(!selectedRolesForBulk.Any())">
+                        <i class="bi bi-@(bulkAssignmentAction == "add" ? "plus" : "dash")-circle me-1"></i>
+                        @(bulkAssignmentAction == "add" ? "Add" : "Remove") @selectedRolesForBulk.Count Role(s)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private bool isLoading = true;
@@ -409,6 +515,9 @@ else
     // Modal state
     private bool showUserModal = false;
     private ApplicationUser? selectedUser = null;
+    private bool showBulkModal = false;
+    private List<string> selectedRolesForBulk = new();
+    private string bulkAssignmentAction = "add"; // "add" or "remove"
 
     private string? infoMessage;
     private string? errorMessage;
@@ -571,9 +680,92 @@ else
         selectedUser = null;
     }
 
+    private void CloseBulkModal()
+    {
+        showBulkModal = false;
+        selectedRolesForBulk.Clear();
+    }
+
+    private void ToggleRoleForBulk(string roleName, bool selected)
+    {
+        if (selected)
+        {
+            if (!selectedRolesForBulk.Contains(roleName))
+                selectedRolesForBulk.Add(roleName);
+        }
+        else
+        {
+            selectedRolesForBulk.Remove(roleName);
+        }
+    }
+
+    private async Task ExecuteBulkRoleAssignment()
+    {
+        if (!selectedRolesForBulk.Any() || !selectedUsers.Any()) return;
+
+        try
+        {
+            var successCount = 0;
+            var errorCount = 0;
+            var results = new List<string>();
+
+            foreach (var userId in selectedUsers)
+            {
+                var user = await UserManager.FindByIdAsync(userId);
+                if (user != null)
+                {
+                    foreach (var roleName in selectedRolesForBulk)
+                    {
+                        var result = bulkAssignmentAction == "add" 
+                            ? await UserManager.AddToRoleAsync(user, roleName)
+                            : await UserManager.RemoveFromRoleAsync(user, roleName);
+                        
+                        if (result.Succeeded)
+                        {
+                            successCount++;
+                        }
+                        else
+                        {
+                            errorCount++;
+                            results.AddRange(result.Errors.Select(e => e.Description));
+                        }
+                    }
+                }
+            }
+
+            if (successCount > 0)
+            {
+                var action = bulkAssignmentAction == "add" ? "assigned" : "removed";
+                infoMessage = $"Successfully {action} <strong>{selectedRolesForBulk.Count}</strong> role(s) for <strong>{selectedUsers.Count}</strong> user(s). ({successCount} operations completed)";
+            }
+
+            if (errorCount > 0)
+            {
+                errorMessage = $"{errorCount} operations failed. " + string.Join("; ", results.Take(3));
+            }
+
+            CloseBulkModal();
+            ClearSelection();
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk role assignment failed");
+            errorMessage = "Bulk role assignment failed.";
+        }
+    }
+
     private void ShowBulkAssignModal()
     {
-        // Implementation for bulk assignment modal
+        if (!selectedUsers.Any())
+        {
+            errorMessage = "Please select at least one user first.";
+            return;
+        }
+        
+        selectedRolesForBulk.Clear();
+        bulkAssignmentAction = "add";
+        showBulkModal = true;
     }
 
     private async Task ExecuteBulkAction()
@@ -664,7 +856,6 @@ else
         }
     }
 
-    // Keep existing helper methods
     private string GetAssign(string id) =>
         assignSelections.TryGetValue(id, out var v) ? v : string.Empty;
     private void SetAssign(string id, string? v) =>
@@ -691,7 +882,7 @@ else
             if (result.Succeeded)
             {
                 infoMessage = $"Added <strong>{GetUserDisplayName(user)}</strong> to role <strong>{role}</strong>.";
-                SetAssign(userId, ""); // Clear selection after successful assignment
+                SetAssign(userId, "");
             }
             else
             {

@@ -421,7 +421,7 @@ else
         {
             Id = role.Id,
             Name = role.Name!,
-            Description = "" // You could add a Description property to IdentityRole if needed
+            Description = ""
         };
         isEditMode = true;
         showRoleModal = true;
@@ -440,9 +440,6 @@ else
                     errorMessage = "Role not found.";
                     return;
                 }
-
-                // For now, we can only edit the name (though it's readonly in the UI)
-                // You could add more editable properties here if needed
                 var result = await RoleManager.UpdateAsync(role);
                 if (result.Succeeded)
                 {
