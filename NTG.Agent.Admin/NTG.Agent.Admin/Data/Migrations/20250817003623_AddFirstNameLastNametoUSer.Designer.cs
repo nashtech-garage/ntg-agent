@@ -58,6 +58,13 @@ namespace NTG.Agent.Admin.Migrations
                             Name = "Admin",
                             NormalizedName = "ADMIN"
                         });
+                    b.HasData(
+                        new
+                        {
+                            Id = "3dc04c42-9b42-4920-b7f2-29dfc2c5d169",
+                            Name = "Anonymous",
+                            NormalizedName = "ANONYMOUS"
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

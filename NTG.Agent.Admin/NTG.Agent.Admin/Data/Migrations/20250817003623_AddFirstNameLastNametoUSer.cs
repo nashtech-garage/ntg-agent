@@ -28,6 +28,11 @@ namespace NTG.Agent.Admin.Migrations
                 keyValue: "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
                 columns: new[] { "FirstName", "LastName" },
                 values: new object[] { null, null });
+
+            migrationBuilder.InsertData(
+                table: "AspNetRoles",
+                columns: new[] { "Id", "ConcurrencyStamp", "Name", "NormalizedName" },
+                values: new object[] { "3dc04c42-9b42-4920-b7f2-29dfc2c5d169", null, "Anonymous", "ANONYMOUS" });
         }
 
         /// <inheritdoc />
@@ -40,6 +45,11 @@ namespace NTG.Agent.Admin.Migrations
             migrationBuilder.DropColumn(
                 name: "LastName",
                 table: "AspNetUsers");
+
+            migrationBuilder.DeleteData(
+               table: "AspNetRoles",
+               keyColumn: "Id",
+               keyValue: "3dc04c42-9b42-4920-b7f2-29dfc2c5d169");
         }
     }
 }
