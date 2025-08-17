@@ -1,4 +1,5 @@
-﻿@rendermode InteractiveServer
+﻿@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
 @inject RoleManager<IdentityRole> RoleManager
 @inject UserManager<ApplicationUser> UserManager
