@@ -2,6 +2,7 @@
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
+using NTG.Agent.Orchestrator.Models.Tags;
 
 namespace NTG.Agent.Orchestrator.Data;
 
@@ -19,10 +20,16 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
+    
+    public DbSet<Tag> Tags { get; set; } = null!;
+
+    public DbSet<TagRole> TagRoles { get; set; } = null!;
 
     public DbSet<User> Users { get; set; } = null!;
 
-    public DbSet<User> Roles { get; set; } = null!;
+    public DbSet<Role> Roles { get; set; } = null!;
+
+    public DbSet<UserRole> UserRoles { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -87,5 +94,15 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             .WithOne(m => m.SharedConversation)
             .HasForeignKey(m => m.SharedConversationId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Tag>().HasData(
+           new Tag
+           {
+               Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
+               Name = "Pulic",
+               CreatedAt = new DateTime(2025, 6, 24),
+               UpdatedAt = new DateTime(2025, 6, 24)
+           }
+       );
     }
 }

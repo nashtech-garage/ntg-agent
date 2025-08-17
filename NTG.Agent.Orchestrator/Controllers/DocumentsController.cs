@@ -86,7 +86,7 @@ public class DocumentsController : ControllerBase
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost("upload/{agentId}")]
     [Authorize]
-    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] Guid? folderId)
+    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] Guid? folderId, [FromQuery] List<string> tags)
     {
         if (files == null || files.Count == 0)
         {
@@ -101,7 +101,7 @@ public class DocumentsController : ControllerBase
         {
             if (file.Length > 0)
             {
-                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId);
+                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, tags);
                 var document = new Document
                 {
                     Id = Guid.NewGuid(),
@@ -190,7 +190,7 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId);
+            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId, request.Tags);
 
             var document = new Document
             {
@@ -219,4 +219,4 @@ public class DocumentsController : ControllerBase
     }
 }
 
-public record ImportWebPageRequest(string Url, Guid? FolderId);
+public record ImportWebPageRequest(string Url, Guid? FolderId, List<string> Tags);

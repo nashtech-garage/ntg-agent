@@ -27,14 +27,14 @@ public class AgentService
         _knowledgeService = knowledgeService;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
+    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest, List<string> tags)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
 
         List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
 
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, tags))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -137,7 +137,7 @@ public class AgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages, List<string> tags)
     {
         ChatHistory chatHistory = [];
         if (previousMessages is not null)
@@ -167,7 +167,7 @@ public class AgentService
                If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
-        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
+        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
 
         ChatCompletionAgent agent = new()
         {
