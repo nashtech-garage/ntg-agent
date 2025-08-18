@@ -337,9 +337,8 @@ namespace NTG.Agent.Orchestrator.Migrations
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Identity.Role", b =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("Id")
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -380,8 +379,8 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("RoleId")
+                        .HasColumnType("nvarchar(450)");
 
                     b.HasKey("UserId", "RoleId");
 
@@ -402,12 +401,16 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
 
                     b.ToTable("Tags");
 
@@ -430,8 +433,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("RoleId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<Guid>("TagId")
                         .HasColumnType("uniqueidentifier");
@@ -441,7 +445,8 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TagId");
+                    b.HasIndex("TagId", "RoleId")
+                        .IsUnique();
 
                     b.ToTable("TagRoles");
 
@@ -450,7 +455,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         {
                             Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            RoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169"),
+                            RoleId = "3dc04c42-9b42-4920-b7f2-29dfc2c5d169",
                             TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });

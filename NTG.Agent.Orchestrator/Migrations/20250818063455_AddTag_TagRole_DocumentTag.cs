@@ -16,7 +16,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -58,7 +58,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     TagId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    RoleId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    RoleId = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -81,7 +81,7 @@ namespace NTG.Agent.Orchestrator.Migrations
             migrationBuilder.InsertData(
                 table: "TagRoles",
                 columns: new[] { "Id", "CreatedAt", "RoleId", "TagId", "UpdatedAt" },
-                values: new object[] { new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"), new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169"), new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"), new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified) });
+                values: new object[] { new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"), new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified), "3dc04c42-9b42-4920-b7f2-29dfc2c5d169", new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"), new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified) });
 
             migrationBuilder.CreateIndex(
                 name: "IX_DocumentTags_DocumentId",
@@ -94,9 +94,16 @@ namespace NTG.Agent.Orchestrator.Migrations
                 column: "TagId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_TagRoles_TagId",
+                name: "IX_TagRoles_TagId_RoleId",
                 table: "TagRoles",
-                column: "TagId");
+                columns: new[] { "TagId", "RoleId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tags_Name",
+                table: "Tags",
+                column: "Name",
+                unique: true);
         }
 
         /// <inheritdoc />

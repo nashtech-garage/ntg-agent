@@ -5,6 +5,7 @@
 @using NTG.Agent.Shared.Dtos.Agents
 @inject ILogger<AgentDetails> Logger
 @inject AgentClient AgentClient
+@inject TagClient TagClient
 @inject NavigationManager Navigation
 
 <PageTitle>Agent Details</PageTitle>
@@ -93,7 +94,7 @@
                                 <button class="nav-link @(activeTab == tagsManagementTab ? "active" : "") d-flex align-items-center"
                                         @onclick="() => SetActiveTab(tagsManagementTab)"
                                         type="button" role="tab">
-                                    <i class="bi bi-files me-2"></i>
+                                    <i class="bi bi-tags me-2"></i>
                                     Tags Management
                                     <span class="badge bg-secondary ms-2">@tagCount</span>
                                 </button>
@@ -215,6 +216,11 @@
             {
                 Navigation.NavigateTo("/agents");
             }
+            else
+            {
+                // Load tag count
+                await LoadTagCount();
+            }
         }
         catch (Exception ex)
         {
@@ -223,6 +229,20 @@
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private async Task LoadTagCount()
+    {
+        try
+        {
+            var tags = await TagClient.GetTagsAsync();
+            tagCount = tags.Count;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading tag count");
         }
     }
 

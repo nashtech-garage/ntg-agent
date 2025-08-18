@@ -1,4 +1,5 @@
-﻿@rendermode InteractiveServer
+﻿@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin")]
 @inject RoleManager<IdentityRole> RoleManager
 @inject UserManager<ApplicationUser> UserManager
@@ -304,7 +305,7 @@ else
     private RoleModel roleModel = new();
 
     // System roles that shouldn't be deleted
-    private readonly string[] systemRoles = { "Admin", "User", "SuperAdmin", "Moderator" };
+    private readonly string[] systemRoles = { "Admin", "User", "SuperAdmin", "Moderator", "Anonymous" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -348,7 +349,9 @@ else
                 return;
             }
 
-            roles = await Task.Run(() => RoleManager.Roles?.OrderBy(r => r.Name)?.ToList() ?? new List<IdentityRole>());
+            roles = RoleManager.Roles != null
+                ? await RoleManager.Roles.OrderBy(r => r.Name).ToListAsync()
+                : new List<IdentityRole>();
             
             // Load user counts for each role
             roleUserCounts.Clear();

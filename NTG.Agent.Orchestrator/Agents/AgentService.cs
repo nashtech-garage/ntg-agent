@@ -45,9 +45,8 @@ public class AgentService
         }
         else
         {
-            var anonymousRoleIdGuid = new Guid(Constants.AnonymousRoleId);
             tags = await _agentDbContext.TagRoles
-                .Where(c => c.RoleId == anonymousRoleIdGuid)
+                .Where(c => c.RoleId == Constants.AnonymousRoleId)
                 .Select(c => c.TagId.ToString())
                 .ToListAsync();
         }

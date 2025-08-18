@@ -1,4 +1,5 @@
 ﻿@page "/users-roles-management"
+@using Microsoft.EntityFrameworkCore
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject NavigationManager Navigation
@@ -97,15 +98,15 @@ else
     private int usersCount = 0;
     private int rolesCount = 0;
 
-    private string? infoMessage;
-    private string? errorMessage;
+    private string infoMessage = string.Empty;
+    private string errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            usersCount = await Task.Run(() => UserManager.Users.Count());
-            rolesCount = await Task.Run(() => RoleManager.Roles.Count());
+            usersCount = await UserManager.Users.CountAsync();
+            rolesCount = await RoleManager.Roles.CountAsync();
         }
         catch (Exception ex)
         {

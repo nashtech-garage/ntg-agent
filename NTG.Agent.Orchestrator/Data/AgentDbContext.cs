@@ -98,6 +98,28 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             .HasForeignKey(m => m.SharedConversationId)
             .OnDelete(DeleteBehavior.Cascade);
 
+
+        modelBuilder.Entity<Tag>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(256);
+            e.HasIndex(x => x.Name).IsUnique(); 
+        });
+
+        modelBuilder.Entity<TagRole>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Tag)
+                .WithMany()
+                .HasForeignKey(x => x.TagId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(x => new { x.TagId, x.RoleId }).IsUnique();
+            e.Property(x => x.RoleId).IsRequired();
+        });
+
         modelBuilder.Entity<Tag>().HasData(
            new Tag
            {
@@ -113,7 +135,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            {
                Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
                TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               RoleId = new Guid(Shared.Dtos.Constants.Constants.AnonymousRoleId),
+               RoleId = Shared.Dtos.Constants.Constants.AnonymousRoleId,
                CreatedAt = new DateTime(2025, 6, 24),
                UpdatedAt = new DateTime(2025, 6, 24)
            }
