@@ -54,14 +54,28 @@ public class DocumentsController : ControllerBase
         {
             // If the folder is the root folder, we return all documents that are either in the root folder or not associated with any folder.
             var defaultDocuments = await _agentDbContext.Documents
+                .Include(x => x.DocumentTags)
+                .ThenInclude(dt => dt.Tag)
                 .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
-                .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
+                .Select(x => new DocumentListItem(
+                    x.Id, 
+                    x.Name, 
+                    x.CreatedAt, 
+                    x.UpdatedAt, 
+                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
         var documents = await _agentDbContext.Documents
+        .Include(x => x.DocumentTags)
+        .ThenInclude(dt => dt.Tag)
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
-        .Select(x => new DocumentListItem(x.Id, x.Name, x.CreatedAt, x.UpdatedAt))
+        .Select(x => new DocumentListItem(
+            x.Id, 
+            x.Name, 
+            x.CreatedAt, 
+            x.UpdatedAt, 
+            x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
         .ToListAsync();
 
         _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
@@ -239,6 +253,72 @@ public class DocumentsController : ControllerBase
             return BadRequest($"Failed to import webpage: {ex.Message}");
         }
     }
+    /// <summary>
+    /// Uploads text content as a document for a specified agent and optionally associates it with a folder.
+    /// </summary>
+    /// <remarks>This method requires the user to be authenticated and authorized. The text content is processed and
+    /// stored as a document associated with the specified agent. The document is saved in the database, and metadata
+    /// such as the title, creation time, and user information is recorded.</remarks>
+    /// <param name="agentId">The unique identifier of the agent to associate the text content with.</param>
+    /// <param name="request">The request containing the title and content of the text to upload, along with optional folder and tag information.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation. Returns: <list type="bullet">
+    /// <item><description><see cref="BadRequestObjectResult"/> if the content is null or empty.</description></item>
+    /// <item><description><see cref="OkObjectResult"/> with the document ID if the text is uploaded successfully.</description></item> 
+    /// </list></returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
+    [HttpPost("upload-text/{agentId}")]
+    [Authorize]
+    public async Task<IActionResult> UploadTextContent(Guid agentId, [FromBody] UploadTextContentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Content))
+        {
+            return BadRequest("Content is required.");
+        }
+
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+
+        try
+        {
+            var title = string.IsNullOrWhiteSpace(request.Title) ? "Text Content" : request.Title;
+            var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, title, agentId, request.Tags);
+            
+            var document = new Document
+            {
+                Id = Guid.NewGuid(),
+                Name = title,
+                AgentId = agentId,
+                KnowledgeDocId = knowledgeDocId,
+                FolderId = request.FolderId,
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Type = DocumentType.Text
+            };
+
+            var documentTags = new List<DocumentTag>();
+            foreach (var tag in request.Tags)
+            {
+                var documentTag = new DocumentTag
+                {
+                    DocumentId = document.Id,
+                    TagId = new Guid(tag)
+                };
+                documentTags.Add(documentTag);
+            }
+
+            _agentDbContext.Documents.Add(document);
+            _agentDbContext.DocumentTags.AddRange(documentTags);
+            await _agentDbContext.SaveChangesAsync();
+
+            return Ok(document.Id.ToString());
+        }
+        catch (Exception ex)
+        {
+            return BadRequest($"Failed to upload text content: {ex.Message}");
+        }
+    }
 }
 
 public record ImportWebPageRequest(string Url, Guid? FolderId, List<string> Tags);
+public record UploadTextContentRequest(string Title, string Content, Guid? FolderId, List<string> Tags);

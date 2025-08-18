@@ -1,14 +1,102 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using NTG.Agent.Shared.Dtos.Documents
+@using NTG.Agent.Shared.Dtos.Tags
 @inject DocumentClient DocumentClient
+@inject TagClient TagClient
+@inject ILogger<AddKnowledgeForm> Logger
 
 <div class="row">
     <div class="col-12">
+
+         <!-- Tags Selection Section -->
+        <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-tags me-2"></i>Document Tags <span class="text-danger">*</span>
+            </h6>
+            <p class="text-muted small mb-3">Select one or more tags to categorize this document. These tags control who can access the document.</p>
+            
+            <!-- Selected Tags Display -->
+            @if (selectedTags.Any())
+            {
+                <div class="mb-3">
+                    <label class="form-label">Selected Tags:</label>
+                    <div class="d-flex flex-wrap gap-2">
+                        @foreach (var tag in selectedTags)
+                        {
+                            <span class="badge bg-primary d-flex align-items-center">
+                                @tag.Name
+                                <button type="button" class="btn-close btn-close-white ms-2" 
+                                        @onclick="() => RemoveTag(tag)"
+                                        style="font-size: 0.7em;"></button>
+                            </span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Available Tags -->
+            <div class="mb-3">
+                <label class="form-label">Available Tags:</label>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    @foreach (var tag in GetUnselectedTags())
+                    {
+                        <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                @onclick="() => AddTag(tag)">
+                            <i class="bi bi-plus-circle me-1"></i>@tag.Name
+                        </button>
+                    }
+                </div>
+                @if (!GetUnselectedTags().Any())
+                {
+                    <p class="text-muted small">All available tags are already selected.</p>
+                }
+            </div>
+
+            <!-- Quick Add Tag -->
+            <div class="input-group">
+                <span class="input-group-text">
+                    <i class="bi bi-tag"></i>
+                </span>
+                <input type="text" 
+                       class="form-control" 
+                       placeholder="Enter new tag name" 
+                       @bind="newTagName"
+                       @onkeypress="HandleTagKeyPress" />
+                <button class="btn btn-outline-primary" 
+                        @onclick="CreateAndAddTag" 
+                        disabled="@(string.IsNullOrWhiteSpace(newTagName) || isCreatingTag)">
+                    @if (isCreatingTag)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
+            <div class="form-text">Create a new tag and add it to this document</div>
+
+            @if (!string.IsNullOrEmpty(tagErrorMessage))
+            {
+                <div class="alert alert-danger mt-2 py-2">
+                    <small>@tagErrorMessage</small>
+                </div>
+            }
+
+            @if (selectedTags.Count == 0)
+            {
+                <div class="alert alert-warning mt-2 py-2">
+                    <small><i class="bi bi-exclamation-triangle me-1"></i>Please select at least one tag for the document.</small>
+                </div>
+            }
+        </div>
+
         <!-- Upload Section -->
         <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-cloud-upload me-2"></i>Upload Files
+            </h6>
             <div class="border border-dashed border-2 rounded p-4 text-center bg-light">
                 <div class="mb-3">
-                    <i class="bi bi-cloud-upload display-4 text-muted"></i>
+                    <i class="bi bi-file-earmark-arrow-up display-4 text-muted"></i>
                 </div>
                 <h6 class="mb-2">Drag and drop files here or click to browse</h6>
                 <p class="text-muted small mb-3">Supported formats: PDF, Word, Text files (Max 10MB each)</p>
@@ -134,12 +222,133 @@
     private bool isError = false;
     private bool isUploading = false;
 
+    // Tags related fields
+    private List<TagDto> availableTags = new();
+    private List<TagDto> selectedTags = new();
+    private string newTagName = string.Empty;
+    private string tagErrorMessage = string.Empty;
+    private bool isCreatingTag = false;
+
     private List<UploadItem> uploadItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAvailableTags();
+    }
+
+    #region Tags Management
+
+    private async Task LoadAvailableTags()
+    {
+        try
+        {
+            availableTags = await TagClient.GetTagsAsync();
+            
+            // Set "Public" tag as default if it exists
+            var publicTag = availableTags.FirstOrDefault(t => t.Name.Equals("Public", StringComparison.OrdinalIgnoreCase));
+            if (publicTag != null)
+            {
+                selectedTags.Add(publicTag);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available tags");
+            tagErrorMessage = "Failed to load available tags. Please refresh the page.";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private List<TagDto> GetUnselectedTags()
+    {
+        var selectedTagIds = selectedTags.Select(t => t.Id).ToHashSet();
+        return availableTags.Where(t => !selectedTagIds.Contains(t.Id)).ToList();
+    }
+
+    private void AddTag(TagDto tag)
+    {
+        if (!selectedTags.Any(t => t.Id == tag.Id))
+        {
+            selectedTags.Add(tag);
+            tagErrorMessage = string.Empty;
+        }
+    }
+
+    private void RemoveTag(TagDto tag)
+    {
+        selectedTags.RemoveAll(t => t.Id == tag.Id);
+    }
+
+    private async Task HandleTagKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CreateAndAddTag();
+        }
+    }
+
+    private async Task CreateAndAddTag()
+    {
+        if (string.IsNullOrWhiteSpace(newTagName) || isCreatingTag)
+            return;
+
+        try
+        {
+            isCreatingTag = true;
+            tagErrorMessage = string.Empty;
+
+            var tagName = newTagName.Trim();
+            
+            // Check if tag already exists
+            if (availableTags.Any(t => t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase)))
+            {
+                tagErrorMessage = $"Tag '{tagName}' already exists.";
+                return;
+            }
+
+            // Create new tag
+            var newTag = await TagClient.CreateTagAsync(new TagCreateDto(tagName));
+            
+            // Add to available tags and select it
+            availableTags.Add(newTag);
+            selectedTags.Add(newTag);
+            
+            newTagName = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating new tag: {TagName}", newTagName);
+            tagErrorMessage = $"Failed to create tag: {ex.Message}";
+        }
+        finally
+        {
+            isCreatingTag = false;
+            StateHasChanged();
+        }
+    }
+
+    private List<string> GetSelectedTagIds()
+    {
+        return selectedTags.Select(t => t.Id.ToString()).ToList();
+    }
+
+    #endregion
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
+        // Validate tags are selected
+        if (selectedTags.Count == 0)
+        {
+            tagErrorMessage = "Please select at least one tag before uploading files.";
+            return;
+        }
+
         isUploading = true;
         generalMessage = string.Empty;
+        tagErrorMessage = string.Empty;
 
         try
         {
@@ -166,11 +375,10 @@
                         StateHasChanged();
                         await Task.Delay(200);
                     }
-                    var tags = new List<string>
-                    {
-                         "10dd4508-4e35-4c63-bd74-5d90246c7770"
-                    };
-                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId, tags);
+                    
+                    // Use selected tags
+                    var tagIds = GetSelectedTagIds();
+                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId, tagIds);
 
                     uploadItem.Status = UploadStatus.Success;
                     uploadItem.Message = "Successfully uploaded";
@@ -205,8 +413,16 @@
     {
         if (string.IsNullOrWhiteSpace(urlInput)) return;
 
+        // Validate tags are selected
+        if (selectedTags.Count == 0)
+        {
+            tagErrorMessage = "Please select at least one tag before importing from URL.";
+            return;
+        }
+
         isUploading = true;
         generalMessage = string.Empty;
+        tagErrorMessage = string.Empty;
 
         var uploadItem = new UploadItem
         {
@@ -220,7 +436,8 @@
 
         try
         {
-            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, new List<string>());
+            var tagIds = GetSelectedTagIds();
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";
@@ -251,8 +468,16 @@
     {
         if (string.IsNullOrWhiteSpace(textContent)) return;
 
+        // Validate tags are selected
+        if (selectedTags.Count == 0)
+        {
+            tagErrorMessage = "Please select at least one tag before uploading text content.";
+            return;
+        }
+
         isUploading = true;
         generalMessage = string.Empty;
+        tagErrorMessage = string.Empty;
 
         try
         {
@@ -268,8 +493,8 @@
             uploadItems.Add(uploadItem);
             StateHasChanged();
 
-            // TODO: Implement text content upload
-            await Task.Delay(1500); // Simulate API call
+            var tagIds = GetSelectedTagIds();
+            var documentId = await DocumentClient.UploadTextContentAsync(AgentId, title, textContent, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully added text content";

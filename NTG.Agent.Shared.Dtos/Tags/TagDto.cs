@@ -1,6 +1,6 @@
 namespace NTG.Agent.Shared.Dtos.Tags;
 
-public record TagDto(Guid Id, string Name, DateTime CreatedAt, DateTime UpdatedAt);
+public record TagDto(Guid Id, string Name, DateTime CreatedAt, DateTime UpdatedAt, int DocumentCount = 0);
 
 public record TagCreateDto(string Name);
 

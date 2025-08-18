@@ -52,7 +52,13 @@ public class TagsController : ControllerBase
 
         var items = await query
             .OrderBy(t => t.Name)
-            .Select(t => new TagDto(t.Id, t.Name, t.CreatedAt, t.UpdatedAt))
+            .Select(t => new TagDto(
+                t.Id, 
+                t.Name, 
+                t.CreatedAt, 
+                t.UpdatedAt, 
+                _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
+            ))
             .ToListAsync(ct);
 
         return Ok(items);
@@ -74,7 +80,13 @@ public class TagsController : ControllerBase
     {
         var tag = await _agentDbContext.Tags.AsNoTracking()
             .Where(t => t.Id == id)
-            .Select(t => new TagDto(t.Id, t.Name, t.CreatedAt, t.UpdatedAt))
+            .Select(t => new TagDto(
+                t.Id, 
+                t.Name, 
+                t.CreatedAt, 
+                t.UpdatedAt, 
+                _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
+            ))
             .FirstOrDefaultAsync(ct);
 
         return tag is null ? NotFound() : Ok(tag);
@@ -107,7 +119,8 @@ public class TagsController : ControllerBase
         _agentDbContext.Tags.Add(entity);
         await _agentDbContext.SaveChangesAsync(ct);
 
-        var result = new TagDto(entity.Id, entity.Name, entity.CreatedAt, entity.UpdatedAt);
+        var documentCount = await _agentDbContext.DocumentTags.CountAsync(dt => dt.TagId == entity.Id, ct);
+        var result = new TagDto(entity.Id, entity.Name, entity.CreatedAt, entity.UpdatedAt, documentCount);
         return CreatedAtAction(nameof(GetTagById), new { id = entity.Id }, result);
     }
 
@@ -157,12 +170,30 @@ public class TagsController : ControllerBase
     /// <response code="404">If the tag with the specified ID is not found.</response>
     /// <response code="401">If the user is not authenticated.</response>
     /// <response code="403">If the user does not have Admin role.</response>
+    /// <summary>
+    /// Deletes a tag by its unique identifier.
+    /// </summary>
+    /// <param name="id">The unique identifier of the tag to delete.</param>
+    /// <param name="ct">Cancellation token for the operation.</param>
+    /// <returns>No content if the tag is successfully deleted.</returns>
+    /// <response code="204">If the tag is successfully deleted.</response>
+    /// <response code="400">If the tag is associated with documents and cannot be deleted.</response>
+    /// <response code="401">If the user is not authenticated.</response>
+    /// <response code="403">If the user does not have Admin role.</response>
+    /// <response code="404">If the tag with the specified ID is not found.</response>
     // DELETE /api/tags/{id}
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteTag(Guid id, CancellationToken ct)
     {
         var entity = await _agentDbContext.Tags.FindAsync([id], ct);
         if (entity is null) return NotFound();
+
+        // Check if the tag is associated with any documents
+        var hasDocuments = await _agentDbContext.DocumentTags.AnyAsync(dt => dt.TagId == id, ct);
+        if (hasDocuments)
+        {
+            return BadRequest("Cannot delete tag. It is currently associated with one or more documents. Please remove the tag from all documents before deleting it.");
+        }
 
         _agentDbContext.Tags.Remove(entity);
         await _agentDbContext.SaveChangesAsync(ct);

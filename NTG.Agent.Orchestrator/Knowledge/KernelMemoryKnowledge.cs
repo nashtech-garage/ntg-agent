@@ -66,4 +66,23 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var documentId = await _memoryWebClient.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
         return documentId;
     }
+
+    public async Task<string> ImportTextContentAsync(string content, string title, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ArgumentException("Content cannot be null or empty.", nameof(content));
+        }
+
+        var tagCollection = new TagCollection
+        {
+            { "agentId", agentId.ToString() },
+            { "tags", tags.Cast<string?>().ToList() }
+        };
+
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
+        var fileName = string.IsNullOrWhiteSpace(title) ? "text-content.txt" : $"{title}.txt";
+        
+        return await _memoryWebClient.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+    }
 }

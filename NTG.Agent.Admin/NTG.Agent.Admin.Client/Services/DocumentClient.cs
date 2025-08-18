@@ -58,4 +58,13 @@ public class DocumentClient(HttpClient httpClient)
         var result = await response.Content.ReadAsStringAsync();
         return result;
     }
+
+    public async Task<string> UploadTextContentAsync(Guid agentId, string title, string content, Guid? folderId, List<string> tags)
+    {
+        var request = new { Title = title, Content = content, FolderId = folderId, Tags = tags };
+        var response = await httpClient.PostAsJsonAsync($"api/documents/upload-text/{agentId}", request);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadAsStringAsync();
+        return result;
+    }
 }

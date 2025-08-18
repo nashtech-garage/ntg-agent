@@ -58,6 +58,7 @@
                                 <tr>
                                     <th>Name</th>
                                     <th>Assigned Roles</th>
+                                    <th>Documents</th>
                                     <th>Created</th>
                                     <th>Updated</th>
                                     <th width="120">Actions</th>
@@ -88,6 +89,16 @@
                                             }
                                         </td>
                                         <td>
+                                            @if (tag.DocumentCount > 0)
+                                            {
+                                                <span class="badge bg-info">@tag.DocumentCount documents</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No documents</span>
+                                            }
+                                        </td>
+                                        <td>
                                             <small class="text-muted">@tag.CreatedAt.ToString("MMM dd, yyyy")</small>
                                         </td>
                                         <td>
@@ -101,7 +112,10 @@
                                                 <button class="btn btn-outline-primary" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
                                                     <i class="bi bi-people"></i>
                                                 </button>
-                                                <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirmation(tag)" title="Delete">
+                                                <button class="btn btn-outline-danger" 
+                                                        @onclick="() => ShowDeleteConfirmation(tag)" 
+                                                        disabled="@(tag.DocumentCount > 0)"
+                                                        title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             </div>
@@ -243,6 +257,13 @@
             </div>
             <div class="modal-body">
                 <p>Are you sure you want to delete the tag <strong>"@tagToDelete?.Name"</strong>?</p>
+                <div class="alert alert-warning d-flex align-items-start" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                    <div>
+                        <strong>Important:</strong> This tag cannot be deleted if it is currently associated with any documents. 
+                        Please remove the tag from all documents first before attempting to delete it.
+                    </div>
+                </div>
                 <p class="text-muted">This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
@@ -522,14 +543,41 @@
             HideDeleteModal();
             await LoadData();
         }
+        catch (HttpRequestException httpEx)
+        {
+            // Handle HTTP status code errors
+            if (httpEx.Message.Contains("BadRequest"))
+            {
+                // Extract the actual error message from the API
+                var message = httpEx.Message.Replace("BadRequest: ", "");
+                if (message.Contains("associated with one or more documents"))
+                {
+                    errorMessage = $"Cannot delete tag '{tagToDelete.Name}'. It is currently associated with one or more documents. Please remove the tag from all documents before deleting it.";
+                }
+                else
+                {
+                    errorMessage = $"Cannot delete tag: {message}";
+                }
+            }
+            else
+            {
+                errorMessage = $"Error deleting tag: {httpEx.Message}";
+            }
+            
+            Logger.LogError(httpEx, "HTTP error deleting tag: {Message}", httpEx.Message);
+            HideDeleteModal(); // Close modal even on error
+        }
         catch (Exception ex)
         {
-            // Handle error
+            // Handle other errors
+            errorMessage = $"An unexpected error occurred while deleting the tag: {ex.Message}";
             Logger.LogError(ex, "Error deleting tag: {Message}", ex.Message);
+            HideDeleteModal(); // Close modal even on error
         }
         finally
         {
             isDeleting = false;
+            StateHasChanged(); // Ensure UI updates
         }
     }
 
