@@ -1,9 +1,10 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
-
+using NTG.Agent.Shared.Dtos.Constants;
 namespace NTG.Agent.Orchestrator.Data;
 
 public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContext(options)
@@ -24,6 +25,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Tag> Tags { get; set; } = null!;
 
     public DbSet<TagRole> TagRoles { get; set; } = null!;
+
+    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
 
     public DbSet<User> Users { get; set; } = null!;
 
@@ -99,7 +102,18 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            new Tag
            {
                Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               Name = "Pulic",
+               Name = "Public",
+               CreatedAt = new DateTime(2025, 6, 24),
+               UpdatedAt = new DateTime(2025, 6, 24)
+           }
+       );
+
+        modelBuilder.Entity<TagRole>().HasData(
+           new TagRole
+           {
+               Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
+               TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
+               RoleId = new Guid(Shared.Dtos.Constants.Constants.AnonymousRoleId),
                CreatedAt = new DateTime(2025, 6, 24),
                UpdatedAt = new DateTime(2025, 6, 24)
            }

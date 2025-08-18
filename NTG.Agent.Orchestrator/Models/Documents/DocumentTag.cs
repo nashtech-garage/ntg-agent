@@ -1,19 +1,20 @@
-﻿using NTG.Agent.Orchestrator.Models.Identity;
+﻿using NTG.Agent.Orchestrator.Models.Tags;
 
-namespace NTG.Agent.Orchestrator.Models.Tags;
+namespace NTG.Agent.Orchestrator.Models.Documents;
 
-public class TagRole
+public class DocumentTag
 {
-    public TagRole()
+    public DocumentTag()
     {
         Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
     public Guid Id { get; set; }
+    public Guid DocumentId { get; set; }
+    public Document Document { get; set; } = null!;
     public Guid TagId { get; set; }
     public Tag Tag { get; set; } = null!;
-    public Guid RoleId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

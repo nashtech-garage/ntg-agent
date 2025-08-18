@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -23,20 +22,7 @@ public class AgentsController : ControllerBase
     public async IAsyncEnumerable<PromptResponse> ChatAsync([FromBody] PromptRequest promptRequest)
     {
         Guid? userId = User.GetUserId();
-        List<string> tags = new List<string>();
-        if (userId is not null)
-        {
-            var roleIds = await _agentDbContext.UserRoles.Where(c=>c.UserId == userId).Select(c=>c.RoleId).ToListAsync();
-            tags = await _agentDbContext.TagRoles
-                .Where(c => roleIds.Contains(c.RoleId))
-                .Select(c => c.Tag.Name)
-                .ToListAsync();
-        }
-        else
-        {
-
-        }
-        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest, tags))
+        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest))
         {
             yield return new PromptResponse(response);
         }

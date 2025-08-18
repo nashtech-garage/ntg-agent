@@ -144,7 +144,7 @@
         try
         {
             var files = e.GetMultipleFiles(10); // Max 10 files
-            
+
             foreach (var file in files)
             {
                 var uploadItem = new UploadItem
@@ -166,8 +166,11 @@
                         StateHasChanged();
                         await Task.Delay(200);
                     }
-
-                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId);
+                    var tags = new List<string>
+                    {
+                         "10dd4508-4e35-4c63-bd74-5d90246c7770"
+                    };
+                    await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId, tags);
 
                     uploadItem.Status = UploadStatus.Success;
                     uploadItem.Message = "Successfully uploaded";
@@ -217,7 +220,7 @@
 
         try
         {
-            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId);
+            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, new List<string>());
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";

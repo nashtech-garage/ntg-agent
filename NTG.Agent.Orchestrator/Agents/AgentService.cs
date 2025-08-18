@@ -7,8 +7,8 @@ using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
-using NTG.Agent.Shared.Dtos.SharedConversations;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
@@ -27,11 +27,30 @@ public class AgentService
         _knowledgeService = knowledgeService;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest, List<string> tags)
+    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
 
         List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
+
+        List<string> tags = new List<string>();
+
+        if (userId is not null)
+        {
+            var roleIds = await _agentDbContext.UserRoles.Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
+            tags = await _agentDbContext.TagRoles
+                .Where(c => roleIds.Contains(c.RoleId))
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
+        }
+        else
+        {
+            var anonymousRoleIdGuid = new Guid(Constants.AnonymousRoleId);
+            tags = await _agentDbContext.TagRoles
+                .Where(c => c.RoleId == anonymousRoleIdGuid)
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
+        }
 
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, tags))

@@ -14,7 +14,7 @@ public class DocumentClient(HttpClient httpClient)
         return result ?? [];
     }
 
-    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId)
+    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId, List<string> tags)
     {
         long maxFileSize = 50 * 1024L * 1024L; // 50 MB
         using var content = new MultipartFormDataContent();
@@ -27,7 +27,21 @@ public class DocumentClient(HttpClient httpClient)
                 content.Add(fileContent, "files", file.Name);
             }
         }
-        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}?folderId={folderId}", content);
+        
+        var queryParams = new List<string>();
+        if (folderId.HasValue)
+            queryParams.Add($"folderId={folderId}");
+        
+        if (tags != null && tags.Any())
+        {
+            foreach (var tag in tags)
+            {
+                queryParams.Add($"tags={Uri.EscapeDataString(tag)}");
+            }
+        }
+        
+        var queryString = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
+        var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
     }
 
@@ -36,9 +50,9 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.DeleteAsync($"api/documents/{documentId}/{agentId}");
         response.EnsureSuccessStatusCode();
     }
-    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId)
+    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId, List<string> tags)
     {
-        var request = new { Url = url , FolderId = folderId};
+        var request = new { Url = url , FolderId = folderId, Tags = tags};
         var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();

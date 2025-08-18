@@ -1,5 +1,4 @@
 ﻿using Microsoft.KernelMemory;
-using System.Linq;
 
 namespace NTG.Agent.Orchestrator.Knowledge;
 
@@ -28,7 +27,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        if (tags.Count != 0)
+        if (tags != null && tags.Count > 0)
         {
             var filters = (from tagValue in tags
                            select MemoryFilters.ByTag("tags", tagValue)).ToList();

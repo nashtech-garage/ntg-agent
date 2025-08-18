@@ -96,7 +96,7 @@ public class DocumentsController : ControllerBase
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
         var documents = new List<Document>();
-
+        var documentTags = new List<DocumentTag>();
         foreach (var file in files)
         {
             if (file.Length > 0)
@@ -116,12 +116,22 @@ public class DocumentsController : ControllerBase
                     Type = DocumentType.File
                 };
                 documents.Add(document);
+                foreach (var tag in tags)
+                {
+                    var documentTag = new DocumentTag
+                    {
+                        DocumentId = document.Id,
+                        TagId = new Guid(tag)
+                    };
+                    documentTags.Add(documentTag);
+                }
             }
         }
 
         if (documents.Any())
         {
             _agentDbContext.Documents.AddRange(documents);
+            _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
         }
 
@@ -207,7 +217,19 @@ public class DocumentsController : ControllerBase
                 Type = DocumentType.WebPage
             };
 
+            var documentTags = new List<DocumentTag>();
+            foreach (var tag in request.Tags)
+            {
+                var documentTag = new DocumentTag
+                {
+                    DocumentId = document.Id,
+                    TagId = new Guid(tag)
+                };
+                documentTags.Add(documentTag);
+            }
+
             _agentDbContext.Documents.Add(document);
+            _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
 
             return Ok(documentId);

@@ -89,6 +89,15 @@
                                     <span class="badge bg-secondary ms-2">@documentCount</span>
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == tagsManagementTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(tagsManagementTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-files me-2"></i>
+                                    Tags Management
+                                    <span class="badge bg-secondary ms-2">@tagCount</span>
+                                </button>
+                            </li>
                         </ul>
                     </div>
 
@@ -132,6 +141,10 @@
                                         </div>
                                     </div>
                                 </div>
+                            } 
+                            else if (activeTab == tagsManagementTab)
+                            {
+                                <TagManagementTab />
                             }
                         </div>
                     </div>
@@ -184,8 +197,10 @@
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
+    private const string tagsManagementTab = "tagsmanagement";
     private string activeTab = settingsTab;
     private int documentCount = 0;
+    private int tagCount = 0;
     private Guid? selectedFolderId;
     private DocumentsTab? documentsTabRef;
     private bool openAddKnowledgeDialog = false;
