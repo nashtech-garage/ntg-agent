@@ -18,7 +18,7 @@ namespace NTG.Agent.Admin.Migrations
             migrationBuilder.InsertData(
                 table: "AspNetUsers",
                 columns: new[] { "Id", "AccessFailedCount", "ConcurrencyStamp", "Email", "EmailConfirmed", "LockoutEnabled", "LockoutEnd", "NormalizedEmail", "NormalizedUserName", "PasswordHash", "PhoneNumber", "PhoneNumberConfirmed", "SecurityStamp", "TwoFactorEnabled", "UserName" },
-                values: new object[] { "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71", 0, "101cd6ae-a8ef-4a37-97fd-04ac2dd630e4", "admin@ngtagent.com", true, true, null, "ADMIN@NTGAGENT.COM", "ADMIN@NTGAGENT.COM", "AQAAAAIAAYagAAAAEFsVZF5T07uT8PrK0tMUqluwlOJO4XIk/fjLX7QuyYlbKtSI01akUmzGGhOrF5j6lg==", null, false, "a9565acb-cee6-425f-9833-419a793f5fba", false, "admin@ngtagent.com" });
+                values: new object[] { "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71", 0, "101cd6ae-a8ef-4a37-97fd-04ac2dd630e4", "admin@ntgagent.com", true, true, null, "ADMIN@NTGAGENT.COM", "ADMIN@NTGAGENT.COM", "AQAAAAIAAYagAAAAEFsVZF5T07uT8PrK0tMUqluwlOJO4XIk/fjLX7QuyYlbKtSI01akUmzGGhOrF5j6lg==", null, false, "a9565acb-cee6-425f-9833-419a793f5fba", false, "admin@ntgagent.com" });
 
             migrationBuilder.InsertData(
                 table: "AspNetUserRoles",
