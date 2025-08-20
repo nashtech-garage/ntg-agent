@@ -4,5 +4,5 @@ public class UserRole
 {
     public Guid UserId { get; set; }
 
-    public string RoleId { get; set; } = string.Empty;
+    public Guid RoleId { get; set; }
 }

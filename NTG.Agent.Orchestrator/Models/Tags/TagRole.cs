@@ -11,7 +11,7 @@ public class TagRole
     public Guid Id { get; set; }
     public Guid TagId { get; set; }
     public Tag Tag { get; set; } = null!;
-    public string RoleId { get; set; } = string.Empty;
+    public Guid RoleId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

@@ -473,7 +473,7 @@
         selectedTag = null;
     }
 
-    private async Task AddRoleToTag(Guid tagId, string roleId)
+    private async Task AddRoleToTag(Guid tagId, Guid roleId)
     {
         try
         {
@@ -491,7 +491,7 @@
         }
     }
 
-    private async Task RemoveRoleFromTag(Guid tagId, string roleId)
+    private async Task RemoveRoleFromTag(Guid tagId, Guid roleId)
     {
         try
         {

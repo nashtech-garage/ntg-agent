@@ -6,8 +6,8 @@ public record TagCreateDto(string Name);
 
 public record TagUpdateDto(string Name);
 
-public record TagRoleDto(Guid Id, Guid TagId, string RoleId, DateTime CreatedAt, DateTime UpdatedAt);
+public record TagRoleDto(Guid Id, Guid TagId, Guid RoleId, DateTime CreatedAt, DateTime UpdatedAt);
 
-public record TagRoleAttachDto(string RoleId);
+public record TagRoleAttachDto(Guid RoleId);
 
-public record RoleDto(string Id, string Name);
+public record RoleDto(Guid Id, string Name);

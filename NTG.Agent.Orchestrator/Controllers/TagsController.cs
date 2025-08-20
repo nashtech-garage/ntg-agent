@@ -297,7 +297,7 @@ public class TagsController : ControllerBase
     /// <response code="403">If the user does not have Admin role.</response>
     // DELETE /api/tags/{tagId}/roles/{roleId}
     [HttpDelete("{tagId:guid}/roles/{roleId}")]
-    public async Task<IActionResult> DetachRoleFromTag(Guid tagId, string roleId, CancellationToken ct)
+    public async Task<IActionResult> DetachRoleFromTag(Guid tagId, Guid roleId, CancellationToken ct)
     {
         var entity = await _agentDbContext.TagRoles
             .FirstOrDefaultAsync(x => x.TagId == tagId && x.RoleId == roleId, ct);

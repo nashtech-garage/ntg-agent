@@ -440,9 +440,8 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("TagId")
                         .HasColumnType("uniqueidentifier");
@@ -462,7 +461,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         {
                             Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            RoleId = "3dc04c42-9b42-4920-b7f2-29dfc2c5d169",
+                            RoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169"),
                             TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
@@ -519,7 +518,7 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Document", "Document")
-                        .WithMany()
+                        .WithMany("DocumentTags")
                         .HasForeignKey("DocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -563,6 +562,11 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
+                {
+                    b.Navigation("DocumentTags");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>

@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
@@ -36,16 +37,32 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var guidToString = new ValueConverter<Guid, string>(
+           g => g.ToString("D"),
+           s => Guid.Parse(s)
+        );
+
         modelBuilder.Entity<User>()
                     .ToTable("AspNetUsers", t => t.ExcludeFromMigrations());
 
-        modelBuilder.Entity<Role>()
-                    .ToTable("AspNetRoles", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<Role>(b =>
+        {
+            b.ToTable("AspNetRoles", t => t.ExcludeFromMigrations());
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Id)
+                .HasConversion(guidToString)
+                .HasColumnType("nvarchar(450)")
+                .ValueGeneratedNever();
+        });
 
         modelBuilder.Entity<UserRole>(t =>
         {
             t.HasKey(ur => new { ur.UserId, ur.RoleId });
             t.ToTable("AspNetUserRoles", t => t.ExcludeFromMigrations());
+            t.Property(ur => ur.RoleId)
+               .HasConversion(guidToString)
+               .HasColumnType("nvarchar(450)");
         });
 
         base.OnModelCreating(modelBuilder);
@@ -135,7 +152,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            {
                Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
                TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               RoleId = Shared.Dtos.Constants.Constants.AnonymousRoleId,
+               RoleId = new Guid(Shared.Dtos.Constants.Constants.AnonymousRoleId),
                CreatedAt = new DateTime(2025, 6, 24),
                UpdatedAt = new DateTime(2025, 6, 24)
            }

@@ -148,7 +148,7 @@ public class TagClient(HttpClient httpClient)
     }
 
     // Detach role from tag
-    public async Task DetachRoleFromTagAsync(Guid tagId, string roleId, CancellationToken cancellationToken = default)
+    public async Task DetachRoleFromTagAsync(Guid tagId, Guid roleId, CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.DeleteAsync($"api/tags/{tagId}/roles/{roleId}", cancellationToken);
         response.EnsureSuccessStatusCode();
