@@ -20,8 +20,8 @@ namespace NTG.Agent.Admin.Data
             modelBuilder.Entity<ApplicationUser>().HasData(new ApplicationUser
             {
                 Id = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71").ToString(),
-                UserName = "admin@ngtagent.com",
-                Email = "admin@ngtagent.com",
+                UserName = "admin@ntgagent.com",
+                Email = "admin@ntgagent.com",
                 NormalizedEmail = "ADMIN@NTGAGENT.COM",
                 NormalizedUserName = "ADMIN@NTGAGENT.COM",
                 AccessFailedCount = 0, 
