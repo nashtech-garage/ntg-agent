@@ -243,7 +243,7 @@ namespace NTG.Agent.Admin.Migrations
                             Id = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
                             AccessFailedCount = 0,
                             ConcurrencyStamp = "101cd6ae-a8ef-4a37-97fd-04ac2dd630e4",
-                            Email = "admin@ngtagent.com",
+                            Email = "admin@ntgagent.com",
                             EmailConfirmed = true,
                             LockoutEnabled = true,
                             NormalizedEmail = "ADMIN@NTGAGENT.COM",
@@ -252,7 +252,7 @@ namespace NTG.Agent.Admin.Migrations
                             PhoneNumberConfirmed = false,
                             SecurityStamp = "a9565acb-cee6-425f-9833-419a793f5fba",
                             TwoFactorEnabled = false,
-                            UserName = "admin@ngtagent.com"
+                            UserName = "admin@ntgagent.com"
                         });
                 });
 

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250806060822_AddReactionsAndComments")]
+    partial class AddReactionsAndComments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -138,70 +141,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.ToTable("Conversations");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("SharedConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SharedConversationId");
-
-                    b.ToTable("SharedChatMessages");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("OriginalConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SharedConversations");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
                 {
                     b.Property<Guid>("Id")
@@ -245,33 +184,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("FolderId");
 
                     b.ToTable("Documents");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("TagId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentId");
-
-                    b.HasIndex("TagId");
-
-                    b.ToTable("DocumentTags");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
@@ -344,8 +256,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Identity.Role", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -386,85 +299,14 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("RoleId")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("UserId", "RoleId");
 
                     b.ToTable("AspNetUserRoles", null, t =>
                         {
                             t.ExcludeFromMigrations();
-                        });
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.Tag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Tags");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Name = "Public",
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.TagRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<Guid>("TagId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TagId", "RoleId")
-                        .IsUnique();
-
-                    b.ToTable("TagRoles");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            RoleId = "3dc04c42-9b42-4920-b7f2-29dfc2c5d169",
-                            TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
                         });
                 });
 
@@ -498,41 +340,11 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Conversation");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", "SharedConversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("SharedConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SharedConversation");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", null)
                         .WithMany("Documents")
                         .HasForeignKey("FolderId");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Document", "Document")
-                        .WithMany()
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Document");
-
-                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
@@ -544,23 +356,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.TagRole", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Tag");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
-                {
-                    b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
                 {
                     b.Navigation("Messages");
                 });

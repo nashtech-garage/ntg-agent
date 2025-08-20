@@ -1,4 +1,5 @@
-﻿using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Models.Chat;
 
@@ -19,4 +20,8 @@ public class ChatMessage
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsSummary { get; set; } = false;
+    public ReactionType Reaction { get; set; }
+    public string UserComment { get; set; } = string.Empty;
 }
+
+

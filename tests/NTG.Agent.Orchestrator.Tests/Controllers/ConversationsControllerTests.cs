@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Controllers;
@@ -267,4 +267,252 @@ public class ConversationsControllerTests
 
         return (userConversation.Id, otherUserConversation.Id);
     }
+
+    #region UpdateMessageReaction Tests
+
+    [Test]
+    public async Task UpdateMessageReaction_WhenMessageExists_ReturnsNoContent()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        var request = new UpdateReactionRequest { Reaction = ReactionType.Like };
+
+        // Act
+        var result = await _controller.UpdateMessageReaction(conversationId, messageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Like));
+    }
+
+    [Test]
+    public async Task UpdateMessageReaction_WhenMessageDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var conversationId = Guid.NewGuid();
+        var nonExistentMessageId = Guid.NewGuid();
+        var request = new UpdateReactionRequest { Reaction = ReactionType.Like };
+
+        // Act
+        var result = await _controller.UpdateMessageReaction(conversationId, nonExistentMessageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task UpdateMessageReaction_WhenAccessingOtherUsersMessage_ReturnsUnauthorized()
+    {
+        // Arrange
+        var (_, otherUserConversationId) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == otherUserConversationId)
+            .First().Id;
+        
+        var request = new UpdateReactionRequest { Reaction = ReactionType.Like };
+
+        // Act
+        var result = await _controller.UpdateMessageReaction(otherUserConversationId, messageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<UnauthorizedResult>());
+    }
+
+    [Test]
+    public async Task UpdateMessageReaction_WhenChangingReaction_UpdatesCorrectly()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        // First set to Like
+        var likeRequest = new UpdateReactionRequest { Reaction = ReactionType.Like };
+        await _controller.UpdateMessageReaction(conversationId, messageId, likeRequest);
+        
+        // Then change to Dislike
+        var dislikeRequest = new UpdateReactionRequest { Reaction = ReactionType.Dislike };
+
+        // Act
+        var result = await _controller.UpdateMessageReaction(conversationId, messageId, dislikeRequest);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Dislike));
+    }
+
+    [Test]
+    public async Task UpdateMessageReaction_WhenSettingToNone_ClearsReaction()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        // First set to Like
+        var likeRequest = new UpdateReactionRequest { Reaction = ReactionType.Like };
+        await _controller.UpdateMessageReaction(conversationId, messageId, likeRequest);
+        
+        // Then clear reaction
+        var noneRequest = new UpdateReactionRequest { Reaction = ReactionType.None };
+
+        // Act
+        var result = await _controller.UpdateMessageReaction(conversationId, messageId, noneRequest);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.None));
+    }
+
+    #endregion
+
+    #region UpdateMessageComment Tests
+
+    [Test]
+    public async Task UpdateMessageComment_WhenMessageExists_ReturnsNoContent()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        var request = new UpdateCommentRequest { Comment = "This is a test comment" };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(conversationId, messageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.UserComment, Is.EqualTo("This is a test comment"));
+    }
+
+    [Test]
+    public async Task UpdateMessageComment_WhenMessageDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var conversationId = Guid.NewGuid();
+        var nonExistentMessageId = Guid.NewGuid();
+        var request = new UpdateCommentRequest { Comment = "Test comment" };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(conversationId, nonExistentMessageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task UpdateMessageComment_WhenAccessingOtherUsersMessage_ReturnsUnauthorized()
+    {
+        // Arrange
+        var (_, otherUserConversationId) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == otherUserConversationId)
+            .First().Id;
+        
+        var request = new UpdateCommentRequest { Comment = "Test comment" };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(otherUserConversationId, messageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<UnauthorizedResult>());
+    }
+
+    [Test]
+    public async Task UpdateMessageComment_WhenUpdatingExistingComment_ReplacesContent()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        // First set a comment
+        var firstRequest = new UpdateCommentRequest { Comment = "First comment" };
+        await _controller.UpdateMessageComment(conversationId, messageId, firstRequest);
+        
+        // Then update the comment
+        var secondRequest = new UpdateCommentRequest { Comment = "Updated comment" };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(conversationId, messageId, secondRequest);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.UserComment, Is.EqualTo("Updated comment"));
+    }
+
+    [Test]
+    public async Task UpdateMessageComment_WhenCommentIsNull_SetsEmptyString()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        var request = new UpdateCommentRequest { Comment = null };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(conversationId, messageId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));
+    }
+
+    [Test]
+    public async Task UpdateMessageComment_WhenClearingComment_SetsEmptyString()
+    {
+        // Arrange
+        var (conversationId, _) = await SeedMessagesData();
+        var messageId = _context.ChatMessages
+            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
+            .First().Id;
+        
+        // First set a comment
+        var firstRequest = new UpdateCommentRequest { Comment = "Initial comment" };
+        await _controller.UpdateMessageComment(conversationId, messageId, firstRequest);
+        
+        // Then clear the comment
+        var clearRequest = new UpdateCommentRequest { Comment = string.Empty };
+
+        // Act
+        var result = await _controller.UpdateMessageComment(conversationId, messageId, clearRequest);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
+        Assert.That(updatedMessage, Is.Not.Null);
+        Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));
+    }
+
+    #endregion
 }
