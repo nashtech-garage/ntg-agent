@@ -1,15 +1,18 @@
 ﻿@attribute [Authorize]
 
 @using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.SharedConversations
+@using NTG.Agent.WebClient.Client.Components.Shared
 @using Microsoft.AspNetCore.Components
 @using System.Threading
 @inject ILogger<Conversation> Logger
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
+@inject SharedConversationClient SharedConversationClient
 @inject NavigationManager Navigation
 @inject ConversationState ConversationState
 
-<div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")">
+<div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")" @onclick="CloseSettingsMenuIfOpen">
     <div class="conversation-header">
         <div class="header-content">
             <div class="app-logo">
@@ -17,12 +20,14 @@
                 <span class="app-title">NTG Agent</span>
             </div>
         </div>
-        <div class="sidebar-toggle">
-            <button @onclick="ToggleSidebar" class="toggle-btn" aria-label="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")" title="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="toggle-icon">
-                    <path fill-rule="evenodd" d="@(IsSidebarCollapsed ? "M3.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L9.293 8 3.646 2.354a.5.5 0 0 1 0-.708z" : "M9.354 1.646a.5.5 0 0 0-.708 0l-6 6a.5.5 0 0 0 0 .708l6 6a.5.5 0 0 0 .708-.708L4.707 8l4.647-5.646a.5.5 0 0 0 0-.708z")" />
-                </svg>
-            </button>
+        <div class="header-controls">
+            <div class="sidebar-toggle">
+                <button @onclick="ToggleSidebar" class="toggle-btn" aria-label="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")" title="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="toggle-icon">
+                        <path fill-rule="evenodd" d="@(IsSidebarCollapsed ? "M3.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L9.293 8 3.646 2.354a.5.5 0 0 1 0-.708z" : "M9.354 1.646a.5.5 0 0 0-.708 0l-6 6a.5.5 0 0 0 0 .708l6 6a.5.5 0 0 0 .708-.708L4.707 8l4.647-5.646a.5.5 0 0 0 0-.708z")" />
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
     
@@ -68,6 +73,7 @@
                             <div class="context-menu">
                                 <button class="rename-conversation" @onclick="() => RenameConversation(conversation.Id, conversation.Name)"><i class="bi bi-pencil-square"></i> Rename</button>
                                 <button class="delete-conversation" @onclick="() => DeleteConversation(conversation.Id)"><i class="bi bi-trash3"></i> Delete</button>
+                                <button class="share-conversation" @onclick="() => ShareConversation(conversation.Id, conversation.Name)"><i class="bi bi-share"></i> Share</button>
                             </div>
                         }
                     </li>
@@ -83,10 +89,30 @@
             </div>
         }
     </div>
-    <div class="conversation-footer">
-        @*TODO*@
+    
+    <div class="sidebar-footer">
+        <div class="settings-container" @onclick:stopPropagation>
+            <button class="settings-button footer-settings" @onclick="ToggleSettingsMenu" title="Settings">
+                <i class="bi bi-gear"></i>
+                <span class="settings-text">Settings</span>
+            </button>
+            @if (showSettingsMenu)
+            {
+                <div class="settings-dropdown" @onclick:stopPropagation>
+                    <button class="dropdown-item" @onclick="OpenManageSharedModal">
+                        <i class="bi bi-share"></i>
+                        <span>Manage Shared Conversations</span>
+                    </button>
+                </div>
+            }
+        </div>
     </div>
 </div>
+
+@if (showManageSharedModal)
+{
+    <SharedConversationManager OnClose="CloseManageSharedModal" OnSharedConversationChanged="HandleSharedConversationChanged" />
+}
 
 @if (showDeleteConfirmation)
 {
@@ -107,6 +133,15 @@
     </div>
 }
 
+@if (showShareModal)
+{
+    <ShareConversationModal IsVisible="showShareModal" 
+                            ConversationId="@(shareConversationRequest?.ConversationId ?? Guid.Empty)" 
+                            ConversationName="@(shareConversationRequest?.Name ?? "")"
+                            OnClose="CancelShare" 
+                            OnSharedConversationChanged="HandleSharedConversationChanged" />
+}
+
 @code {
     private IList<ConversationListItem> conversations = [];
     private Guid? activeConversationId = null;
@@ -118,6 +153,15 @@
     private bool showDeleteConfirmation = false;
     private ConversationListItem? conversationToDelete;
     private bool IsSidebarCollapsed { get; set; } = false;
+
+    private bool showShareModal = false;
+    private ShareConversationRequest? shareConversationRequest = null;
+    
+    // Manage shared conversations modal
+    private bool showManageSharedModal = false;
+    
+    // Settings dropdown menu
+    private bool showSettingsMenu = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -347,6 +391,28 @@
     }
     #endregion
 
+    #region Share Conversation
+    private async Task ShareConversation(Guid conversationId, string conversationName)
+    {
+        contextMenuConversationId = null;
+        shareConversationRequest = new ShareConversationRequest();
+        shareConversationRequest.ConversationId = conversationId;
+        shareConversationRequest.Name = conversationName;
+
+        showShareModal = true;
+        await JS.InvokeVoidAsync("hideInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task CancelShare()
+    {
+        showShareModal = false;
+        shareConversationRequest = null;
+        await JS.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+    #endregion
+
     #region Toggle Slide Bar
     private async Task LoadSidebarStateAsync()
     {
@@ -381,6 +447,45 @@
         IsSidebarCollapsed = !IsSidebarCollapsed;
         await SaveSidebarStateAsync();
         await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+    }
+    #endregion
+
+    #region Manage Shared Conversations Modal
+    private void ToggleSettingsMenu()
+    {
+        showSettingsMenu = !showSettingsMenu;
+        StateHasChanged();
+    }
+
+    private void CloseSettingsMenuIfOpen()
+    {
+        if (showSettingsMenu)
+        {
+            showSettingsMenu = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenManageSharedModal()
+    {
+        showSettingsMenu = false; // Close the dropdown menu
+        showManageSharedModal = true;
+        await JS.InvokeVoidAsync("hideInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task CloseManageSharedModal()
+    {
+        showManageSharedModal = false;
+        await JS.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private void HandleSharedConversationChanged()
+    {
+        // This method can be used to refresh data if needed
+        // For now, it's just a placeholder for potential future use
+        StateHasChanged();
     }
     #endregion
 }

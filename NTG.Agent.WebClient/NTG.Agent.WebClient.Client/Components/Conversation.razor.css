@@ -31,6 +31,13 @@
     margin-right: 12px;
 }
 
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .app-logo {
     display: flex;
     align-items: center;
@@ -64,7 +71,6 @@
     display: flex;
     align-items: center;
     flex-shrink: 0;
-    margin-left: auto;
 }
 
 .toggle-btn {
@@ -246,31 +252,126 @@
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    max-height: calc(100vh - 100px - 120px - 60px);
 }
 
 
-.conversation-footer {
-    height: 100px;
-    min-height: 100px;
-    padding: 16px;
+
+.sidebar-footer {
+    padding: 12px 16px;
     border-top: 1px solid #e1e5e9;
     background-color: #f8fafc;
+    margin-top: auto;
+    flex-shrink: 0;
+}
+
+.settings-container {
+    position: relative;
+}
+
+.settings-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    margin-bottom: 8px;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.dropdown-item {
     display: flex;
     align-items: center;
-    justify-content: center;
-    margin-top: auto;
+    gap: 12px;
+    padding: 12px 16px;
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    cursor: pointer;
+    font-size: 14px;
+    color: #374151;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+}
+
+.dropdown-item:hover {
+    background: #f3f4f6;
+}
+
+.dropdown-item i {
+    font-size: 16px;
+    color: #6b7280;
+    width: 16px;
+    flex-shrink: 0;
+}
+
+.settings-button {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 500;
+    width: 100%;
+    justify-content: flex-start;
+    margin-bottom: 60px;
+    border: none;
+    background: transparent;
+}
+
+.settings-button:hover {
+    color: #374151;
+}
+
+.settings-button i {
+    font-size: 16px;
+}
+
+.settings-text {
+    transition: opacity 0.3s ease;
 }
 
 
-.collapsed .conversation-footer {
+.collapsed .sidebar-footer {
     padding: 8px;
 }
 
-
-.collapsed .conversation-list {
-    max-height: calc(100vh - 100px - 80px - 60px);
+.collapsed .settings-button {
+    padding: 8px;
+    min-width: 60px;
+    justify-content: center;
+    margin-bottom: 60px;
 }
+
+.collapsed .settings-text {
+    display: none;
+}
+
+.collapsed .settings-dropdown {
+    left: 8px;
+    right: 8px;
+    min-width: 200px;
+    width: auto;
+}
+
+.collapsed .dropdown-item {
+    padding: 12px 16px;
+    justify-content: flex-start;
+    gap: 20px;
+}
+
+.collapsed .dropdown-item span {
+    display: inline;
+}
+
+
+
 
 .collapsed .chat-history-section {
     pointer-events: none;
@@ -391,6 +492,22 @@
     line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+.conversation-name-input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #374151;
+    background: white;
+    outline: none;
+}
+
+.conversation-name-input:focus {
+    border-color: #007acc;
+    box-shadow: 0 0 0 1px #007acc;
 }
 
 .conversation-meta {
@@ -618,4 +735,265 @@
 .delete-button:hover {
     background: #b91c1c;
     border-color: #b91c1c;
+}
+
+/* Share Modal Styles */
+.share-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 0;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    position: relative;
+}
+
+.share-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 0 24px;
+    position: relative;
+}
+
+.share-modal-title-container {
+    flex: 1;
+    text-align: left;
+    padding-right: 32px; /* Space for close button */
+}
+
+.close-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    line-height: 1;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.close-button:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.share-modal .modal-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.share-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 16px 24px 16px 24px;
+    padding: 16px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+}
+
+.warning-icon {
+    font-size: 16px;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.share-warning div {
+    color: #92400e;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.share-description, .share-success-description {
+    margin: 0 24px 20px 24px;
+    font-size: 14px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.share-expiration-info {
+    margin: 0 24px 16px 24px;
+    font-size: 13px;
+    color: #8b5cf6;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f3f4f6;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border-left: 3px solid #8b5cf6;
+}
+
+.share-expiration-info i {
+    font-size: 12px;
+}
+
+.learn-more-link {
+    color: #007acc;
+    text-decoration: none;
+}
+
+.learn-more-link:hover {
+    text-decoration: underline;
+}
+
+.share-expiration-container {
+    margin: 0 24px 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.share-expiration-label {
+    font-size: 14px;
+    color: #374151;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.share-expiration-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #374151;
+    background: white;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.share-expiration-select:focus {
+    outline: none;
+    border-color: #007acc;
+    box-shadow: 0 0 0 1px #007acc;
+}
+
+.share-url-container {
+    margin: 0 24px 24px 24px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.share-url-input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #f9fafb;
+    color: #6b7280;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.share-url-input:focus {
+    outline: none;
+    border-color: #007acc;
+    box-shadow: 0 0 0 1px #007acc;
+}
+
+.create-link-button, .copy-link-button {
+    padding: 10px 20px;
+    background: #000;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    white-space: nowrap;
+}
+
+.create-link-button:hover, .copy-link-button:hover {
+    background: #374151;
+}
+
+.copy-link-button.copied {
+    background: #059669;
+    cursor: default;
+}
+
+.copy-link-button.copied:hover {
+    background: #059669;
+}
+
+.create-link-button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.share-social-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 0 24px 24px 24px;
+    justify-content: center;
+}
+
+.social-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.social-button:hover {
+    background: #e5e7eb;
+    transform: translateY(-1px);
+    text-decoration: none;
+    color: #374151;
+}
+
+.social-button.linkedin:hover {
+    background: #0077b5;
+    color: white;
+    border-color: #0077b5;
+}
+
+.social-button.reddit:hover {
+    background: #ff4500;
+    color: white;
+    border-color: #ff4500;
+}
+
+.social-button.twitter:hover {
+    background: #000;
+    color: white;
+    border-color: #000;
+}
+
+.social-button.facebook:hover {
+    background: #1877f2;
+    color: white;
+    border-color: #1877f2;
+}
+
+.social-button.slack:hover {
+    background: #4a154b;
+    color: white;
+    border-color: #4a154b;
+}
+
+.social-button i {
+    font-size: 14px;
 }

@@ -39,6 +39,13 @@ namespace NTG.Agent.Admin.Data
                 UserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
                 RoleId = "d5147680-87f5-41dc-aff2-e041959c2fa1"
             });
+
+            modelBuilder.Entity<IdentityRole>().HasData(new IdentityRole
+            {
+                Id = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169").ToString(),
+                Name = "Anonymous",
+                NormalizedName = "ANONYMOUS"
+            });
         }
     }
 }

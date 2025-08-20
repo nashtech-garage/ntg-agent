@@ -8,9 +8,50 @@ using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.ServiceDefaults;
 using OpenAI;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using System.ClientModel;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Endpoint to the Aspire Dashboard
+var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new Exception("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
+
+var resourceBuilder = ResourceBuilder
+    .CreateDefault()
+    .AddService("TelemetryAspireDashboardQuickstart");
+
+// Enable model diagnostics with sensitive data.
+AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+
+using var traceProvider = Sdk.CreateTracerProviderBuilder()
+    .SetResourceBuilder(resourceBuilder)
+    .AddSource("Microsoft.SemanticKernel*")
+    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint))
+    .Build();
+
+using var meterProvider = Sdk.CreateMeterProviderBuilder()
+    .SetResourceBuilder(resourceBuilder)
+    .AddMeter("Microsoft.SemanticKernel*")
+    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint))
+    .Build();
+
+using var loggerFactory = LoggerFactory.Create(builder =>
+{
+    // Add OpenTelemetry as a logging provider
+    builder.AddOpenTelemetry(options =>
+    {
+        options.SetResourceBuilder(resourceBuilder);
+        options.AddOtlpExporter(options => options.Endpoint = new Uri(endpoint));
+        // Format log messages. This is default to false.
+        options.IncludeFormattedMessage = true;
+        options.IncludeScopes = true;
+    });
+    builder.SetMinimumLevel(LogLevel.Debug);
+});
 
 builder.AddServiceDefaults();
 
@@ -39,7 +80,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
 {
     var config = serviceBuilder.GetRequiredService<IConfiguration>();
     var kernelBuilder = Kernel.CreateBuilder();
-
+    kernelBuilder.Services.AddSingleton(loggerFactory);
     // Add Azure OpenAI
     if (config["Azure:OpenAI:Endpoint"] != null && config["Azure:OpenAI:ApiKey"] != null && config["Azure:OpenAI:DeploymentName"] != null)
     {

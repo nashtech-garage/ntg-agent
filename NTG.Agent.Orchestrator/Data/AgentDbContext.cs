@@ -11,6 +11,9 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
 
+    public DbSet<SharedConversation> SharedConversations { get; set; } = null!;
+    public DbSet<SharedChatMessage> SharedChatMessages { get; set; } = null!;
+
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
@@ -78,5 +81,11 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5")
             }
         );
+
+        modelBuilder.Entity<SharedConversation>()
+            .HasMany(sc => sc.Messages)
+            .WithOne(m => m.SharedConversation)
+            .HasForeignKey(m => m.SharedConversationId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

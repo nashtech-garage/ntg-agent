@@ -1,3 +1,4 @@
+using NTG.Agent.Shared.Dtos.Enums;
 using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Models.Chat;

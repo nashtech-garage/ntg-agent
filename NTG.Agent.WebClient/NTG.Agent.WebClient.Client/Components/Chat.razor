@@ -1,7 +1,11 @@
-@using NTG.Agent.Shared.Dtos.Chats
+﻿﻿@using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Shared.Dtos.Enums
+@using NTG.Agent.Shared.Dtos.SharedConversations
+@using NTG.Agent.WebClient.Client.Components.Shared
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
+@inject SharedConversationClient SharedConversationClient
 @inject ConversationState ConversationState
 @inject IJSRuntime JSRuntime
 @inject AuthenticationStateProvider AuthenticationStateProvider
@@ -17,13 +21,19 @@
 }
 else if (ConversationId.HasValue)
 {
+    @if (isAuthenticated)
+    {
+        <button id="share-conversation-btn" class="share-button" @onclick="() => ShowShareModal()" title="Share conversation">
+            <i class="bi bi-share"></i>
+        </button>
+    }
     <div class="chat-container">
         @foreach (var item in chatHistory)
         {
-            if (item.Role == 2) // Assistant message
+            if (item.IsSystem)
             {
                 <div class="p-2 w-100">
-                    <EnhancedMarkdown Value="@item.Content" @ref="MarkdownSetValue"
+                    <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
                         CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                     <div class="chat-actions mt-2 ms-2">
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
@@ -56,7 +66,7 @@ else if (ConversationId.HasValue)
             {
                 <div class="text-end p-2 w-100">
                     <span class="text-white bg-primary p-2 rounded rounded-4">
-                        @item.Content
+                        @item.Message
                     </span>
                 </div>
             }
@@ -101,6 +111,12 @@ else
     </div>
 }
 
+<ShareConversationModal IsVisible="showShareModal" 
+                        ConversationId="ConversationId" 
+                        ConversationName=""
+                        OnClose="CloseShareModal" 
+                        OnSharedConversationChanged="HandleSharedConversationChanged" />
+
 @code {
 
     [Parameter]
@@ -110,11 +126,12 @@ else
     public string? Language { get; set; } = "en-US";
 
     private string userInput = string.Empty;
-    private List<ChatMessageListItem> chatHistory = new List<ChatMessageListItem>();
+    private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
     private bool unauthorized = false;
+    private bool showShareModal = false;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
 
@@ -129,10 +146,21 @@ else
             {
                 currentSessionId = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "CurrentSessionId");
             }
+
             try
             {
-                var chatMessages = await ConversationClient.GetConversationMessagesAsync(ConversationId.Value, currentSessionId);
-                chatHistory.AddRange(chatMessages);
+                var chatMessages = await ConversationClient.GetConversationMessagesAsync(
+                    ConversationId.Value, currentSessionId);
+
+                foreach (var item in chatMessages)
+                {
+                    chatHistory.Add(new ChatMessageItem
+                    {
+                        IsSystem = item.Role == (int)ChatRole.Assistant,
+                        Message = item.Content
+                    });
+                }
+                StateHasChanged();
             }
             catch (UnauthorizedAccessException)
             {
@@ -141,6 +169,15 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(2000);
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+        }
+    }
 
     private async Task SendMessage()
     {
@@ -162,21 +199,20 @@ else
         }
 
         var query = userInput.Trim();
-        chatHistory.Add(new ChatMessageListItem { Role = 0, Content = query });
+        chatHistory.Add(new ChatMessageItem { IsSystem = false, Message = query });
 
-        var response = new ChatMessageListItem { Role = 2, Content = "One moment, the agent is thinking ..." };
-
+        var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
 
         var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value, currentSessionId));
-        response.Content = string.Empty;
+        response.Message = string.Empty;
         await foreach (var item in result)
         {
-            response.Content += item.Content;
+            response.Message += item.Content;
             await Task.Delay(1);
-            await MarkdownSetValue!.SetValue(response.Content);
+            await MarkdownSetValue!.SetValue(response.Message);
         }
 
         if (newConversation)
@@ -207,10 +243,20 @@ else
         Navigation.NavigateTo("/", true);
     }
 
-    private async Task ToggleLike(ChatMessageListItem message)
+    // Share Modal methods
+    private async Task ShowShareModal()
+    {
+        if (ConversationId.HasValue && isAuthenticated)
+        {
+            showShareModal = true;
+            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+        }
+    }
+    
+    private async Task ToggleLike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Like ? ReactionType.None : ReactionType.Like;
-        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId.Value, message.Id, newReaction);
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
         if (success)
         {
             message.Reaction = newReaction;
@@ -218,10 +264,21 @@ else
         }
     }
 
-    private async Task ToggleDislike(ChatMessageListItem message)
+    private void CloseShareModal()
+    {
+        showShareModal = false;
+        JSRuntime.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private void HandleSharedConversationChanged()
+    {
+        StateHasChanged();
+    }
+    private async Task ToggleDislike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Dislike ? ReactionType.None : ReactionType.Dislike;
-        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId.Value, message.Id, newReaction);
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
         if (success)
         {
             message.Reaction = newReaction;
@@ -229,7 +286,7 @@ else
         }
     }
 
-    private void ToggleComment(ChatMessageListItem message)
+    private void ToggleComment(ChatMessageItem message)
     {
         if (showCommentFor == message.Id)
         {
@@ -244,9 +301,9 @@ else
         StateHasChanged();
     }
 
-    private async Task SaveComment(ChatMessageListItem message)
+    private async Task SaveComment(ChatMessageItem message)
     {
-        var success = await ConversationClient.UpdateMessageCommentAsync(ConversationId.Value, message.Id, currentComment);
+        var success = await ConversationClient.UpdateMessageCommentAsync(ConversationId!.Value, message.Id, currentComment);
         if (success)
         {
             message.UserComment = currentComment;

@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Conversations;
+using NTG.Agent.Shared.Dtos.Enums;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -85,7 +86,7 @@ public class ConversationsController : ControllerBase
     /// access the conversation.</remarks>
     /// <param name="id">The unique identifier of the conversation.</param>
     /// <param name="currentSessionId">The session ID for unauthenticated requests. Must be a valid GUID.</param>
-    /// <returns>A list of <see cref="ChatMessageListItem"/> representing the messages in the conversation, ordered by creation
+    /// <returns>A list of <see cref="ChatMessageItem"/> representing the messages in the conversation, ordered by creation
     /// time. Returns <see cref="NotFoundResult"/> if the conversation is not found or the user is not authorized.</returns>
     [HttpGet("{id}/messages")]
     public async Task<ActionResult<IList<ChatMessageListItem>>> GetConversationMessage(Guid id, [FromQuery] string? currentSessionId)
