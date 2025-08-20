@@ -156,8 +156,11 @@ else
                 {
                     chatHistory.Add(new ChatMessageItem
                     {
+                        Id = item.Id,
                         IsSystem = item.Role == (int)ChatRole.Assistant,
-                        Message = item.Content
+                        Message = item.Content,
+                        Reaction = item.Reaction,
+                        UserComment = item.UserComment
                     });
                 }
                 StateHasChanged();
