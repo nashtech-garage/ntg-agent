@@ -1,0 +1,588 @@
+﻿@inject TagClient TagClient
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+@inject ILogger<TagManagementTab> Logger
+
+<div class="p-4">
+    <!-- Header with Add Tag Button -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1">Tags Management</h4>
+            <p class="text-muted mb-0">Manage tags and their role assignments</p>
+        </div>
+        <button class="btn btn-primary" @onclick="ShowCreateTagModal">
+            <i class="bi bi-plus-circle me-2"></i>Create Tag
+        </button>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" class="form-control" placeholder="Search tags..." 
+                       @bind="searchQuery" @bind:event="oninput" @onkeyup="OnSearchInputChanged" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Display -->
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Loading State -->
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Tags Table -->
+        <div class="card">
+            <div class="card-body p-0">
+                @if (tags?.Any() == true)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Assigned Roles</th>
+                                    <th>Documents</th>
+                                    <th>Created</th>
+                                    <th>Updated</th>
+                                    <th width="120">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tag in tags)
+                                {
+                                    <tr>
+                                        <td>
+                                            <span class="badge bg-primary">@tag.Name</span>
+                                        </td>
+                                        <td>
+                                            @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
+                                            {
+                                                @foreach (var tagRole in tagRoles[tag.Id])
+                                                {
+                                                    var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
+                                                    if (role != null)
+                                                    {
+                                                        <span class="badge bg-secondary me-1">@role.Name</span>
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No roles assigned</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (tag.DocumentCount > 0)
+                                            {
+                                                <span class="badge bg-info">@tag.DocumentCount documents</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">No documents</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">@tag.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">@tag.UpdatedAt.ToString("MMM dd, yyyy")</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-secondary" @onclick="() => ShowEditTagModal(tag)" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-outline-primary" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
+                                                    <i class="bi bi-people"></i>
+                                                </button>
+                                                <button class="btn btn-outline-danger" 
+                                                        @onclick="() => ShowDeleteConfirmation(tag)" 
+                                                        disabled="@(tag.DocumentCount > 0)"
+                                                        title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="bi bi-tags text-muted" style="font-size: 3rem;"></i>
+                        </div>
+                        <h5 class="text-muted">No tags found</h5>
+                        <p class="text-muted">
+                            @if (string.IsNullOrWhiteSpace(searchQuery))
+                            {
+                                <span>Create your first tag to get started</span>
+                            }
+                            else
+                            {
+                                <span>No tags match your search criteria</span>
+                            }
+                        </p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Create/Edit Tag Modal -->
+<div class="modal fade @(showTagModal ? "show" : "")" style="display: @(showTagModal ? "block" : "none")" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">@(editingTag == null ? "Create Tag" : "Edit Tag")</h5>
+                <button type="button" class="btn-close" @onclick="HideTagModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Tag Name</label>
+                    <input type="text" class="form-control @(string.IsNullOrEmpty(tagValidationError) ? "" : "is-invalid")" 
+                           @bind="tagName" placeholder="Enter tag name" />
+                    @if (!string.IsNullOrEmpty(tagValidationError))
+                    {
+                        <div class="invalid-feedback">
+                            @tagValidationError
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="HideTagModal">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveTag" disabled="@(string.IsNullOrWhiteSpace(tagName) || isSaving)">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    @(editingTag == null ? "Create" : "Update")
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Roles Modal -->
+<div class="modal fade @(showRolesModal ? "show" : "")" style="display: @(showRolesModal ? "block" : "none")" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manage Roles for "@selectedTag?.Name"</h5>
+                <button type="button" class="btn-close" @onclick="HideRolesModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (selectedTag != null)
+                {
+                    <div class="mb-4">
+                        <h6>Assigned Roles</h6>
+                        @if (tagRoles.ContainsKey(selectedTag.Id) && tagRoles[selectedTag.Id].Any())
+                        {
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var tagRole in tagRoles[selectedTag.Id])
+                                {
+                                    var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
+                                    if (role != null)
+                                    {
+                                        <span class="badge bg-primary d-flex align-items-center">
+                                            @role.Name
+                                            <button type="button" class="btn-close btn-close-white ms-2" 
+                                                    @onclick="() => RemoveRoleFromTag(selectedTag.Id, tagRole.RoleId)" 
+                                                    style="font-size: 0.7em;"></button>
+                                        </span>
+                                    }
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-muted">No roles assigned to this tag.</p>
+                        }
+                    </div>
+
+                    <div>
+                        <h6>Available Roles</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var role in GetUnassignedRoles(selectedTag.Id))
+                            {
+                                <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                        @onclick="() => AddRoleToTag(selectedTag.Id, role.Id)">
+                                    <i class="bi bi-plus-circle me-1"></i>@role.Name
+                                </button>
+                            }
+                        </div>
+                        @if (!GetUnassignedRoles(selectedTag.Id).Any())
+                        {
+                            <p class="text-muted">All available roles are already assigned to this tag.</p>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="HideRolesModal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade @(showDeleteModal ? "show" : "")" style="display: @(showDeleteModal ? "block" : "none")" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">Delete Tag</h5>
+                <button type="button" class="btn-close" @onclick="HideDeleteModal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the tag <strong>"@tagToDelete?.Name"</strong>?</p>
+                <div class="alert alert-warning d-flex align-items-start" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2 mt-1"></i>
+                    <div>
+                        <strong>Important:</strong> This tag cannot be deleted if it is currently associated with any documents. 
+                        Please remove the tag from all documents first before attempting to delete it.
+                    </div>
+                </div>
+                <p class="text-muted">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="HideDeleteModal">Cancel</button>
+                <button type="button" class="btn btn-danger" @onclick="DeleteTag" disabled="@isDeleting">
+                    @if (isDeleting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal backdrop -->
+@if (showTagModal || showRolesModal || showDeleteModal)
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<TagDto> tags = new();
+    private List<RoleDto> availableRoles = new();
+    private Dictionary<Guid, List<TagRoleDto>> tagRoles = new();
+    
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    
+    private string searchQuery = string.Empty;
+    private string errorMessage = string.Empty;
+    private Timer? searchTimer;
+    
+    // Modal states
+    private bool showTagModal = false;
+    private bool showRolesModal = false;
+    private bool showDeleteModal = false;
+    
+    // Edit states
+    private TagDto? editingTag = null;
+    private TagDto? selectedTag = null;
+    private TagDto? tagToDelete = null;
+    private string tagName = string.Empty;
+    private string tagValidationError = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty; // Clear previous errors
+            
+            // Load tags and roles in parallel
+            var tagsTask = TagClient.GetTagsAsync(searchQuery);
+            var rolesTask = TagClient.GetAvailableRolesAsync();
+            
+            await Task.WhenAll(tagsTask, rolesTask);
+            
+            tags = await tagsTask;
+            availableRoles = await rolesTask;
+            
+            // Load roles for each tag
+            tagRoles.Clear();
+            foreach (var tag in tags)
+            {
+                var roles = await TagClient.GetRolesForTagAsync(tag.Id);
+                tagRoles[tag.Id] = roles;
+            }
+        }
+        catch (UnauthorizedAccessException authEx)
+        {
+            errorMessage = $"Authorization Error: {authEx.Message}";
+        }
+        catch (HttpRequestException httpEx)
+        {
+            // Handle HTTP errors (401, 403, etc.)
+            errorMessage = $"HTTP Error: {httpEx.Message}";
+            Logger.LogError(httpEx, "HTTP Error loading data: {Message}", httpEx.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"HTTP Error: {httpEx.Message}");
+        }
+        catch (Exception ex)
+        {
+            // Handle other errors
+            errorMessage = $"Unexpected Error: {ex.Message}";
+            Logger.LogError(ex, "Error loading data: {Message}", ex.Message);
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnSearchInputChanged()
+    {
+        searchTimer?.Dispose();
+        searchTimer = new Timer(async _ =>
+        {
+            await InvokeAsync(LoadData);
+        }, null, 300, Timeout.Infinite);
+    }
+
+    private void ShowCreateTagModal()
+    {
+        editingTag = null;
+        tagName = string.Empty;
+        tagValidationError = string.Empty;
+        showTagModal = true;
+    }
+
+    private void ShowEditTagModal(TagDto tag)
+    {
+        editingTag = tag;
+        tagName = tag.Name;
+        tagValidationError = string.Empty;
+        showTagModal = true;
+    }
+
+    private void HideTagModal()
+    {
+        showTagModal = false;
+        editingTag = null;
+        tagName = string.Empty;
+        tagValidationError = string.Empty;
+    }
+
+    private async Task SaveTag()
+    {
+        if (string.IsNullOrWhiteSpace(tagName) || isSaving)
+            return;
+
+        try
+        {
+            isSaving = true;
+            tagValidationError = string.Empty; // Clear previous validation errors
+
+            if (editingTag == null)
+            {
+                // Create new tag
+                await TagClient.CreateTagAsync(new TagCreateDto(tagName.Trim()));
+            }
+            else
+            {
+                // Update existing tag
+                await TagClient.UpdateTagAsync(editingTag.Id, new TagUpdateDto(tagName.Trim()));
+            }
+
+            HideTagModal();
+            await LoadData();
+        }
+        catch (HttpRequestException httpEx)
+        {
+            // Handle HTTP status code errors
+            if (httpEx.Message.Contains("BadRequest"))
+            {
+                // Extract the actual error message from the API
+                var message = httpEx.Message.Replace("BadRequest: ", "");
+                tagValidationError = message.Contains("Tag Name is required") ? "Tag name is required." : message;
+            }
+            else if (httpEx.Message.Contains("Conflict"))
+            {
+                // Extract the actual error message from the API
+                var message = httpEx.Message.Replace("Conflict: ", "");
+                tagValidationError = message.Contains("already exists") ? message : $"A tag with the name '{tagName.Trim()}' already exists.";
+            }
+            else if (httpEx.Message.Contains("NotFound"))
+            {
+                tagValidationError = "Tag not found. It may have been deleted by another user.";
+            }
+            else
+            {
+                tagValidationError = "An error occurred while saving the tag. Please try again.";
+            }
+            
+            Logger.LogError(httpEx, "HTTP error saving tag: {Message}", httpEx.Message);
+        }
+        catch (Exception ex)
+        {
+            // Handle other errors
+            tagValidationError = "An unexpected error occurred. Please try again.";
+            Logger.LogError(ex, "Error saving tag: {Message}", ex.Message);
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged(); // Ensure UI updates with validation errors
+        }
+    }
+
+    private void ShowManageRolesModal(TagDto tag)
+    {
+        selectedTag = tag;
+        showRolesModal = true;
+    }
+
+    private void HideRolesModal()
+    {
+        showRolesModal = false;
+        selectedTag = null;
+    }
+
+    private async Task AddRoleToTag(Guid tagId, Guid roleId)
+    {
+        try
+        {
+            await TagClient.AttachRoleToTagAsync(tagId, new TagRoleAttachDto(roleId));
+            
+            // Refresh the tag roles
+            var roles = await TagClient.GetRolesForTagAsync(tagId);
+            tagRoles[tagId] = roles;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Logger.LogError(ex, "Error adding role to tag: {Message}", ex.Message);
+        }
+    }
+
+    private async Task RemoveRoleFromTag(Guid tagId, Guid roleId)
+    {
+        try
+        {
+            await TagClient.DetachRoleFromTagAsync(tagId, roleId);
+            
+            // Refresh the tag roles
+            var roles = await TagClient.GetRolesForTagAsync(tagId);
+            tagRoles[tagId] = roles;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Logger.LogError(ex, "Error removing role from tag: {Message}", ex.Message);
+        }
+    }
+
+    private List<RoleDto> GetUnassignedRoles(Guid tagId)
+    {
+        if (!tagRoles.ContainsKey(tagId))
+            return availableRoles;
+
+        var assignedRoleIds = tagRoles[tagId].Select(tr => tr.RoleId).ToHashSet();
+        return availableRoles.Where(r => !assignedRoleIds.Contains(r.Id)).ToList();
+    }
+
+    private void ShowDeleteConfirmation(TagDto tag)
+    {
+        tagToDelete = tag;
+        showDeleteModal = true;
+    }
+
+    private void HideDeleteModal()
+    {
+        showDeleteModal = false;
+        tagToDelete = null;
+    }
+
+    private async Task DeleteTag()
+    {
+        if (tagToDelete == null || isDeleting)
+            return;
+
+        try
+        {
+            isDeleting = true;
+            await TagClient.DeleteTagAsync(tagToDelete.Id);
+            
+            HideDeleteModal();
+            await LoadData();
+        }
+        catch (HttpRequestException httpEx)
+        {
+            // Handle HTTP status code errors
+            if (httpEx.Message.Contains("BadRequest"))
+            {
+                // Extract the actual error message from the API
+                var message = httpEx.Message.Replace("BadRequest: ", "");
+                if (message.Contains("associated with one or more documents"))
+                {
+                    errorMessage = $"Cannot delete tag '{tagToDelete.Name}'. It is currently associated with one or more documents. Please remove the tag from all documents before deleting it.";
+                }
+                else
+                {
+                    errorMessage = $"Cannot delete tag: {message}";
+                }
+            }
+            else
+            {
+                errorMessage = $"Error deleting tag: {httpEx.Message}";
+            }
+            
+            Logger.LogError(httpEx, "HTTP error deleting tag: {Message}", httpEx.Message);
+            HideDeleteModal(); // Close modal even on error
+        }
+        catch (Exception ex)
+        {
+            // Handle other errors
+            errorMessage = $"An unexpected error occurred while deleting the tag: {ex.Message}";
+            Logger.LogError(ex, "Error deleting tag: {Message}", ex.Message);
+            HideDeleteModal(); // Close modal even on error
+        }
+        finally
+        {
+            isDeleting = false;
+            StateHasChanged(); // Ensure UI updates
+        }
+    }
+
+    public void Dispose()
+    {
+        searchTimer?.Dispose();
+    }
+}

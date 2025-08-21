@@ -31,6 +31,7 @@
                         <tr>
                             <th><i class="bi bi-file-text me-2"></i>Name</th>
                             <th><i class="bi bi-tag me-2"></i>Type</th>
+                            <th><i class="bi bi-tags me-2"></i>Tags</th>
                             <th><i class="bi bi-calendar me-2"></i>Upload Date</th>
                             <th><i class="bi bi-hdd me-2"></i>Size</th>
                             <th><i class="bi bi-gear me-2"></i>Actions</th>
@@ -50,6 +51,25 @@
                                     <span class="badge @GetTypeBadgeClass(doc.Name)">
                                         @GetFileType(doc.Name)
                                     </span>
+                                </td>
+                                <td>
+                                    @if (doc.Tags.Any())
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var tag in doc.Tags.Take(3))
+                                            {
+                                                <span class="badge bg-primary badge-sm">@tag</span>
+                                            }
+                                            @if (doc.Tags.Count > 3)
+                                            {
+                                                <span class="badge bg-secondary badge-sm">+@(doc.Tags.Count - 3)</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">No tags</span>
+                                    }
                                 </td>
                                 <td>@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
                                 <td><span class="text-muted">--</span></td>

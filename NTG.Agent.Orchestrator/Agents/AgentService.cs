@@ -7,8 +7,8 @@ using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
-using NTG.Agent.Shared.Dtos.SharedConversations;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
@@ -33,8 +33,27 @@ public class AgentService
 
         List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
 
+        List<string> tags = new List<string>();
+
+        if (userId is not null)
+        {
+            var roleIds = await _agentDbContext.UserRoles.Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
+            tags = await _agentDbContext.TagRoles
+                .Where(c => roleIds.Contains(c.RoleId))
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
+        }
+        else
+        {
+            var anonymousRoleIdGuid = new Guid(Constants.AnonymousRoleId);
+            tags = await _agentDbContext.TagRoles
+                .Where(c => c.RoleId == anonymousRoleIdGuid)
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
+        }
+
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, tags))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -137,7 +156,7 @@ public class AgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages, List<string> tags)
     {
         ChatHistory chatHistory = [];
         if (previousMessages is not null)
@@ -167,7 +186,7 @@ public class AgentService
                If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
-        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService), "memory");
+        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
 
         ChatCompletionAgent agent = new()
         {
