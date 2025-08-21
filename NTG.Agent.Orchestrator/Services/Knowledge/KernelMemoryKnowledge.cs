@@ -91,4 +91,29 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         return await _memoryWebClient.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
     }
+    
+    public async Task<MemoryAnswer> AskAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    {
+        if (tags != null && tags.Count > 0)
+        {
+            var filters = (from tagValue in tags
+                           select MemoryFilters.ByTag("tags", tagValue)).ToList();
+            return await _memoryWebClient.AskAsync(
+                question: query,
+                filters: filters,
+                cancellationToken: cancellationToken);
+        }
+        else
+        {
+            return await _memoryWebClient.AskAsync(
+                question: query,
+                cancellationToken: cancellationToken);
+        }
+    }
+
+    public async Task<MemoryAnswer> AskAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var result = await _memoryWebClient.AskAsync(query);
+        return result;
+    }
 }

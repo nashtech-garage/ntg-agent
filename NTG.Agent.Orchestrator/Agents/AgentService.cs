@@ -131,6 +131,47 @@ public class AgentService
             .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
+        PromptRequestForm promptRequest,
+        List<ChatMessage> history,
+        List<string> tags,
+        List<string> ocrDocuments)
+    {
+        var chatHistory = new ChatHistory();
+        foreach (var msg in history.OrderBy(m => m.CreatedAt))
+        {
+            var role = msg.Role switch
+            {
+                ChatRole.User => AuthorRole.User,
+                ChatRole.Assistant => AuthorRole.Assistant,
+                _ => AuthorRole.System
+            };
+            chatHistory.AddMessage(role, msg.Content);
+        }
+
+        var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
+
+        var userMessage = BuildUserMessage(prompt);
+
+        chatHistory.Add(userMessage);
+
+        var kernel = _kernel.Clone();
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+
+        var agent = new ChatCompletionAgent
+        {
+            Name = "NTG-Assistant",
+            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Kernel = kernel,
+            Arguments = new KernelArguments(new PromptExecutionSettings
+            {
+                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+            })
+        };
+
+        await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
+            yield return item.Message.ToString();
+    }
 
     private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
     {
@@ -155,49 +196,7 @@ public class AgentService
 
     #region Prompt Building + Streaming
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptRequestForm promptRequest,
-        List<ChatMessage> history,
-        List<string> tags,
-        List<string> ocrDocuments)
-    {
-        var chatHistory = new ChatHistory();
-        foreach (var msg in history.OrderBy(m => m.CreatedAt))
-        {
-            var role = msg.Role switch
-            {
-                ChatRole.User => AuthorRole.User,
-                ChatRole.Assistant => AuthorRole.Assistant,
-                _ => AuthorRole.System
-            };
-            chatHistory.AddMessage(role, msg.Content);
-        }
-
-        var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
-        var userMessage = BuildUserMessage(promptRequest, prompt);
-
-        chatHistory.Add(userMessage);
-
-        var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
-
-        var agent = new ChatCompletionAgent
-        {
-            Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
-            Kernel = kernel,
-            Arguments = new KernelArguments(new PromptExecutionSettings
-            {
-                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-            })
-        };
-
-        await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
-            yield return item.Message.ToString();
-    }
-
-    private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
+    private static ChatMessageContent BuildUserMessage(string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
@@ -207,7 +206,7 @@ public class AgentService
 
     private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
-        if (ocrDocuments.Any())
+        if (ocrDocuments.Count != 0)
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
@@ -269,7 +268,8 @@ public class AgentService
 
     If the conversation history does not contain the answer,
     then search the knowledge base with the query: {userPrompt}
-    Knowledge base will answer: {{memory.search}}
+    **IMPORTANT**: Pass the complete user request to memory.query without modification.
+    Knowledge base will answer: {{memory.query}}
 
     Answer the question in a clear, natural, human-like way.
     If both conversation history and knowledge base are empty,
