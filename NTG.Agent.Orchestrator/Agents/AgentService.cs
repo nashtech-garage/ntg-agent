@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -181,9 +181,10 @@ public class AgentService
         Kernel agentKernel = _kernel.Clone();
 
         var prompt = $@"
-               Search to knowledge base: {message}
-               Knowledge base will answer: {{memory.search}}
-               If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
+        Ask knowledge base: {message}
+        If the message is a question, knowledge base will answer: {{memory.ask}}
+        Otherwise, it will search for relevant documents: {{memory.search}}
+        If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
         agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
