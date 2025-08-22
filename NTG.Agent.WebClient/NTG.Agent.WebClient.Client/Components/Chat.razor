@@ -45,8 +45,11 @@ else if (ConversationId.HasValue)
                             <i
                                 class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ToggleComment(item))" title="Comment">
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleComment(item))" title="Comment">
                             <i class="bi bi-chat-dots"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ShowShareMessageModal(item))" title="Share this message">
+                            <i class="bi bi-share"></i>
                         </button>
                     </div>
                     @if (showCommentFor == item.Id)
@@ -114,6 +117,7 @@ else
 <ShareConversationModal IsVisible="showShareModal" 
                         ConversationId="ConversationId" 
                         ConversationName=""
+                        ChatId="shareChatId"
                         OnClose="CloseShareModal" 
                         OnSharedConversationChanged="HandleSharedConversationChanged" />
 
@@ -132,6 +136,7 @@ else
     private bool isAuthenticated = false;
     private bool unauthorized = false;
     private bool showShareModal = false;
+    private Guid? shareChatId = null;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
 
@@ -251,6 +256,17 @@ else
     {
         if (ConversationId.HasValue && isAuthenticated)
         {
+            shareChatId = null;
+            showShareModal = true;
+            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+        }
+    }
+
+    private async Task ShowShareMessageModal(ChatMessageItem message)
+    {
+        if (ConversationId.HasValue && isAuthenticated)
+        {
+            shareChatId = message.Id;
             showShareModal = true;
             await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
         }
@@ -270,6 +286,7 @@ else
     private void CloseShareModal()
     {
         showShareModal = false;
+        shareChatId = null; // Reset chatId when closing modal
         JSRuntime.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }

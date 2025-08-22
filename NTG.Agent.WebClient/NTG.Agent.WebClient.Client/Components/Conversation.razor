@@ -138,6 +138,7 @@
     <ShareConversationModal IsVisible="showShareModal" 
                             ConversationId="@(shareConversationRequest?.ConversationId ?? Guid.Empty)" 
                             ConversationName="@(shareConversationRequest?.Name ?? "")"
+                            ChatId="null"
                             OnClose="CancelShare" 
                             OnSharedConversationChanged="HandleSharedConversationChanged" />
 }
