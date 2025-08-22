@@ -424,7 +424,7 @@ public class ConversationsController : ControllerBase
             if (message.Role != ChatRole.Assistant) return Unauthorized();
         }
 
-        message.UserComment = request.Comment ?? string.Empty;
+        message.UserComment = request.Comment;
         message.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 

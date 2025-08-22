@@ -466,28 +466,6 @@ public class ConversationsControllerTests
     }
 
     [Test]
-    public async Task UpdateMessageComment_WhenCommentIsNull_SetsEmptyString()
-    {
-        // Arrange
-        var (conversationId, _) = await SeedMessagesData();
-        var messageId = _context.ChatMessages
-            .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
-            .First().Id;
-        
-        var request = new UpdateCommentRequest { Comment = null };
-
-        // Act
-        var result = await _controller.UpdateMessageComment(conversationId, messageId, request);
-
-        // Assert
-        Assert.That(result, Is.TypeOf<NoContentResult>());
-        
-        var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
-        Assert.That(updatedMessage, Is.Not.Null);
-        Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));
-    }
-
-    [Test]
     public async Task UpdateMessageComment_WhenClearingComment_SetsEmptyString()
     {
         // Arrange
