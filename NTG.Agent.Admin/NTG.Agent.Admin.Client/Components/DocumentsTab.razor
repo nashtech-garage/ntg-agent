@@ -30,12 +30,24 @@
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th><i class="bi bi-file-text me-2"></i>Name</th>
-                            <th><i class="bi bi-tag me-2"></i>Type</th>
-                            <th><i class="bi bi-tags me-2"></i>Tags</th>
-                            <th><i class="bi bi-calendar me-2"></i>Upload Date</th>
-                            <th><i class="bi bi-hdd me-2"></i>Size</th>
-                            <th><i class="bi bi-gear me-2"></i>Actions</th>
+                            <th style="width: 40%;">
+                                <i class="bi bi-file-text me-2"></i>Document Name
+                            </th>
+                            <th style="width: 10%;" class="text-center">
+                                <i class="bi bi-tag me-2"></i>Type
+                            </th>
+                            <th style="width: 15%;">
+                                <i class="bi bi-tags me-2"></i>Tags
+                            </th>
+                            <th style="width: 15%;" class="text-center">
+                                <i class="bi bi-calendar me-2"></i>Upload Date
+                            </th>
+                            <th style="width: 10%;" class="text-center">
+                                <i class="bi bi-hdd me-2"></i>Size
+                            </th>
+                            <th style="width: 10%;" class="text-center">
+                                <i class="bi bi-gear me-2"></i>Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -48,7 +60,7 @@
                                         <span>@doc.Name</span>
                                     </div>
                                 </td>
-                                <td>
+                                <td class="text-center">
                                     <span class="badge @GetTypeBadgeClass(doc.Name)">
                                         @GetFileType(doc.Name)
                                     </span>
@@ -72,14 +84,14 @@
                                         <span class="text-muted">No tags</span>
                                     }
                                 </td>
-                                <td>@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
-                                <td><span class="text-muted">--</span></td>
-                                <td>
+                                <td class="text-center">@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                <td class="text-center"><span class="text-muted">--</span></td>
+                                <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
                                         <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
                                             <i class="bi bi-download"></i>
                                         </button>
-                                        <button class="btn btn-outline-secondary" title="View">
+                                        <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
                                             <i class="bi bi-eye"></i>
                                         </button>
                                         <button class="btn btn-outline-danger" @onclick="() => RemoveDocument(doc)" title="Remove">
@@ -158,6 +170,14 @@
     <div class="modal-backdrop fade show"></div>
 }
 
+<!-- Document Viewer Modal -->
+<DocumentViewerModal 
+    Document="documentToView" 
+    AgentId="AgentId" 
+    IsVisible="isDocumentViewerOpen" 
+    OnClose="CloseDocumentViewer"
+    OnDownload="DownloadDocument" />
+
 @code {
     [Parameter]
     public Guid AgentId { get; set; }
@@ -177,9 +197,11 @@
     private bool isAddKnowledgeDialogOpen = false;
     private bool isLoading = true;
     private bool isDeleteConfirmationOpen = false;
+    private bool isDocumentViewerOpen = false;
 
     private IList<DocumentListItem> documents = [];
     private DocumentListItem? documentToDelete;
+    private DocumentListItem? documentToView;
 
     private Guid? _previousFolderId;
 
@@ -235,6 +257,11 @@
         {
             ".pdf" => "PDF",
             ".doc" or ".docx" => "Word",
+            ".xls" or ".xlsx" => "Excel",
+            ".ppt" or ".pptx" => "PowerPoint",
+            ".zip" => "ZIP",
+            ".rar" => "RAR",
+            ".7z" => "7-Zip",
             ".txt" => "Text",
             ".md" => "Markdown",
             ".json" => "JSON",
@@ -250,6 +277,9 @@
         {
             ".pdf" => "bi bi-file-earmark-pdf-fill text-danger",
             ".doc" or ".docx" => "bi bi-file-earmark-word-fill text-primary",
+            ".xls" or ".xlsx" => "bi bi-file-earmark-excel-fill text-success",
+            ".ppt" or ".pptx" => "bi bi-file-earmark-ppt-fill text-warning",
+            ".zip" or ".rar" or ".7z" => "bi bi-file-earmark-zip-fill text-purple",
             ".txt" => "bi bi-file-earmark-text-fill text-secondary",
             ".md" => "bi bi-file-earmark-code-fill text-info",
             ".json" => "bi bi-file-earmark-code-fill text-warning",
@@ -265,6 +295,9 @@
         {
             ".pdf" => "bg-danger",
             ".doc" or ".docx" => "bg-primary",
+            ".xls" or ".xlsx" => "bg-success",
+            ".ppt" or ".pptx" => "bg-warning",
+            ".zip" or ".rar" or ".7z" => "bg-dark",
             ".txt" => "bg-secondary",
             ".md" => "bg-info",
             ".json" => "bg-warning",
@@ -326,6 +359,20 @@
     {
         isDeleteConfirmationOpen = false;
         documentToDelete = null;
+    }
+    #endregion
+
+    #region View Documents
+    private void ViewDocument(DocumentListItem document)
+    {
+        documentToView = document;
+        isDocumentViewerOpen = true;
+    }
+
+    private void CloseDocumentViewer()
+    {
+        isDocumentViewerOpen = false;
+        documentToView = null;
     }
     #endregion
 

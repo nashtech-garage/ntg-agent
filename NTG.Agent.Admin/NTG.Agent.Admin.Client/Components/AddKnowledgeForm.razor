@@ -99,11 +99,11 @@
                     <i class="bi bi-file-earmark-arrow-up display-4 text-muted"></i>
                 </div>
                 <h6 class="mb-2">Drag and drop files here or click to browse</h6>
-                <p class="text-muted small mb-3">Supported formats: PDF, Word, Text files (Max 10MB each)</p>
+                <p class="text-muted small mb-3">Supported formats: PDF, Word, Excel, PowerPoint, Archive files (ZIP, RAR, 7z), Text files (Max 10MB each)</p>
                 <InputFile OnChange="HandleFileUpload" 
                           class="form-control" 
                           multiple 
-                          accept=".pdf,.doc,.docx,.txt,.md,.json,.xml" 
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.md,.json,.xml" 
                           id="fileUpload" />
             </div>
         </div>
@@ -352,7 +352,7 @@
 
         try
         {
-            var files = e.GetMultipleFiles(10); // Max 10 files
+            var files = e.GetMultipleFiles(10);
 
             foreach (var file in files)
             {

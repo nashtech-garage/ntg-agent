@@ -87,4 +87,47 @@ public class DocumentClient(HttpClient httpClient)
         
         return (content, fileName, contentType);
     }
+
+    public async Task<(string Content, string ContentType)> ViewDocumentAsync(Guid agentId, Guid documentId)
+    {
+        var response = await httpClient.GetAsync($"api/documents/download/{agentId}/{documentId}");
+        response.EnsureSuccessStatusCode();
+
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        
+        // Check content length to avoid loading very large files
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > 10 * 1024 * 1024) // 10MB limit
+        {
+            throw new InvalidOperationException("Document is too large to preview (> 10MB)");
+        }
+
+        // Only read as string for text-based content types
+        if (IsTextBasedContentType(contentType))
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            return (content, contentType);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Content type '{contentType}' is not suitable for text preview");
+        }
+    }
+
+    private static bool IsTextBasedContentType(string contentType)
+    {
+        var textTypes = new[]
+        {
+            "text/plain",
+            "text/html",
+            "text/xml",
+            "text/csv",
+            "text/markdown",
+            "application/json",
+            "application/xml",
+            "text/x-markdown"
+        };
+
+        return textTypes.Any(type => contentType.StartsWith(type, StringComparison.OrdinalIgnoreCase));
+    }
 }
