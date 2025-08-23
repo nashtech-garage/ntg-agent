@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Shared.Dtos.Documents;
-using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
+using NTG.Agent.Shared.Dtos.Documents;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -58,10 +59,10 @@ public class DocumentsController : ControllerBase
                 .ThenInclude(dt => dt.Tag)
                 .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
                 .Select(x => new DocumentListItem(
-                    x.Id, 
-                    x.Name, 
-                    x.CreatedAt, 
-                    x.UpdatedAt, 
+                    x.Id,
+                    x.Name,
+                    x.CreatedAt,
+                    x.UpdatedAt,
                     x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
                 .ToListAsync();
             return Ok(defaultDocuments);
@@ -71,10 +72,10 @@ public class DocumentsController : ControllerBase
         .ThenInclude(dt => dt.Tag)
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
         .Select(x => new DocumentListItem(
-            x.Id, 
-            x.Name, 
-            x.CreatedAt, 
-            x.UpdatedAt, 
+            x.Id,
+            x.Name,
+            x.CreatedAt,
+            x.UpdatedAt,
             x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
         .ToListAsync();
 
@@ -281,7 +282,7 @@ public class DocumentsController : ControllerBase
         {
             var title = string.IsNullOrWhiteSpace(request.Title) ? "Text Content" : request.Title;
             var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, title, agentId, request.Tags);
-            
+
             var document = new Document
             {
                 Id = Guid.NewGuid(),
@@ -317,6 +318,191 @@ public class DocumentsController : ControllerBase
         {
             return BadRequest($"Failed to upload text content: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Downloads a document by its unique identifier and associated agent.
+    /// </summary>
+    /// <remarks>This method requires the user to be authenticated and authorized. The method supports downloading
+    /// different types of documents: <list type="bullet">
+    /// <item><description><strong>File documents:</strong> Returns the original file content with appropriate MIME type.</description></item>
+    /// <item><description><strong>Text documents:</strong> Returns the text content as a plain text file with .txt extension.</description></item>
+    /// <item><description><strong>WebPage documents:</strong> Fetches and returns the content from the stored URL with appropriate content type and file extension.</description></item>
+    /// </list>
+    /// The response includes proper content-type headers and sanitized filenames for safe downloading.</remarks>
+    /// <param name="id">The unique identifier of the document to download.</param>
+    /// <param name="agentId">The unique identifier of the agent associated with the document.</param>
+    /// <returns>An <see cref="IActionResult"/> containing the document content as a file download. Returns:
+    /// <list type="bullet">
+    /// <item><description><see cref="NotFoundResult"/> if the document with the specified <paramref name="id"/> and <paramref name="agentId"/> does not exist.</description></item>
+    /// <item><description><see cref="NotFoundResult"/> if the document content cannot be retrieved from the knowledge service.</description></item>
+    /// <item><description><see cref="FileResult"/> with the document content, appropriate MIME type, and filename if successful.</description></item>
+    /// <item><description><see cref="StatusCodeResult"/> with status 500 if an error occurs while accessing the file content or downloading from a URL.</description></item>
+    /// </list></returns>
+    [HttpGet("download/{agentId}/{id}")]
+    [Authorize]
+    public async Task<IActionResult> GetDocumentById(Guid id, Guid agentId, CancellationToken ct)
+    {
+        var document = await _agentDbContext.Documents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == id && d.AgentId == agentId, ct);
+
+        if (document is null) return NotFound();
+
+        return document.Type switch
+        {
+            DocumentType.File or DocumentType.Text => await HandleKnowledgeFileDownloadAsync(document, agentId, ct),
+            DocumentType.WebPage => await HandleWebPageDownloadAsync(document, ct),
+            _ => NotFound("Unsupported document type.")
+        };
+    }
+
+    private async Task<IActionResult> HandleKnowledgeFileDownloadAsync(Document document, Guid agentId, CancellationToken ct)
+    {
+        if (document.KnowledgeDocId is null) return NotFound("No knowledge document id.");
+
+        var isText = document.Type == DocumentType.Text;
+        var baseName = SanitizeFileName(document.Name);
+        var fileName = isText ? $"{baseName}.txt" : baseName;
+
+        var contentType = isText
+            ? "text/plain"
+            : GetContentType(fileName);
+
+        var content = await _knowledgeService.ExportDocumentAsync(
+            document.KnowledgeDocId, fileName, agentId);
+
+        if (content is null) return NotFound();
+
+        var stream = await content.GetStreamAsync();
+        return File(stream, contentType, fileName);
+    }
+
+    private async Task<IActionResult> HandleWebPageDownloadAsync(Document document, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(document.Url))
+            return NotFound("Webpage URL not found.");
+
+        if (!Uri.TryCreate(document.Url, UriKind.Absolute, out var uri))
+            return BadRequest("Invalid webpage URL.");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(document.Url);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStreamAsync();
+
+            // Prefer server-provided content-type, with fallback to URL/extension
+            var headerType = response.Content.Headers.ContentType?.MediaType;
+            var inferredType = headerType ?? GetContentTypeFromUrlPath(uri.AbsolutePath);
+
+            // File extension from content-type or URL
+            var extension = GetFileExtensionFromContentType(inferredType, uri.ToString());
+            var fileName = $"{SanitizeFileName(document.Name)}{extension}";
+            var stream = await response.Content.ReadAsStreamAsync(ct);
+            return File(stream, inferredType, fileName);
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(499);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Failed to download content from URL: {ex.Message}");
+        }
+    }
+
+    private static readonly FileExtensionContentTypeProvider _mimeProvider = new();
+
+    private static string GetContentType(string fileName)
+    {
+        if (_mimeProvider.TryGetContentType(fileName, out var contentType))
+            return contentType;
+
+        return GetContentTypeFromExtension(Path.GetExtension(fileName));
+    }
+
+    private static string GetContentTypeFromUrlPath(string urlPath)
+    {
+        var fileName = Path.GetFileName(urlPath);
+        if (!string.IsNullOrEmpty(fileName) && _mimeProvider.TryGetContentType(fileName, out var contentType))
+            return contentType;
+
+        return "application/octet-stream";
+    }
+
+    private static string GetContentTypeFromExtension(string extension)
+        => (extension ?? string.Empty).ToLowerInvariant() switch
+        {
+            ".pdf" => "application/pdf",
+            ".doc" => "application/msword",
+            ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xls" => "application/vnd.ms-excel",
+            ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".ppt" => "application/vnd.ms-powerpoint",
+            ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            ".txt" => "text/plain",
+            ".csv" => "text/csv",
+            ".json" => "application/json",
+            ".xml" => "application/xml",
+            ".htm" or ".html" => "text/html",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".png" => "image/png",
+            ".gif" => "image/gif",
+            ".zip" => "application/zip",
+            _ => "application/octet-stream"
+        };
+
+    private static string SanitizeFileName(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return "download";
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string(fileName.Where(c => !invalid.Contains(c)).ToArray());
+
+        sanitized = sanitized
+            .Replace("://", "_")
+            .Replace("/", "_")
+            .Replace("?", "_")
+            .Replace("&", "_")
+            .Replace("=", "_")
+            .Replace("#", "_");
+
+        if (sanitized.Length > 120) sanitized = sanitized[..120];
+        return string.IsNullOrWhiteSpace(sanitized) ? "download" : sanitized;
+    }
+
+    private static string GetFileExtensionFromContentType(string contentType, string url)
+    {
+        try
+        {
+            var urlExt = Path.GetExtension(new Uri(url).AbsolutePath);
+            if (!string.IsNullOrEmpty(urlExt)) return urlExt;
+        }
+        catch { /* ignore */ }
+
+        return (contentType ?? string.Empty).ToLowerInvariant() switch
+        {
+            "application/pdf" => ".pdf",
+            "application/msword" => ".doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => ".docx",
+            "application/vnd.ms-excel" => ".xls",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => ".xlsx",
+            "application/vnd.ms-powerpoint" => ".ppt",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation" => ".pptx",
+            "text/plain" => ".txt",
+            "text/csv" => ".csv",
+            "application/json" => ".json",
+            "application/xml" or "text/xml" => ".xml",
+            "text/html" => ".html",
+            "image/jpeg" => ".jpg",
+            "image/png" => ".png",
+            "image/gif" => ".gif",
+            "application/zip" => ".zip",
+            _ => ".html"
+        };
     }
 }
 

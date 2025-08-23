@@ -1,6 +1,7 @@
 @using NTG.Agent.Shared.Dtos.Documents
 @inject ILogger<DocumentsTab> Logger
 @inject DocumentClient DocumentClient
+@inject IJSRuntime JSRuntime
 
 <div class="tab-pane fade show active">
     <!-- Add Knowledge Button -->
@@ -75,7 +76,7 @@
                                 <td><span class="text-muted">--</span></td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-outline-primary" title="Download">
+                                        <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
                                             <i class="bi bi-download"></i>
                                         </button>
                                         <button class="btn btn-outline-secondary" title="View">
@@ -325,6 +326,28 @@
     {
         isDeleteConfirmationOpen = false;
         documentToDelete = null;
+    }
+    #endregion
+
+    #region Download Documents
+    private async Task DownloadDocument(DocumentListItem document)
+    {
+        try
+        {
+            var (content, fileName, contentType) = await DocumentClient.DownloadDocumentAsync(AgentId, document.Id);
+            
+            // Convert stream to byte array for JavaScript interop
+            using var memoryStream = new MemoryStream();
+            await content.CopyToAsync(memoryStream);
+            var fileBytes = memoryStream.ToArray();
+            
+            // Use JavaScript to trigger download
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(fileBytes), contentType);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error downloading document {DocumentName}", document.Name);
+        }
     }
     #endregion
 }

@@ -85,4 +85,9 @@ public class KernelMemoryKnowledge : IKnowledgeService
         
         return await _memoryWebClient.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
     }
+
+    public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
+    {
+        return await _memoryWebClient.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+    }
 }

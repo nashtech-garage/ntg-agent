@@ -67,4 +67,24 @@ public class DocumentClient(HttpClient httpClient)
         var result = await response.Content.ReadAsStringAsync();
         return result;
     }
+
+    public async Task<(Stream Content, string FileName, string ContentType)> DownloadDocumentAsync(Guid agentId, Guid documentId)
+    {
+        var response = await httpClient.GetAsync($"api/documents/download/{agentId}/{documentId}");
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStreamAsync();
+        
+        // Extract filename from Content-Disposition header if available
+        var fileName = "document";
+        if (response.Content.Headers.ContentDisposition?.FileName != null)
+        {
+            fileName = response.Content.Headers.ContentDisposition.FileName.Trim('"');
+        }
+        
+        // Get content type from response headers
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        
+        return (content, fileName, contentType);
+    }
 }
