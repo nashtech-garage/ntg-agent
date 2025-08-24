@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using NTG.Agent.Shared.Dtos.Documents
 @using NTG.Agent.Shared.Dtos.Tags
+@using NTG.Agent.Shared.Dtos.Services
 @inject DocumentClient DocumentClient
 @inject TagClient TagClient
 @inject ILogger<AddKnowledgeForm> Logger
@@ -99,11 +100,11 @@
                     <i class="bi bi-file-earmark-arrow-up display-4 text-muted"></i>
                 </div>
                 <h6 class="mb-2">Drag and drop files here or click to browse</h6>
-                <p class="text-muted small mb-3">Supported formats: PDF, Word, Excel, PowerPoint, Archive files (ZIP, RAR, 7z), Text files (Max 10MB each)</p>
+                <p class="text-muted small mb-3">@FileTypeService.GetSupportedFormatsDescription()</p>
                 <InputFile OnChange="HandleFileUpload" 
                           class="form-control" 
                           multiple 
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.txt,.md,.json,.xml" 
+                          accept="@FileTypeService.GetSupportedFileExtensions()" 
                           id="fileUpload" />
             </div>
         </div>

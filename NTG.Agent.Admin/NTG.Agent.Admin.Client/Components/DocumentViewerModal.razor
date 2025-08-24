@@ -1,4 +1,5 @@
 @using NTG.Agent.Shared.Dtos.Documents
+@using NTG.Agent.Shared.Dtos.Services
 @inject ILogger<DocumentViewerModal> Logger
 @inject DocumentClient DocumentClient
 @inject IJSRuntime JSRuntime
@@ -10,7 +11,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
-                        <i class="@GetDocumentIcon() me-2"></i>@Document?.Name
+                        <i class="@FileTypeService.GetFileIcon(Document?.Name ?? "") me-2"></i>@Document?.Name
                     </h5>
                     <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
                 </div>
@@ -31,17 +32,17 @@
                                 @errorMessage
                             </div>
                         }
-                        else if (GetDocumentViewType() == DocumentViewType.Binary)
+                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Binary)
                         {
                             <div class="alert alert-info document-viewer-binary m-4" role="alert">
                                 <div class="d-flex align-items-start">
-                                    <i class="bi bi-file-earmark-@GetBinaryFileTypeIcon() me-3 fs-1 text-primary"></i>
+                                    <i class="bi bi-file-earmark-@FileTypeService.GetBinaryFileTypeIcon(Document?.Name ?? "") me-3 fs-1 text-primary"></i>
                                     <div>
                                         <h5 class="alert-heading">
                                             <i class="bi bi-info-circle me-2"></i>Preview Not Available
                                         </h5>
                                         <p class="mb-3">
-                                            This <strong>@GetFileType(Document?.Name ?? "")</strong> document cannot be previewed directly in the browser. 
+                                            This <strong>@FileTypeService.GetFileTypeDescription(Document?.Name ?? "")</strong> document cannot be previewed directly in the browser. 
                                             The file contains binary data that requires specialized software to view properly.
                                         </p>
                                         <div class="d-flex align-items-center gap-2">
@@ -54,7 +55,7 @@
                                 </div>
                             </div>
                         }
-                        else if (GetDocumentViewType() == DocumentViewType.WebPage)
+                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == NTG.Agent.Shared.Dtos.Services.DocumentViewType.WebPage)
                         {
                             <div class="alert alert-info m-4" role="alert">
                                 <div class="d-flex align-items-start">
@@ -82,19 +83,35 @@
                         }
                         else if (!string.IsNullOrEmpty(documentContent))
                         {
-                            @switch (GetDocumentViewType())
+                            @switch (FileTypeService.GetDocumentViewType(Document?.Name ?? ""))
                             {
-                                case DocumentViewType.Text:
-                                    <pre class="p-4">@documentContent</pre>
+                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Text:
+                                    {
+                                        var textLanguageInfo = FileTypeService.GetTextLanguageInfo(Document?.Name ?? "", Document?.Id.ToString() ?? "");
+                                        var languageClass = textLanguageInfo.languageClass;
+                                        var elementId = textLanguageInfo.elementId;
+                                        var dataLanguage = FileTypeService.GetDataLanguageAttribute(Document?.Name ?? "");
+                                    
+                                        @if (!string.IsNullOrEmpty(languageClass))
+                                        {
+                                            <div class="text-viewer p-4" data-language="@dataLanguage">
+                                                <pre><code class="@languageClass" id="@elementId">@documentContent</code></pre>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <pre class="p-4">@documentContent</pre>
+                                        }
+                                    }
                                     break;
                                 
-                                case DocumentViewType.Json:
+                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Json:
                                     <div class="json-viewer p-4">
                                         <pre><code class="language-json" id="json-content-@(Document?.Id ?? Guid.Empty)">@FormatJson(documentContent)</code></pre>
                                     </div>
                                     break;
                                 
-                                case DocumentViewType.Html:
+                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Html:
                                     <div class="html-viewer p-4">
                                         <div class="alert alert-info mb-3" role="alert">
                                             <i class="bi bi-info-circle me-2"></i>
@@ -111,7 +128,7 @@
                                     </div>
                                     break;
                                 
-                                case DocumentViewType.Xml:
+                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Xml:
                                     <div class="xml-viewer p-4">
                                         <pre><code class="language-xml" id="xml-content-@(Document?.Id ?? Guid.Empty)">@documentContent</code></pre>
                                     </div>
@@ -170,14 +187,22 @@
         {
             try
             {
-                var viewType = GetDocumentViewType();
-                if (viewType == DocumentViewType.Json)
+                var viewType = FileTypeService.GetDocumentViewType(Document.Name);
+                if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Json)
                 {
                     await JSRuntime.InvokeVoidAsync("highlightElement", $"json-content-{Document.Id}");
                 }
-                else if (viewType == DocumentViewType.Xml)
+                else if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Xml)
                 {
                     await JSRuntime.InvokeVoidAsync("highlightElement", $"xml-content-{Document.Id}");
+                }
+                else if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Text)
+                {
+                    var textLanguageInfo = FileTypeService.GetTextLanguageInfo(Document.Name, Document.Id.ToString());
+                    if (!string.IsNullOrEmpty(textLanguageInfo.elementId))
+                    {
+                        await JSRuntime.InvokeVoidAsync("highlightElement", textLanguageInfo.elementId);
+                    }
                 }
                 else
                 {
@@ -200,8 +225,8 @@
         {
             isLoading = true;
             errorMessage = null;
-            var viewType = GetDocumentViewType();
-            if (viewType == DocumentViewType.Binary)
+            var viewType = FileTypeService.GetDocumentViewType(Document.Name);
+            if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Binary)
             {
                 // Don't try to load binary content
                 return;
@@ -221,59 +246,6 @@
         {
             isLoading = false;
         }
-    }
-
-    private DocumentViewType GetDocumentViewType()
-    {
-        if (Document == null) return DocumentViewType.Binary;
-
-        var extension = Path.GetExtension(Document.Name)?.ToLower() ?? "";
-        
-        var extensionType = extension switch
-        {
-            ".txt" or ".md" => DocumentViewType.Text,
-            ".json" => DocumentViewType.Json,
-            ".html" or ".htm" => DocumentViewType.Html,
-            ".xml" => DocumentViewType.Xml,
-            ".pdf" or ".doc" or ".docx" or ".xls" or ".xlsx" or ".ppt" or ".pptx" or ".zip" or ".rar" or ".7z" => DocumentViewType.Binary,
-            _ => (DocumentViewType?)null
-        };
-
-        // If we have a valid extension type, use it
-        if (extensionType.HasValue)
-        {
-            return extensionType.Value;
-        }
-
-        // If no extension match and it's a URL, treat as web page
-        if (Document.Name.StartsWith("http://") || Document.Name.StartsWith("https://"))
-        {
-            return DocumentViewType.WebPage;
-        }
-
-        // Default to text for unknown types
-        return DocumentViewType.Text;
-    }
-
-    private string GetDocumentIcon()
-    {
-        if (Document == null) return "bi bi-file-earmark";
-
-        var extension = Path.GetExtension(Document.Name)?.ToLower() ?? "";
-        return extension switch
-        {
-            ".pdf" => "bi bi-file-earmark-pdf-fill text-danger",
-            ".doc" or ".docx" => "bi bi-file-earmark-word-fill text-primary",
-            ".xls" or ".xlsx" => "bi bi-file-earmark-excel-fill text-success",
-            ".ppt" or ".pptx" => "bi bi-file-earmark-ppt-fill text-warning",
-            ".zip" or ".rar" or ".7z" => "bi bi-file-earmark-zip-fill text-purple",
-            ".txt" => "bi bi-file-earmark-text-fill text-secondary",
-            ".md" => "bi bi-file-earmark-code-fill text-info",
-            ".json" => "bi bi-file-earmark-code-fill text-warning",
-            ".xml" => "bi bi-file-earmark-code-fill text-success",
-            ".html" or ".htm" => "bi bi-file-earmark-code-fill text-primary",
-            _ => "bi bi-file-earmark text-muted"
-        };
     }
 
     private string FormatJson(string json)
@@ -319,52 +291,5 @@
         {
             await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
         }
-    }
-
-    private string GetFileType(string fileName)
-    {
-        var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
-        return extension switch
-        {
-            ".pdf" => "PDF",
-            ".doc" or ".docx" => "Word",
-            ".xls" or ".xlsx" => "Excel",
-            ".ppt" or ".pptx" => "PowerPoint",
-            ".zip" => "ZIP Archive",
-            ".rar" => "RAR Archive",
-            ".7z" => "7-Zip Archive",
-            ".txt" => "Text",
-            ".md" => "Markdown",
-            ".json" => "JSON",
-            ".xml" => "XML",
-            ".html" or ".htm" => "HTML",
-            _ => "Document"
-        };
-    }
-
-    private string GetBinaryFileTypeIcon()
-    {
-        if (Document == null) return "fill";
-
-        var extension = Path.GetExtension(Document.Name)?.ToLower() ?? "";
-        return extension switch
-        {
-            ".pdf" => "pdf-fill",
-            ".doc" or ".docx" => "word-fill",
-            ".xls" or ".xlsx" => "excel-fill",
-            ".ppt" or ".pptx" => "powerpoint-fill",
-            ".zip" or ".rar" or ".7z" => "zip-fill",
-            _ => "fill"
-        };
-    }
-
-    private enum DocumentViewType
-    {
-        Text,
-        Json,
-        Html,
-        Xml,
-        WebPage,
-        Binary
     }
 }

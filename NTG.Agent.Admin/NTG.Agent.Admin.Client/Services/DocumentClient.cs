@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.Forms;
 using NTG.Agent.Shared.Dtos.Documents;
+using NTG.Agent.Shared.Dtos.Services;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
@@ -23,7 +24,13 @@ public class DocumentClient(HttpClient httpClient)
             if (file.Size > 0)
             {
                 var fileContent = new StreamContent(file.OpenReadStream(maxFileSize));
-                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+                
+                // Get content type from file or fallback to detection by extension
+                var contentType = !string.IsNullOrEmpty(file.ContentType) 
+                    ? file.ContentType 
+                    : FileTypeService.GetContentType(file.Name);
+                    
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
                 content.Add(fileContent, "files", file.Name);
             }
         }
@@ -103,7 +110,7 @@ public class DocumentClient(HttpClient httpClient)
         }
 
         // Only read as string for text-based content types
-        if (IsTextBasedContentType(contentType))
+        if (FileTypeService.IsTextBasedContentType(contentType))
         {
             var content = await response.Content.ReadAsStringAsync();
             return (content, contentType);
@@ -112,22 +119,5 @@ public class DocumentClient(HttpClient httpClient)
         {
             throw new InvalidOperationException($"Content type '{contentType}' is not suitable for text preview");
         }
-    }
-
-    private static bool IsTextBasedContentType(string contentType)
-    {
-        var textTypes = new[]
-        {
-            "text/plain",
-            "text/html",
-            "text/xml",
-            "text/csv",
-            "text/markdown",
-            "application/json",
-            "application/xml",
-            "text/x-markdown"
-        };
-
-        return textTypes.Any(type => contentType.StartsWith(type, StringComparison.OrdinalIgnoreCase));
     }
 }

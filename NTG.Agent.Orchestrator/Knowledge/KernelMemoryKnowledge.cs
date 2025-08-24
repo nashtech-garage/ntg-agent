@@ -67,7 +67,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return documentId;
     }
 
-    public async Task<string> ImportTextContentAsync(string content, string title, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> ImportTextContentAsync(string content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -81,8 +81,6 @@ public class KernelMemoryKnowledge : IKnowledgeService
         };
 
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        var fileName = string.IsNullOrWhiteSpace(title) ? "text-content.txt" : $"{title}.txt";
-        
         return await _memoryWebClient.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
     }
 

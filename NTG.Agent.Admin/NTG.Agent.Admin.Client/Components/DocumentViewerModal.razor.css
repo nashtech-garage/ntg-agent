@@ -215,6 +215,124 @@
     z-index: 10;
 }
 
+.text-viewer {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    position: relative;
+}
+
+.text-viewer pre {
+    background-color: transparent !important;
+    border: none !important;
+    color: #1f2937 !important;
+    margin: 0;
+    box-shadow: none !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    padding: 1.5rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.text-viewer code {
+    background-color: transparent !important;
+    color: inherit !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.875rem;
+}
+
+/* Override highlight.js styles for text files */
+.text-viewer .hljs {
+    background: transparent !important;
+    color: #1f2937 !important;
+}
+
+/* Language-specific badges */
+.text-viewer[data-language="markdown"]::before {
+    content: "MARKDOWN";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+.text-viewer[data-language="javascript"]::before {
+    content: "JAVASCRIPT";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+.text-viewer[data-language="css"]::before {
+    content: "CSS";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+.text-viewer[data-language="bash"]::before {
+    content: "SHELL";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
+.text-viewer[data-language="csv"]::before {
+    content: "CSV";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.25rem 0 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    z-index: 10;
+}
+
 .html-viewer {
     border-radius: 0.5rem;
     overflow: hidden;
