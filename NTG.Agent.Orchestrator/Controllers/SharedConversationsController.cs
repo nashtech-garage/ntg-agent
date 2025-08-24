@@ -41,12 +41,22 @@ public class SharedConversationsController : ControllerBase
     public async Task<ActionResult<string>> ShareConversation([FromBody] ShareConversationRequest request)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-
-        // Get messages to snapshot
-        var messages = await _context.ChatMessages
-            .Where(m => m.ConversationId == request.ConversationId && !m.IsSummary && m.UserId == userId)
-            .OrderBy(m => m.CreatedAt)
-            .ToListAsync();
+        var messages = new List<ChatMessage>();
+        if (request.ChatId.HasValue)
+        {
+            var message = await _context.ChatMessages
+                .FirstOrDefaultAsync(m => m.Id == request.ChatId && m.UserId == userId && !m.IsSummary);
+            if (message != null)
+            {
+                messages.Add(message);
+            }
+        }
+        else {
+            messages = await _context.ChatMessages
+                 .Where(m => m.ConversationId == request.ConversationId && !m.IsSummary && m.UserId == userId)
+                 .OrderBy(m => m.CreatedAt)
+                 .ToListAsync();
+        }
 
         if (!messages.Any())
             return BadRequest("Conversation has no messages.");
@@ -56,7 +66,7 @@ public class SharedConversationsController : ControllerBase
             OriginalConversationId = request.ConversationId,
             UserId = userId,
             Name = request.Name,
-            Type = SharedType.Conversation
+            Type = request.ChatId.HasValue ? SharedType.Message : SharedType.Conversation
         };
 
         if(string.IsNullOrWhiteSpace(request.Name))
