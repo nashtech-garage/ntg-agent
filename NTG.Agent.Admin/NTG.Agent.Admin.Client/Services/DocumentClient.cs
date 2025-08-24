@@ -97,15 +97,17 @@ public class DocumentClient(HttpClient httpClient)
 
     public async Task<(string Content, string ContentType)> ViewDocumentAsync(Guid agentId, Guid documentId)
     {
+        var maxPreviewFileSizeBytes = 30 * 1024 * 1024; // 30 MB limit for preview
         var response = await httpClient.GetAsync($"api/documents/download/{agentId}/{documentId}");
         response.EnsureSuccessStatusCode();
 
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-        
+
         // Check content length to avoid loading very large files
-        if (contentLength.HasValue && contentLength.Value > MaxPreviewFileSizeBytes)
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > maxPreviewFileSizeBytes)
         {
-            throw new InvalidOperationException("Document is too large to preview (> 10MB)");
+            throw new InvalidOperationException($"Document is too large to preview (> {maxPreviewFileSizeBytes}MB)");
         }
 
         // Only read as string for text-based content types
