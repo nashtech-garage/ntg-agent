@@ -1,5 +1,3 @@
-@using NTG.Agent.Shared.Dtos.Documents
-@using NTG.Agent.Shared.Dtos.Services
 @inject ILogger<DocumentViewerModal> Logger
 @inject DocumentClient DocumentClient
 @inject IJSRuntime JSRuntime
@@ -13,7 +11,7 @@
                     <h5 class="modal-title">
                         <i class="@FileTypeService.GetFileIcon(Document?.Name ?? "") me-2"></i>@Document?.Name
                     </h5>
-                    <button type="button" class="btn-close" @onclick="Close" aria-label="Close"></button>
+                    <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-0">
                     <div class="document-viewer-content">
@@ -32,7 +30,7 @@
                                 @errorMessage
                             </div>
                         }
-                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Binary)
+                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == DocumentViewType.Binary)
                         {
                             <div class="alert alert-info document-viewer-binary m-4" role="alert">
                                 <div class="d-flex align-items-start">
@@ -55,7 +53,7 @@
                                 </div>
                             </div>
                         }
-                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == NTG.Agent.Shared.Dtos.Services.DocumentViewType.WebPage)
+                        else if (FileTypeService.GetDocumentViewType(Document?.Name ?? "") == DocumentViewType.WebPage)
                         {
                             <div class="alert alert-info m-4" role="alert">
                                 <div class="d-flex align-items-start">
@@ -85,7 +83,7 @@
                         {
                             @switch (FileTypeService.GetDocumentViewType(Document?.Name ?? ""))
                             {
-                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Text:
+                                case DocumentViewType.Text:
                                     {
                                         var textLanguageInfo = FileTypeService.GetTextLanguageInfo(Document?.Name ?? "", Document?.Id.ToString() ?? "");
                                         var languageClass = textLanguageInfo.languageClass;
@@ -105,13 +103,13 @@
                                     }
                                     break;
                                 
-                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Json:
+                                case DocumentViewType.Json:
                                     <div class="json-viewer p-4">
                                         <pre><code class="language-json" id="json-content-@(Document?.Id ?? Guid.Empty)">@FormatJson(documentContent)</code></pre>
                                     </div>
                                     break;
                                 
-                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Html:
+                                case DocumentViewType.Html:
                                     <div class="html-viewer p-4">
                                         <div class="alert alert-info mb-3" role="alert">
                                             <i class="bi bi-info-circle me-2"></i>
@@ -128,7 +126,7 @@
                                     </div>
                                     break;
                                 
-                                case NTG.Agent.Shared.Dtos.Services.DocumentViewType.Xml:
+                                case DocumentViewType.Xml:
                                     <div class="xml-viewer p-4">
                                         <pre><code class="language-xml" id="xml-content-@(Document?.Id ?? Guid.Empty)">@documentContent</code></pre>
                                     </div>
@@ -138,7 +136,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @onclick="Close">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseModal">
                         <i class="bi bi-x-lg me-1"></i>Close
                     </button>
                     <button type="button" class="btn btn-primary" @onclick="DownloadDocument">
@@ -170,7 +168,7 @@
         {
             await LoadDocumentContent();
         }
-        
+
         if (!IsVisible)
         {
             // Reset state when modal is closed
@@ -188,15 +186,15 @@
             try
             {
                 var viewType = FileTypeService.GetDocumentViewType(Document.Name);
-                if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Json)
+                if (viewType == DocumentViewType.Json)
                 {
                     await JSRuntime.InvokeVoidAsync("highlightElement", $"json-content-{Document.Id}");
                 }
-                else if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Xml)
+                else if (viewType == DocumentViewType.Xml)
                 {
                     await JSRuntime.InvokeVoidAsync("highlightElement", $"xml-content-{Document.Id}");
                 }
-                else if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Text)
+                else if (viewType == DocumentViewType.Text)
                 {
                     var textLanguageInfo = FileTypeService.GetTextLanguageInfo(Document.Name, Document.Id.ToString());
                     if (!string.IsNullOrEmpty(textLanguageInfo.elementId))
@@ -226,12 +224,9 @@
             isLoading = true;
             errorMessage = null;
             var viewType = FileTypeService.GetDocumentViewType(Document.Name);
-            if (viewType == NTG.Agent.Shared.Dtos.Services.DocumentViewType.Binary)
-            {
-                // Don't try to load binary content
-                return;
-            }
 
+            if (viewType == DocumentViewType.Binary) return;
+            
             var (content, type) = await DocumentClient.ViewDocumentAsync(AgentId, Document.Id);
             documentContent = content;
             contentType = type;
@@ -252,9 +247,9 @@
     {
         try
         {
-            using var document = System.Text.Json.JsonDocument.Parse(json);
-            using var stream = new System.IO.MemoryStream();
-            using var writer = new System.Text.Json.Utf8JsonWriter(stream, new System.Text.Json.JsonWriterOptions
+            using var document = JsonDocument.Parse(json);
+            using var stream = new MemoryStream();
+            using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
             {
                 Indented = true,
                 IndentSize = 2,
@@ -264,7 +259,7 @@
             document.WriteTo(writer);
             writer.Flush();
             
-            return System.Text.Encoding.UTF8.GetString(stream.ToArray());
+            return Encoding.UTF8.GetString(stream.ToArray());
         }
         catch
         {
@@ -272,7 +267,7 @@
         }
     }
 
-    private async Task Close()
+    private async Task CloseModal()
     {
         await OnClose.InvokeAsync();
     }

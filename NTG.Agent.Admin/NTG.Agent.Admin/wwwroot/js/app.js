@@ -76,36 +76,23 @@ window.openInNewTab = function(url) {
 
 // Function to highlight code with highlight.js
 window.highlightCode = function() {
-    try {
-        if (typeof hljs !== 'undefined') {
-            console.log('highlight.js available, highlighting all code blocks');
-            hljs.highlightAll();
-            console.log('highlight.js highlighting completed');
-        } else {
-            console.warn('highlight.js not available');
-        }
-    } catch (error) {
-        console.error('Error in highlightCode:', error);
+    if (typeof hljs !== 'undefined') {
+        hljs.highlightAll();
+    } else {
+        console.warn('highlight.js not available');
     }
 };
 
 // Function to highlight specific element with highlight.js
 window.highlightElement = function(elementId) {
-    try {
-        if (typeof hljs !== 'undefined') {
-            console.log(`Highlighting element with ID: ${elementId}`);
-            const element = document.getElementById(elementId);
-            if (element) {
-                console.log('Element found, applying highlight.js');
-                hljs.highlightElement(element);
-                console.log('Element highlighting completed');
-            } else {
-                console.warn(`Element with ID '${elementId}' not found`);
-            }
+    if (typeof hljs !== 'undefined') {
+        const element = document.getElementById(elementId);
+        if (element) {
+            hljs.highlightElement(element);
         } else {
-            console.warn('highlight.js not available for element highlighting');
+            console.warn(`Element with ID '${elementId}' not found`);
         }
-    } catch (error) {
-        console.error('Error in highlightElement:', error);
+    } else {
+        console.warn('highlight.js not available for element highlighting');
     }
 };

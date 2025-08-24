@@ -365,8 +365,7 @@ public class DocumentsController : ControllerBase
 
         var contentType = FileTypeService.GetContentType(fileName);
 
-        var content = await _knowledgeService.ExportDocumentAsync(
-            document.KnowledgeDocId, fileName, agentId);
+        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId);
 
         if (content is null) return NotFound();
 

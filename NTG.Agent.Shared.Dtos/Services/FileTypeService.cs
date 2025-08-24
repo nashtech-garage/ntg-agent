@@ -255,7 +255,7 @@ public static class FileTypeService
             return DocumentViewType.WebPage;
         }
 
-        // Default to binary for unknown/unlisted file types to prevent loading errors
+        // Default to binary for unknown/unlisted file types
         return DocumentViewType.Binary;
     }
 
@@ -275,8 +275,7 @@ public static class FileTypeService
             ".css" => ("language-css", $"css-content-{documentId}"),
             ".sh" => ("language-bash", $"shell-content-{documentId}"),
             ".csv" => ("language-csv", $"csv-content-{documentId}"),
-            ".rtf" => ("", ""), // RTF doesn't have good syntax highlighting support
-            ".txt" => ("", ""), // Plain text doesn't need highlighting
+            ".rtf" or ".txt" => ("", ""), // RTF, TXT do not have good syntax highlighting support
             _ => ("", "")
         };
     }
