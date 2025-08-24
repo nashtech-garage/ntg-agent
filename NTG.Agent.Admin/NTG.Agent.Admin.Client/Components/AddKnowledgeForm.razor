@@ -1,6 +1,4 @@
 @using Microsoft.AspNetCore.Components.Forms
-@using NTG.Agent.Shared.Dtos.Documents
-@using NTG.Agent.Shared.Dtos.Tags
 @inject DocumentClient DocumentClient
 @inject TagClient TagClient
 @inject ILogger<AddKnowledgeForm> Logger
@@ -99,11 +97,11 @@
                     <i class="bi bi-file-earmark-arrow-up display-4 text-muted"></i>
                 </div>
                 <h6 class="mb-2">Drag and drop files here or click to browse</h6>
-                <p class="text-muted small mb-3">Supported formats: PDF, Word, Text files (Max 10MB each)</p>
+                <p class="text-muted small mb-3">@FileTypeService.GetSupportedFormatsDescription()</p>
                 <InputFile OnChange="HandleFileUpload" 
                           class="form-control" 
                           multiple 
-                          accept=".pdf,.doc,.docx,.txt,.md,.json,.xml" 
+                          accept="@FileTypeService.GetSupportedFileExtensions()" 
                           id="fileUpload" />
             </div>
         </div>
@@ -221,6 +219,7 @@
     private string generalMessage = string.Empty;
     private bool isError = false;
     private bool isUploading = false;
+    private int MAX_FILE_UPLOAD = 10;
 
     // Tags related fields
     private List<TagDto> availableTags = new();
@@ -352,7 +351,7 @@
 
         try
         {
-            var files = e.GetMultipleFiles(10); // Max 10 files
+            var files = e.GetMultipleFiles(MAX_FILE_UPLOAD);
 
             foreach (var file in files)
             {
