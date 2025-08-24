@@ -103,8 +103,7 @@ public class DocumentClient(HttpClient httpClient)
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
         
         // Check content length to avoid loading very large files
-        var contentLength = response.Content.Headers.ContentLength;
-        if (contentLength.HasValue && contentLength.Value > 10 * 1024 * 1024) // 10MB limit
+        if (contentLength.HasValue && contentLength.Value > MaxPreviewFileSizeBytes)
         {
             throw new InvalidOperationException("Document is too large to preview (> 10MB)");
         }
