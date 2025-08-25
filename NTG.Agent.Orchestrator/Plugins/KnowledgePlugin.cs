@@ -1,4 +1,4 @@
-using Microsoft.KernelMemory;
+﻿using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using System.ComponentModel;
@@ -10,7 +10,7 @@ public sealed class KnowledgePlugin(IKnowledgeService knowledgeService, List<str
     private readonly IKnowledgeService _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
     private readonly List<string> _tags = tags ?? throw new ArgumentNullException(nameof(tags));
 
-    [KernelFunction, Description("intelligently query knowledge base using search or ask based on query type")]
+    [KernelFunction, Description("query knowledge base - pass the COMPLETE user request unchanged including words like 'search', 'find', 'list'")]
     public async Task<string> QueryAsync(string query)
     {
         bool useAsk = ShouldUseAsk(query);
