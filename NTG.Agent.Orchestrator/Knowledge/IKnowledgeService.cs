@@ -8,6 +8,10 @@ public interface IKnowledgeService
 
     public Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default);
 
+    public Task<MemoryAnswer> AskAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
+
+    public Task<MemoryAnswer> AskAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default);
+
     public Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
     public Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default);

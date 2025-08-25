@@ -181,9 +181,10 @@ public class AgentService
         Kernel agentKernel = _kernel.Clone();
 
         var prompt = $@"
-               Search to knowledge base: {message}
-               Knowledge base will answer: {{memory.search}}
-               If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
+        Query the knowledge base: {message}
+        IMPORTANT: Pass the complete user request to memory.query without modification.
+        Knowledge base will answer: {{memory.query}}
+        If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
         agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
