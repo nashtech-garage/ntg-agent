@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -182,8 +182,8 @@ public class AgentService
 
         var prompt = $@"
         Ask knowledge base: {message}
-        If the message is a question, knowledge base will answer: {{memory.ask}}
-        Otherwise, it will search for relevant documents: {{memory.search}}
+        IMPORTANT: Pass the complete user request to memory.query without modification.
+        Knowledge base will answer: {{memory.query}}
         If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
         chatHistory.AddMessage(AuthorRole.User, prompt);
 
