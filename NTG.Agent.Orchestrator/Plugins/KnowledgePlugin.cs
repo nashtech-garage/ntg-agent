@@ -46,8 +46,8 @@ public sealed class KnowledgePlugin(IKnowledgeService knowledgeService, List<str
         
         if (lowerQuery.EndsWith('?')) return true;
         
-        // Default to Ask for conversational queries
-        return true;
+        // Default to Search for better reliability
+        return false;
     }
 
     private static string FormatAnswer(MemoryAnswer answer)
