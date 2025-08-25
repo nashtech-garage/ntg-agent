@@ -78,3 +78,8 @@ h1:focus {
     font-size: 32px;
     height:60px;
 }
+
+.file-upload label {
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}

@@ -34,16 +34,16 @@ else if (ConversationId.HasValue)
             {
                 <div class="p-2 w-100">
                     <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
-                        CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                    CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                     <div class="chat-actions mt-2 ms-2">
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
                             <i
-                                class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                            class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleDislike(item))"
-                            title="Dislike">
+                        title="Dislike">
                             <i
-                                class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
+                            class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ToggleComment(item))" title="Comment">
                             <i class="bi bi-chat-dots"></i>
@@ -65,9 +65,18 @@ else if (ConversationId.HasValue)
             else
             {
                 <div class="text-end p-2 w-100">
-                    <span class="text-white bg-primary p-2 rounded rounded-4">
-                        @item.Message
-                    </span>
+                    @if (!string.IsNullOrEmpty(item.ImageBase64))
+                    {
+                        <img src="data:@item.ImageContentType;base64,@item.ImageBase64"
+                             class="img-fluid rounded shadow-sm"
+                             style="max-width: 200px;" />
+                    }
+                    @if (!string.IsNullOrEmpty(item.Message))
+                    {
+                        <span class="text-white bg-primary p-2 rounded rounded-4">
+                            @item.Message
+                        </span>
+                    }
                 </div>
             }
         }
@@ -75,9 +84,13 @@ else if (ConversationId.HasValue)
     <div class="form-group row">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
             <div class="input-group mb-3">
+                <label for="fileInput" class="btn btn-outline-secondary border-0 bg-transparent d-flex align-items-center px-3">
+                    <i class="bi bi-paperclip fs-5"></i>
+                </label>
+                <InputFile id="fileInput" class="d-none" OnChange="OnFileSelected" accept="image/*" />
                 <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
-                    @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
-                    autocapitalize="off" placeholder="Type your message..." />
+                @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
+                autocapitalize="off" placeholder="Type your message..." />
                 <div class="input-group-append">
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
                     <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
@@ -96,12 +109,12 @@ else
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
                 <div class="input-group mb-3">
                     <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
-                        @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
-                        autocapitalize="off" placeholder="Ask anything" />
+                    @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
+                    autocapitalize="off" placeholder="Ask anything" />
                     <div class="input-group-append">
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
                         <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message"
-                            title="Send message">
+                        title="Send message">
                             <i class="bi bi-send fs-6"></i>
                         </button>
                     </div>
@@ -112,10 +125,10 @@ else
 }
 
 <ShareConversationModal IsVisible="showShareModal" 
-                        ConversationId="ConversationId" 
-                        ConversationName=""
-                        OnClose="CloseShareModal" 
-                        OnSharedConversationChanged="HandleSharedConversationChanged" />
+ConversationId="ConversationId" 
+ConversationName=""
+OnClose="CloseShareModal" 
+OnSharedConversationChanged="HandleSharedConversationChanged" />
 
 @code {
 
@@ -134,6 +147,9 @@ else
     private bool showShareModal = false;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
+
+    private string? attachedImageBase64;
+    private string? attachedImageContentType;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,12 +198,36 @@ else
         }
     }
 
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+        var buffer = new byte[file.Size];
+        await stream.ReadAsync(buffer);
+
+        attachedImageBase64 = Convert.ToBase64String(buffer);
+        attachedImageContentType = file.ContentType;
+
+        // Show inline preview in chat
+        chatHistory.Add(new ChatMessageItem
+            {
+                IsSystem = false,
+                Message = string.Empty, // no text needed
+                ImageBase64 = attachedImageBase64,
+                ImageContentType = attachedImageContentType
+            });
+
+        StateHasChanged();
+    }
+
     private async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(userInput))
+        if (string.IsNullOrWhiteSpace(userInput) && string.IsNullOrEmpty(attachedImageBase64))
         {
             return;
         }
+
         var newConversation = false;
         if (!ConversationId.HasValue)
         {
@@ -201,28 +241,38 @@ else
             newConversation = true;
         }
 
+        // Add user input to history
         var query = userInput.Trim();
         chatHistory.Add(new ChatMessageItem { IsSystem = false, Message = query });
 
+
+        // Agent "thinking"
         var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value, currentSessionId));
+        // 🚀 Send text + image to backend
+        var request = new PromptRequest(query, ConversationId.Value,
+            currentSessionId, attachedImageBase64, attachedImageContentType);
+
+        var result = await ChatClient.InvokeStreamAsync(request);
         response.Message = string.Empty;
         await foreach (var item in result)
         {
             response.Message += item.Content;
             await Task.Delay(1);
+
             await MarkdownSetValue!.SetValue(response.Message);
         }
 
+        // Reset after send
+        attachedImageBase64 = null;
+        attachedImageContentType = null;
+
         if (newConversation)
         {
-            // Fire Conversation Added event
             ConversationState.NotifyConversationAdded();
-            // Update the URL
             Navigation.NavigateTo($"/c/{ConversationId}", false);
         }
     }

@@ -53,7 +53,7 @@ public class AgentService
         }
 
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest.Prompt, messagesToUse, tags))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, messagesToUse, tags))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -156,7 +156,7 @@ public class AgentService
         }
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(string message, List<ChatMessage>? previousMessages, List<string> tags)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(PromptRequest promptRequest, List<ChatMessage>? previousMessages, List<string> tags)
     {
         ChatHistory chatHistory = [];
         if (previousMessages is not null)
@@ -179,12 +179,40 @@ public class AgentService
         });
 
         Kernel agentKernel = _kernel.Clone();
+        // Build augmented prompt
+        // Choose prompt depending on text + image
+        string prompt;
+        if (!string.IsNullOrEmpty(promptRequest.ImageBase64))
+        {
+            prompt = $@"
+You are given a user query and an image. 
+1. First analyze the image carefully (content, objects, text, context). 
+2. Combine your analysis with the user query: {promptRequest.Prompt}
+3. Search the knowledge base for relevant matches: {{memory.search}}
+4. If the knowledge base has useful info, include it with citations. 
+5. Otherwise, respond based on your reasoning from both the query and the image.";
+        }
+        else
+        {
+            prompt = $@"
+Search the knowledge base: {promptRequest.Prompt}
+Knowledge base will answer: {{memory.search}}
+If the answer is empty, continue answering with your knowledge and tools or plugins. 
+Otherwise reply with the answer and include citations to the relevant information.";
+        }
 
-        var prompt = $@"
-               Search to knowledge base: {message}
-               Knowledge base will answer: {{memory.search}}
-               If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
-        chatHistory.AddMessage(AuthorRole.User, prompt);
+        var userMessage = new ChatMessageContent();
+        userMessage.Role = AuthorRole.User;
+        userMessage.Items.Add(new TextContent(prompt));
+
+        if (!string.IsNullOrEmpty(promptRequest.ImageBase64))
+        {
+            userMessage.Items.Add(new ImageContent(
+                Convert.FromBase64String(promptRequest.ImageBase64),
+                promptRequest.ImageContentType ?? "image/png"));
+        }
+
+        chatHistory.Add(userMessage);
 
         agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
 
