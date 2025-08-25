@@ -181,7 +181,7 @@ public class AgentService
         Kernel agentKernel = _kernel.Clone();
 
         var prompt = $@"
-        Ask knowledge base: {message}
+        Query the knowledge base: {message}
         IMPORTANT: Pass the complete user request to memory.query without modification.
         Knowledge base will answer: {{memory.query}}
         If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response";
