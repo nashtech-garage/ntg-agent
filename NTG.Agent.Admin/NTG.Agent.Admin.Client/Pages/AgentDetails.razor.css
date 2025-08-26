@@ -1,10 +1,28 @@
 ﻿/* Agent Details Page Styles */
 
+.agent-details {
+    padding: 0.5rem 0.75rem;
+}
+
+@media (min-width: 768px) {
+    .agent-details {
+        padding: 1rem 1.5rem;
+    }
+}
+
 /* Breadcrumb styling */
 .agent-details .breadcrumb {
     background: none;
     padding: 0;
-    margin-bottom: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+}
+
+@media (min-width: 768px) {
+    .agent-details .breadcrumb {
+        margin-bottom: 1rem;
+        font-size: 1rem;
+    }
 }
 
 .agent-details .breadcrumb-item + .breadcrumb-item::before {
@@ -12,14 +30,33 @@
     color: #6c757d;
 }
 
-/* Tab navigation styling */
+/* Mobile tab dropdown styling */
+.agent-details .mobile-tab-dropdown {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+}
+
+.agent-details .mobile-tab-dropdown .badge {
+    font-size: 0.75rem;
+}
+
+/* Desktop tab navigation styling */
 .agent-details .nav-tabs .nav-link {
     border: none;
     color: #6c757d;
     font-weight: 500;
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1rem;
     border-bottom: 2px solid transparent;
     transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+@media (min-width: 768px) {
+    .agent-details .nav-tabs .nav-link {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+    }
 }
 
     .agent-details .nav-tabs .nav-link:hover {
@@ -35,6 +72,22 @@
         font-weight: 600;
     }
 
+/* Dropdown menu styling */
+.agent-details .dropdown-menu {
+    border: 1px solid #e9ecef;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.agent-details .dropdown-item {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+.agent-details .dropdown-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
 /* Card styling */
 .agent-details .card {
     border: 1px solid #e9ecef;
@@ -43,15 +96,36 @@
 
 .agent-details .card-header {
     border-bottom: 1px solid #e9ecef;
+    padding: 0.75rem 1rem;
 }
 
-/* Dropdown menu styling */
-.agent-details .dropdown-menu {
-    border: 1px solid #e9ecef;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+@media (min-width: 768px) {
+    .agent-details .card-header {
+        padding: 1rem 1.5rem;
+    }
 }
 
-/* Agent avatar styling */
 .agent-details .agent-avatar {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+@media (max-width: 767.98px) {
+    .agent-details h1.h3 {
+        font-size: 1.5rem;
+    }
+    
+    .agent-details .btn-sm {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+.agent-details .tab-pane {
+    min-height: 300px;
+}
+
+@media (max-width: 767.98px) {
+    .agent-details .tab-pane {
+        min-height: 250px;
+    }
 }

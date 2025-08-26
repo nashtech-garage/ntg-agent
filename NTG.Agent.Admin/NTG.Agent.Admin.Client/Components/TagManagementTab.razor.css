@@ -1,0 +1,293 @@
+/* Responsive styles for TagManagementTab */
+
+/* Header responsive improvements */
+.header-section {
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+@media (max-width: 480px) {
+    .header-section {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+        gap: 0.75rem;
+    }
+    
+    .header-section .flex-grow-1 {
+        flex-grow: 0;
+    }
+    
+    .create-tag-btn {
+        width: 100%;
+        order: 2;
+    }
+}
+
+/* Base responsive layout */
+@media (max-width: 768px) {
+    .p-4 {
+        padding: 1rem !important;
+    }
+    
+    .mb-4.d-flex {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px;
+    }
+    
+    .modal-dialog {
+        max-width: 98vw;
+        margin: 0 auto;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+    }
+    
+    .btn {
+        font-size: 15px;
+        padding: 8px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .p-4 {
+        padding: 0.5rem !important;
+    }
+    
+    .modal-dialog {
+        max-width: 100vw;
+        margin: 0;
+    }
+    
+    .modal-content {
+        padding: 4px;
+    }
+    
+    .btn {
+        font-size: 14px;
+        padding: 7px 12px;
+    }
+    
+    .mb-4.d-flex {
+        gap: 6px;
+    }
+}
+
+/* Tag Card Styles for Mobile */
+.tag-card {
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-radius: 12px;
+    background: #fff;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.tag-card:hover {
+    box-shadow: 0 4px 16px rgba(0,123,255,0.10);
+    border-color: #90caf9;
+    transform: translateY(-1px);
+}
+
+.tag-card .badge.bg-primary {
+    background: #1976d2 !important;
+    font-size: 0.9rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+}
+
+.tag-card .badge.bg-secondary {
+    background: #757575 !important;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.tag-card .badge.bg-info {
+    background: #0288d1 !important;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+
+.tag-card .badge-sm {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+}
+
+.tag-card .btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.tag-card .btn-outline-secondary {
+    border-color: #6c757d;
+    color: #6c757d;
+}
+
+.tag-card .btn-outline-secondary:hover {
+    background: #f8f9fa;
+    border-color: #5a6268;
+    color: #5a6268;
+}
+
+.tag-card .btn-outline-primary {
+    border-color: #1976d2;
+    color: #1976d2;
+}
+
+.tag-card .btn-outline-primary:hover {
+    background: #e3f2fd;
+    border-color: #0d47a1;
+    color: #0d47a1;
+}
+
+.tag-card .btn-outline-danger {
+    border-color: #c62828;
+    color: #c62828;
+}
+
+.tag-card .btn-outline-danger:hover:not(:disabled) {
+    background: #ffebee;
+    border-color: #b71c1c;
+    color: #b71c1c;
+}
+
+.tag-card .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.tag-card .text-muted {
+    color: #6c757d !important;
+    font-size: 0.85rem;
+}
+
+.tag-card .small {
+    font-size: 0.8rem !important;
+}
+
+/* Responsive breakpoints for table/card switching */
+@media (max-width: 900px) {
+    .d-md-block {
+        display: none !important;
+    }
+    .d-md-none {
+        display: block !important;
+    }
+}
+
+@media (min-width: 901px) {
+    .d-md-block {
+        display: block !important;
+    }
+    .d-md-none {
+        display: none !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .btn-primary {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+}
+
+.table td, .table th {
+    white-space: normal;
+    word-break: break-word;
+}
+
+/* Enhanced mobile card spacing */
+@media (max-width: 480px) {
+    .tag-card {
+        margin-bottom: 1rem !important;
+        padding: 12px !important;
+    }
+    
+    .tag-card .badge.bg-primary {
+        font-size: 0.85rem;
+        padding: 5px 10px;
+    }
+    
+    .tag-card .btn {
+        font-size: 0.8rem;
+        padding: 6px 8px;
+    }
+    
+    .tag-card .small {
+        font-size: 0.75rem !important;
+    }
+}
+
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Search input improvements on mobile */
+@media (max-width: 480px) {
+    .input-group {
+        flex-direction: row;
+    }
+    
+    .input-group .form-control {
+        border-radius: 0.375rem;
+    }
+    
+    .input-group-text {
+        border-radius: 0.375rem;
+        border-top-right-radius: 0;
+        border-bottom-right-radius: 0;
+    }
+    
+    .form-control {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+}
+
+/* Modal improvements for mobile */
+@media (max-width: 480px) {
+    .modal-header {
+        padding: 0.75rem;
+    }
+    
+    .modal-body {
+        padding: 0.75rem;
+    }
+    
+    .modal-footer {
+        padding: 0.75rem;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        flex: 1;
+    }
+}
+
+.d-flex.flex-wrap.gap-1 {
+    gap: 0.25rem !important;
+}
+
+.d-flex.gap-2 {
+    gap: 0.5rem !important;
+}
+
+.text-center.py-5 {
+    padding: 2rem 1rem !important;
+}
+
+@media (max-width: 480px) {
+    .text-center.py-5 {
+        padding: 1.5rem 0.5rem !important;
+    }
+    
+    .text-center.py-5 i {
+        font-size: 2.5rem !important;
+    }
+}

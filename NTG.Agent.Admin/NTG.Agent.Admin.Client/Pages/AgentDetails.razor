@@ -10,7 +10,7 @@
 
 <PageTitle>Agent Details</PageTitle>
 
-<div class="container-fluid px-4 py-3 agent-details">
+<div class="container-fluid px-2 px-md-4 py-2 py-md-3 agent-details">
     @if (isLoading)
     {
         <div class="d-flex justify-content-center align-items-center" style="min-height: 300px;">
@@ -31,7 +31,7 @@
     else
     {
         <!-- Header Section -->
-        <div class="row mb-4">
+        <div class="row mb-2 mb-md-4">
             <div class="col-12">
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
@@ -40,19 +40,19 @@
                     </ol>
                 </nav>
                 
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3 agent-avatar" 
-                             style="width: 48px; height: 48px;">
-                            <i class="bi bi-robot text-white fs-5"></i>
+                <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between">
+                    <div class="d-flex align-items-center mb-2 mb-md-0">
+                        <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-2 me-md-3 agent-avatar" 
+                             style="width: 40px; height: 40px;">
+                            <i class="bi bi-robot text-white" style="font-size: 1.2rem;"></i>
                         </div>
                         <div>
-                            <h1 class="h2 mb-1">@agentDetail.Name</h1>
+                            <h1 class="h3 h-md-2 mb-1">@agentDetail.Name</h1>
                             <span class="badge bg-success">Active</span>
                         </div>
                     </div>
                     <div class="dropdown">
-                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <button class="btn btn-sm btn-md-normal btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                             Actions
                         </button>
                         <ul class="dropdown-menu">
@@ -70,8 +70,8 @@
         <div class="row">
             <div class="col-12">
                 <div class="card shadow-sm">
-                    <!-- Enhanced Tab Navigation -->
-                    <div class="card-header bg-white border-bottom">
+                    <!-- Desktop Tab Navigation -->
+                    <div class="card-header bg-white border-bottom d-none d-md-block">
                         <ul class="nav nav-tabs card-header-tabs" role="tablist">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link @(activeTab == settingsTab ? "active" : "") d-flex align-items-center" 
@@ -102,12 +102,65 @@
                         </ul>
                     </div>
 
+                    <!-- Mobile Tab Navigation -->
+                    <div class="card-header bg-white border-bottom d-block d-md-none">
+                        <div class="dropdown w-100">
+                            <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex align-items-center justify-content-between mobile-tab-dropdown"
+                                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="d-flex align-items-center">
+                                    @if (activeTab == settingsTab)
+                                    {
+                                        <i class="bi bi-gear me-2"></i>
+                                        <span>Agent Settings</span>
+                                    }
+                                    else if (activeTab == documentsTab)
+                                    {
+                                        <i class="bi bi-book me-2"></i>
+                                        <span>Knowledge Base</span>
+                                        <span class="badge bg-secondary ms-2">@documentCount</span>
+                                    }
+                                    else if (activeTab == tagsManagementTab)
+                                    {
+                                        <i class="bi bi-tags me-2"></i>
+                                        <span>Tags Management</span>
+                                        <span class="badge bg-secondary ms-2">@tagCount</span>
+                                    }
+                                </span>
+                            </button>
+                            <ul class="dropdown-menu w-100">
+                                <li>
+                                    <button class="dropdown-item @(activeTab == settingsTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(settingsTab)" type="button">
+                                        <i class="bi bi-gear me-2"></i>
+                                        Agent Settings
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == documentsTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(documentsTab)" type="button">
+                                        <i class="bi bi-book me-2"></i>
+                                        Knowledge Base
+                                        <span class="badge bg-secondary ms-2">@documentCount</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == tagsManagementTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(tagsManagementTab)" type="button">
+                                        <i class="bi bi-tags me-2"></i>
+                                        Tags Management
+                                        <span class="badge bg-secondary ms-2">@tagCount</span>
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- Tab Content -->
                     <div class="card-body p-0">
                         <div class="tab-content">
                             @if (activeTab == settingsTab)
                             {
-                                <div class="tab-pane fade show active p-4">
+                                <div class="tab-pane fade show active p-2 p-md-4">
                                     <AgentSettingsTab AgentId="Id" />
                                 </div>
                             }
@@ -120,7 +173,7 @@
                                                        OnFolderSelected="HandleFolderSelected" 
                                                        OnAddKnowledgeRequested="HandleAddKnowledgeRequested" />
                                         </div>
-                                        <div class="col-md-9 p-4">
+                                        <div class="col-md-9 p-2 p-md-4">
                                             @if (selectedFolderId.HasValue)
                                             {
                                                 <DocumentsTab @ref="documentsTabRef"
@@ -153,7 +206,6 @@
             </div>
         </div>
 
-        <!-- Agent Info Sidebar (Optional - can be added later) -->
         @if (showSidebar)
         {
             <div class="col-lg-4">
@@ -218,7 +270,6 @@
             }
             else
             {
-                // Load tag count
                 await LoadTagCount();
             }
         }
@@ -261,14 +312,12 @@
     {
         if (folderId.HasValue)
         {
-            // If the requested folder is already selected, open the dialog directly
             if (selectedFolderId == folderId && documentsTabRef != null)
             {
                 documentsTabRef.OpenAddKnowledgeDialog();
             }
             else
             {
-                // Otherwise, select the folder first and set the flag to open the dialog after render
                 selectedFolderId = folderId;
                 openAddKnowledgeDialog = true;
                 StateHasChanged();

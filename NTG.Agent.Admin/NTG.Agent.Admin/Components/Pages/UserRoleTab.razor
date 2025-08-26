@@ -15,20 +15,20 @@
 else
 {
     <div class="p-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
+        <div class="d-flex justify-content-between align-items-center mb-4 header-section">
+            <div class="flex-grow-1">
                 <h3 class="mb-1">
                     <i class="bi bi-person-gear text-primary me-2"></i>
                     User Role Assignment
                 </h3>
-                <p class="text-muted mb-0">Manage user role assignments and permissions</p>
+                <p class="text-muted mb-0 d-none d-sm-block">Manage user role assignments and permissions</p>
             </div>
             <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary" @onclick="LoadDataAsync">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                <button class="btn btn-outline-primary bulk-refresh-btn" @onclick="LoadDataAsync">
+                    <i class="bi bi-arrow-clockwise me-1 d-none d-sm-inline"></i>Refresh
                 </button>
-                <button class="btn btn-primary" @onclick="ShowBulkAssignModal">
-                    <i class="bi bi-people-fill me-1"></i>Bulk Assign
+                <button class="btn btn-primary bulk-assign-btn" @onclick="ShowBulkAssignModal">
+                    <i class="bi bi-people-fill me-1 d-none d-sm-inline"></i>Bulk Assign
                 </button>
             </div>
         </div>
@@ -79,7 +79,7 @@ else
 
         <!-- Statistics Cards -->
         <div class="row mb-4">
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card border-0 bg-primary bg-opacity-10">
                     <div class="card-body text-center py-3">
                         <h5 class="text-primary mb-1">@users.Count</h5>
@@ -87,7 +87,7 @@ else
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card border-0 bg-success bg-opacity-10">
                     <div class="card-body text-center py-3">
                         <h5 class="text-success mb-1">@roles.Count</h5>
@@ -95,7 +95,7 @@ else
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card border-0 bg-info bg-opacity-10">
                     <div class="card-body text-center py-3">
                         <h5 class="text-info mb-1">@usersWithRoles</h5>
@@ -103,7 +103,7 @@ else
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card border-0 bg-warning bg-opacity-10">
                     <div class="card-body text-center py-3">
                         <h5 class="text-warning mb-1">@totalAssignments</h5>
@@ -122,7 +122,8 @@ else
                     <span class="badge bg-secondary ms-2">@filteredUsers.Count users</span>
                 </h5>
             </div>
-            <div class="table-responsive">
+            <!-- Desktop Table View -->
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
@@ -153,9 +154,6 @@ else
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <div class="avatar-circle bg-primary text-white me-3">
-                                            @GetUserInitials(user)
-                                        </div>
                                         <div>
                                             <div class="fw-semibold">@GetUserDisplayName(user)</div>
                                             <small class="text-muted">@user.Email</small>
@@ -237,6 +235,82 @@ else
                         }
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Mobile Card View -->
+            <div class="d-block d-md-none p-3">
+                @foreach (var user in filteredUsers)
+                {
+                    var userRoles = userRoleMap.TryGetValue(user.Id, out var rr) ? rr : new List<string>();
+                    <div class="user-card mb-3 p-3 shadow-sm rounded bg-white @(selectedUsers.Contains(user.Id) ? "selected" : "")">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="checkbox" 
+                                           checked="@GetUserSelection(user.Id)" 
+                                           @onchange="@(e => ToggleUserSelection(user.Id, (bool)e.Value!))">
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold">@GetUserDisplayName(user)</div>
+                                    <small class="text-muted">@user.Email</small>
+                                    @if (!user.EmailConfirmed)
+                                    {
+                                        <span class="badge bg-warning ms-1">Unconfirmed</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2 d-flex align-items-center flex-wrap">
+                            <strong class="text-muted small me-2">Current Roles:</strong>
+                            @if (userRoles.Any())
+                            {
+                                <div class="d-flex flex-wrap gap-1">
+                                    @foreach (var role in userRoles)
+                                    {
+                                        <span class="badge @GetRoleBadgeClass(role) position-relative">
+                                            @role
+                                            <button type="button" class="btn-close btn-close-white ms-1" 
+                                                    style="font-size: 0.6em;" 
+                                                    @onclick="@(() => QuickRemoveRole(user.Id, role))"
+                                                    title="Remove role">
+                                            </button>
+                                        </span>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">No roles assigned</span>
+                            }
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong class="text-muted small d-block mb-2">Quick Assign:</strong>
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach (var role in roles.Take(3))
+                                {
+                                    @if (!userRoles.Contains(role.Name ?? ""))
+                                    {
+                                        <button class="btn btn-outline-primary btn-sm" 
+                                                @onclick="@(() => QuickAssignRole(user.Id, role.Name!))"
+                                                title="Add @role.Name role">
+                                            +@role.Name
+                                        </button>
+                                    }
+                                }
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-outline-info btn-sm flex-fill" 
+                                    @onclick="@(() => ShowUserRoleModal(user))"
+                                    title="Manage user roles">
+                                <i class="bi bi-gear me-1"></i>Manage Roles
+                            </button>
+                        </div>
+                    </div>
+                }
             </div>
             @if (!filteredUsers.Any())
             {
@@ -517,7 +591,7 @@ else
     private ApplicationUser? selectedUser = null;
     private bool showBulkModal = false;
     private List<string> selectedRolesForBulk = new();
-    private string bulkAssignmentAction = "add"; // "add" or "remove"
+    private string bulkAssignmentAction = "add";
 
     private string? infoMessage;
     private string? errorMessage;
@@ -599,24 +673,6 @@ else
         var lastName = user.LastName ?? "";
         var fullName = $"{firstName} {lastName}".Trim();
         return string.IsNullOrEmpty(fullName) ? user.UserName ?? "Unknown" : fullName;
-    }
-
-    private string GetUserInitials(ApplicationUser user)
-    {
-        var firstName = user.FirstName ?? "";
-        var lastName = user.LastName ?? "";
-        
-        if (!string.IsNullOrEmpty(firstName) && !string.IsNullOrEmpty(lastName))
-        {
-            return $"{firstName[0]}{lastName[0]}".ToUpper();
-        }
-        
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            return user.Email[0].ToString().ToUpper();
-        }
-        
-        return "U";
     }
 
     private string GetRoleBadgeClass(string role)
