@@ -14,5 +14,7 @@ public interface IKnowledgeService
 
     public Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
-    public Task<string> ImportTextContentAsync(string content, string title, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
+    public Task<string> ImportTextContentAsync(string content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
+
+    public Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default);
 }

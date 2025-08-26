@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components.Forms;
 using NTG.Agent.Shared.Dtos.Documents;
+using NTG.Agent.Shared.Dtos.Services;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
@@ -23,7 +24,13 @@ public class DocumentClient(HttpClient httpClient)
             if (file.Size > 0)
             {
                 var fileContent = new StreamContent(file.OpenReadStream(maxFileSize));
-                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+                
+                // Get content type from file or fallback to detection by extension
+                var contentType = !string.IsNullOrEmpty(file.ContentType) 
+                    ? file.ContentType 
+                    : FileTypeService.GetContentType(file.Name);
+                    
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
                 content.Add(fileContent, "files", file.Name);
             }
         }
@@ -66,5 +73,52 @@ public class DocumentClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();
         return result;
+    }
+
+    public async Task<(Stream Content, string FileName, string ContentType)> DownloadDocumentAsync(Guid agentId, Guid documentId)
+    {
+        var response = await httpClient.GetAsync($"api/documents/download/{agentId}/{documentId}");
+        response.EnsureSuccessStatusCode();
+
+        var content = await response.Content.ReadAsStreamAsync();
+        
+        // Extract filename from Content-Disposition header if available
+        var fileName = "document";
+        if (response.Content.Headers.ContentDisposition?.FileName != null)
+        {
+            fileName = response.Content.Headers.ContentDisposition.FileName.Trim('"');
+        }
+        
+        // Get content type from response headers
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+        
+        return (content, fileName, contentType);
+    }
+
+    public async Task<(string Content, string ContentType)> ViewDocumentAsync(Guid agentId, Guid documentId)
+    {
+        var maxPreviewFileSizeBytes = 30 * 1024 * 1024; // 30 MB limit for preview
+        var response = await httpClient.GetAsync($"api/documents/download/{agentId}/{documentId}");
+        response.EnsureSuccessStatusCode();
+
+        var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+
+        // Check content length to avoid loading very large files
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > maxPreviewFileSizeBytes)
+        {
+            throw new InvalidOperationException($"Document is too large to preview (> {maxPreviewFileSizeBytes}MB)");
+        }
+
+        // Only read as string for text-based content types
+        if (FileTypeService.IsTextBasedContentType(contentType))
+        {
+            var content = await response.Content.ReadAsStringAsync();
+            return (content, contentType);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Content type '{contentType}' is not suitable for text preview");
+        }
     }
 }
