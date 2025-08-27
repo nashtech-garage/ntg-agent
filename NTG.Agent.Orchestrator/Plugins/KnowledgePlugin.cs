@@ -11,19 +11,19 @@ public sealed class KnowledgePlugin(IKnowledgeService knowledgeService, List<str
     private readonly List<string> _tags = tags ?? throw new ArgumentNullException(nameof(tags));
 
     [KernelFunction, Description("query knowledge base - pass the COMPLETE user request unchanged including words like 'search', 'find', 'list'")]
-    public async Task<string> QueryAsync(string query)
+    public async Task<KnowledgeResult> QueryAsync(string query)
     {
         bool useAsk = ShouldUseAsk(query);
         
         if (useAsk)
         {
             var answer = await _knowledgeService.AskAsync(query, Guid.Empty, _tags);
-            return FormatAnswer(answer);
+            return new KnowledgeResult { Answer = answer };
         }
         else
         {
-            var searchResult = await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
-            return FormatSearchResults(searchResult);
+            var result = await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
+            return new KnowledgeResult { SearchResult = result };
         }
     }
 
@@ -49,26 +49,11 @@ public sealed class KnowledgePlugin(IKnowledgeService knowledgeService, List<str
         // Default to Search for better reliability
         return false;
     }
+}
 
-    private static string FormatAnswer(MemoryAnswer answer)
-    {
-        var result = answer.Result;
-        
-        if (answer.RelevantSources?.Count > 0)
-        {
-            result += "\n\nSources:\n";
-            result += string.Join("\n", answer.RelevantSources.Select(s => $"- {s.SourceName}"));
-        }
-        
-        return result;
-    }
-
-    private static string FormatSearchResults(SearchResult searchResult)
-    {
-        if (searchResult.Results?.Count == 0) return "No relevant documents found.";
-        
-        var results = searchResult.Results?.Take(3);
-        return string.Join("\n\n", results!.Select(r => 
-            $"**{r.SourceName}**\n{r.Partitions.FirstOrDefault()?.Text ?? "No content available"}\n(Relevance: {r.Partitions.FirstOrDefault()?.Relevance:F2})"));
-    }
+public class KnowledgeResult
+{
+    public MemoryAnswer? Answer { get; set; }
+    public SearchResult? SearchResult { get; set; }
+    public bool IsAnswer => Answer != null;
 }
