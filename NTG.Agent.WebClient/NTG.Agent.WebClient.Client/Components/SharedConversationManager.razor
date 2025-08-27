@@ -1,4 +1,5 @@
 ﻿@using NTG.Agent.Shared.Dtos.SharedConversations
+@using NTG.Agent.Shared.Dtos.Enums
 @using Microsoft.AspNetCore.Components
 @using Microsoft.JSInterop
 @inject SharedConversationClient SharedConversationClient
@@ -9,7 +10,7 @@
 <div class="modal-overlay" @onclick="@(() => OnClose.InvokeAsync())">
     <div class="manage-shared-modal" @onclick:stopPropagation>
         <div class="modal-header">
-            <h3 class="modal-title">Manage Shared Conversations</h3>
+            <h3 class="modal-title">Manage Shared Conversations & Messages</h3>
             <button class="close-button" @onclick="@(() => OnClose.InvokeAsync())">×</button>
         </div>
 
@@ -25,8 +26,8 @@
             {
                 <div class="empty-state">
                     <div class="empty-icon">🔗</div>
-                    <h4>No shared conversations</h4>
-                    <p>You haven't shared any conversations yet. Share a conversation to see it here.</p>
+                    <h4>No shared content</h4>
+                    <p>You haven't shared any conversations or messages yet. Share content to see it here.</p>
                 </div>
             }
             else
@@ -46,7 +47,7 @@
                     {
                         <div class="table-row @(item.IsActive ? "" : "inactive")">
                             <div class="cell name-column">
-                                <div class="conversation-name" title="@item.Name" 
+                                <div class="conversation-name" title="@item.Name - Click to view shared @(item.Type.ToString().ToLower())" 
                                      @onclick="() => ViewSharedConversation(item.Id)"
                                      style="cursor: pointer;">
                                     @item.Name
@@ -94,7 +95,7 @@
                                 <div class="action-buttons">
                                     <button class="action-btn view-btn" 
                                             @onclick="() => ViewSharedConversation(item.Id)"
-                                            title="View shared conversation">
+                                            title="View shared @(item.Type.ToString().ToLower())">
                                         <i class="bi bi-eye"></i>
                                     </button>
                                     
@@ -116,7 +117,7 @@
                                     {
                                         <button class="action-btn reshare-btn" 
                                                 @onclick="() => ConfirmReshare(item)"
-                                                title="Reshare conversation">
+                                                title="Reshare @(item.Type.ToString().ToLower())">
                                             <i class="bi bi-share"></i>
                                         </button>
                                     }
@@ -139,7 +140,7 @@
             <div class="edit-expiration-overlay">
                 <div class="edit-expiration-modal">
                     <h4>Update Expiration</h4>
-                    <p>Change the expiration date for this shared conversation.</p>
+                    <p>Change the expiration date for this shared @(selectedItem?.Type.ToString().ToLower() ?? "item").</p>
                     
                     <div class="expiration-options">
                         <label class="expiration-option">
@@ -262,7 +263,7 @@
         return "Active";
     }
 
-    #region View Shared Conversation
+    #region View Shared Content
     private async Task ViewSharedConversation(Guid shareId)
     {
         var url = $"{NavigationManager.BaseUri.TrimEnd('/')}/share/{shareId}";
@@ -342,15 +343,16 @@
 
     #endregion
 
-    #region Unshare/Reshare cnversation
+    #region Unshare/Reshare content
     private void ConfirmUnshare(SharedConversationListItem item)
     {
         selectedItem = item;
-        confirmTitle = "Unshare Conversation";
-        confirmMessage = $"Are you sure you want to unshare this conversation? The shared link will no longer be accessible.";
+        var itemType = item.Type.ToString().ToLower();
+        confirmTitle = $"Unshare {char.ToUpper(itemType[0])}{itemType.Substring(1)}";
+        confirmMessage = $"Are you sure you want to unshare this {itemType}? The shared link will no longer be accessible.";
         confirmButtonText = "Unshare";
         confirmButtonClass = "unshare-button";
-        confirmAction = UnshareConversation;
+        confirmAction = UnshareContent;
         showConfirmDialog = true;
         StateHasChanged();
     }
@@ -358,41 +360,43 @@
     private void ConfirmReshare(SharedConversationListItem item)
     {
         selectedItem = item;
-        confirmTitle = "Reshare Conversation";
-        confirmMessage = $"Are you sure you want to reshare this conversation?";
+        var itemType = item.Type.ToString().ToLower();
+        confirmTitle = $"Reshare {char.ToUpper(itemType[0])}{itemType.Substring(1)}";
+        confirmMessage = $"Are you sure you want to reshare this {itemType}?";
         confirmButtonText = "Reshare";
         confirmButtonClass = "save-button";
-        confirmAction = ReshareConversation;
+        confirmAction = ReshareContent;
         showConfirmDialog = true;
         StateHasChanged();
     }
 
-    private async Task UnshareConversation()
+    private async Task UnshareContent()
     {
         if (selectedItem == null) return;
         await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, false);
     }
 
-    private async Task ReshareConversation()
+    private async Task ReshareContent()
     {
         if (selectedItem == null) return;
         await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
     }
     #endregion
 
-    #region Delete Conversation
+    #region Delete Shared Content
     private void ConfirmDelete(SharedConversationListItem item)
     {
         selectedItem = item;
-        confirmTitle = "Delete Shared Conversation";
-        confirmMessage = $"Are you sure you want to permanently delete this shared conversation? This action cannot be undone.";
+        var itemType = item.Type.ToString().ToLower();
+        confirmTitle = $"Delete Shared {char.ToUpper(itemType[0])}{itemType.Substring(1)}";
+        confirmMessage = $"Are you sure you want to permanently delete this shared {itemType}? This action cannot be undone.";
         confirmButtonText = "Delete";
         confirmButtonClass = "delete-button";
-        confirmAction = DeleteConversation;
+        confirmAction = DeleteSharedContent;
         showConfirmDialog = true;
         StateHasChanged();
     }
-    private async Task DeleteConversation()
+    private async Task DeleteSharedContent()
     {
         if (selectedItem == null) return;
         await SharedConversationClient.DeleteSharedConversationAsync(selectedItem.Id);

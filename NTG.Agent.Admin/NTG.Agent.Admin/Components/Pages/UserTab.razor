@@ -364,10 +364,14 @@ else
 
                         <div class="mb-3">
                             <div class="form-check">
-                                <InputCheckbox class="form-check-input" @bind-Value="userModel.EmailConfirmed" />
+                                <InputCheckbox class="form-check-input" @bind-Value="userModel.EmailConfirmed" disabled="@(isEditMode && userModel.Id == currentUserId)" />
                                 <label class="form-check-label">
                                     Email Confirmed
                                 </label>
+                                @if (isEditMode && userModel.Id == currentUserId)
+                                {
+                                    <div class="form-text">You cannot modify your own email confirmation status.</div>
+                                }
                             </div>
                         </div>
 
