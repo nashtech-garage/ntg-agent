@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -18,78 +19,43 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IOcrEngine? _ocrEngine;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
-    public AgentService(Kernel kernel, AgentDbContext agentDbContext, IKnowledgeService knowledgeService)
+    public AgentService(
+        Kernel kernel,
+        AgentDbContext agentDbContext,
+        IKnowledgeService knowledgeService)
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
+        _ocrEngine = kernel.Services.GetService<IOcrEngine>();
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
+        var history = await PrepareConversationHistory(userId, conversation);
+        var tags = await GetUserTags(userId);
 
-        List<ChatMessage> messagesToUse = await PrepareConversationHistory(userId, conversation);
-
-        List<string> tags = new List<string>();
-
-        if (userId is not null)
+        var responseBuilder = new StringBuilder();
+        await foreach (var chunk in InvokePromptStreamingInternalAsync(promptRequest, history, tags))
         {
-            var roleIds = await _agentDbContext.UserRoles.Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
-            tags = await _agentDbContext.TagRoles
-                .Where(c => roleIds.Contains(c.RoleId))
-                .Select(c => c.TagId.ToString())
-                .ToListAsync();
-        }
-        else
-        {
-            var anonymousRoleIdGuid = new Guid(Constants.AnonymousRoleId);
-            tags = await _agentDbContext.TagRoles
-                .Where(c => c.RoleId == anonymousRoleIdGuid)
-                .Select(c => c.TagId.ToString())
-                .ToListAsync();
+            responseBuilder.Append(chunk);
+            yield return chunk;
         }
 
-        var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, messagesToUse, tags))
-        {
-            agentMessageSb.Append(item);
-            yield return item;
-        }
-
-        // Rename conversation if unnamed
-        if (conversation.Name == "New Conversation")
-        {
-            conversation.Name = await GenerateConversationName(promptRequest.Prompt);
-            _agentDbContext.Conversations.Update(conversation);
-        }
-
-        var userMessage = new ChatMessage
-        {
-            UserId = userId,
-            Conversation = conversation,
-            Content = promptRequest.Prompt,
-            Role = ChatRole.User
-        };
-
-        var assistantMessage = new ChatMessage
-        {
-            UserId = userId,
-            Conversation = conversation,
-            Content = agentMessageSb.ToString(),
-            Role = ChatRole.Assistant
-        };
-
-        _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
-        await _agentDbContext.SaveChangesAsync();
+        await SaveMessages(userId, conversation, promptRequest.Prompt, responseBuilder.ToString());
     }
+
+    #region Conversation Helpers
 
     private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequest promptRequest)
     {
-        Guid conversationId = promptRequest.ConversationId;
+        var conversationId = promptRequest.ConversationId;
         Conversation? conversation;
+
         if (userId.HasValue)
         {
             conversation = await _agentDbContext.Conversations
@@ -97,116 +63,114 @@ public class AgentService
         }
         else
         {
-            if (!Guid.TryParse(promptRequest.SessionId, out Guid sessionId))
-            {
+            if (!Guid.TryParse(promptRequest.SessionId, out var sessionId))
                 throw new InvalidOperationException("A valid Session ID is required for unauthenticated requests.");
-            }
+
             conversation = await _agentDbContext.Conversations
                 .FirstOrDefaultAsync(c => c.Id == conversationId && c.SessionId == sessionId);
         }
 
-        if (conversation is null)
+        return conversation ?? throw new InvalidOperationException($"Conversation {conversationId} not found.");
+    }
+
+    private async Task<List<string>> GetUserTags(Guid? userId)
+    {
+        if (userId is not null)
         {
-            throw new InvalidOperationException($"Conversation with ID {conversationId} does not exist.");
+            var roleIds = await _agentDbContext.UserRoles
+                .Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
+
+            return await _agentDbContext.TagRoles
+                .Where(c => roleIds.Contains(c.RoleId))
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
         }
-        return conversation;
+        else
+        {
+            var anonymousRoleId = new Guid(Constants.AnonymousRoleId);
+            return await _agentDbContext.TagRoles
+                .Where(c => c.RoleId == anonymousRoleId)
+                .Select(c => c.TagId.ToString())
+                .ToListAsync();
+        }
     }
 
     private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
     {
-        var historyMessages = await _agentDbContext.ChatMessages
+        var history = await _agentDbContext.ChatMessages
             .Where(m => m.ConversationId == conversation.Id)
             .OrderBy(m => m.UpdatedAt)
             .ToListAsync();
 
-        if (historyMessages.Count > MAX_LATEST_MESSAGE_TO_KEEP_FULL)
-        {
-            var messagesToResummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
-            var summarizedContent = await SummarizeMessagesAsync(messagesToResummarize);
-            var summaryMessage = historyMessages.Where(m => m.IsSummary).FirstOrDefault();
-            if (summaryMessage == null)
-            {
-                summaryMessage = new ChatMessage
-                {
-                    UserId = userId,
-                    Conversation = conversation,
-                    Content = $"Summary of earlier conversation: {summarizedContent}",
-                    Role = ChatRole.System,
-                    IsSummary = true
-                };
-                _agentDbContext.ChatMessages.Add(summaryMessage);
-            }
-            else
-            {
-                summaryMessage.Content = $"Summary of earlier conversation: {summarizedContent}";
-                summaryMessage.UpdatedAt = DateTime.UtcNow;
-                _agentDbContext.ChatMessages.Update(summaryMessage);
-            }
+        if (history.Count <= MAX_LATEST_MESSAGE_TO_KEEP_FULL) return history;
 
-            var optimizedHistoryMessages = new List<ChatMessage>
-            {
-                summaryMessage
-            };
-            optimizedHistoryMessages.AddRange(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL));
-            return optimizedHistoryMessages;
-        }
-        else
+        var toSummarize = history.Take(history.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
+        var summary = await SummarizeMessagesAsync(toSummarize);
+
+        var summaryMsg = history.FirstOrDefault(m => m.IsSummary) ?? new ChatMessage
         {
-            return historyMessages;
-        }
+            UserId = userId,
+            Conversation = conversation,
+            Role = ChatRole.System,
+            IsSummary = true
+        };
+
+        summaryMsg.Content = $"Summary: {summary}";
+        summaryMsg.UpdatedAt = DateTime.UtcNow;
+
+        _agentDbContext.Update(summaryMsg);
+
+        return new List<ChatMessage> { summaryMsg }
+            .Concat(history.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
+            .ToList();
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(PromptRequest promptRequest, List<ChatMessage>? previousMessages, List<string> tags)
+    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply)
     {
-        ChatHistory chatHistory = [];
-        if (previousMessages is not null)
+        if (conversation.Name == "New Conversation")
         {
-            foreach (var msg in previousMessages.OrderBy(m => m.CreatedAt))
+            conversation.Name = await GenerateConversationName(userPrompt);
+            _agentDbContext.Conversations.Update(conversation);
+        }
+
+        _agentDbContext.ChatMessages.AddRange(
+            new ChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
+            new ChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
+        );
+
+        await _agentDbContext.SaveChangesAsync();
+    }
+
+    #endregion
+
+    #region Prompt Building + Streaming
+
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
+        PromptRequest promptRequest,
+        List<ChatMessage> history,
+        List<string> tags)
+    {
+        var chatHistory = new ChatHistory();
+        foreach (var msg in history.OrderBy(m => m.CreatedAt))
+        {
+            var role = msg.Role switch
             {
-                var role = msg.Role switch
-                {
-                    ChatRole.User => AuthorRole.User,
-                    ChatRole.Assistant => AuthorRole.Assistant,
-                    _ => AuthorRole.System
-                };
-                chatHistory.AddMessage(role, msg.Content);
-            }
+                ChatRole.User => AuthorRole.User,
+                ChatRole.Assistant => AuthorRole.Assistant,
+                _ => AuthorRole.System
+            };
+            chatHistory.AddMessage(role, msg.Content);
         }
 
-        var arguments = new KernelArguments(new PromptExecutionSettings
-        {
-            FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-        });
+        // Build prompt based on input
+        var prompt = await BuildPromptAsync(promptRequest);
 
-        Kernel agentKernel = _kernel.Clone();
-        // Build augmented prompt
-        // Choose prompt depending on text + image
-        string prompt;
-        if (!string.IsNullOrEmpty(promptRequest.ImageBase64))
-        {
-            prompt = $@"
-You are given a user query and an image. 
-1. First analyze the image carefully (content, objects, text, context). 
-2. Combine your analysis with the user query: {promptRequest.Prompt}
-3. Search the knowledge base for relevant matches: {{memory.search}}
-4. If the knowledge base has useful info, include it with citations. 
-5. Otherwise, respond based on your reasoning from both the query and the image.";
-        }
-        else
-        {
-            prompt = $@"
-Search the knowledge base: {promptRequest.Prompt}
-Knowledge base will answer: {{memory.search}}
-If the answer is empty, continue answering with your knowledge and tools or plugins. 
-Otherwise reply with the answer and include citations to the relevant information.";
-        }
-
-        var userMessage = new ChatMessageContent();
-        userMessage.Role = AuthorRole.User;
+        var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
 
-        if (!string.IsNullOrEmpty(promptRequest.ImageBase64))
+        if (string.IsNullOrEmpty(promptRequest.ImageBase64) == false && _ocrEngine == null)
         {
+            // Only attach raw image if OCR not available
             userMessage.Items.Add(new ImageContent(
                 Convert.FromBase64String(promptRequest.ImageBase64),
                 promptRequest.ImageContentType ?? "image/png"));
@@ -214,43 +178,92 @@ Otherwise reply with the answer and include citations to the relevant informatio
 
         chatHistory.Add(userMessage);
 
-        agentKernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        var kernel = _kernel.Clone();
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
 
-        ChatCompletionAgent agent = new()
+        var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
-            Kernel = agentKernel,
-            Arguments = arguments,
+            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Kernel = kernel,
+            Arguments = new KernelArguments(new PromptExecutionSettings
+            {
+                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+            })
         };
 
-        var result = agent.InvokeStreamingAsync(chatHistory);
-        await foreach (var item in result)
-        {
+        await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
             yield return item.Message.ToString();
-        }
     }
+
+    private async Task<string> BuildPromptAsync(PromptRequest promptRequest)
+    {
+        if (string.IsNullOrEmpty(promptRequest.ImageBase64))
+        {
+            // Text only
+            return $@"
+Search the knowledge base: {promptRequest.Prompt}
+Knowledge base will answer: {{memory.search}}
+If the answer is empty, continue answering with your knowledge and plugins.";
+        }
+
+        if (_ocrEngine != null)
+        {
+            try
+            {
+                using var ms = new MemoryStream(Convert.FromBase64String(promptRequest.ImageBase64));
+                var text = await _ocrEngine.ExtractTextFromImageAsync(ms);
+
+                return $@"
+                You are given:
+                - An extracted text: {text}
+                - User query: {promptRequest.Prompt}
+
+                Your task:
+                1. Start by clearly presenting the extracted text in a natural, friendly way.
+                2. Search the knowledge base: {{memory.search}}.
+                   - If you find results that are related to the extracted text and be useful, naturally weave them into your answer with a short reference or link.
+                   - If the results are irrelevant or add no value, do not mention them.
+                3. If the knowledge base has nothing useful, simply answer using the extracted text and the user query.
+                4. Keep your tone clear, conversational, and helpful. Do not list unrelated documents or say they are irrelevant.";
+            }
+            catch (Exception ex)
+            {
+                return $"[OCR failed: {ex.Message}]. Proceed analyzing image with query: {promptRequest.Prompt}";
+            }
+        }
+
+        // Fallback: multimodal without OCR
+        return $@"
+You are given a user query and an image. 
+1. Analyze the image (objects, text, context). 
+2. Combine with query: {promptRequest.Prompt}
+3. Search knowledge base: {{memory.search}}
+4. If useful info is found, include it with citations. 
+5. Otherwise, answer from reasoning on query + image.";
+    }
+
+    #endregion
+
+    #region Helpers
 
     private async Task<string> GenerateConversationName(string question)
     {
-        ChatCompletionAgent agent =
-            new()
-            {
-                Name = "ConversationNameGenerator",
-                Instructions = @"Generate a concise and descriptive name for the conversation based on the user's question. Maximum 5 words",
-                Kernel = _kernel
-            };
-        var sb = new StringBuilder();
-        await foreach (AgentResponseItem<ChatMessageContent> response in agent.InvokeAsync(question))
+        var agent = new ChatCompletionAgent
         {
-            sb.Append(response.Message);
-        }
+            Name = "ConversationNameGenerator",
+            Instructions = "Generate a short, descriptive conversation name (≤ 5 words).",
+            Kernel = _kernel
+        };
+
+        var sb = new StringBuilder();
+        await foreach (var res in agent.InvokeAsync(question)) sb.Append(res.Message);
         return sb.ToString();
     }
 
     private async Task<string> SummarizeMessagesAsync(List<ChatMessage> messages)
     {
-        if (messages == null || messages.Count == 0) return string.Empty;
+        if (messages.Count == 0) return string.Empty;
 
         var chatHistory = new ChatHistory();
         foreach (var msg in messages)
@@ -264,19 +277,17 @@ Otherwise reply with the answer and include citations to the relevant informatio
             chatHistory.AddMessage(role, msg.Content);
         }
 
-        ChatCompletionAgent summarizer = new()
+        var summarizer = new ChatCompletionAgent
         {
             Name = "ConversationSummarizer",
-            Instructions = "Summarize the following chat into a concise paragraph that captures key points.",
+            Instructions = "Summarize the chat into a concise paragraph.",
             Kernel = _kernel
         };
 
         var sb = new StringBuilder();
-        await foreach (var response in summarizer.InvokeAsync(chatHistory))
-        {
-            sb.Append(response.Message);
-        }
+        await foreach (var res in summarizer.InvokeAsync(chatHistory)) sb.Append(res.Message);
         return sb.ToString();
     }
 
+    #endregion
 }

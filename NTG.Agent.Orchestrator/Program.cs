@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory.DataFormats.AzureAIDocIntel;
+using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
@@ -14,6 +16,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.ClientModel;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.KernelMemory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -101,6 +105,22 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
             openAIClient: client,
             modelId: config["GitHub:Models:ModelId"]!,
             serviceId: "github");
+    }
+
+    // Add Azure Document Intelligence OCR if configured
+    if (!string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:Endpoint"]) &&
+        !string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:ApiKey"]))
+    {
+#pragma warning disable KMEXP02 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        kernelBuilder.Services.AddSingleton<IOcrEngine>(_ =>
+            new AzureAIDocIntelEngine(new AzureAIDocIntelConfig
+            {
+                Endpoint = config["Azure:DocumentIntelligence:Endpoint"]!,
+                APIKey = config["Azure:DocumentIntelligence:ApiKey"]!,
+                Auth = AzureAIDocIntelConfig.AuthTypes.APIKey
+            })
+        );
+#pragma warning restore KMEXP02 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
     }
 
     var kernel = kernelBuilder.Build();

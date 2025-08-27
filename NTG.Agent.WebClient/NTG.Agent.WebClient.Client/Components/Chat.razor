@@ -37,13 +37,11 @@ else if (ConversationId.HasValue)
                     CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                     <div class="chat-actions mt-2 ms-2">
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
-                            <i
-                            class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                            <i class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleDislike(item))"
                         title="Dislike">
-                            <i
-                            class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
+                            <i class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleComment(item))" title="Comment">
                             <i class="bi bi-chat-dots"></i>
@@ -71,8 +69,8 @@ else if (ConversationId.HasValue)
                     @if (!string.IsNullOrEmpty(item.ImageBase64))
                     {
                         <img src="data:@item.ImageContentType;base64,@item.ImageBase64"
-                             class="img-fluid rounded shadow-sm"
-                             style="max-width: 200px;" />
+                        class="img-fluid rounded shadow-sm"
+                        style="max-width: 200px;" />
                     }
                     @if (!string.IsNullOrEmpty(item.Message))
                     {
@@ -86,6 +84,21 @@ else if (ConversationId.HasValue)
     </div>
     <div class="form-group row">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            @if (!string.IsNullOrEmpty(attachedImageBase64) && showImagePreview)
+            {
+                <div class="input-group mb-3 offset-md-1">
+                    <span class="d-flex align-items-center px-2">
+                        <img src="data:@attachedImageContentType;base64,@attachedImageBase64"
+                        class="img-thumbnail me-2"
+                        style="max-height: 250px; max-width: 250px;" />
+                        <button class="btn btn-sm btn-outline-danger"
+                        type="button"
+                        @onclick="() => { attachedImageBase64 = null; attachedImageContentType = null; StateHasChanged(); }">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </span>
+                </div>
+            }
             <div class="input-group mb-3">
                 <label for="fileInput" class="btn btn-outline-secondary border-0 bg-transparent d-flex align-items-center px-3">
                     <i class="bi bi-paperclip fs-5"></i>
@@ -110,7 +123,26 @@ else
         <h2 class="mb-4">What can I help with?</h2>
         <div class="form-group w-100">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
+                @if (!string.IsNullOrEmpty(attachedImageBase64) && showImagePreview)
+                {
+                    <div class="input-group mb-3 offset-md-1">
+                        <span class="d-flex align-items-center px-2">
+                            <img src="data:@attachedImageContentType;base64,@attachedImageBase64"
+                            class="img-thumbnail me-2"
+                            style="max-height: 250px; max-width: 250px;" />
+                            <button class="btn btn-sm btn-outline-danger"
+                            type="button"
+                            @onclick="() => { attachedImageBase64 = null; attachedImageContentType = null; StateHasChanged(); }">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </span>
+                    </div>
+                }
                 <div class="input-group mb-3">
+                    <label for="fileInput" class="btn btn-outline-secondary border-0 bg-transparent d-flex align-items-center px-3">
+                        <i class="bi bi-paperclip fs-5"></i>
+                    </label>
+                    <InputFile id="fileInput" class="d-none" OnChange="OnFileSelected" accept="image/*" />
                     <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
                     @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
                     autocapitalize="off" placeholder="Ask anything" />
@@ -122,17 +154,19 @@ else
                         </button>
                     </div>
                 </div>
+
+
             </div>
         </div>
     </div>
 }
 
-<ShareConversationModal IsVisible="showShareModal" 
-                        ConversationId="ConversationId" 
-                        ConversationName=""
-                        ChatId="shareChatId"
-                        OnClose="CloseShareModal" 
-                        OnSharedConversationChanged="HandleSharedConversationChanged" />
+<ShareConversationModal IsVisible="showShareModal"
+ConversationId="ConversationId"
+ConversationName=""
+ChatId="shareChatId"
+OnClose="CloseShareModal"
+OnSharedConversationChanged="HandleSharedConversationChanged" />
 
 @code {
 
@@ -149,6 +183,7 @@ else
     private bool isAuthenticated = false;
     private bool unauthorized = false;
     private bool showShareModal = false;
+    private bool showImagePreview = false;
     private Guid? shareChatId = null;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
@@ -176,13 +211,13 @@ else
                 foreach (var item in chatMessages)
                 {
                     chatHistory.Add(new ChatMessageItem
-                    {
-                        Id = item.Id,
-                        IsSystem = item.Role == (int)ChatRole.Assistant,
-                        Message = item.Content,
-                        Reaction = item.Reaction,
-                        UserComment = item.UserComment
-                    });
+                        {
+                            Id = item.Id,
+                            IsSystem = item.Role == (int)ChatRole.Assistant,
+                            Message = item.Content,
+                            Reaction = item.Reaction,
+                            UserComment = item.UserComment
+                        });
                 }
                 StateHasChanged();
             }
@@ -213,15 +248,7 @@ else
 
         attachedImageBase64 = Convert.ToBase64String(buffer);
         attachedImageContentType = file.ContentType;
-
-        // Show inline preview in chat
-        chatHistory.Add(new ChatMessageItem
-            {
-                IsSystem = false,
-                Message = string.Empty, // no text needed
-                ImageBase64 = attachedImageBase64,
-                ImageContentType = attachedImageContentType
-            });
+        showImagePreview = true;
 
         StateHasChanged();
     }
@@ -255,6 +282,7 @@ else
         var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
+        showImagePreview = false;
         StateHasChanged();
 
         // 🚀 Send text + image to backend
@@ -321,7 +349,7 @@ else
             await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
         }
     }
-    
+
     private async Task ToggleLike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Like ? ReactionType.None : ReactionType.Like;
