@@ -35,13 +35,13 @@
 }
 
 .tree-item-container {
-    margin: 2px 0;
+    margin: 3px 10px;
 }
 
 .tree-item {
     display: flex;
     align-items: center;
-    padding: 6px 8px;
+    padding: 8px 12px;
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.15s ease-in-out;
@@ -60,12 +60,12 @@
 }
 
 .toggle-icon {
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 4px;
+    margin-right: 6px;
     cursor: pointer;
     color: #555;
     border-radius: 2px;
@@ -87,7 +87,7 @@
     }
 
 .item-icon {
-    margin-right: 8px;
+    margin-right: 10px;
     display: flex;
     align-items: center;
 }
@@ -118,8 +118,8 @@
 }
 
 .folder-children {
-    margin-left: 4px;
-    padding-left: 12px;
+    margin-left: 6px;
+    padding-left: 16px;
     border-left: 1.5px dashed #ddd;
     transition: all 0.2s ease-in-out;
 }
@@ -187,4 +187,86 @@
     vertical-align: middle;
     margin-right: 1px;
     filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.1));
+}
+
+@media (max-width: 900px) {
+    .tree-folder {
+        min-width: 100%;
+        max-width: 100%;
+        font-size: 14px;
+        box-shadow: none;
+        border-radius: 0;
+        background: transparent;
+        border: none;
+    }
+    .folder-header {
+        padding: 10px 12px;
+        font-size: 16px;
+        background: transparent;
+        border-bottom: none;
+    }
+    .folder-header h6 {
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .folder-tree {
+        max-height: none;
+        padding: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+    .tree-item-container {
+        margin: 0 0 8px 0;
+    }
+    .tree-item {
+        padding: 10px 12px;
+        font-size: 15px;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        margin-bottom: 6px;
+        border: 1px solid #e0e0e0;
+    }
+    .tree-item.selected {
+        background: #e3f2fd;
+        border-left: 4px solid #1976d2;
+        color: #1976d2;
+    }
+    .item-name {
+        font-size: 15px;
+        font-weight: 500;
+        color: #1976d2;
+    }
+    .toggle-icon {
+        width: 18px;
+        height: 18px;
+        margin-right: 6px;
+    }
+    .item-icon {
+        margin-right: 8px;
+    }
+    .folder-children {
+        margin-left: 0;
+        padding-left: 16px;
+        border-left: 2px dashed #eee;
+    }
+}
+
+@media (max-width: 600px) {
+    .tree-item {
+        padding: 8px 8px;
+        font-size: 13px;
+    }
+    .item-name {
+        font-size: 13px;
+    }
+}
+
+.folder-header h6 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 1rem;
 }

@@ -25,7 +25,7 @@
         }
         else if (documents.Any())
         {
-            <div class="table-responsive">
+            <div class="d-none d-md-block table-responsive">
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
@@ -102,6 +102,61 @@
                         }
                     </tbody>
                 </table>
+            </div>
+            <!-- Mobile Card View -->
+            <div class="d-block d-md-none">
+                @foreach (var doc in documents)
+                {
+                    <div class="document-card mb-3 p-3 shadow-sm rounded bg-white">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="@FileTypeService.GetFileIcon(doc.Name) me-2 fs-4"></i>
+                            <span class="fw-bold">@doc.Name</span>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-muted">Type:</span>
+                            <span class="badge @FileTypeService.GetTypeBadgeClass(doc.Name) ms-1">
+                                @FileTypeService.GetFileTypeDescription(doc.Name)
+                            </span>
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-muted">Tags:</span>
+                            @if (doc.Tags.Any())
+                            {
+                                @foreach (var tag in doc.Tags.Take(3))
+                                {
+                                    <span class="badge bg-primary badge-sm ms-1">@tag</span>
+                                }
+                                @if (doc.Tags.Count > 3)
+                                {
+                                    <span class="badge bg-secondary badge-sm ms-1">+@(doc.Tags.Count - 3)</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted ms-1">No tags</span>
+                            }
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-muted">Uploaded:</span> @doc.UpdatedAt.ToString("MMM dd, yyyy")
+                        </div>
+                        <div class="mb-1">
+                            <span class="text-muted">Size:</span> <span class="text-muted">--</span>
+                        </div>
+                        <div class="mt-2">
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" @onclick="() => RemoveDocument(doc)" title="Remove">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         }
         else

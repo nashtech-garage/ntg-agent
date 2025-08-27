@@ -1,0 +1,178 @@
+/* Responsive styles for DocumentsTab */
+@media (max-width: 768px) {
+    .tab-pane {
+        padding: 0 6px;
+    }
+    .mb-4.d-flex {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 10px;
+    }
+    .table-responsive {
+        overflow-x: auto;
+    }
+    .table {
+        font-size: 13px;
+    }
+    .modal-dialog {
+        max-width: 98vw;
+        margin: 0 auto;
+    }
+    .modal-content {
+        border-radius: 8px;
+    }
+    .text-center.py-5 {
+        padding: 2rem 0 !important;
+    }
+    .btn {
+        font-size: 15px;
+        padding: 8px 16px;
+    }
+    .display-1 {
+        font-size: 2.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .table {
+        font-size: 12px;
+    }
+    .modal-dialog {
+        max-width: 100vw;
+        margin: 0;
+    }
+    .modal-content {
+        padding: 4px;
+    }
+    .btn {
+        font-size: 14px;
+        padding: 7px 12px;
+    }
+    .mb-4.d-flex {
+        gap: 6px;
+    }
+}
+
+.table td, .table th {
+    white-space: normal;
+    word-break: break-word;
+}
+
+@media (max-width: 480px) {
+    .btn-primary {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+}
+
+/* Document Card Styles for Mobile */
+.document-card {
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-radius: 12px;
+    background: #fff;
+    transition: box-shadow 0.2s;
+    position: relative;
+}
+.document-card:hover {
+    box-shadow: 0 4px 16px rgba(0,123,255,0.10);
+    border-color: #90caf9;
+}
+.document-card .fw-bold {
+    font-size: 1.08rem;
+    color: #1976d2;
+    word-break: break-all;
+}
+.document-card .fs-4 {
+    font-size: 1.5rem !important;
+    color: #388e3c;
+}
+.document-card .badge {
+    font-size: 0.85rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+}
+.document-card .badge.bg-primary {
+    background: #1976d2;
+}
+.document-card .badge.bg-secondary {
+    background: #757575;
+}
+.document-card .badge-sm {
+    font-size: 0.78rem;
+    padding: 2px 8px;
+}
+.document-card .btn-group {
+    display: flex;
+    gap: 0.5rem;
+}
+.document-card .btn {
+    flex: 1 1 0;
+    border-radius: 6px;
+    font-size: 1rem;
+    padding: 7px 0;
+    min-width: 0;
+}
+.document-card .btn-outline-primary {
+    border-color: #1976d2;
+    color: #1976d2;
+}
+.document-card .btn-outline-primary:hover {
+    background: #e3f2fd;
+    color: #0d47a1;
+}
+.document-card .btn-outline-secondary {
+    border-color: #0288d1;
+    color: #0288d1;
+}
+.document-card .btn-outline-secondary:hover {
+    background: #e1f5fe;
+    color: #01579b;
+}
+.document-card .btn-outline-danger {
+    border-color: #c62828;
+    color: #c62828;
+}
+.document-card .btn-outline-danger:hover {
+    background: #ffebee;
+    color: #b71c1c;
+}
+.document-card .text-muted {
+    font-size: 0.95rem;
+}
+.document-card .mb-1 {
+    margin-bottom: 0.35rem !important;
+}
+.document-card .mt-2 {
+    margin-top: 0.7rem !important;
+}
+
+@media (max-width: 480px) {
+    .document-card {
+        padding: 10px 7px;
+    }
+    .document-card .fw-bold {
+        font-size: 1rem;
+    }
+    .document-card .fs-4 {
+        font-size: 1.2rem !important;
+    }
+}
+
+/* Tablet/iPad: Use card view for <= 900px */
+@media (max-width: 900px) {
+    .d-md-block {
+        display: none !important;
+    }
+    .d-md-none {
+        display: block !important;
+    }
+}
+@media (min-width: 901px) {
+    .d-md-block {
+        display: block !important;
+    }
+    .d-md-none {
+        display: none !important;
+    }
+}
