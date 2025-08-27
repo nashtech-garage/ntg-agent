@@ -16,7 +16,7 @@
     }
     else if (chatHistory.Count == 0)
     {
-        <div class="p-3 text-muted">No messages in this shared conversation.</div>
+        <div class="p-3 text-muted">No messages in this shared conversation/chat.</div>
     }
     else
     {
@@ -75,17 +75,17 @@
             {
                 errorMessage = result.Reason switch
                 {
-                    "NOT_FOUND" => "This shared conversation was not found.",
-                    "INACTIVE" => "This shared conversation is no longer active.",
-                    "EXPIRED" => "This shared conversation has expired.",
-                    _ => "Unable to load this shared conversation."
+                    "NOT_FOUND" => "This shared conversation/chat was not found.",
+                    "INACTIVE" => "This shared conversation/chat is no longer active.",
+                    "EXPIRED" => "This shared conversation/chat has expired.",
+                    _ => "Unable to load this shared conversation/chat."
                 };
                 loadSuccess = false;
             }
         }
         catch (Exception)
         {
-            errorMessage = "An unexpected error occurred while loading the shared conversation.";
+            errorMessage = "An unexpected error occurred while loading the shared conversation/chat.";
             loadSuccess = false;
         }
         finally

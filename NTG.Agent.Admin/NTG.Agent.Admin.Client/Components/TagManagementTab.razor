@@ -5,12 +5,12 @@
 
 <div class="p-4">
     <!-- Header with Add Tag Button -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
+    <div class="d-flex justify-content-between align-items-center mb-4 header-section">
+        <div class="flex-grow-1">
             <h4 class="mb-1">Tags Management</h4>
-            <p class="text-muted mb-0">Manage tags and their role assignments</p>
+            <p class="text-muted mb-0 d-none d-sm-block">Manage tags and their role assignments</p>
         </div>
-        <button class="btn btn-primary" @onclick="ShowCreateTagModal">
+        <button class="btn btn-primary create-tag-btn" @onclick="ShowCreateTagModal">
             <i class="bi bi-plus-circle me-2"></i>Create Tag
         </button>
     </div>
@@ -52,7 +52,8 @@
             <div class="card-body p-0">
                 @if (tags?.Any() == true)
                 {
-                    <div class="table-responsive">
+                    <!-- Desktop Table View -->
+                    <div class="table-responsive d-none d-md-block">
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
@@ -124,6 +125,67 @@
                                 }
                             </tbody>
                         </table>
+                    </div>
+                    
+                    <!-- Mobile Card View -->
+                    <div class="d-block d-md-none p-3">
+                        @foreach (var tag in tags)
+                        {
+                            <div class="tag-card mb-3 p-3 shadow-sm rounded bg-white">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="badge bg-primary fs-6">@tag.Name</span>
+                                    <small class="text-muted">@tag.CreatedAt.ToString("MMM dd")</small>
+                                </div>
+                                
+                                <div class="mb-2 d-flex align-items-center flex-wrap">
+                                    <strong class="text-muted small me-2">Assigned Roles:</strong>
+                                    @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
+                                    {
+                                        <div class="d-flex flex-wrap gap-1">
+                                            @foreach (var tagRole in tagRoles[tag.Id])
+                                            {
+                                                var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
+                                                if (role != null)
+                                                {
+                                                    <span class="badge bg-secondary badge-sm">@role.Name</span>
+                                                }
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">No roles assigned</span>
+                                    }
+                                </div>
+                                
+                                <div class="mb-2 d-flex align-items-center flex-wrap">
+                                    <strong class="text-muted small me-2">Documents:</strong>
+                                    @if (tag.DocumentCount > 0)
+                                    {
+                                        <span class="badge bg-info">@tag.DocumentCount documents</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">No documents</span>
+                                    }
+                                </div>
+                                
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-outline-secondary btn-sm flex-fill" @onclick="() => ShowEditTagModal(tag)" title="Edit">
+                                        <i class="bi bi-pencil me-1"></i>Edit
+                                    </button>
+                                    <button class="btn btn-outline-primary btn-sm flex-fill" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
+                                        <i class="bi bi-people me-1"></i>Roles
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm flex-fill" 
+                                            @onclick="() => ShowDeleteConfirmation(tag)" 
+                                            disabled="@(tag.DocumentCount > 0)"
+                                            title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                        <i class="bi bi-trash me-1"></i>Delete
+                                    </button>
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
                 else
@@ -290,20 +352,20 @@
     private List<TagDto> tags = new();
     private List<RoleDto> availableRoles = new();
     private Dictionary<Guid, List<TagRoleDto>> tagRoles = new();
-    
+
     private bool isLoading = true;
     private bool isSaving = false;
     private bool isDeleting = false;
-    
+
     private string searchQuery = string.Empty;
     private string errorMessage = string.Empty;
     private Timer? searchTimer;
-    
+
     // Modal states
     private bool showTagModal = false;
     private bool showRolesModal = false;
     private bool showDeleteModal = false;
-    
+
     // Edit states
     private TagDto? editingTag = null;
     private TagDto? selectedTag = null;
@@ -321,17 +383,17 @@
         try
         {
             isLoading = true;
-            errorMessage = string.Empty; // Clear previous errors
-            
+            errorMessage = string.Empty;
+
             // Load tags and roles in parallel
             var tagsTask = TagClient.GetTagsAsync(searchQuery);
             var rolesTask = TagClient.GetAvailableRolesAsync();
-            
+
             await Task.WhenAll(tagsTask, rolesTask);
-            
+
             tags = await tagsTask;
             availableRoles = await rolesTask;
-            
+
             // Load roles for each tag
             tagRoles.Clear();
             foreach (var tag in tags)
@@ -406,16 +468,14 @@
         try
         {
             isSaving = true;
-            tagValidationError = string.Empty; // Clear previous validation errors
+            tagValidationError = string.Empty;
 
             if (editingTag == null)
             {
-                // Create new tag
                 await TagClient.CreateTagAsync(new TagCreateDto(tagName.Trim()));
             }
             else
             {
-                // Update existing tag
                 await TagClient.UpdateTagAsync(editingTag.Id, new TagUpdateDto(tagName.Trim()));
             }
 
@@ -445,19 +505,18 @@
             {
                 tagValidationError = "An error occurred while saving the tag. Please try again.";
             }
-            
+
             Logger.LogError(httpEx, "HTTP error saving tag: {Message}", httpEx.Message);
         }
         catch (Exception ex)
         {
-            // Handle other errors
             tagValidationError = "An unexpected error occurred. Please try again.";
             Logger.LogError(ex, "Error saving tag: {Message}", ex.Message);
         }
         finally
         {
             isSaving = false;
-            StateHasChanged(); // Ensure UI updates with validation errors
+            StateHasChanged();
         }
     }
 
@@ -479,14 +538,12 @@
         {
             await TagClient.AttachRoleToTagAsync(tagId, new TagRoleAttachDto(roleId));
             
-            // Refresh the tag roles
             var roles = await TagClient.GetRolesForTagAsync(tagId);
             tagRoles[tagId] = roles;
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            // Handle error
             Logger.LogError(ex, "Error adding role to tag: {Message}", ex.Message);
         }
     }
@@ -497,14 +554,12 @@
         {
             await TagClient.DetachRoleFromTagAsync(tagId, roleId);
             
-            // Refresh the tag roles
             var roles = await TagClient.GetRolesForTagAsync(tagId);
             tagRoles[tagId] = roles;
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            // Handle error
             Logger.LogError(ex, "Error removing role from tag: {Message}", ex.Message);
         }
     }
@@ -565,19 +620,18 @@
             }
             
             Logger.LogError(httpEx, "HTTP error deleting tag: {Message}", httpEx.Message);
-            HideDeleteModal(); // Close modal even on error
+            HideDeleteModal();
         }
         catch (Exception ex)
         {
-            // Handle other errors
             errorMessage = $"An unexpected error occurred while deleting the tag: {ex.Message}";
             Logger.LogError(ex, "Error deleting tag: {Message}", ex.Message);
-            HideDeleteModal(); // Close modal even on error
+            HideDeleteModal();
         }
         finally
         {
             isDeleting = false;
-            StateHasChanged(); // Ensure UI updates
+            StateHasChanged();
         }
     }
 

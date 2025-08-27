@@ -24,10 +24,10 @@ else if (!string.IsNullOrWhiteSpace(errorMessage) && string.IsNullOrWhiteSpace(i
 }
 else
 {
-    <div class="p-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3>Users Management</h3>
-            <button class="btn btn-primary" @onclick="ShowCreateUserModal">
+    <div class="p-2 p-md-4">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 mb-md-4">
+            <h3 class="mb-2 mb-md-0">Users Management</h3>
+            <button class="btn btn-primary btn-sm btn-md-normal" @onclick="ShowCreateUserModal">
                 <i class="bi bi-person-plus me-2"></i>Create New User
             </button>
         </div>
@@ -49,14 +49,14 @@ else
 
         <!-- Search and Filter -->
         <div class="row mb-3">
-            <div class="col-md-6">
+            <div class="col-12 col-md-6 mb-2 mb-md-0">
                 <div class="input-group">
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" class="form-control" placeholder="Search by name, email, or username..."
                            @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterUsers" />
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-12 col-md-6">
                 <select class="form-select" @bind="selectedFilter" @bind:after="FilterUsers">
                     <option value="all">All Users</option>
                     <option value="confirmed">Email Confirmed</option>
@@ -66,8 +66,8 @@ else
             </div>
         </div>
 
-        <!-- Users Table -->
-        <div class="table-responsive">
+        <!-- Desktop Users Table -->
+        <div class="table-responsive d-none d-md-block">
             <table class="table table-striped table-hover">
                 <thead class="table-light">
                     <tr>
@@ -161,6 +161,108 @@ else
                     }
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile Users Cards -->
+        <div class="d-block d-md-none">
+            @if (filteredUsers != null)
+            {
+                @foreach (var user in filteredUsers)
+                {
+                    @if (user != null)
+                    {
+                        <div class="card user-card mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <h6 class="card-title mb-2">
+                                            @(user.FirstName ?? "-") @(user.LastName ?? "-")
+                                        </h6>
+                                        <div class="user-details">
+                                            <div class="detail-item">
+                                                <span class="detail-label">Email:</span>
+                                                <span class="detail-value">@(user.Email ?? "N/A")</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">Username:</span>
+                                                <span class="detail-value">@(user.UserName ?? "N/A")</span>
+                                            </div>
+                                            @if (!string.IsNullOrEmpty(user.PhoneNumber))
+                                            {
+                                                <div class="detail-item">
+                                                    <span class="detail-label">Phone:</span>
+                                                    <span class="detail-value">@user.PhoneNumber</span>
+                                                </div>
+                                            }
+                                            <div class="detail-item">
+                                                <span class="detail-label">Email Status:</span>
+                                                @if (user.EmailConfirmed)
+                                                {
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-check-circle me-1"></i>Confirmed
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-warning">
+                                                        <i class="bi bi-exclamation-circle me-1"></i>Not Confirmed
+                                                    </span>
+                                                }
+                                            </div>
+                                            <div class="detail-item">
+                                                <span class="detail-label">Account Status:</span>
+                                                @if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTimeOffset.Now)
+                                                {
+                                                    <span class="badge bg-danger">
+                                                        <i class="bi bi-lock me-1"></i>Locked
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-unlock me-1"></i>Active
+                                                    </span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="card-actions mt-3">
+                                            <div class="btn-group-mobile">
+                                                <button class="btn btn-outline-primary btn-sm" @onclick="() => EditUser(user)">
+                                                    <i class="bi bi-pencil me-1"></i>Edit
+                                                </button>
+                                                @if (!user.EmailConfirmed)
+                                                {
+                                                    <button class="btn btn-outline-success btn-sm" @onclick="() => ConfirmEmail(user)">
+                                                        <i class="bi bi-check-circle me-1"></i>Confirm
+                                                    </button>
+                                                }
+                                                @if (user.Id != currentUserId)
+                                                {
+                                                    @if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTimeOffset.Now)
+                                                    {
+                                                        <button class="btn btn-outline-warning btn-sm" @onclick="() => UnlockUser(user)">
+                                                            <i class="bi bi-unlock me-1"></i>Unlock
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <button class="btn btn-outline-warning btn-sm" @onclick="() => LockUser(user)">
+                                                            <i class="bi bi-lock me-1"></i>Lock
+                                                        </button>
+                                                    }
+                                                    <button class="btn btn-outline-danger btn-sm" @onclick="() => ShowDeleteConfirmation(user)">
+                                                        <i class="bi bi-trash me-1"></i>Delete
+                                                    </button>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+            }
         </div>
 
         @if (filteredUsers == null || !filteredUsers.Any())
@@ -262,10 +364,14 @@ else
 
                         <div class="mb-3">
                             <div class="form-check">
-                                <InputCheckbox class="form-check-input" @bind-Value="userModel.EmailConfirmed" />
+                                <InputCheckbox class="form-check-input" @bind-Value="userModel.EmailConfirmed" disabled="@(isEditMode && userModel.Id == currentUserId)" />
                                 <label class="form-check-label">
                                     Email Confirmed
                                 </label>
+                                @if (isEditMode && userModel.Id == currentUserId)
+                                {
+                                    <div class="form-text">You cannot modify your own email confirmation status.</div>
+                                }
                             </div>
                         </div>
 

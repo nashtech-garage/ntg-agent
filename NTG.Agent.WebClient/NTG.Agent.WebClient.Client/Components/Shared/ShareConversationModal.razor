@@ -12,7 +12,7 @@
             {
                 <div class="share-modal-header">
                     <div class="share-modal-title-container">
-                        <h3 class="modal-title">Share public link to chat</h3>
+                        <h3 class="modal-title">Share public link to @(ChatId.HasValue ? "message" : "chat")</h3>
                     </div>
                     <button class="close-button" @onclick="CloseModal">×</button>
                 </div>
@@ -66,7 +66,7 @@
                     </div>
                 </div>
                 <p class="share-success-description">
-                    A public link to your chat has been created. Manage previously shared chats at any time via Settings.
+                    A public link to your @(ChatId.HasValue ? "message" : "chat") has been created. Manage previously shared chats at any time via Settings.
                 </p>
                 @if (selectedExpirationOption != "never")
                 {
@@ -116,6 +116,7 @@
     [Parameter] public bool IsVisible { get; set; }
     [Parameter] public Guid? ConversationId { get; set; }
     [Parameter] public string? ConversationName { get; set; }
+    [Parameter] public Guid? ChatId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnSharedConversationChanged { get; set; }
 
@@ -167,13 +168,15 @@
                     "7days" => DateTime.UtcNow.AddDays(7),
                     "30days" => DateTime.UtcNow.AddDays(30),
                     _ => null
-                }
+                },
+                ChatId = ChatId
             };
 
             var shareId = await SharedConversationClient.ShareConversationAsync(shareRequest);
             
             var baseUrl = NavigationManager.BaseUri.TrimEnd('/');
             var trimmedShareId = shareId.Trim('"');
+
             shareUrl = $"{baseUrl}/share/{trimmedShareId}";
             
             shareCreated = true;

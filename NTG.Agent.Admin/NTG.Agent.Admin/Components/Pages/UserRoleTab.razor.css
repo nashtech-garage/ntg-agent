@@ -1,14 +1,311 @@
-﻿.avatar-circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 14px;
+﻿/* Responsive styles for UserRoleTab */
+
+/* Header responsive improvements */
+.header-section {
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
-.btn-close-white {
+@media (max-width: 480px) {
+    .header-section {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+        gap: 0.75rem;
+    }
+    
+    .header-section .flex-grow-1 {
+        flex-grow: 0;
+    }
+    
+    .bulk-refresh-btn,
+    .bulk-assign-btn {
+        flex: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .p-4 {
+        padding: 1rem !important;
+    }
+    
+    .modal-dialog {
+        max-width: 98vw;
+        margin: 0 auto;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+    }
+    
+    .btn {
+        font-size: 15px;
+        padding: 8px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .p-4 {
+        padding: 0.5rem !important;
+    }
+    
+    .modal-dialog {
+        max-width: 100vw;
+        margin: 0;
+    }
+    
+    .modal-content {
+        padding: 4px;
+    }
+    
+    .btn {
+        font-size: 14px;
+        padding: 7px 12px;
+    }
+}
+
+/* User Card Styles for Mobile */
+.user-card {
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    border-radius: 12px;
+    background: #fff;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.user-card:hover {
+    box-shadow: 0 4px 16px rgba(0,123,255,0.10);
+    border-color: #90caf9;
+    transform: translateY(-1px);
+}
+
+.user-card.selected {
+    background: #e3f2fd;
+    border-color: #1976d2;
+    box-shadow: 0 4px 16px rgba(25,118,210,0.15);
+}
+
+.user-card .badge {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.user-card .badge.bg-danger {
+    background: #dc3545 !important;
+}
+
+.user-card .badge.bg-dark {
+    background: #212529 !important;
+}
+
+.user-card .badge.bg-warning {
+    background: #ffc107 !important;
+    color: #212529 !important;
+}
+
+.user-card .badge.bg-secondary {
+    background: #6c757d !important;
+}
+
+.user-card .btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.user-card .btn-outline-primary {
+    border-color: #1976d2;
+    color: #1976d2;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+}
+
+.user-card .btn-outline-primary:hover {
+    background: #e3f2fd;
+    border-color: #0d47a1;
+    color: #0d47a1;
+}
+
+.user-card .btn-outline-info {
+    border-color: #0dcaf0;
+    color: #0dcaf0;
+}
+
+.user-card .btn-outline-info:hover {
+    background: #cff4fc;
+    border-color: #0baccc;
+    color: #0baccc;
+}
+
+.user-card .text-muted {
+    color: #6c757d !important;
+    font-size: 0.85rem;
+}
+
+.user-card .small {
+    font-size: 0.8rem !important;
+}
+
+.user-card .btn-close-white {
     filter: invert(1) grayscale(100%) brightness(200%);
+}
+
+@media (max-width: 900px) {
+    .d-md-block {
+        display: none !important;
+    }
+    .d-md-none {
+        display: block !important;
+    }
+}
+
+@media (min-width: 901px) {
+    .d-md-block {
+        display: block !important;
+    }
+    .d-md-none {
+        display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .row.mb-4 .col-md-3 {
+        margin-bottom: 1rem;
+    }
+    
+    .card.border-0 {
+        margin-bottom: 0.5rem;
+    }
+}
+
+@media (max-width: 1024px) and (min-width: 769px) {
+    .user-card .btn-outline-primary {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+    }
+    
+    .user-card .btn-outline-info {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+    }
+}
+
+@media (max-width: 768px) and (min-width: 601px) {
+    .user-card .btn-outline-primary {
+        font-size: 0.75rem;
+        padding: 4px 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .user-card {
+        margin-bottom: 1rem !important;
+        padding: 12px !important;
+    }
+    
+    .user-card .btn {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+    
+    .user-card .btn-outline-primary {
+        font-size: 0.65rem !important;
+        padding: 3px 6px !important;
+        border-radius: 6px;
+    }
+    
+    .user-card .btn-outline-info {
+        font-size: 0.75rem;
+        padding: 5px 10px;
+    }
+    
+    .user-card .small {
+        font-size: 0.75rem !important;
+    }
+    
+    .user-card .badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+}
+
+@media (max-width: 600px) and (min-width: 481px) {
+    .user-card .btn-outline-primary {
+        font-size: 0.7rem !important;
+        padding: 4px 8px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .row.mb-4 .col-md-4 {
+        margin-bottom: 0.75rem;
+    }
+    
+    .form-select,
+    .form-control {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .modal-header {
+        padding: 0.75rem;
+    }
+    
+    .modal-body {
+        padding: 0.75rem;
+    }
+    
+    .modal-footer {
+        padding: 0.75rem;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        flex: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .fixed-bottom .container-fluid {
+        padding: 0.75rem;
+    }
+    
+    .fixed-bottom .d-flex {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .fixed-bottom .form-select {
+        width: 100% !important;
+    }
+}
+
+.d-flex.flex-wrap.gap-1 {
+    gap: 0.25rem !important;
+}
+
+.d-flex.gap-2 {
+    gap: 0.5rem !important;
+}
+
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+.text-center.py-5 {
+    padding: 2rem 1rem !important;
+}
+
+@media (max-width: 480px) {
+    .text-center.py-5 {
+        padding: 1.5rem 0.5rem !important;
+    }
+    
+    .text-center.py-5 i {
+        font-size: 2.5rem !important;
+    }
 }

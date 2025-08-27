@@ -15,12 +15,12 @@
 }
 else
 {
-    <div class="container-fluid px-4 py-3 user-management">
+    <div class="container-fluid px-2 px-md-4 py-2 py-md-3 user-management">
         <div class="row">
             <div class="col-12">
                 <div class="card shadow-sm">
-                    <!-- Tabs -->
-                    <div class="card-header bg-white border-bottom">
+                    <!-- Desktop Tabs -->
+                    <div class="card-header bg-white border-bottom d-none d-md-block">
                         <ul class="nav nav-tabs card-header-tabs" role="tablist">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link @(activeTab == userRoleTab ? "active" : "") d-flex align-items-center"
@@ -51,30 +51,83 @@ else
                         </ul>
                     </div>
 
+                    <!-- Mobile Tab Navigation -->
+                    <div class="card-header bg-white border-bottom d-block d-md-none">
+                        <div class="dropdown w-100">
+                            <button class="btn btn-outline-primary dropdown-toggle w-100 d-flex align-items-center justify-content-between mobile-tab-dropdown"
+                                    type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <span class="d-flex align-items-center">
+                                    @if (activeTab == userRoleTab)
+                                    {
+                                        <i class="bi bi-person-gear me-2"></i>
+                                        <span>User - Role Management</span>
+                                    }
+                                    else if (activeTab == usersTab)
+                                    {
+                                        <i class="bi bi-people me-2"></i>
+                                        <span>Users Management</span>
+                                        <span class="badge bg-secondary ms-2">@usersCount</span>
+                                    }
+                                    else if (activeTab == rolesTab)
+                                    {
+                                        <i class="bi bi-shield-check me-2"></i>
+                                        <span>Role Management</span>
+                                        <span class="badge bg-secondary ms-2">@rolesCount</span>
+                                    }
+                                </span>
+                            </button>
+                            <ul class="dropdown-menu w-100">
+                                <li>
+                                    <button class="dropdown-item @(activeTab == userRoleTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(userRoleTab)" type="button">
+                                        <i class="bi bi-person-gear me-2"></i>
+                                        User - Role Management
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == usersTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(usersTab)" type="button">
+                                        <i class="bi bi-people me-2"></i>
+                                        Users Management
+                                        <span class="badge bg-secondary ms-2">@usersCount</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == rolesTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(rolesTab)" type="button">
+                                        <i class="bi bi-shield-check me-2"></i>
+                                        Role Management
+                                        <span class="badge bg-secondary ms-2">@rolesCount</span>
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <div class="card-body p-0">
                         @if (!string.IsNullOrWhiteSpace(infoMessage))
                         {
-                            <div class="alert alert-info m-3">@((MarkupString)infoMessage)</div>
+                            <div class="alert alert-info m-2 m-md-3">@((MarkupString)infoMessage)</div>
                         }
                         @if (!string.IsNullOrWhiteSpace(errorMessage))
                         {
-                            <div class="alert alert-danger m-3">@errorMessage</div>
+                            <div class="alert alert-danger m-2 m-md-3">@errorMessage</div>
                         }
 
                         <div class="tab-content">
-                            <div class="tab-pane fade @(activeTab == userRoleTab ? "show active" : "") p-4" id="user-role-tab">
+                            <div class="tab-pane fade @(activeTab == userRoleTab ? "show active" : "") p-2 p-md-4" id="user-role-tab">
                                 @if (activeTab == userRoleTab)
                                 {
                                     <UserRoleTab/>
                                 }
                             </div>
-                            <div class="tab-pane fade @(activeTab == usersTab ? "show active" : "") p-4" id="users-tab">
+                            <div class="tab-pane fade @(activeTab == usersTab ? "show active" : "") p-2 p-md-4" id="users-tab">
                                 @if (activeTab == usersTab)
                                 {
                                     <UserTab />
                                 }
                             </div>
-                            <div class="tab-pane fade @(activeTab == rolesTab ? "show active" : "") p-4" id="roles-tab">
+                            <div class="tab-pane fade @(activeTab == rolesTab ? "show active" : "") p-2 p-md-4" id="roles-tab">
                                 @if (activeTab == rolesTab)
                                 {
                                     <RoleTab />
