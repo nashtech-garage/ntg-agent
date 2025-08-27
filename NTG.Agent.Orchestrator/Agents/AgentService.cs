@@ -39,14 +39,14 @@ public class AgentService
         var history = await PrepareConversationHistory(userId, conversation);
         var tags = await GetUserTags(userId);
 
-        var responseBuilder = new StringBuilder();
-        await foreach (var chunk in InvokePromptStreamingInternalAsync(promptRequest, history, tags))
+        var agentMessageSb = new StringBuilder();
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags))
         {
-            responseBuilder.Append(chunk);
-            yield return chunk;
+            agentMessageSb.Append(item);
+            yield return item;
         }
 
-        await SaveMessages(userId, conversation, promptRequest.Prompt, responseBuilder.ToString());
+        await SaveMessages(userId, conversation, promptRequest.Prompt, agentMessageSb.ToString());
     }
 
     #region Conversation Helpers
@@ -97,17 +97,17 @@ public class AgentService
 
     private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
     {
-        var history = await _agentDbContext.ChatMessages
+        var historyMessages = await _agentDbContext.ChatMessages
             .Where(m => m.ConversationId == conversation.Id)
             .OrderBy(m => m.UpdatedAt)
             .ToListAsync();
 
-        if (history.Count <= MAX_LATEST_MESSAGE_TO_KEEP_FULL) return history;
+        if (historyMessages.Count <= MAX_LATEST_MESSAGE_TO_KEEP_FULL) return historyMessages;
 
-        var toSummarize = history.Take(history.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
+        var toSummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
         var summary = await SummarizeMessagesAsync(toSummarize);
 
-        var summaryMsg = history.FirstOrDefault(m => m.IsSummary) ?? new ChatMessage
+        var summaryMsg = historyMessages.FirstOrDefault(m => m.IsSummary) ?? new ChatMessage
         {
             UserId = userId,
             Conversation = conversation,
@@ -121,7 +121,7 @@ public class AgentService
         _agentDbContext.Update(summaryMsg);
 
         return new List<ChatMessage> { summaryMsg }
-            .Concat(history.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
+            .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
 
