@@ -1,16 +1,28 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Navigation
 
+
+
 <div class="page row w-100 m-auto">
     <div class="header col-12">
        <NavMenu />
     </div>
     <AuthorizeView>
         <Authorized>
+            <div class="mobile-header" id="mobileHeader">
+                <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+                    </svg>
+                </button>
+            </div>
             @if(ShouldShowSidebar)
             {
+                <!-- Mobile overlay -->
+                <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
+                
                 <div id="sidebarColumn" class="col-2">
-                    <div class="sidebar">
+                    <div class="sidebar" id="mobileSidebar">
                         <Conversation @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
                     </div>
                 </div>
@@ -53,6 +65,5 @@
 
 @code{
     private bool ShouldShowSidebar => !IsSharedConversationPage;
-
     private bool IsSharedConversationPage => Navigation.Uri.Contains("/share/", StringComparison.OrdinalIgnoreCase);
 }

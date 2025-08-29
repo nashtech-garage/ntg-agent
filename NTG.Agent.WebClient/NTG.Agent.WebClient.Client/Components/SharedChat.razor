@@ -54,11 +54,12 @@
     {
         try
         {
+            await JSRuntime.InvokeVoidAsync("hideMobileHeader");
+
             var result = await SharedConversationClient.GetPublicSharedConversationAsync(SharedConversationId);
 
             if (result.Success)
             {
-                // Map to local view-model
                 foreach (var item in result.Messages!)
                 {
                     var chatMessage = new ChatMessageItem

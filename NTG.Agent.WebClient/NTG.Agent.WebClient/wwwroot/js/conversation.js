@@ -37,18 +37,15 @@ window.hideInputChatContainer = function () {
         inputContainer.style.display = 'none';
     }
     
-    // Find and modify list items to prevent them from showing above the modal
     const listItems = document.querySelectorAll('.toastui-editor-contents ol li, .toastui-editor-contents ul li');
     originalDisplays = [];
     
     listItems.forEach(item => {
-        // Store original display value
         originalDisplays.push({
             element: item,
             display: item.style.display
         });
         
-        // Modify to prevent appearing above modal
         item.style.display = 'none';
     });
 
@@ -76,28 +73,39 @@ window.showInputChatContainer = function () {
     }
 }
 
-// Define getSidebarState first, before it's used by other functions
 window.getSidebarState = function() {
     try {
         const state = localStorage.getItem('sidebar-collapsed');
-        if (state === null) return false; // Default to expanded if no state saved
-        return state === 'true'; // Convert the string to a boolean
+        if (state === null) return false;
+        return state === 'true'; 
     } catch (error) {
         console.error('Error getting sidebar state:', error);
-        return false; // Default to expanded on error
+        return false;
     }
+}
+
+window.isMobileOrTablet = function() {
+    return window.innerWidth <= 1024;
 }
 
 window.setSidebarState = function(isCollapsed) {
     try {
         localStorage.setItem('sidebar-collapsed', isCollapsed);
-        window.updateSidebarState(isCollapsed);
+        // Only update sidebar state on desktop
+        if (!window.isMobileOrTablet()) {
+            window.updateSidebarState(isCollapsed);
+        }
     } catch (error) {
         console.error('Error setting sidebar state:', error);
     }
 }
 
 window.updateSidebarState = function (isCollapsed) {
+    if (window.isMobileOrTablet()) {
+        console.log('Mobile/tablet detected, skipping desktop sidebar state');
+        return;
+    }
+    
     // Get references to the main elements
     const mainContent = document.getElementById('mainContent') || document.querySelector('main');
     const sidebarCol = document.getElementById('sidebarColumn') || document.querySelector('.sidebar').closest('[class*="col-"]');
@@ -112,15 +120,13 @@ window.updateSidebarState = function (isCollapsed) {
                 if (sidebarCol.classList.contains(cls)) sidebarCol.classList.remove(cls);
             });
             
-            // Apply the appropriate classes based on state
+            // Apply the appropriate classes based on state - use fixed widths for better control
             if (isCollapsed) {
-                mainContent.classList.add('col-11');
-                sidebarCol.classList.add('col-1');
                 sidebarCol.classList.add('sidebarcolumn-collapsed');
                 mainContent.classList.add('expanded-content');
             } else {
-                mainContent.classList.add('col-10');
                 sidebarCol.classList.add('col-2');
+                mainContent.classList.add('col-10');
                 sidebarCol.classList.remove('sidebarcolumn-collapsed');
                 mainContent.classList.remove('expanded-content');
             }
@@ -141,18 +147,42 @@ window.updateSidebarState = function (isCollapsed) {
 
 window.initSidebar = function() {
     try {
-        if (typeof window.getSidebarState === 'function') {
-            const isCollapsed = window.getSidebarState();
-            window.updateSidebarState(isCollapsed);
-        } else {
-            const state = localStorage.getItem('sidebar-collapsed');
-            const isCollapsed = state === 'true';
-            window.updateSidebarState(isCollapsed);
+        // Only apply sidebar state on desktop screens
+        if (!window.isMobileOrTablet()) {
+            if (typeof window.getSidebarState === 'function') {
+                const isCollapsed = window.getSidebarState();
+                window.updateSidebarState(isCollapsed);
+            } else {
+                const state = localStorage.getItem('sidebar-collapsed');
+                const isCollapsed = state === 'true';
+                window.updateSidebarState(isCollapsed);
+            }
         }
     } catch (error) {
         console.error('Error initializing sidebar:', error);
     }
 }
+
+// Handle window resize to reset sidebar state when switching between desktop/tablet
+window.addEventListener('resize', function() {
+    setTimeout(function() {
+        if (window.isMobileOrTablet()) {
+            // Reset any desktop sidebar classes on mobile/tablet
+            const mainContent = document.getElementById('mainContent');
+            const sidebarCol = document.getElementById('sidebarColumn');
+            
+            if (mainContent && sidebarCol) {
+                ['col-1', 'col-2', 'col-10', 'col-11', 'expanded-content', 'sidebarcolumn-collapsed'].forEach(cls => {
+                    mainContent.classList.remove(cls);
+                    sidebarCol.classList.remove(cls);
+                });
+            }
+        } else {
+            // Re-apply desktop sidebar state when switching back to desktop
+            window.initSidebar();
+        }
+    }, 100);
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(window.initSidebar, 100);
@@ -161,3 +191,15 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('load', function() {
     setTimeout(window.initSidebar, 100);
 });
+
+window.hideMobileHeader = function() {
+    const mobileHeader = document.getElementById('mobileHeader');
+    if (mobileHeader) {
+        mobileHeader.style.display = 'none';
+    }
+    // Update the padding top of the #mainContent
+    const mainContent = document.getElementById('mainContent');
+    if (mainContent) {
+        mainContent.style.setProperty('padding-top', '40px', 'important');
+    }
+}
