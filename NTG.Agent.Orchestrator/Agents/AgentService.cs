@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
@@ -162,19 +163,9 @@ public class AgentService
             chatHistory.AddMessage(role, msg.Content);
         }
 
-        // Build prompt based on input
         var prompt = await BuildPromptAsync(promptRequest);
 
-        var userMessage = new ChatMessageContent { Role = AuthorRole.User };
-        userMessage.Items.Add(new TextContent(prompt));
-
-        if (string.IsNullOrEmpty(promptRequest.ImageBase64) == false && _ocrEngine == null)
-        {
-            // Only attach raw image if OCR not available
-            userMessage.Items.Add(new ImageContent(
-                Convert.FromBase64String(promptRequest.ImageBase64),
-                promptRequest.ImageContentType ?? "image/png"));
-        }
+        var userMessage = BuildUserMessage(promptRequest, prompt);
 
         chatHistory.Add(userMessage);
 
@@ -196,51 +187,31 @@ public class AgentService
             yield return item.Message.ToString();
     }
 
+    private ChatMessageContent BuildUserMessage(PromptRequest promptRequest, string prompt)
+    {
+        var userMessage = new ChatMessageContent { Role = AuthorRole.User };
+        userMessage.Items.Add(new TextContent(prompt));
+
+        if (string.IsNullOrEmpty(promptRequest.ImageBase64) == false && _ocrEngine == null)
+        {
+            // Only attach raw image if OCR not available
+            userMessage.Items.Add(new ImageContent(
+                Convert.FromBase64String(promptRequest.ImageBase64),
+                promptRequest.ImageContentType ?? "image/png"));
+        }
+
+        return userMessage;
+    }
+
     private async Task<string> BuildPromptAsync(PromptRequest promptRequest)
     {
         if (string.IsNullOrEmpty(promptRequest.ImageBase64))
-        {
-            // Text only
-            return $@"
-Search the knowledge base: {promptRequest.Prompt}
-Knowledge base will answer: {{memory.search}}
-If the answer is empty, continue answering with your knowledge and plugins.";
-        }
+            return BuildTextOnlyPrompt(promptRequest.Prompt);
 
-        if (_ocrEngine != null)
-        {
-            try
-            {
-                using var ms = new MemoryStream(Convert.FromBase64String(promptRequest.ImageBase64));
-                var text = await _ocrEngine.ExtractTextFromImageAsync(ms);
+        if (_ocrEngine is not null)
+            return await BuildOcrPromptAsync(promptRequest.Prompt, promptRequest.ImageBase64);
 
-                return $@"
-                You are given:
-                - An extracted text: {text}
-                - User query: {promptRequest.Prompt}
-
-                Your task:
-                1. Start by clearly presenting the extracted text in a natural, friendly way.
-                2. Search the knowledge base: {{memory.search}}.
-                   - If you find results that are related to the extracted text and be useful, naturally weave them into your answer with a short reference or link.
-                   - If the results are irrelevant or add no value, do not mention them.
-                3. If the knowledge base has nothing useful, simply answer using the extracted text and the user query.
-                4. Keep your tone clear, conversational, and helpful. Do not list unrelated documents or say they are irrelevant.";
-            }
-            catch (Exception ex)
-            {
-                return $"[OCR failed: {ex.Message}]. Proceed analyzing image with query: {promptRequest.Prompt}";
-            }
-        }
-
-        // Fallback: multimodal without OCR
-        return $@"
-You are given a user query and an image. 
-1. Analyze the image (objects, text, context). 
-2. Combine with query: {promptRequest.Prompt}
-3. Search knowledge base: {{memory.search}}
-4. If useful info is found, include it with citations. 
-5. Otherwise, answer from reasoning on query + image.";
+        return BuildMultimodalPrompt(promptRequest.Prompt);
     }
 
     #endregion
@@ -288,6 +259,42 @@ You are given a user query and an image.
         await foreach (var res in summarizer.InvokeAsync(chatHistory)) sb.Append(res.Message);
         return sb.ToString();
     }
+
+    private string BuildTextOnlyPrompt(string userPrompt) =>
+        $@"
+        Search the knowledge base: {userPrompt}
+        Knowledge base will answer: {{memory.search}}
+        If the answer is empty, continue answering with your knowledge and plugins.";
+
+    private async Task<string> BuildOcrPromptAsync(string userPrompt, string imageBase64)
+    {
+        try
+        {
+            using var ms = new MemoryStream(Convert.FromBase64String(imageBase64));
+            var text = await _ocrEngine!.ExtractTextFromImageAsync(ms);
+
+            return $@"
+            You are given:
+            - Extracted text: {text}
+            - User query: {userPrompt}
+
+            Your task:
+            Clearly present the extracted text in a natural, friendly way.";
+        }
+        catch (Exception ex)
+        {
+            return $"[OCR failed: {ex.Message}]. Proceed analyzing image with query: {userPrompt}";
+        }
+    }
+
+    private string BuildMultimodalPrompt(string userPrompt) =>
+        $@"
+        You are given a user query and an image. 
+        1. Analyze the image (objects, text, context). 
+        2. Combine with query: {userPrompt}
+        3. Search knowledge base: {{memory.search}}
+        4. If useful info is found, include it with citations. 
+        5. Otherwise, answer from reasoning on query + image.";
 
     #endregion
 }
