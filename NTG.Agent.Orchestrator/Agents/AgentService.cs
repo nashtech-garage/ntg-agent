@@ -192,7 +192,7 @@ public class AgentService
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
 
-        if (string.IsNullOrEmpty(promptRequest.ImageBase64) == false && _ocrEngine == null)
+        if (!string.IsNullOrEmpty(promptRequest.ImageBase64) && _ocrEngine == null)
         {
             // Only attach raw image if OCR not available
             userMessage.Items.Add(new ImageContent(
