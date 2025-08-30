@@ -7,7 +7,6 @@ public class ChatMessage
 {
     public ChatMessage()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

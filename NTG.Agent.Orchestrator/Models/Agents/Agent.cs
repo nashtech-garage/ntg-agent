@@ -6,7 +6,6 @@ public class Agent
 {
     public Agent()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

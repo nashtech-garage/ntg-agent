@@ -7,7 +7,6 @@ public class SharedChatMessage
 {
     public SharedChatMessage()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

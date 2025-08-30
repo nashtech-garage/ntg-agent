@@ -8,7 +8,6 @@ public class Folder
 {
     public Folder()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
