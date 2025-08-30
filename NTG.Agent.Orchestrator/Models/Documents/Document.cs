@@ -4,7 +4,6 @@ public class Document
 {
     public Document()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
