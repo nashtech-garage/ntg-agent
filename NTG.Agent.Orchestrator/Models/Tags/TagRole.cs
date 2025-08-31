@@ -4,7 +4,6 @@ public class TagRole
 {
     public TagRole()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
