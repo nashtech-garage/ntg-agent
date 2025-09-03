@@ -9,7 +9,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public KernelMemoryKnowledge(IConfiguration configuration)
     {
-        var endpoint = configuration["KernelMemory:Endpoint"] ?? throw new InvalidOperationException("KernelMemory:Endpoint configuration is required");
+        var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
         var apiKey = configuration["KernelMemory:ApiKey"] ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
         
         _memoryWebClient = new MemoryWebClient(endpoint, apiKey);
