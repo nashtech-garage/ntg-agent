@@ -84,31 +84,31 @@ else if (ConversationId.HasValue)
     </div>
     <div class="form-group row">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
-            @if (!string.IsNullOrEmpty(attachedImageBase64) && showImagePreview)
+            @if (uploadItems.Any())
             {
-                <div class="input-group mb-3 offset-md-1">
-                    <span class="d-flex align-items-center px-2">
-                        <img src="data:@attachedImageContentType;base64,@attachedImageBase64"
-                        class="img-thumbnail me-2"
-                        style="max-height: 250px; max-width: 250px;" />
-                        <button class="btn btn-sm btn-outline-danger"
-                        type="button"
-                        @onclick="() => { attachedImageBase64 = null; attachedImageContentType = null; StateHasChanged(); }">
-                            <i class="bi bi-x"></i>
-                        </button>
-                    </span>
+                <div class="mb-2">
+                    @foreach (var item in uploadItems)
+                    {
+                        <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            <span class="text-truncate flex-grow-1">@item.Name</span>
+                            <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    }
                 </div>
             }
             <div class="input-group mb-3">
-                <label for="fileInput" class="btn btn-outline-secondary border-0 bg-transparent d-flex align-items-center px-3">
-                    <i class="bi bi-paperclip fs-5"></i>
-                </label>
-                <InputFile id="fileInput" class="d-none" OnChange="OnFileSelected" accept="image/*" />
                 <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
                 @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
                 autocapitalize="off" placeholder="Type your message..." />
                 <div class="input-group-append">
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                    <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+                    title="Upload file">
+                        <i class="bi bi-upload fs-6"></i>
+                    </button>
                     <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
                         <i class="bi bi-send fs-6"></i>
                     </button>
@@ -123,31 +123,31 @@ else
         <h2 class="mb-4">What can I help with?</h2>
         <div class="form-group w-100">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
-                @if (!string.IsNullOrEmpty(attachedImageBase64) && showImagePreview)
+                @if (uploadItems.Any())
                 {
-                    <div class="input-group mb-3 offset-md-1">
-                        <span class="d-flex align-items-center px-2">
-                            <img src="data:@attachedImageContentType;base64,@attachedImageBase64"
-                            class="img-thumbnail me-2"
-                            style="max-height: 250px; max-width: 250px;" />
-                            <button class="btn btn-sm btn-outline-danger"
-                            type="button"
-                            @onclick="() => { attachedImageBase64 = null; attachedImageContentType = null; StateHasChanged(); }">
-                                <i class="bi bi-x"></i>
-                            </button>
-                        </span>
+                    <div class="mb-2">
+                        @foreach (var item in uploadItems)
+                        {
+                            <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
+                                <i class="bi bi-file-earmark-text me-2"></i>
+                                <span class="text-truncate flex-grow-1">@item.Name</span>
+                                <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        }
                     </div>
                 }
                 <div class="input-group mb-3">
-                    <label for="fileInput" class="btn btn-outline-secondary border-0 bg-transparent d-flex align-items-center px-3">
-                        <i class="bi bi-paperclip fs-5"></i>
-                    </label>
-                    <InputFile id="fileInput" class="d-none" OnChange="OnFileSelected" accept="image/*" />
                     <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
                     @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
                     autocapitalize="off" placeholder="Ask anything" />
                     <div class="input-group-append">
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                        <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+                        title="Upload file">
+                            <i class="bi bi-upload fs-6"></i>
+                        </button>
                         <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message"
                         title="Send message">
                             <i class="bi bi-send fs-6"></i>
@@ -160,6 +160,8 @@ else
         </div>
     </div>
 }
+
+<UploadFileModal IsVisible="showUploadFileModal" OnUploadCompleted="OnFilesUploaded" OnClose="CloseUploadFileModal" />
 
 <ShareConversationModal IsVisible="showShareModal"
 ConversationId="ConversationId"
@@ -178,18 +180,16 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
 
     private string userInput = string.Empty;
     private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
+    private List<UploadItemContent> uploadItems = new();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
     private bool unauthorized = false;
     private bool showShareModal = false;
-    private bool showImagePreview = false;
+    private bool showUploadFileModal = false;
     private Guid? shareChatId = null;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
-
-    private string? attachedImageBase64;
-    private string? attachedImageContentType;
 
     protected override async Task OnInitializedAsync()
     {
@@ -238,24 +238,16 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
         }
     }
 
-    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    private void OnFilesUploaded(List<UploadItemContent> items)
     {
-        var file = e.File;
-
-        using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
-        var buffer = new byte[file.Size];
-        await stream.ReadAsync(buffer);
-
-        attachedImageBase64 = Convert.ToBase64String(buffer);
-        attachedImageContentType = file.ContentType;
-        showImagePreview = true;
-
+        uploadItems = items.ToList();
+        showUploadFileModal = false;
         StateHasChanged();
     }
 
     private async Task SendMessage()
     {
-        if (string.IsNullOrWhiteSpace(userInput) && string.IsNullOrEmpty(attachedImageBase64))
+        if (string.IsNullOrWhiteSpace(userInput))
         {
             return;
         }
@@ -282,12 +274,12 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
         var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
-        showImagePreview = false;
+        uploadItems.Clear();
         StateHasChanged();
 
         // 🚀 Send text + image to backend
         var request = new PromptRequest(query, ConversationId.Value,
-            currentSessionId, attachedImageBase64, attachedImageContentType);
+            currentSessionId, uploadItems);
 
         var result = await ChatClient.InvokeStreamAsync(request);
         response.Message = string.Empty;
@@ -298,10 +290,6 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
 
             await MarkdownSetValue!.SetValue(response.Message);
         }
-
-        // Reset after send
-        attachedImageBase64 = null;
-        attachedImageContentType = null;
 
         if (newConversation)
         {
@@ -340,6 +328,24 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
         }
     }
 
+    private void RemoveUploadItem(UploadItemContent item)
+    {
+        uploadItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private void ShowUploadFileModal()
+    {
+        showUploadFileModal  = true;
+        StateHasChanged();
+    }
+
+    private void CloseUploadFileModal()
+    {
+        showUploadFileModal = false;
+        StateHasChanged();
+    }
+
     private async Task ShowShareMessageModal(ChatMessageItem message)
     {
         if (ConversationId.HasValue && isAuthenticated)
@@ -373,6 +379,7 @@ OnSharedConversationChanged="HandleSharedConversationChanged" />
     {
         StateHasChanged();
     }
+
     private async Task ToggleDislike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Dislike ? ReactionType.None : ReactionType.Dislike;

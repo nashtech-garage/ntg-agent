@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Azure;
+using Azure.AI.FormRecognizer.DocumentAnalysis;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
@@ -11,7 +13,10 @@ using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Dtos.Upload;
+using System.IO;
 using System.Text;
+using System.Text.Json;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
@@ -20,7 +25,7 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly IOcrEngine? _ocrEngine;
+    private readonly DocumentAnalysisClient? _documentAnalysisClient;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
@@ -31,7 +36,7 @@ public class AgentService
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
-        _ocrEngine = kernel.Services.GetService<IOcrEngine>();
+        _documentAnalysisClient = kernel.Services.GetService<DocumentAnalysisClient>();
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
@@ -192,26 +197,17 @@ public class AgentService
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
 
-        if (!string.IsNullOrEmpty(promptRequest.ImageBase64) && _ocrEngine == null)
-        {
-            // Only attach raw image if OCR not available
-            userMessage.Items.Add(new ImageContent(
-                Convert.FromBase64String(promptRequest.ImageBase64),
-                promptRequest.ImageContentType ?? "image/png"));
-        }
-
         return userMessage;
     }
 
     private async Task<string> BuildPromptAsync(PromptRequest promptRequest)
     {
-        if (string.IsNullOrEmpty(promptRequest.ImageBase64))
-            return BuildTextOnlyPrompt(promptRequest.Prompt);
 
-        if (_ocrEngine is not null)
-            return await BuildOcrPromptAsync(promptRequest.Prompt, promptRequest.ImageBase64);
+        if (_documentAnalysisClient is not null)
+            return await BuildOcrPromptAsync(promptRequest.Prompt, promptRequest.Documents);
 
-        return BuildMultimodalPrompt(promptRequest.Prompt);
+        return BuildTextOnlyPrompt(promptRequest.Prompt);
+
     }
 
     #endregion
@@ -266,35 +262,87 @@ public class AgentService
         Knowledge base will answer: {{memory.search}}
         If the answer is empty, continue answering with your knowledge and plugins.";
 
-    private async Task<string> BuildOcrPromptAsync(string userPrompt, string imageBase64)
+    private async Task<string> BuildOcrPromptAsync(string userPrompt, IEnumerable<UploadItemContent> uploadItemContents)
     {
-        try
-        {
-            using var ms = new MemoryStream(Convert.FromBase64String(imageBase64));
-            var text = await _ocrEngine!.ExtractTextFromImageAsync(ms);
+        var documentsData = new List<string>();
 
-            return $@"
-            You are given:
-            - Extracted text: {text}
-            - User query: {userPrompt}
-
-            Your task:
-            Clearly present the extracted text in a natural, friendly way.";
-        }
-        catch (Exception ex)
+        foreach (var item in uploadItemContents)
         {
-            return $"[OCR failed: {ex.Message}]. Proceed analyzing image with query: {userPrompt}";
+            try
+            {
+                using var stream = new MemoryStream(item.Content);
+                var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
+                    WaitUntil.Completed,
+                    "prebuilt-layout",
+                    stream
+                );
+
+                var result = operation.Value;
+
+                // Extract text lines
+                var lines = result.Pages?
+                    .SelectMany(page => page.Lines)
+                    .Select(line => line.Content)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToList() ?? new List<string>();
+
+                // Table summaries
+                var tableSummaries = result.Tables?
+                    .Select((t, i) =>
+                    {
+                        var headers = t.Cells?.Where(c => c.Kind == "columnHeader")
+                            .Select(c => c.Content)
+                            .ToArray() ?? Array.Empty<string>();
+
+                        return $"Table {i + 1}: {t.RowCount} rows x {t.ColumnCount} columns" +
+                               (headers.Any() ? $" | Headers: {string.Join(", ", headers)}" : "");
+                    })
+                    .ToList() ?? new List<string>();
+
+                // Selection marks
+                var selections = result.Pages?
+                    .SelectMany(p => p.SelectionMarks?.Select(m =>
+                        $"{m.State} checkbox on page {p.PageNumber}")
+                        ?? Enumerable.Empty<string>())
+                    .ToList() ?? new List<string>();
+
+                var docString = $@"
+[Document]
+Text:
+{string.Join(Environment.NewLine, lines)}
+
+Tables:
+{(tableSummaries.Any() ? string.Join(Environment.NewLine, tableSummaries) : "[No tables]")}
+
+Selections:
+{(selections.Any() ? string.Join(Environment.NewLine, selections) : "[No selections]")}
+";
+
+                documentsData.Add(docString);
+            }
+            catch (Exception ex)
+            {
+                documentsData.Add($"[Document] Analysis failed: {ex.Message}");
+            }
         }
+
+        var prompt = $@"
+You are a helpful document assistant.
+I will provide one or more documents with text, tables, and selection marks.
+Answer the user's question naturally, as a human would.
+Do not invent information or include irrelevant details.
+
+Documents:
+{string.Join(Environment.NewLine + Environment.NewLine, documentsData)}
+
+User query: {userPrompt}
+";
+
+        return prompt;
     }
 
-    private string BuildMultimodalPrompt(string userPrompt) =>
-        $@"
-        You are given a user query and an image. 
-        1. Analyze the image (objects, text, context). 
-        2. Combine with query: {userPrompt}
-        3. Search knowledge base: {{memory.search}}
-        4. If useful info is found, include it with citations. 
-        5. Otherwise, answer from reasoning on query + image.";
+
+
 
     #endregion
 }

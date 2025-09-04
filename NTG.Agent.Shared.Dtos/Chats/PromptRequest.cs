@@ -1,8 +1,9 @@
-﻿namespace NTG.Agent.Shared.Dtos.Chats;
+﻿using NTG.Agent.Shared.Dtos.Upload;
+
+namespace NTG.Agent.Shared.Dtos.Chats;
 
 public record PromptRequest
     (string Prompt,
     Guid ConversationId,
     string? SessionId,
-    string? ImageBase64,
-    string? ImageContentType);
+    IEnumerable<UploadItemContent> Documents);

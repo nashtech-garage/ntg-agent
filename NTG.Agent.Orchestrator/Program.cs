@@ -18,6 +18,7 @@ using OpenTelemetry.Trace;
 using System.ClientModel;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.KernelMemory;
+using Azure.AI.FormRecognizer.DocumentAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -111,16 +112,16 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
     if (!string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:Endpoint"]) &&
         !string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:ApiKey"]))
     {
-#pragma warning disable KMEXP02 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        kernelBuilder.Services.AddSingleton<IOcrEngine>(_ =>
-            new AzureAIDocIntelEngine(new AzureAIDocIntelConfig
-            {
-                Endpoint = config["Azure:DocumentIntelligence:Endpoint"]!,
-                APIKey = config["Azure:DocumentIntelligence:ApiKey"]!,
-                Auth = AzureAIDocIntelConfig.AuthTypes.APIKey
-            })
-        );
-#pragma warning restore KMEXP02 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        kernelBuilder.Services.AddSingleton(sp =>
+        {
+            var endpoint = config["Azure:DocumentIntelligence:Endpoint"]!;
+            var apiKey = config["Azure:DocumentIntelligence:ApiKey"]!;
+
+            return new DocumentAnalysisClient(
+                new Uri(endpoint),
+                new Azure.AzureKeyCredential(apiKey)
+            );
+        });
     }
 
     var kernel = kernelBuilder.Build();
