@@ -24,7 +24,7 @@ public class SharedConversationsController : ControllerBase
     {
         _context = context;
     }
-
+    
     /// <summary>
     /// Creates a shared snapshot of an existing conversation.
     /// </summary>
@@ -51,8 +51,7 @@ public class SharedConversationsController : ControllerBase
                 messages.Add(message);
             }
         }
-        else
-        {
+        else {
             messages = await _context.ChatMessages
                  .Where(m => m.ConversationId == request.ConversationId && !m.IsSummary && m.UserId == userId)
                  .OrderBy(m => m.CreatedAt)
@@ -70,7 +69,7 @@ public class SharedConversationsController : ControllerBase
             Type = request.ChatId.HasValue ? SharedType.Message : SharedType.Conversation
         };
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if(string.IsNullOrWhiteSpace(request.Name))
         {
             var conversationName = await _context.Conversations
                 .Where(c => c.Id == request.ConversationId && c.UserId == userId)
@@ -79,7 +78,7 @@ public class SharedConversationsController : ControllerBase
             sharedConversation.Name = conversationName;
         }
 
-        if (request.ExpiresAt.HasValue && request.ExpiresAt != DateTime.MinValue)
+        if (request.ExpiresAt.HasValue && request.ExpiresAt!= DateTime.MinValue)
         {
             sharedConversation.ExpiresAt = request.ExpiresAt;
         }

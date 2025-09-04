@@ -53,10 +53,10 @@ public class TagsController : ControllerBase
         var items = await query
             .OrderBy(t => t.Name)
             .Select(t => new TagDto(
-                t.Id,
-                t.Name,
-                t.CreatedAt,
-                t.UpdatedAt,
+                t.Id, 
+                t.Name, 
+                t.CreatedAt, 
+                t.UpdatedAt, 
                 _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
             ))
             .ToListAsync(ct);
@@ -81,10 +81,10 @@ public class TagsController : ControllerBase
         var tag = await _agentDbContext.Tags.AsNoTracking()
             .Where(t => t.Id == id)
             .Select(t => new TagDto(
-                t.Id,
-                t.Name,
-                t.CreatedAt,
-                t.UpdatedAt,
+                t.Id, 
+                t.Name, 
+                t.CreatedAt, 
+                t.UpdatedAt, 
                 _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
             ))
             .FirstOrDefaultAsync(ct);

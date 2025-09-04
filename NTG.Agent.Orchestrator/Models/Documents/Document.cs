@@ -18,7 +18,7 @@ public class Document
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DocumentType Type { get; set; } = DocumentType.File;
-
+    
     // Navigation properties
     public ICollection<DocumentTag> DocumentTags { get; set; } = new List<DocumentTag>();
 }

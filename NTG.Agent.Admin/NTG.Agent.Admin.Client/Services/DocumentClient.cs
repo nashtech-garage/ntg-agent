@@ -24,21 +24,21 @@ public class DocumentClient(HttpClient httpClient)
             if (file.Size > 0)
             {
                 var fileContent = new StreamContent(file.OpenReadStream(maxFileSize));
-
+                
                 // Get content type from file or fallback to detection by extension
-                var contentType = !string.IsNullOrEmpty(file.ContentType)
-                    ? file.ContentType
+                var contentType = !string.IsNullOrEmpty(file.ContentType) 
+                    ? file.ContentType 
                     : FileTypeService.GetContentType(file.Name);
-
+                    
                 fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
                 content.Add(fileContent, "files", file.Name);
             }
         }
-
+        
         var queryParams = new List<string>();
         if (folderId.HasValue)
             queryParams.Add($"folderId={folderId}");
-
+        
         if (tags != null && tags.Any())
         {
             foreach (var tag in tags)
@@ -46,7 +46,7 @@ public class DocumentClient(HttpClient httpClient)
                 queryParams.Add($"tags={Uri.EscapeDataString(tag)}");
             }
         }
-
+        
         var queryString = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
@@ -59,7 +59,7 @@ public class DocumentClient(HttpClient httpClient)
     }
     public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId, List<string> tags)
     {
-        var request = new { Url = url, FolderId = folderId, Tags = tags };
+        var request = new { Url = url , FolderId = folderId, Tags = tags};
         var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();
@@ -81,17 +81,17 @@ public class DocumentClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
 
         var content = await response.Content.ReadAsStreamAsync();
-
+        
         // Extract filename from Content-Disposition header if available
         var fileName = "document";
         if (response.Content.Headers.ContentDisposition?.FileName != null)
         {
             fileName = response.Content.Headers.ContentDisposition.FileName.Trim('"');
         }
-
+        
         // Get content type from response headers
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
-
+        
         return (content, fileName, contentType);
     }
 

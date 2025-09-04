@@ -3,7 +3,7 @@
 public class Conversation
 {
     public Conversation()
-    {
+    {     
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

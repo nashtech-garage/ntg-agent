@@ -19,19 +19,19 @@ public class TagClient(HttpClient httpClient)
         try
         {
             var response = await _httpClient.GetAsync(url, cancellationToken);
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 throw new UnauthorizedAccessException("User is not authenticated");
             }
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 throw new UnauthorizedAccessException("User does not have Admin role");
             }
-
+            
             response.EnsureSuccessStatusCode();
-
+            
             return await response.Content.ReadFromJsonAsync<List<TagDto>>(cancellationToken) ?? new List<TagDto>();
         }
         catch (HttpRequestException ex)
@@ -57,22 +57,22 @@ public class TagClient(HttpClient httpClient)
         try
         {
             var response = await _httpClient.PostAsJsonAsync("api/tags", createDto, cancellationToken);
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new HttpRequestException($"BadRequest: {errorContent}", null, response.StatusCode);
             }
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new HttpRequestException($"Conflict: {errorContent}", null, response.StatusCode);
             }
-
+            
             response.EnsureSuccessStatusCode();
-
-            return await response.Content.ReadFromJsonAsync<TagDto>(cancellationToken)
+            
+            return await response.Content.ReadFromJsonAsync<TagDto>(cancellationToken) 
                 ?? throw new InvalidOperationException("Failed to create tag");
         }
         catch (HttpRequestException ex) when (ex.Data.Contains("StatusCode"))
@@ -91,24 +91,24 @@ public class TagClient(HttpClient httpClient)
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"api/tags/{id}", updateDto, cancellationToken);
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new HttpRequestException($"BadRequest: {errorContent}", null, response.StatusCode);
             }
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
             {
                 var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 throw new HttpRequestException($"Conflict: {errorContent}", null, response.StatusCode);
             }
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 throw new HttpRequestException("NotFound: Tag not found", null, response.StatusCode);
             }
-
+            
             response.EnsureSuccessStatusCode();
         }
         catch (HttpRequestException ex) when (ex.Data.Contains("StatusCode"))
@@ -133,7 +133,7 @@ public class TagClient(HttpClient httpClient)
     {
         var response = await _httpClient.GetAsync($"api/tags/{tagId}/roles", cancellationToken);
         response.EnsureSuccessStatusCode();
-
+        
         return await response.Content.ReadFromJsonAsync<List<TagRoleDto>>(cancellationToken) ?? new List<TagRoleDto>();
     }
 
@@ -142,8 +142,8 @@ public class TagClient(HttpClient httpClient)
     {
         var response = await _httpClient.PostAsJsonAsync($"api/tags/{tagId}/roles", attachDto, cancellationToken);
         response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<TagRoleDto>(cancellationToken)
+        
+        return await response.Content.ReadFromJsonAsync<TagRoleDto>(cancellationToken) 
             ?? throw new InvalidOperationException("Failed to attach role to tag");
     }
 
@@ -160,19 +160,19 @@ public class TagClient(HttpClient httpClient)
         try
         {
             var response = await _httpClient.GetAsync("api/tags/available-roles", cancellationToken);
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
                 throw new UnauthorizedAccessException("User is not authenticated");
             }
-
+            
             if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
             {
                 throw new UnauthorizedAccessException("User does not have Admin role");
             }
-
+            
             response.EnsureSuccessStatusCode();
-
+            
             return await response.Content.ReadFromJsonAsync<List<RoleDto>>(cancellationToken) ?? new List<RoleDto>();
         }
         catch (HttpRequestException ex)

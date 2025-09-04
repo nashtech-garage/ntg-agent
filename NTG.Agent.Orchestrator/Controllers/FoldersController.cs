@@ -86,7 +86,7 @@ public class FoldersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Folder>> CreateFolder(CreateFolderDto folderToCreate)
     {
-        if (!ModelState.IsValid)
+        if(!ModelState.IsValid)
         {
             return BadRequest(ModelState);
         }

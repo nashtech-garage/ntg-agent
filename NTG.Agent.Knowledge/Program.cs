@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -8,7 +9,6 @@ using Microsoft.KernelMemory.DocumentStorage;
 using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.Pipeline;
 using Microsoft.KernelMemory.Service.AspNetCore;
-using System.Globalization;
 
 namespace Microsoft.KernelMemory.Service;
 
@@ -31,7 +31,7 @@ internal static class Program
 
         if (Environment.GetEnvironmentVariable("APPLICATIONINSIGHTS_CONNECTION_STRING") != null)
         {
-            // appBuilder.Services.AddApplicationInsightsTelemetry();
+           // appBuilder.Services.AddApplicationInsightsTelemetry();
         }
 
         // Add config files, user secretes, and env vars
