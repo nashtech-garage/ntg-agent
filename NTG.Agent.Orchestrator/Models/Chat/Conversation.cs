@@ -3,8 +3,7 @@
 public class Conversation
 {
     public Conversation()
-    {
-        Id = Guid.NewGuid();
+    {     
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }

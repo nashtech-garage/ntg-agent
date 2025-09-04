@@ -6,7 +6,6 @@ public class SharedConversation
 {
     public SharedConversation()
     {
-        Id = Guid.NewGuid();
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
         ExpiresAt = DateTime.MaxValue;
