@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace NTG.Agent.Orchestrator.Controllers;
 
 [ApiExplorerSettings(IgnoreApi = true)]
-public class ErrorController  : ControllerBase
+public class ErrorController : ControllerBase
 {
     [Route("/error-development")]
     public IActionResult HandleErrorDevelopment([FromServices] IHostEnvironment hostEnvironment)

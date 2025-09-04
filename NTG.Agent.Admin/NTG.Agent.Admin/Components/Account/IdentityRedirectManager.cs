@@ -1,5 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Components;
+using System.Diagnostics.CodeAnalysis;
 
 namespace NTG.Agent.Admin.Components.Account
 {

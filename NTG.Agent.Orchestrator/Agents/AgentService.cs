@@ -1,22 +1,19 @@
 ﻿using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
 using NTG.Agent.Shared.Dtos.Upload;
-using System.IO;
 using System.Text;
-using System.Text.Json;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
@@ -44,15 +41,15 @@ public class AgentService
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, conversation);
         var tags = await GetUserTags(userId);
-
+        var ocrDocuments = await ExtractDocumentData(promptRequest.Documents);
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
             yield return item;
         }
 
-        await SaveMessages(userId, conversation, promptRequest.Prompt, agentMessageSb.ToString());
+        await SaveMessages(userId, conversation, promptRequest.Prompt, agentMessageSb.ToString(), ocrDocuments);
     }
 
     #region Conversation Helpers
@@ -131,7 +128,7 @@ public class AgentService
             .ToList();
     }
 
-    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply)
+    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
     {
         if (conversation.Name == "New Conversation")
         {
@@ -144,6 +141,9 @@ public class AgentService
             new ChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
         );
 
+        var ocrMessages = ocrDocuments.Select(documentData => new ChatMessage { UserId = userId, Conversation = conversation, Content = documentData, Role = ChatRole.System });
+        _agentDbContext.ChatMessages.AddRange(ocrMessages);
+
         await _agentDbContext.SaveChangesAsync();
     }
 
@@ -154,7 +154,8 @@ public class AgentService
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequest promptRequest,
         List<ChatMessage> history,
-        List<string> tags)
+        List<string> tags,
+        List<string> ocrDocuments)
     {
         var chatHistory = new ChatHistory();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
@@ -168,7 +169,7 @@ public class AgentService
             chatHistory.AddMessage(role, msg.Content);
         }
 
-        var prompt = await BuildPromptAsync(promptRequest);
+        var prompt = await BuildPromptAsync(promptRequest, ocrDocuments);
 
         var userMessage = BuildUserMessage(promptRequest, prompt);
 
@@ -200,11 +201,12 @@ public class AgentService
         return userMessage;
     }
 
-    private async Task<string> BuildPromptAsync(PromptRequest promptRequest)
+    private async Task<string> BuildPromptAsync(PromptRequest promptRequest, List<string> ocrDocuments)
     {
-
-        if (_documentAnalysisClient is not null)
+        if (ocrDocuments.Any())
+        {
             return await BuildOcrPromptAsync(promptRequest.Prompt, promptRequest.Documents);
+        }
 
         return BuildTextOnlyPrompt(promptRequest.Prompt);
 
@@ -260,9 +262,81 @@ public class AgentService
         $@"
         Search the knowledge base: {userPrompt}
         Knowledge base will answer: {{memory.search}}
+        Answer the question in a clear, natural, human-like way
         If the answer is empty, continue answering with your knowledge and plugins.";
 
-    private async Task<string> BuildOcrPromptAsync(string userPrompt, IEnumerable<UploadItemContent> uploadItemContents)
+    private async Task<List<string>> ExtractDocumentData(
+        IEnumerable<UploadItemContent> uploadItemContents)
+    {
+        if (_documentAnalysisClient is null || uploadItemContents == null || !uploadItemContents.Any())
+            return new List<string>();
+
+        var documentsData = new List<string>();
+
+        foreach (var item in uploadItemContents)
+        {
+            try
+            {
+                using var stream = new MemoryStream(item.Content);
+                var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
+                    WaitUntil.Completed,
+                    "prebuilt-layout",
+                    stream
+                );
+
+                var result = operation.Value;
+
+                // Extract text lines
+                var lines = result.Pages?
+                    .SelectMany(page => page.Lines)
+                    .Select(line => line.Content)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToList() ?? new List<string>();
+
+                // Table summaries
+                var tableSummaries = result.Tables?
+                    .Select((t, i) =>
+                    {
+                        var headers = t.Cells?.Where(c => c.Kind == "columnHeader")
+                            .Select(c => c.Content)
+                            .ToArray() ?? Array.Empty<string>();
+
+                        return $"Table {i + 1}: {t.RowCount} rows x {t.ColumnCount} columns" +
+                               (headers.Any() ? $" | Headers: {string.Join(", ", headers)}" : "");
+                    })
+                    .ToList() ?? new List<string>();
+
+                // Selection marks
+                var selections = result.Pages?
+                    .SelectMany(p => p.SelectionMarks?.Select(m =>
+                        $"{m.State} checkbox on page {p.PageNumber}")
+                        ?? Enumerable.Empty<string>())
+                    .ToList() ?? new List<string>();
+
+                var docString = $@"
+[Document]
+Text:
+{string.Join(Environment.NewLine, lines)}
+
+Tables:
+{(tableSummaries.Any() ? string.Join(Environment.NewLine, tableSummaries) : "[No tables]")}
+
+Selections:
+{(selections.Any() ? string.Join(Environment.NewLine, selections) : "[No selections]")}
+";
+                documentsData.Add(docString);
+            }
+            catch (Exception ex)
+            {
+                documentsData.Add($"[Document] Analysis failed: {ex.Message}");
+            }
+        }
+
+        return documentsData;
+    }
+
+    private async Task<string> BuildOcrPromptAsync(string userPrompt,
+        IEnumerable<UploadItemContent> uploadItemContents)
     {
         var documentsData = new List<string>();
 
@@ -317,7 +391,6 @@ Tables:
 Selections:
 {(selections.Any() ? string.Join(Environment.NewLine, selections) : "[No selections]")}
 ";
-
                 documentsData.Add(docString);
             }
             catch (Exception ex)

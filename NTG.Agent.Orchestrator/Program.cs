@@ -1,7 +1,6 @@
+using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.KernelMemory.DataFormats.AzureAIDocIntel;
-using Microsoft.KernelMemory.DataFormats;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
@@ -16,9 +15,6 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.ClientModel;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.KernelMemory;
-using Azure.AI.FormRecognizer.DocumentAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 

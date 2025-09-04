@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
 namespace NTG.Agent.Shared.Dtos.Services;
 
 /// <summary>
@@ -229,7 +225,7 @@ public static class FileTypeService
     public static DocumentViewType GetDocumentViewType(string fileName)
     {
         var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
-        
+
         var extensionType = extension switch
         {
             ".txt" or ".md" or ".js" or ".css" or ".sh" or ".csv" or ".rtf" => DocumentViewType.Text,

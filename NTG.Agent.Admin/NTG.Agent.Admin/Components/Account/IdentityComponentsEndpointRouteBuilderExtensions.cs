@@ -1,5 +1,3 @@
-using System.Security.Claims;
-using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Http.Extensions;
@@ -9,6 +7,8 @@ using Microsoft.Extensions.Primitives;
 using NTG.Agent.Admin.Components.Account.Pages;
 using NTG.Agent.Admin.Components.Account.Pages.Manage;
 using NTG.Agent.Admin.Data;
+using System.Security.Claims;
+using System.Text.Json;
 
 namespace Microsoft.AspNetCore.Routing
 {

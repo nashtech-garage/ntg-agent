@@ -281,7 +281,7 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{ request.Title}.txt";
+            var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
             var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, fileName, agentId, request.Tags);
 
             var document = new Document

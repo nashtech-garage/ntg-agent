@@ -24,13 +24,13 @@ namespace NTG.Agent.Admin.Data
                 Email = "admin@ntgagent.com",
                 NormalizedEmail = "ADMIN@NTGAGENT.COM",
                 NormalizedUserName = "ADMIN@NTGAGENT.COM",
-                AccessFailedCount = 0, 
-                ConcurrencyStamp = "101cd6ae-a8ef-4a37-97fd-04ac2dd630e4", 
+                AccessFailedCount = 0,
+                ConcurrencyStamp = "101cd6ae-a8ef-4a37-97fd-04ac2dd630e4",
                 EmailConfirmed = true,
-                LockoutEnabled = true, 
+                LockoutEnabled = true,
                 PasswordHash = "AQAAAAIAAYagAAAAEFsVZF5T07uT8PrK0tMUqluwlOJO4XIk/fjLX7QuyYlbKtSI01akUmzGGhOrF5j6lg==", //Ntg@123
-                PhoneNumberConfirmed = false, 
-                SecurityStamp = "a9565acb-cee6-425f-9833-419a793f5fba", 
+                PhoneNumberConfirmed = false,
+                SecurityStamp = "a9565acb-cee6-425f-9833-419a793f5fba",
                 TwoFactorEnabled = false,
             });
 

@@ -187,18 +187,18 @@ public class ConversationsControllerTests
     {
         // Arrange
         var otherUserId = Guid.NewGuid();
-        var otherUserConversation = new Conversation 
-        { 
-            Id = Guid.NewGuid(), 
-            UserId = otherUserId, 
+        var otherUserConversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            UserId = otherUserId,
             Name = "Other User's Conversation",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        
+
         await _context.Conversations.AddAsync(otherUserConversation);
         await _context.SaveChangesAsync();
-        
+
         var currentSessionId = string.Empty;
 
         // Act
@@ -278,7 +278,7 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         var request = new UpdateReactionRequest { Reaction = ReactionType.Like };
 
         // Act
@@ -286,7 +286,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Like));
@@ -315,7 +315,7 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == otherUserConversationId)
             .First().Id;
-        
+
         var request = new UpdateReactionRequest { Reaction = ReactionType.Like };
 
         // Act
@@ -333,11 +333,11 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         // First set to Like
         var likeRequest = new UpdateReactionRequest { Reaction = ReactionType.Like };
         await _controller.UpdateMessageReaction(conversationId, messageId, likeRequest);
-        
+
         // Then change to Dislike
         var dislikeRequest = new UpdateReactionRequest { Reaction = ReactionType.Dislike };
 
@@ -346,7 +346,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Dislike));
@@ -360,11 +360,11 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         // First set to Like
         var likeRequest = new UpdateReactionRequest { Reaction = ReactionType.Like };
         await _controller.UpdateMessageReaction(conversationId, messageId, likeRequest);
-        
+
         // Then clear reaction
         var noneRequest = new UpdateReactionRequest { Reaction = ReactionType.None };
 
@@ -373,7 +373,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.None));
@@ -391,7 +391,7 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         var request = new UpdateCommentRequest { Comment = "This is a test comment" };
 
         // Act
@@ -399,7 +399,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo("This is a test comment"));
@@ -428,7 +428,7 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == otherUserConversationId)
             .First().Id;
-        
+
         var request = new UpdateCommentRequest { Comment = "Test comment" };
 
         // Act
@@ -446,11 +446,11 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         // First set a comment
         var firstRequest = new UpdateCommentRequest { Comment = "First comment" };
         await _controller.UpdateMessageComment(conversationId, messageId, firstRequest);
-        
+
         // Then update the comment
         var secondRequest = new UpdateCommentRequest { Comment = "Updated comment" };
 
@@ -459,7 +459,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo("Updated comment"));
@@ -473,11 +473,11 @@ public class ConversationsControllerTests
         var messageId = _context.ChatMessages
             .Where(m => m.ConversationId == conversationId && m.Role == ChatRole.Assistant)
             .First().Id;
-        
+
         // First set a comment
         var firstRequest = new UpdateCommentRequest { Comment = "Initial comment" };
         await _controller.UpdateMessageComment(conversationId, messageId, firstRequest);
-        
+
         // Then clear the comment
         var clearRequest = new UpdateCommentRequest { Comment = string.Empty };
 
@@ -486,7 +486,7 @@ public class ConversationsControllerTests
 
         // Assert
         Assert.That(result, Is.TypeOf<NoContentResult>());
-        
+
         var updatedMessage = await _context.ChatMessages.FindAsync(messageId);
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));

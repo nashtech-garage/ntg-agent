@@ -18,7 +18,7 @@ public sealed class KnowledgePlugin
     [KernelFunction, Description("search knowledge base")]
     public async Task<SearchResult> SearchAsync(string query)
     {
-        var result =  await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
+        var result = await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
         return result;
     }
 }
