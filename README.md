@@ -1,6 +1,9 @@
 # NTG Agent
 This project aims to practice building a chatbot in C#
 
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
+
+
 ## High level architecture
 
 ![NTG Agent - High level architecture](ntg-agent-components.png)
