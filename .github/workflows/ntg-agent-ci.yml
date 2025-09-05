@@ -1,4 +1,4 @@
-name: SonarCloud Analysis
+name: NTG Agent continuous integration flow
 
 on:
   push:
