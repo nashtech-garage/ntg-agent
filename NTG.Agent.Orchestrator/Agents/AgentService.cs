@@ -7,7 +7,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
-using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
@@ -169,7 +168,7 @@ public class AgentService
             chatHistory.AddMessage(role, msg.Content);
         }
 
-        var prompt = await BuildPromptAsync(promptRequest, ocrDocuments);
+        var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
 
         var userMessage = BuildUserMessage(promptRequest, prompt);
 
@@ -201,11 +200,11 @@ public class AgentService
         return userMessage;
     }
 
-    private async Task<string> BuildPromptAsync(PromptRequest promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequest promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {
-            return await BuildOcrPromptAsync(promptRequest.Prompt, promptRequest.Documents);
+            return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
 
         return BuildTextOnlyPrompt(promptRequest.Prompt);
@@ -259,11 +258,17 @@ public class AgentService
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
-        $@"
-        Search the knowledge base: {userPrompt}
-        Knowledge base will answer: {{memory.search}}
-        Answer the question in a clear, natural, human-like way
-        If the answer is empty, continue answering with your knowledge and plugins.";
+    $@"
+    First, check if the answer can be found in the conversation history.
+    If it is relevant, answer based on that context.
+
+    If the conversation history does not contain the answer,
+    then search the knowledge base with the query: {userPrompt}
+    Knowledge base will answer: {{memory.search}}
+
+    Answer the question in a clear, natural, human-like way.
+    If both conversation history and knowledge base are empty,
+    continue answering with your own knowledge and plugins.";
 
     private async Task<List<string>> ExtractDocumentData(
         IEnumerable<UploadItemContent> uploadItemContents)
@@ -279,51 +284,24 @@ public class AgentService
             {
                 using var stream = new MemoryStream(item.Content);
                 var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
-                    WaitUntil.Completed,
-                    "prebuilt-layout",
-                    stream
+                WaitUntil.Completed,
+                "prebuilt-read",
+                 stream
                 );
 
                 var result = operation.Value;
 
-                // Extract text lines
-                var lines = result.Pages?
-                    .SelectMany(page => page.Lines)
-                    .Select(line => line.Content)
-                    .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .ToList() ?? new List<string>();
-
-                // Table summaries
-                var tableSummaries = result.Tables?
-                    .Select((t, i) =>
-                    {
-                        var headers = t.Cells?.Where(c => c.Kind == "columnHeader")
-                            .Select(c => c.Content)
-                            .ToArray() ?? Array.Empty<string>();
-
-                        return $"Table {i + 1}: {t.RowCount} rows x {t.ColumnCount} columns" +
-                               (headers.Any() ? $" | Headers: {string.Join(", ", headers)}" : "");
-                    })
-                    .ToList() ?? new List<string>();
-
-                // Selection marks
-                var selections = result.Pages?
-                    .SelectMany(p => p.SelectionMarks?.Select(m =>
-                        $"{m.State} checkbox on page {p.PageNumber}")
-                        ?? Enumerable.Empty<string>())
+                // Extract text paragraphs
+                var paragraphs = result.Paragraphs?
+                    .Select(p => p.Content)
+                    .Where(c => !string.IsNullOrWhiteSpace(c))
                     .ToList() ?? new List<string>();
 
                 var docString = $@"
-[Document]
-Text:
-{string.Join(Environment.NewLine, lines)}
-
-Tables:
-{(tableSummaries.Any() ? string.Join(Environment.NewLine, tableSummaries) : "[No tables]")}
-
-Selections:
-{(selections.Any() ? string.Join(Environment.NewLine, selections) : "[No selections]")}
-";
+                    [Document]
+                    Text:
+                    {string.Join(Environment.NewLine, paragraphs)}
+                    ";
                 documentsData.Add(docString);
             }
             catch (Exception ex)
@@ -335,70 +313,9 @@ Selections:
         return documentsData;
     }
 
-    private async Task<string> BuildOcrPromptAsync(string userPrompt,
-        IEnumerable<UploadItemContent> uploadItemContents)
+    private string BuildOcrPromptAsync(string userPrompt,
+        List<string> ocrDocuments)
     {
-        var documentsData = new List<string>();
-
-        foreach (var item in uploadItemContents)
-        {
-            try
-            {
-                using var stream = new MemoryStream(item.Content);
-                var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
-                    WaitUntil.Completed,
-                    "prebuilt-layout",
-                    stream
-                );
-
-                var result = operation.Value;
-
-                // Extract text lines
-                var lines = result.Pages?
-                    .SelectMany(page => page.Lines)
-                    .Select(line => line.Content)
-                    .Where(l => !string.IsNullOrWhiteSpace(l))
-                    .ToList() ?? new List<string>();
-
-                // Table summaries
-                var tableSummaries = result.Tables?
-                    .Select((t, i) =>
-                    {
-                        var headers = t.Cells?.Where(c => c.Kind == "columnHeader")
-                            .Select(c => c.Content)
-                            .ToArray() ?? Array.Empty<string>();
-
-                        return $"Table {i + 1}: {t.RowCount} rows x {t.ColumnCount} columns" +
-                               (headers.Any() ? $" | Headers: {string.Join(", ", headers)}" : "");
-                    })
-                    .ToList() ?? new List<string>();
-
-                // Selection marks
-                var selections = result.Pages?
-                    .SelectMany(p => p.SelectionMarks?.Select(m =>
-                        $"{m.State} checkbox on page {p.PageNumber}")
-                        ?? Enumerable.Empty<string>())
-                    .ToList() ?? new List<string>();
-
-                var docString = $@"
-[Document]
-Text:
-{string.Join(Environment.NewLine, lines)}
-
-Tables:
-{(tableSummaries.Any() ? string.Join(Environment.NewLine, tableSummaries) : "[No tables]")}
-
-Selections:
-{(selections.Any() ? string.Join(Environment.NewLine, selections) : "[No selections]")}
-";
-                documentsData.Add(docString);
-            }
-            catch (Exception ex)
-            {
-                documentsData.Add($"[Document] Analysis failed: {ex.Message}");
-            }
-        }
-
         var prompt = $@"
 You are a helpful document assistant.
 I will provide one or more documents with text, tables, and selection marks.
@@ -406,7 +323,7 @@ Answer the user's question naturally, as a human would.
 Do not invent information or include irrelevant details.
 
 Documents:
-{string.Join(Environment.NewLine + Environment.NewLine, documentsData)}
+{string.Join(Environment.NewLine + Environment.NewLine, ocrDocuments)}
 
 User query: {userPrompt}
 ";
