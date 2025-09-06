@@ -1,11 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
-using NTG.Agent.Shared.Dtos.Constants;
 namespace NTG.Agent.Orchestrator.Data;
 
 public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContext(options)
@@ -22,7 +20,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
-    
+
     public DbSet<Tag> Tags { get; set; } = null!;
 
     public DbSet<TagRole> TagRoles { get; set; } = null!;
@@ -122,7 +120,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             e.Property(x => x.Name)
                 .IsRequired()
                 .HasMaxLength(256);
-            e.HasIndex(x => x.Name).IsUnique(); 
+            e.HasIndex(x => x.Name).IsUnique();
         });
 
         modelBuilder.Entity<TagRole>(e =>

@@ -1,3 +1,4 @@
+using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
@@ -101,6 +102,22 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
             openAIClient: client,
             modelId: config["GitHub:Models:ModelId"]!,
             serviceId: "github");
+    }
+
+    // Add Azure Document Intelligence OCR if configured
+    if (!string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:Endpoint"]) &&
+        !string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:ApiKey"]))
+    {
+        kernelBuilder.Services.AddSingleton(sp =>
+        {
+            var endpoint = config["Azure:DocumentIntelligence:Endpoint"]!;
+            var apiKey = config["Azure:DocumentIntelligence:ApiKey"]!;
+
+            return new DocumentAnalysisClient(
+                new Uri(endpoint),
+                new Azure.AzureKeyCredential(apiKey)
+            );
+        });
     }
 
     var kernel = kernelBuilder.Build();
