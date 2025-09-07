@@ -27,7 +27,7 @@ namespace NTG.Agent.Orchestrator.Services.WebSearch
 #pragma warning restore SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
         }
 
-        public async IAsyncEnumerable<TextSearchResult> SearchAsync(string query, int top = 5)
+        public async IAsyncEnumerable<TextSearchResult> SearchAsync(string query, int top)
         {
 #pragma warning disable SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var results = await _googleTextSearch.GetTextSearchResultsAsync(query, new() { Top = top });

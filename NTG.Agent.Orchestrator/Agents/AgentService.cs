@@ -24,6 +24,13 @@ public class AgentService
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
+    public record PromptStreamingContext(
+    Guid ConversationID,
+    PromptRequest PromptRequest,
+    List<ChatMessage> History,
+    List<string> Tags,
+    List<string> OcrDocuments);
+
     public AgentService(
         Kernel kernel,
         AgentDbContext agentDbContext,
@@ -42,11 +49,23 @@ public class AgentService
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
+
         var history = await PrepareConversationHistory(userId, conversation);
+
         var tags = await GetUserTags(userId);
+
         var ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
+
+        await foreach (var item in InvokePromptStreamingInternalAsync(
+            new PromptStreamingContext(
+                conversation.Id,
+                promptRequest,
+                history,
+                tags,
+                ocrDocuments
+            )))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -155,11 +174,13 @@ public class AgentService
     #region Prompt Building + Streaming
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptRequest promptRequest,
-        List<ChatMessage> history,
-        List<string> tags,
-        List<string> ocrDocuments)
+    PromptStreamingContext context)
     {
+        var promptRequest = context.PromptRequest;
+        var history = context.History;
+        var tags = context.Tags;
+        var ocrDocuments = context.OcrDocuments;
+
         var chatHistory = new ChatHistory();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
         {
@@ -173,19 +194,17 @@ public class AgentService
         }
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
         var userMessage = BuildUserMessage(promptRequest, prompt);
-
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
         kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
-        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, kernel), "onlineweb");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, context.ConversationID), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
             Kernel = kernel,
             Arguments = new KernelArguments(new PromptExecutionSettings
             {
@@ -196,6 +215,7 @@ public class AgentService
         await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
             yield return item.Message.ToString();
     }
+
 
     private ChatMessageContent BuildUserMessage(PromptRequest promptRequest, string prompt)
     {
