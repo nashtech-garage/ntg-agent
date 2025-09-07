@@ -110,6 +110,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
 #pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
     kernel.Plugins.Add(KernelPluginFactory.CreateFromType<DateTimePlugin>());
+    kernel.Plugins.Add(KernelPluginFactory.CreateFromType<WebSearchPlugin>());
 
     return kernel;
 });
