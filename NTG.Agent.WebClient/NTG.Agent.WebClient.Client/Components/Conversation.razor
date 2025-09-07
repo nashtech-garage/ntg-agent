@@ -21,6 +21,13 @@
             </div>
         </div>
         <div class="header-controls">
+            <!-- Mobile close button -->
+            <button class="mobile-close-btn" onclick="closeMobileMenu()" aria-label="Close menu">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M2.146 2.854a.5.5 0 1 1 .708-.708L8 7.293l5.146-5.147a.5.5 0 0 1 .708.708L8.707 8l5.147 5.146a.5.5 0 0 1-.708.708L8 8.707l-5.146 5.147a.5.5 0 0 1-.708-.708L7.293 8 2.146 2.854Z"/>
+                </svg>
+            </button>
+            
             <div class="sidebar-toggle">
                 <button @onclick="ToggleSidebar" class="toggle-btn" aria-label="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")" title="@(IsSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16" class="toggle-icon">
@@ -176,7 +183,6 @@
     {
         if (firstRender)
         {
-            // Register for location changes to maintain sidebar state
             Navigation.LocationChanged += HandleLocationChanged;
         }
 
@@ -186,7 +192,6 @@
     private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         UpdateActiveConversationFromUrl();
-        // When the location changes, reapply the sidebar state
         await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
         await InvokeAsync(StateHasChanged);
     }
@@ -321,14 +326,12 @@
             try
             {
                 await ConversationClient.UpdateConversationAsync(renamingConversationId.Value, renameValue.Trim());
-                // Since ConversationListItem is a record type, we need to replace it entirely
                 conversations = conversations.Select(c => c.Id == renamingConversationId.Value
                     ? new ConversationListItem(c.Id, renameValue.Trim())
                     : c).ToList();
             }
             catch (Exception ex)
             {
-                // TODO: Handle error - could show a toast notification
                 Logger.LogError(ex, "Failed to rename conversation");
             }
         }
@@ -372,7 +375,6 @@
                 await ConversationClient.DeleteConversationAsync(conversationToDelete.Id);
                 conversations = conversations.Where(c => c.Id != conversationToDelete.Id).ToList();
 
-                // If we deleted the active conversation, navigate to home
                 if (activeConversationId == conversationToDelete.Id)
                 {
                     Navigation.NavigateTo("/");
@@ -380,7 +382,6 @@
             }
             catch (Exception ex)
             {
-                // TODO: Handle error - could show a toast notification
                 Logger.LogError(ex, "Error: Failed to delete conversation.");
             }
         }
@@ -419,12 +420,10 @@
     {
         try
         {
-            // Use the new JS function that returns a proper boolean
             IsSidebarCollapsed = await JS.InvokeAsync<bool>("getSidebarState");
         }
         catch (Exception ex)
         {
-            // Provide a fallback in case of JS interop errors
             Logger.LogError(ex, "Error loading sidebar state");
             IsSidebarCollapsed = false;
         }
@@ -434,7 +433,6 @@
     {
         try
         {
-            // Use the new JS function for setting state
             await JS.InvokeVoidAsync("setSidebarState", IsSidebarCollapsed);
         }
         catch (Exception ex)
@@ -469,7 +467,7 @@
 
     private async Task OpenManageSharedModal()
     {
-        showSettingsMenu = false; // Close the dropdown menu
+        showSettingsMenu = false;
         showManageSharedModal = true;
         await JS.InvokeVoidAsync("hideInputChatContainer");
         StateHasChanged();
@@ -484,8 +482,6 @@
 
     private void HandleSharedConversationChanged()
     {
-        // This method can be used to refresh data if needed
-        // For now, it's just a placeholder for potential future use
         StateHasChanged();
     }
     #endregion

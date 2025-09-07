@@ -7,13 +7,39 @@
     position: absolute;
     top: 0.5rem;
     right: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: none;
+    outline: none;
     background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.55%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e")
         no-repeat center/1.75rem rgba(255, 255, 255, 0.1);
 }
 
+@media (max-width: 768px) {
+    .navbar-toggler {
+        width: 2.5rem;
+        height: 2rem;
+        position: relative;
+        top: auto;
+        right: auto;
+        background-size: 1.25rem;
+    }
+}
+
 .navbar-toggler:checked {
     background-color: rgba(255, 255, 255, 0.5);
+    border: none;
+    outline: none;
+}
+
+.navbar-toggler:focus {
+    border: none;
+    outline: none;
+    box-shadow: none;
+}
+
+.navbar-toggler:active {
+    border: none;
+    outline: none;
+    box-shadow: none;
 }
 
 .top-row {
@@ -100,8 +126,65 @@
     }
 
     .nav-scrollable {
-        /* Never collapse the sidebar for wide screens */
         display: block;
         overflow-y: auto;
+    }
+}
+
+
+@media (max-width: 768px) {
+    .navbar {
+        padding: 0.5rem 1rem;
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    
+    .navbar-brand {
+        font-size: 0.9rem;
+        margin: 0;
+    }
+    
+    .navbar-toggler {
+        position: relative;
+        top: auto;
+        right: auto;
+        margin: 0;
+        width: 2.5rem; 
+        height: 2rem;
+    }
+    
+    .nav-scrollable {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        z-index: 1000;
+        display: none;
+    }
+    
+    .navbar-toggler:checked ~ .nav-scrollable {
+        display: block;
+    }
+    
+    .nav {
+        padding: 0.5rem 0;
+    }
+    
+    .nav-item {
+        margin: 0;
+    }
+    
+    .nav-item .nav-link {
+        padding: 0.5rem 1rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.9rem;
+    }
+    
+    .nav-item:last-child .nav-link {
+        border-bottom: none;
     }
 }

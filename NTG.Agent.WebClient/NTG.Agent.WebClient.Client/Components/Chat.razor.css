@@ -13,7 +13,7 @@
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    /* z-index: 100; */
+    z-index: 100;
 }
 
 .share-button:hover {
@@ -33,34 +33,71 @@
     color: #374151;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    .share-button {
-        background: #1f2937;
-        border-color: #374151;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    }
-    
-    .share-button:hover {
-        background: #374151;
-        border-color: #4b5563;
-    }
-    
-    .share-button i {
-        color: #d1d5db;
-    }
+.text-end {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
+.text-end span {
+    max-width: 70%;
+    word-wrap: break-word;
+    display: inline-block;
+    text-align: left;
+}
+
+/* System message styling */
+.chat-response {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+/* Chat actions */
+.chat-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.chat-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Comment section */
+.comment-section {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .share-button {
-        top: 8px;
-        right: 8px;
-        width: 32px;
-        height: 32px;
+        top: 60px;
+        right: 15px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        z-index: 1000;
     }
     
     .share-button i {
-        font-size: 12px;
+        font-size: 16px;
+    }
+    
+    .text-end span {
+        max-width: 85%;
+        font-size: 0.9rem;
+    }
+    
+    .chat-actions {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .chat-actions .btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
     }
 }
