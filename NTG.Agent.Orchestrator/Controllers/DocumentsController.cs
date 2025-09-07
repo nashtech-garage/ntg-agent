@@ -1,13 +1,15 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Shared.Dtos.Documents;
-using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Extentions;
+using NTG.Agent.Orchestrator.Models.Documents;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Shared.Dtos.Documents;
+using NTG.Agent.Shared.Dtos.Services;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -28,6 +30,7 @@ public class DocumentsController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
+
     /// <summary>
     /// Retrieves a list of documents associated with a specific agent and optionally filtered by a folder.
     /// </summary>
@@ -58,10 +61,10 @@ public class DocumentsController : ControllerBase
                 .ThenInclude(dt => dt.Tag)
                 .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
                 .Select(x => new DocumentListItem(
-                    x.Id, 
-                    x.Name, 
-                    x.CreatedAt, 
-                    x.UpdatedAt, 
+                    x.Id,
+                    x.Name,
+                    x.CreatedAt,
+                    x.UpdatedAt,
                     x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
                 .ToListAsync();
             return Ok(defaultDocuments);
@@ -71,10 +74,10 @@ public class DocumentsController : ControllerBase
         .ThenInclude(dt => dt.Tag)
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
         .Select(x => new DocumentListItem(
-            x.Id, 
-            x.Name, 
-            x.CreatedAt, 
-            x.UpdatedAt, 
+            x.Id,
+            x.Name,
+            x.CreatedAt,
+            x.UpdatedAt,
             x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
         .ToListAsync();
 
@@ -279,13 +282,13 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var title = string.IsNullOrWhiteSpace(request.Title) ? "Text Content" : request.Title;
-            var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, title, agentId, request.Tags);
-            
+            var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
+            var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, fileName, agentId, request.Tags);
+
             var document = new Document
             {
                 Id = Guid.NewGuid(),
-                Name = title,
+                Name = fileName,
                 AgentId = agentId,
                 KnowledgeDocId = knowledgeDocId,
                 FolderId = request.FolderId,
@@ -317,6 +320,105 @@ public class DocumentsController : ControllerBase
         {
             return BadRequest($"Failed to upload text content: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Downloads a document by its unique identifier and associated agent.
+    /// </summary>
+    /// <remarks>This method requires the user to be authenticated and authorized. The method supports downloading
+    /// different types of documents: <list type="bullet">
+    /// <item><description><strong>File documents:</strong> Returns the original file content with appropriate MIME type.</description></item>
+    /// <item><description><strong>Text documents:</strong> Returns the text content as a plain text file with .txt extension.</description></item>
+    /// <item><description><strong>WebPage documents:</strong> Fetches and returns the content from the stored URL with appropriate content type and file extension.</description></item>
+    /// </list>
+    /// The response includes proper content-type headers and sanitized filenames for safe downloading.</remarks>
+    /// <param name="id">The unique identifier of the document to download.</param>
+    /// <param name="agentId">The unique identifier of the agent associated with the document.</param>
+    /// <returns>An <see cref="IActionResult"/> containing the document content as a file download. Returns:
+    /// <list type="bullet">
+    /// <item><description><see cref="NotFoundResult"/> if the document with the specified <paramref name="id"/> and <paramref name="agentId"/> does not exist.</description></item>
+    /// <item><description><see cref="NotFoundResult"/> if the document content cannot be retrieved from the knowledge service.</description></item>
+    /// <item><description><see cref="FileResult"/> with the document content, appropriate MIME type, and filename if successful.</description></item>
+    /// <item><description><see cref="StatusCodeResult"/> with status 500 if an error occurs while accessing the file content or downloading from a URL.</description></item>
+    /// </list></returns>
+    [HttpGet("download/{agentId}/{id}")]
+    [Authorize]
+    public async Task<IActionResult> GetDocumentById(Guid id, Guid agentId, CancellationToken ct)
+    {
+        var document = await _agentDbContext.Documents
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == id && d.AgentId == agentId, ct);
+
+        if (document is null) return NotFound();
+
+        return document.Type switch
+        {
+            DocumentType.File or DocumentType.Text => await HandleKnowledgeFileDownloadAsync(document, agentId, ct),
+            DocumentType.WebPage => await HandleWebPageDownloadAsync(document, ct),
+            _ => NotFound("Unsupported document type.")
+        };
+    }
+
+    private async Task<IActionResult> HandleKnowledgeFileDownloadAsync(Document document, Guid agentId, CancellationToken ct)
+    {
+        if (document.KnowledgeDocId is null) return NotFound("No knowledge document id.");
+        var fileName = FileTypeService.SanitizeFileName(document.Name);
+
+        var contentType = FileTypeService.GetContentType(fileName);
+
+        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId);
+
+        if (content is null) return NotFound();
+
+        var stream = await content.GetStreamAsync();
+        return File(stream, contentType, fileName);
+    }
+
+    private async Task<IActionResult> HandleWebPageDownloadAsync(Document document, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(document.Url))
+            return NotFound("Webpage URL not found.");
+
+        if (!Uri.TryCreate(document.Url, UriKind.Absolute, out var uri))
+            return BadRequest("Invalid webpage URL.");
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            var response = await httpClient.GetAsync(document.Url);
+            response.EnsureSuccessStatusCode();
+
+            var content = await response.Content.ReadAsStreamAsync();
+
+            // Prefer server-provided content-type, with fallback to URL/extension
+            var headerType = response.Content.Headers.ContentType?.MediaType;
+            var inferredType = headerType ?? GetContentTypeFromUrlPath(uri.AbsolutePath);
+
+            // File extension from content-type or URL
+            var extension = FileTypeService.GetFileExtensionFromContentType(inferredType, uri.ToString());
+            var fileName = $"{FileTypeService.SanitizeFileName(document.Name)}{extension}";
+            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            return File(stream, inferredType, fileName);
+        }
+        catch (OperationCanceledException)
+        {
+            return StatusCode(499);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Failed to download content from URL: {ex.Message}");
+        }
+    }
+
+    private static readonly FileExtensionContentTypeProvider _mimeProvider = new();
+
+    private static string GetContentTypeFromUrlPath(string urlPath)
+    {
+        var fileName = Path.GetFileName(urlPath);
+        if (!string.IsNullOrEmpty(fileName) && _mimeProvider.TryGetContentType(fileName, out var contentType))
+            return contentType;
+
+        return "application/octet-stream";
     }
 }
 
