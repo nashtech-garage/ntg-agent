@@ -117,7 +117,7 @@ public class AgentService
             IsSummary = true
         };
 
-        summaryMsg.Content = $"Summary: {summary}";
+        summaryMsg.Content = $"Summary of earlier conversation: {summary}";
         summaryMsg.UpdatedAt = DateTime.UtcNow;
 
         _agentDbContext.Update(summaryMsg);
@@ -248,7 +248,7 @@ public class AgentService
         var summarizer = new ChatCompletionAgent
         {
             Name = "ConversationSummarizer",
-            Instructions = "Summarize the chat into a concise paragraph.",
+            Instructions = "Summarize the following chat into a concise paragraph that captures key points.",
             Kernel = _kernel
         };
 
