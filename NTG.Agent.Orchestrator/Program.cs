@@ -1,4 +1,3 @@
-using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
@@ -7,6 +6,8 @@ using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults;
 using OpenAI;
 using OpenTelemetry;
@@ -104,22 +105,6 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
             serviceId: "github");
     }
 
-    // Add Azure Document Intelligence OCR if configured
-    if (!string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:Endpoint"]) &&
-        !string.IsNullOrWhiteSpace(config["Azure:DocumentIntelligence:ApiKey"]))
-    {
-        kernelBuilder.Services.AddSingleton(sp =>
-        {
-            var endpoint = config["Azure:DocumentIntelligence:Endpoint"]!;
-            var apiKey = config["Azure:DocumentIntelligence:ApiKey"]!;
-
-            return new DocumentAnalysisClient(
-                new Uri(endpoint),
-                new Azure.AzureKeyCredential(apiKey)
-            );
-        });
-    }
-
     var kernel = kernelBuilder.Build();
 
 #pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
@@ -133,6 +118,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
 
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
+builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");

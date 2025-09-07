@@ -1,17 +1,15 @@
-﻿using Azure;
-using Azure.AI.FormRecognizer.DocumentAnalysis;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
-using NTG.Agent.Shared.Dtos.Upload;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
@@ -21,18 +19,20 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly DocumentAnalysisClient? _documentAnalysisClient;
+    private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         Kernel kernel,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService)
+        IKnowledgeService knowledgeService,
+        IDocumentAnalysisService documentAnalysisService
+         )
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
-        _documentAnalysisClient = kernel.Services.GetService<DocumentAnalysisClient>();
+        _documentAnalysisService = documentAnalysisService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
@@ -40,7 +40,7 @@ public class AgentService
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, conversation);
         var tags = await GetUserTags(userId);
-        var ocrDocuments = await ExtractDocumentData(promptRequest.Documents);
+        var ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
@@ -270,48 +270,7 @@ public class AgentService
     If both conversation history and knowledge base are empty,
     continue answering with your own knowledge and plugins.";
 
-    private async Task<List<string>> ExtractDocumentData(
-        IEnumerable<UploadItemContent> uploadItemContents)
-    {
-        if (_documentAnalysisClient is null || uploadItemContents == null || !uploadItemContents.Any())
-            return new List<string>();
 
-        var documentsData = new List<string>();
-
-        foreach (var item in uploadItemContents)
-        {
-            try
-            {
-                using var stream = new MemoryStream(item.Content);
-                var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
-                WaitUntil.Completed,
-                "prebuilt-read",
-                 stream
-                );
-
-                var result = operation.Value;
-
-                // Extract text paragraphs
-                var paragraphs = result.Paragraphs?
-                    .Select(p => p.Content)
-                    .Where(c => !string.IsNullOrWhiteSpace(c))
-                    .ToList() ?? new List<string>();
-
-                var docString = $@"
-                    [Document]
-                    Text:
-                    {string.Join(Environment.NewLine, paragraphs)}
-                    ";
-                documentsData.Add(docString);
-            }
-            catch (Exception ex)
-            {
-                documentsData.Add($"[Document] Analysis failed: {ex.Message}");
-            }
-        }
-
-        return documentsData;
-    }
 
     private string BuildOcrPromptAsync(string userPrompt,
         List<string> ocrDocuments)
@@ -330,9 +289,6 @@ User query: {userPrompt}
 
         return prompt;
     }
-
-
-
 
     #endregion
 }
