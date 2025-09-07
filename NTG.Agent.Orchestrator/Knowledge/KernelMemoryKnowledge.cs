@@ -1,5 +1,4 @@
 ﻿using Microsoft.KernelMemory;
-using Microsoft.Extensions.Configuration;
 
 namespace NTG.Agent.Orchestrator.Knowledge;
 
@@ -11,7 +10,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
         var apiKey = configuration["KernelMemory:ApiKey"] ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
-        
+
         _memoryWebClient = new MemoryWebClient(endpoint, apiKey);
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
