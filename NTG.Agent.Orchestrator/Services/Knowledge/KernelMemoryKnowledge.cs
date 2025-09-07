@@ -1,6 +1,6 @@
 ﻿using Microsoft.KernelMemory;
 
-namespace NTG.Agent.Orchestrator.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
@@ -57,7 +57,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }

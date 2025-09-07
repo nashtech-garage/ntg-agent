@@ -1,6 +1,6 @@
 using Microsoft.KernelMemory;
 
-namespace NTG.Agent.Orchestrator.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public interface IKnowledgeService
 {
