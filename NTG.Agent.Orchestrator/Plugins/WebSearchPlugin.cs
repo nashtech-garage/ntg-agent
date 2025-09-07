@@ -1,6 +1,7 @@
 ﻿using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Data;
-using NTG.Agent.Orchestrator.Services;
+using NTG.Agent.Orchestrator.Services.WebSearch;
+using System.ComponentModel;
+using System.Text;
 
 namespace NTG.Agent.Orchestrator.Plugins
 {
@@ -13,13 +14,20 @@ namespace NTG.Agent.Orchestrator.Plugins
             _textSearchService = textSearchService;
         }
 
-        [KernelFunction("Search Web")]
-        public async IAsyncEnumerable<TextSearchResult> SearchAsync(string query)
+        [KernelFunction, Description("Search Online Web")]
+        public async Task<string> SearchAsync(string query)
         {
+            var sb = new StringBuilder();
+
             await foreach (var result in _textSearchService.SearchAsync(query))
             {
-                yield return result;
+                sb.AppendLine($"- {result.Name ?? "No title"}");
+                sb.AppendLine($"  {result.Value}");
+                sb.AppendLine($"  {result.Link ?? "No URL"}");
+                sb.AppendLine();
             }
+
+            return sb.ToString();
         }
     }
 }

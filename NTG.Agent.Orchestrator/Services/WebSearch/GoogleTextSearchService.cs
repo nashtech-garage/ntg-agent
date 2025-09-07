@@ -1,7 +1,7 @@
 ﻿using Microsoft.SemanticKernel.Data;
 using Microsoft.SemanticKernel.Plugins.Web.Google;
 
-namespace NTG.Agent.Orchestrator.Services
+namespace NTG.Agent.Orchestrator.Services.WebSearch
 {
     public class GoogleTextSearchService : ITextSearchService
     {

@@ -1,6 +1,6 @@
 using Microsoft.SemanticKernel.Data;
 
-namespace NTG.Agent.Orchestrator.Services
+namespace NTG.Agent.Orchestrator.Services.WebSearch
 {
     public interface ITextSearchService
     {

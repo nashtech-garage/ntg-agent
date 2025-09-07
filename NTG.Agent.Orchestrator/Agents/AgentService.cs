@@ -7,6 +7,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.WebSearch;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
@@ -19,6 +20,7 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly ITextSearchService _textSearchService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -26,13 +28,15 @@ public class AgentService
         Kernel kernel,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+        IDocumentAnalysisService documentAnalysisService,
+        ITextSearchService textSearchService
          )
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _documentAnalysisService = documentAnalysisService;
+        _textSearchService = textSearchService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
@@ -176,6 +180,7 @@ public class AgentService
 
         var kernel = _kernel.Clone();
         kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, kernel), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {
@@ -266,10 +271,13 @@ public class AgentService
     then search the knowledge base with the query: {userPrompt}
     Knowledge base will answer: {{memory.search}}
 
+    If the knowledge base does not contain the answer,
+    then search online web with the query: {userPrompt}
+    Online web will answer: {{onlineweb.search}}
+
     Answer the question in a clear, natural, human-like way.
     If both conversation history and knowledge base are empty,
     continue answering with your own knowledge and plugins.";
-
 
 
     private string BuildOcrPromptAsync(string userPrompt,
@@ -277,7 +285,7 @@ public class AgentService
     {
         var prompt = $@"
 You are a helpful document assistant.
-I will provide one or more documents with text, tables, and selection marks.
+I will provide one or more documents with text
 Answer the user's question naturally, as a human would.
 Do not invent information or include irrelevant details.
 
