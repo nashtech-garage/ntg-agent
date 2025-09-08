@@ -96,7 +96,6 @@
 @code {
     private string generalMessage = string.Empty;
     private bool isError = false;
-    private bool isUploading = false;
     private List<UploadItemContent> uploadItems = new();
     private int MAX_FILE_UPLOAD = 10;
 
@@ -110,7 +109,6 @@
     {
         generalMessage = string.Empty;
         isError = false;
-        isUploading = false;
         uploadItems.Clear();
     }
 
@@ -122,7 +120,6 @@
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
-        isUploading = true;
         generalMessage = string.Empty;
 
         try
@@ -179,7 +176,6 @@
         }
         finally
         {
-            isUploading = false;
             StateHasChanged();
         }
     }
