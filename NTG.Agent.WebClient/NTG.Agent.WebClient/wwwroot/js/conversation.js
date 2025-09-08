@@ -111,7 +111,7 @@ window.updateSidebarState = function (isCollapsed) {
     const sidebarCol = document.getElementById('sidebarColumn') || document.querySelector('.sidebar').closest('[class*="col-"]');
     
     if (mainContent && sidebarCol) {
-        //console.warn('Updating sidebar state:', isCollapsed ? 'collapsed' : 'expanded');
+        console.log('Updating sidebar state:', isCollapsed ? 'collapsed' : 'expanded');
         
         try {
             // Reset all column classes first to avoid conflicts
