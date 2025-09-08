@@ -3,6 +3,7 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
@@ -35,12 +36,16 @@ public class AgentService
         _documentAnalysisService = documentAnalysisService;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
+    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, conversation);
         var tags = await GetUserTags(userId);
-        var ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+        var ocrDocuments = new List<string>();
+        if (promptRequest.Documents is not null && promptRequest.Documents.Any())
+        {
+            ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+        }
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
@@ -53,7 +58,7 @@ public class AgentService
 
     #region Conversation Helpers
 
-    private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequest promptRequest)
+    private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequestForm promptRequest)
     {
         var conversationId = promptRequest.ConversationId;
         Conversation? conversation;
@@ -151,7 +156,7 @@ public class AgentService
     #region Prompt Building + Streaming
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptRequest promptRequest,
+        PromptRequestForm promptRequest,
         List<ChatMessage> history,
         List<string> tags,
         List<string> ocrDocuments)
@@ -192,7 +197,7 @@ public class AgentService
             yield return item.Message.ToString();
     }
 
-    private ChatMessageContent BuildUserMessage(PromptRequest promptRequest, string prompt)
+    private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
@@ -200,7 +205,7 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {

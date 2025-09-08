@@ -174,7 +174,7 @@ else
 
     private string userInput = string.Empty;
     private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
-    private List<UploadItemContent> uploadItems = new();
+    private List<UploadItemClient> uploadItems = new();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
@@ -233,7 +233,7 @@ else
         }
     }
 
-    private void OnFilesUploaded(List<UploadItemContent> items)
+    private void OnFilesUploaded(List<UploadItemClient> items)
     {
         uploadItems = items.ToList();
         showUploadFileModal = false;
@@ -272,7 +272,7 @@ else
         StateHasChanged();
 
         // 🚀 Send text + image to backend
-        var request = new PromptRequest(query, ConversationId.Value,
+        var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
             currentSessionId, uploadItems);
 
         var result = await ChatClient.InvokeStreamAsync(request);
@@ -324,7 +324,7 @@ else
         }
     }
 
-    private void RemoveUploadItem(UploadItemContent item)
+    private void RemoveUploadItem(UploadItemClient item)
     {
         uploadItems.Remove(item);
         StateHasChanged();

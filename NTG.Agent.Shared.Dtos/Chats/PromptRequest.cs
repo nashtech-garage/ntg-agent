@@ -2,8 +2,10 @@
 
 namespace NTG.Agent.Shared.Dtos.Chats;
 
-public record PromptRequest
-    (string Prompt,
+public record PromptRequest<TUpload>(
+    string Prompt,
     Guid ConversationId,
     string? SessionId,
-    IEnumerable<UploadItemContent> Documents);
+    IEnumerable<TUpload>? Documents
+)
+where TUpload : UploadItem;
