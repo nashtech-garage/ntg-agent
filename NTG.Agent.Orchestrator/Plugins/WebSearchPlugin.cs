@@ -34,10 +34,7 @@ namespace NTG.Agent.Orchestrator.Plugins
         [KernelFunction, Description("Search Online Web")]
         public async Task<string> SearchAsync(string query, int top = 5)
         {
-            //// Clear previous conversation memory
-            //await _knowledgeService.ClearDocumentsPerConversationAsync(_conversationId);
-
-            var sourceUrls = new List<string>();
+            var sourceUrls = new List<(string Title, string Url)>();
 
             // Ingest new web search results
             await foreach (var result in _textSearchService.SearchAsync(query, top))
@@ -50,8 +47,10 @@ namespace NTG.Agent.Orchestrator.Plugins
                             url: result.Link,
                             conversationId: _conversationId
                         );
-                        // Collect URLs
-                        sourceUrls.Add(result.Link);
+
+                        // Use the result title if available, otherwise fallback to the URL itself
+                        var title = string.IsNullOrEmpty(result.Name) ? result.Link : result.Name;
+                        sourceUrls.Add((title, result.Link));
                     }
                     catch
                     {
@@ -92,13 +91,13 @@ namespace NTG.Agent.Orchestrator.Plugins
             await foreach (var res in summarizer.InvokeAsync(sbContent.ToString()))
                 sb.Append(res.Message);
 
-            // Append source URLs at the end
+            // Append source URLs as Markdown hyperlinks
             if (sourceUrls.Any())
             {
                 sb.AppendLine("\nSources:");
-                foreach (var url in sourceUrls.Distinct())
+                foreach (var (title, url) in sourceUrls.Distinct())
                 {
-                    sb.AppendLine(url);
+                    sb.AppendLine($"- [{title}]({url})");
                 }
             }
 
