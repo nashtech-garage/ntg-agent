@@ -1,6 +1,6 @@
 ﻿using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
-using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using System.ComponentModel;
 
 namespace NTG.Agent.Orchestrator.Plugins;

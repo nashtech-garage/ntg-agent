@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
-using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Models.Documents;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using NTG.Agent.Shared.Dtos.Documents;
@@ -30,6 +30,7 @@ public class DocumentsController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
+
     /// <summary>
     /// Retrieves a list of documents associated with a specific agent and optionally filtered by a folder.
     /// </summary>
@@ -281,7 +282,7 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{ request.Title}.txt";
+            var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
             var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, fileName, agentId, request.Tags);
 
             var document = new Document
