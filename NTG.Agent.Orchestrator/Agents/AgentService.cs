@@ -15,26 +15,18 @@ using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
-public class AgentService
-{
-    private readonly Kernel _kernel;
-    private readonly AgentDbContext _agentDbContext;
-    private readonly IKnowledgeService _knowledgeService;
-    private readonly IDocumentAnalysisService _documentAnalysisService;
-    private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
-
-    public AgentService(
-        Kernel kernel,
-        AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+public class AgentService(
+    Kernel kernel,
+    AgentDbContext agentDbContext,
+    IKnowledgeService knowledgeService,
+    IDocumentAnalysisService documentAnalysisService
          )
-    {
-        _kernel = kernel;
-        _agentDbContext = agentDbContext;
-        _knowledgeService = knowledgeService;
-        _documentAnalysisService = documentAnalysisService;
-    }
+{
+    private readonly Kernel _kernel = kernel;
+    private readonly AgentDbContext _agentDbContext = agentDbContext;
+    private readonly IKnowledgeService _knowledgeService = knowledgeService;
+    private readonly IDocumentAnalysisService _documentAnalysisService = documentAnalysisService;
+    private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
@@ -204,7 +196,7 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private static string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Count != 0)
         {
@@ -261,7 +253,7 @@ public class AgentService
         return sb.ToString();
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
+    private static string BuildTextOnlyPrompt(string userPrompt) =>
     $@"
     First, check if the answer can be found in the conversation history.
     If it is relevant, answer based on that context.
@@ -277,7 +269,7 @@ public class AgentService
 
 
 
-    private string BuildOcrPromptAsync(string userPrompt,
+    private static string BuildOcrPromptAsync(string userPrompt,
         List<string> ocrDocuments)
     {
         var prompt = $@"
