@@ -1,9 +1,9 @@
-using NTG.Agent.Shared.Dtos.Upload;
+using NTG.Agent.Orchestrator.Dtos;
 
 namespace NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 
 public interface IDocumentAnalysisService
 {
     Task<List<string>> ExtractDocumentData(
-        IEnumerable<UploadItemContent> uploadItemContents);
+        IEnumerable<UploadItemForm> uploadItemContents);
 }

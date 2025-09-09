@@ -3,8 +3,11 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
@@ -46,16 +49,16 @@ public class AgentService
         _textSearchService = textSearchService;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequest promptRequest)
+    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var conversation = await ValidateConversation(userId, promptRequest);
-
         var history = await PrepareConversationHistory(userId, conversation);
-
         var tags = await GetUserTags(userId);
-
-        var ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
-
+        var ocrDocuments = new List<string>();
+        if (promptRequest.Documents is not null && promptRequest.Documents.Any())
+        {
+            ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+        }
         var agentMessageSb = new StringBuilder();
 
         await foreach (var item in InvokePromptStreamingInternalAsync(
@@ -76,7 +79,7 @@ public class AgentService
 
     #region Conversation Helpers
 
-    private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequest promptRequest)
+    private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequestForm promptRequest)
     {
         var conversationId = promptRequest.ConversationId;
         Conversation? conversation;
@@ -174,13 +177,11 @@ public class AgentService
     #region Prompt Building + Streaming
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-    PromptStreamingContext context)
+        PromptRequestForm promptRequest,
+        List<ChatMessage> history,
+        List<string> tags,
+        List<string> ocrDocuments)
     {
-        var promptRequest = context.PromptRequest;
-        var history = context.History;
-        var tags = context.Tags;
-        var ocrDocuments = context.OcrDocuments;
-
         var chatHistory = new ChatHistory();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
         {
