@@ -15,26 +15,18 @@ using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
-public class AgentService
-{
-    private readonly Kernel _kernel;
-    private readonly AgentDbContext _agentDbContext;
-    private readonly IKnowledgeService _knowledgeService;
-    private readonly IDocumentAnalysisService _documentAnalysisService;
-    private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
-
-    public AgentService(
-        Kernel kernel,
-        AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+public class AgentService(
+    Kernel kernel,
+    AgentDbContext agentDbContext,
+    IKnowledgeService knowledgeService,
+    IDocumentAnalysisService documentAnalysisService
          )
-    {
-        _kernel = kernel;
-        _agentDbContext = agentDbContext;
-        _knowledgeService = knowledgeService;
-        _documentAnalysisService = documentAnalysisService;
-    }
+{
+    private readonly Kernel _kernel = kernel;
+    private readonly AgentDbContext _agentDbContext = agentDbContext;
+    private readonly IKnowledgeService _knowledgeService = knowledgeService;
+    private readonly IDocumentAnalysisService _documentAnalysisService = documentAnalysisService;
+    private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
@@ -131,7 +123,7 @@ public class AgentService
             .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
-
+    
     private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
     {
         if (conversation.Name == "New Conversation")
@@ -150,10 +142,6 @@ public class AgentService
 
         await _agentDbContext.SaveChangesAsync();
     }
-
-    #endregion
-
-    #region Prompt Building + Streaming
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
@@ -175,7 +163,7 @@ public class AgentService
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
 
-        var userMessage = BuildUserMessage(promptRequest, prompt);
+        var userMessage = BuildUserMessage(prompt);
 
         chatHistory.Add(userMessage);
 
@@ -197,7 +185,11 @@ public class AgentService
             yield return item.Message.ToString();
     }
 
-    private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
+    #endregion
+
+    #region Prompt Building + Streaming
+
+    private static ChatMessageContent BuildUserMessage(string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
@@ -205,9 +197,9 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private static string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
-        if (ocrDocuments.Any())
+        if (ocrDocuments.Count != 0)
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
@@ -262,14 +254,15 @@ public class AgentService
         return sb.ToString();
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
+    private static string BuildTextOnlyPrompt(string userPrompt) =>
     $@"
     First, check if the answer can be found in the conversation history.
     If it is relevant, answer based on that context.
 
     If the conversation history does not contain the answer,
     then search the knowledge base with the query: {userPrompt}
-    Knowledge base will answer: {{memory.search}}
+    **IMPORTANT**: Pass the complete user request to memory.query without modification.
+    Knowledge base will answer: {{memory.query}}
 
     Answer the question in a clear, natural, human-like way.
     If both conversation history and knowledge base are empty,
@@ -277,7 +270,7 @@ public class AgentService
 
 
 
-    private string BuildOcrPromptAsync(string userPrompt,
+    private static string BuildOcrPromptAsync(string userPrompt,
         List<string> ocrDocuments)
     {
         var prompt = $@"
