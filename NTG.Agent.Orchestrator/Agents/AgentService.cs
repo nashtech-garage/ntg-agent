@@ -123,6 +123,26 @@ public class AgentService(
             .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
+    
+    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
+    {
+        if (conversation.Name == "New Conversation")
+        {
+            conversation.Name = await GenerateConversationName(userPrompt);
+            _agentDbContext.Conversations.Update(conversation);
+        }
+
+        _agentDbContext.ChatMessages.AddRange(
+            new ChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
+            new ChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
+        );
+
+        var ocrMessages = ocrDocuments.Select(documentData => new ChatMessage { UserId = userId, Conversation = conversation, Content = documentData, Role = ChatRole.System });
+        _agentDbContext.ChatMessages.AddRange(ocrMessages);
+
+        await _agentDbContext.SaveChangesAsync();
+    }
+
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<ChatMessage> history,
@@ -163,25 +183,6 @@ public class AgentService(
 
         await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
             yield return item.Message.ToString();
-    }
-
-    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
-    {
-        if (conversation.Name == "New Conversation")
-        {
-            conversation.Name = await GenerateConversationName(userPrompt);
-            _agentDbContext.Conversations.Update(conversation);
-        }
-
-        _agentDbContext.ChatMessages.AddRange(
-            new ChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
-            new ChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
-        );
-
-        var ocrMessages = ocrDocuments.Select(documentData => new ChatMessage { UserId = userId, Conversation = conversation, Content = documentData, Role = ChatRole.System });
-        _agentDbContext.ChatMessages.AddRange(ocrMessages);
-
-        await _agentDbContext.SaveChangesAsync();
     }
 
     #endregion
