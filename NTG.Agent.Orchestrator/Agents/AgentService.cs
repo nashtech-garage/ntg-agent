@@ -28,8 +28,7 @@ public class AgentService
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public record PromptStreamingContext(
-    Guid ConversationID,
-    PromptRequest PromptRequest,
+    PromptRequestForm PromptRequest,
     List<ChatMessage> History,
     List<string> Tags,
     List<string> OcrDocuments);
@@ -63,7 +62,6 @@ public class AgentService
 
         await foreach (var item in InvokePromptStreamingInternalAsync(
             new PromptStreamingContext(
-                conversation.Id,
                 promptRequest,
                 history,
                 tags,
@@ -177,11 +175,12 @@ public class AgentService
     #region Prompt Building + Streaming
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptRequestForm promptRequest,
-        List<ChatMessage> history,
-        List<string> tags,
-        List<string> ocrDocuments)
+        PromptStreamingContext context)
     {
+        var history = context.History;
+        var promptRequest = context.PromptRequest;
+        var tags = context.Tags;
+        var ocrDocuments = context.OcrDocuments;
         var chatHistory = new ChatHistory();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
         {
@@ -199,8 +198,8 @@ public class AgentService
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
-        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, context.ConversationID), "onlineweb");
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, context.PromptRequest.ConversationId), "memory");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, context.PromptRequest.ConversationId), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {
@@ -218,7 +217,7 @@ public class AgentService
     }
 
 
-    private ChatMessageContent BuildUserMessage(PromptRequest promptRequest, string prompt)
+    private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
         userMessage.Items.Add(new TextContent(prompt));
@@ -226,7 +225,7 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequestForm promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {
@@ -284,21 +283,24 @@ public class AgentService
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
-    $@"
-    First, check if the answer can be found in the conversation history.
-    If it is relevant, answer based on that context.
+$@"
+First, check if the answer can be found in the conversation history.
+If it is relevant, answer based on that context.
 
-    If the conversation history does not contain the answer,
-    then search the knowledge base with the query: {userPrompt}
-    Knowledge base will answer: {{memory.search}}
+If the conversation history does not contain the answer,
+then search the knowledge base with the query: {userPrompt}
+Knowledge base will answer: {{memory.search}}
 
-    If the knowledge base does not contain the answer,
-    then search online web with the query: {userPrompt}
-    Online web will answer: {{onlineweb.search}}
+If the knowledge base does not contain the answer,
+then search online web with the query: {userPrompt}
+Online web will answer: {{onlineweb.search}}
 
-    Answer the question in a clear, natural, human-like way.
-    If both conversation history and knowledge base are empty,
-    continue answering with your own knowledge and plugins.";
+When using the online web results, always include the provided sources
+at the end of your answer in a clear, readable format (e.g., Markdown links).
+
+Answer the question in a clear, natural, human-like way.
+If both conversation history and knowledge base are empty,
+continue answering with your own knowledge and plugins.";
 
 
     private string BuildOcrPromptAsync(string userPrompt,

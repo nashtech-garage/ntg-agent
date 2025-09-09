@@ -109,7 +109,6 @@
     {
         generalMessage = string.Empty;
         isError = false;
-        isUploading = false;
         uploadItems.Clear();
     }
 
@@ -121,7 +120,6 @@
 
     private async Task HandleFileUpload(InputFileChangeEventArgs e)
     {
-        isUploading = true;
         generalMessage = string.Empty;
 
         try
@@ -183,7 +181,6 @@
         }
         finally
         {
-            isUploading = false;
             StateHasChanged();
         }
     }

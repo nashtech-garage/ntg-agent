@@ -2,6 +2,7 @@
 using Microsoft.SemanticKernel.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
+using System;
 using System.ComponentModel;
 using System.Net;
 using System.Text;
@@ -23,7 +24,7 @@ namespace NTG.Agent.Orchestrator.Plugins
             ITextSearchService textSearchService,
             IKnowledgeService knowledgeService,
             Kernel kernel,
-            Guid conversationId) // Pass conversationId here
+            Guid conversationId)
         {
             _textSearchService = textSearchService;
             _conversationId = conversationId;
@@ -34,7 +35,7 @@ namespace NTG.Agent.Orchestrator.Plugins
         [KernelFunction, Description("Search Online Web")]
         public async Task<string> SearchAsync(string query, int top = 5)
         {
-            var sourceUrls = new List<(string Title, string Url)>();
+            var sourceUrls = new List<(string Domain, string Url)>();
 
             // Ingest new web search results
             await foreach (var result in _textSearchService.SearchAsync(query, top))
@@ -48,9 +49,9 @@ namespace NTG.Agent.Orchestrator.Plugins
                             conversationId: _conversationId
                         );
 
-                        // Use the result title if available, otherwise fallback to the URL itself
-                        var title = string.IsNullOrEmpty(result.Name) ? result.Link : result.Name;
-                        sourceUrls.Add((title, result.Link));
+                        var domain = new Uri(result.Link).Host;
+
+                        sourceUrls.Add((domain, result.Link));
                     }
                     catch
                     {
@@ -95,9 +96,9 @@ namespace NTG.Agent.Orchestrator.Plugins
             if (sourceUrls.Any())
             {
                 sb.AppendLine("\nSources:");
-                foreach (var (title, url) in sourceUrls.Distinct())
+                foreach (var (domain, url) in sourceUrls.Distinct())
                 {
-                    sb.AppendLine($"- [{title}]({url})");
+                    sb.AppendLine($"- [{domain}]({url})");
                 }
             }
 
