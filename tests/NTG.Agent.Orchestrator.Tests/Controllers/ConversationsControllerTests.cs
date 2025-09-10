@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Shared.Dtos.Conversations;
 using NTG.Agent.Shared.Dtos.Enums;
 using System.Security.Claims;
 
@@ -493,4 +494,700 @@ public class ConversationsControllerTests
     }
 
     #endregion
+
+    #region SearchConversationMessages Tests
+
+    [Test]
+    public async Task SearchConversationMessages_WhenKeywordMatches_ReturnsMatchingResults()
+    {
+        // Arrange
+        await SeedSearchData();
+        var keyword = "Hello";
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages(keyword);
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Has.Count.GreaterThan(0));
+        
+        var messageResult = searchResults.First(r => !r.IsConversation);
+        Assert.That(messageResult.Content, Contains.Substring("Hello"));
+        Assert.That(messageResult.Role, Is.EqualTo((int)ChatRole.User));
+    }
+
+    [Test]
+    public async Task SearchConversationMessages_WhenKeywordInConversationName_ReturnsConversationResults()
+    {
+        // Arrange
+        await SeedSearchData();
+        var keyword = "Important";
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages(keyword);
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Has.Count.GreaterThan(0));
+        
+        var conversationResult = searchResults.First(r => r.IsConversation);
+        Assert.That(conversationResult.Content, Contains.Substring("Important"));
+        Assert.That(conversationResult.Role, Is.EqualTo((int)ChatRole.User));
+        Assert.That(conversationResult.IsConversation, Is.True);
+    }
+
+    [Test]
+    public async Task SearchConversationMessages_WhenEmptyKeyword_ReturnsEmptyList()
+    {
+        // Arrange
+        await SeedSearchData();
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages("");
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Is.Empty);
+    }
+
+    [Test]
+    public async Task SearchConversationMessages_WhenWhitespaceKeyword_ReturnsEmptyList()
+    {
+        // Arrange
+        await SeedSearchData();
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages("   ");
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Is.Empty);
+    }
+
+    [Test]
+    public async Task SearchConversationMessages_WhenNoMatches_ReturnsEmptyList()
+    {
+        // Arrange
+        await SeedSearchData();
+        var keyword = "NonExistentKeyword123";
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages(keyword);
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Is.Empty);
+    }
+
+    [Test]
+    public async Task SearchConversationMessages_WhenLongAssistantMessage_ReturnsContextualContent()
+    {
+        // Arrange
+        var longContent = new string('a', 500) + "SearchKeyword" + new string('b', 500);
+        var conversation = new Conversation { Id = Guid.NewGuid(), UserId = _testUserId, Name = "Test Convo" };
+        await _context.Conversations.AddAsync(conversation);
+
+        var message = new Models.Chat.ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversation.Id,
+            Content = longContent,
+            Role = ChatRole.Assistant,
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            IsSummary = false
+        };
+        await _context.ChatMessages.AddAsync(message);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var actionResult = await _controller.SearchConversationMessages("SearchKeyword");
+
+        // Assert
+        Assert.That(actionResult.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = actionResult.Result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var searchResults = okResult.Value as IList<ChatSearchResultItem>;
+        Assert.That(searchResults, Is.Not.Null);
+        Assert.That(searchResults, Has.Count.EqualTo(1));
+        
+        var messageResult = searchResults.First();
+        Assert.That(messageResult.Content, Contains.Substring("SearchKeyword"));
+        Assert.That(messageResult.Content.Length, Is.LessThan(longContent.Length), "Content should be truncated");
+        Assert.That(messageResult.Content, Contains.Substring("..."), "Should contain ellipses indicating truncation");
+    }
+
+    #endregion
+
+    #region PutConversation Tests
+
+    [Test]
+    public async Task PutConversation_WhenIdsMatch_ReturnsNoContent()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Original Name",
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        conversation.Name = "Updated Name";
+
+        // Act
+        var result = await _controller.PutConversation(conversation.Id, conversation);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedConversation = await _context.Conversations.FindAsync(conversation.Id);
+        Assert.That(updatedConversation, Is.Not.Null);
+        Assert.That(updatedConversation.Name, Is.EqualTo("Updated Name"));
+    }
+
+    [Test]
+    public async Task PutConversation_WhenIdsMismatch_ReturnsBadRequest()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Conversation",
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var differentId = Guid.NewGuid();
+
+        // Act
+        var result = await _controller.PutConversation(differentId, conversation);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestResult>());
+    }
+
+    [Test]
+    public async Task PutConversation_WhenConversationDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var nonExistentConversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Non-existent Conversation",
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        // Act
+        var result = await _controller.PutConversation(nonExistentConversation.Id, nonExistentConversation);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    #endregion
+
+    #region RenameConversation Tests
+
+    [Test]
+    public async Task RenameConversation_WhenConversationExists_ReturnsNoContent()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Original Name",
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        var originalUpdatedAt = conversation.UpdatedAt;
+        var newName = "New Conversation Name";
+
+        // Add a small delay to ensure UpdatedAt will be different
+        await Task.Delay(10);
+
+        // Act
+        var result = await _controller.RenameConversation(conversation.Id, newName);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var updatedConversation = await _context.Conversations.FindAsync(conversation.Id);
+        Assert.That(updatedConversation, Is.Not.Null);
+        Assert.That(updatedConversation.Name, Is.EqualTo(newName));
+        Assert.That(updatedConversation.UpdatedAt, Is.GreaterThan(originalUpdatedAt));
+    }
+
+    [Test]
+    public async Task RenameConversation_WhenConversationDoesNotExist_ReturnsBadRequest()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+        var newName = "New Name";
+
+        // Act
+        var result = await _controller.RenameConversation(nonExistentId, newName);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestResult>());
+    }
+
+    [Test]
+    public async Task RenameConversation_WhenAccessingOtherUsersConversation_ReturnsBadRequest()
+    {
+        // Arrange
+        var otherUserId = Guid.NewGuid();
+        var otherUserConversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Other User's Conversation",
+            UserId = otherUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(otherUserConversation);
+        await _context.SaveChangesAsync();
+
+        var newName = "Hacked Name";
+
+        // Act
+        var result = await _controller.RenameConversation(otherUserConversation.Id, newName);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestResult>());
+    }
+
+    #endregion
+
+    #region PostConversation Tests
+
+    [Test]
+    public async Task PostConversation_WhenUserIsAuthenticated_CreatesConversationWithUserId()
+    {
+        // Act
+        var result = await _controller.PostConversation(null);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var createdResult = result.Result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        Assert.That(createdResult.Value, Is.TypeOf<ConversationCreated>());
+        
+        var conversationCreated = createdResult.Value as ConversationCreated;
+        Assert.That(conversationCreated, Is.Not.Null);
+        Assert.That(conversationCreated.Name, Is.EqualTo("New Conversation"));
+        
+        var conversation = await _context.Conversations.FindAsync(conversationCreated.Id);
+        Assert.That(conversation, Is.Not.Null);
+        Assert.That(conversation.UserId, Is.EqualTo(_testUserId));
+        Assert.That(conversation.SessionId, Is.Null);
+    }
+
+    [Test]
+    public async Task PostConversation_WhenUserIsAnonymous_CreatesConversationWithSessionId()
+    {
+        // Arrange
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+        var sessionId = Guid.NewGuid().ToString();
+
+        // Act
+        var result = await anonymousController.PostConversation(sessionId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        var createdResult = result.Result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        
+        var conversationCreated = createdResult.Value as ConversationCreated;
+        Assert.That(conversationCreated, Is.Not.Null);
+        
+        var conversation = await _context.Conversations.FindAsync(conversationCreated.Id);
+        Assert.That(conversation, Is.Not.Null);
+        Assert.That(conversation.UserId, Is.Null);
+        Assert.That(conversation.SessionId, Is.EqualTo(Guid.Parse(sessionId)));
+    }
+
+    [Test]
+    public async Task PostConversation_WhenAnonymousWithoutSessionId_CreatesConversationWithoutSessionId()
+    {
+        // Arrange
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.PostConversation(null);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<CreatedAtActionResult>());
+        
+        var createdResult = result.Result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var conversationCreated = createdResult.Value as ConversationCreated;
+        Assert.That(conversationCreated, Is.Not.Null);
+        
+        var conversation = await _context.Conversations.FindAsync(conversationCreated.Id);
+        Assert.That(conversation, Is.Not.Null);
+        Assert.That(conversation.UserId, Is.Null);
+        Assert.That(conversation.SessionId, Is.Null);
+    }
+
+    #endregion
+
+    #region DeleteConversation Tests
+
+    [Test]
+    public async Task DeleteConversation_WhenConversationExists_ReturnsNoContent()
+    {
+        // Arrange
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "To Be Deleted",
+            UserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.DeleteConversation(conversation.Id);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        
+        var deletedConversation = await _context.Conversations.FindAsync(conversation.Id);
+        Assert.That(deletedConversation, Is.Null);
+    }
+
+    [Test]
+    public async Task DeleteConversation_WhenConversationDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        var result = await _controller.DeleteConversation(nonExistentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task DeleteConversation_WhenAccessingOtherUsersConversation_ReturnsNotFound()
+    {
+        // Arrange
+        var otherUserId = Guid.NewGuid();
+        var otherUserConversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Other User's Conversation",
+            UserId = otherUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(otherUserConversation);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.DeleteConversation(otherUserConversation.Id);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+        
+        // Verify conversation still exists
+        var stillExists = await _context.Conversations.FindAsync(otherUserConversation.Id);
+        Assert.That(stillExists, Is.Not.Null);
+    }
+
+    #endregion
+
+    #region Anonymous User Tests for GetConversation
+
+    [Test]
+    public async Task GetConversation_WhenAnonymousUserWithValidSessionId_ReturnsConversation()
+    {
+        // Arrange
+        var sessionId = Guid.NewGuid();
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Conversation",
+            UserId = null,
+            SessionId = sessionId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversation(conversation.Id, sessionId.ToString());
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value.Id, Is.EqualTo(conversation.Id));
+        Assert.That(result.Value.Name, Is.EqualTo("Anonymous Conversation"));
+    }
+
+    [Test]
+    public async Task GetConversation_WhenAnonymousUserWithInvalidSessionId_ReturnsBadRequest()
+    {
+        // Arrange
+        var conversationId = Guid.NewGuid();
+        var invalidSessionId = "invalid-session-id";
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversation(conversationId, invalidSessionId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult.Value, Is.EqualTo("A valid Session ID is required for unauthenticated requests."));
+    }
+
+    [Test]
+    public async Task GetConversation_WhenAnonymousUserWithWrongSessionId_ReturnsNotFound()
+    {
+        // Arrange
+        var correctSessionId = Guid.NewGuid();
+        var wrongSessionId = Guid.NewGuid();
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Conversation",
+            UserId = null,
+            SessionId = correctSessionId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversation(conversation.Id, wrongSessionId.ToString());
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
+    }
+
+    #endregion
+
+    #region Anonymous User Tests for GetConversationMessage
+
+    [Test]
+    public async Task GetConversationMessage_WhenAnonymousUserWithValidSessionId_ReturnsMessages()
+    {
+        // Arrange
+        var sessionId = Guid.NewGuid();
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Conversation",
+            UserId = null,
+            SessionId = sessionId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+
+        var message = new Models.Chat.ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversation.Id,
+            Content = "Anonymous message",
+            Role = ChatRole.User,
+            CreatedAt = DateTime.UtcNow,
+            IsSummary = false
+        };
+        await _context.ChatMessages.AddAsync(message);
+        await _context.SaveChangesAsync();
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversationMessage(conversation.Id, sessionId.ToString());
+
+        // Assert
+        Assert.That(result.Value, Is.Not.Null);
+        Assert.That(result.Value, Has.Count.EqualTo(1));
+        Assert.That(result.Value[0].Content, Is.EqualTo("Anonymous message"));
+    }
+
+    [Test]
+    public async Task GetConversationMessage_WhenAnonymousUserWithInvalidSessionId_ReturnsBadRequest()
+    {
+        // Arrange
+        var conversationId = Guid.NewGuid();
+        var invalidSessionId = "invalid-session-id";
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversationMessage(conversationId, invalidSessionId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult.Value, Is.EqualTo("A valid Session ID is required for unauthenticated requests."));
+    }
+
+    [Test]
+    public async Task GetConversationMessage_WhenAnonymousUserWithWrongSessionId_ReturnsUnauthorized()
+    {
+        // Arrange
+        var correctSessionId = Guid.NewGuid();
+        var wrongSessionId = Guid.NewGuid();
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Conversation",
+            UserId = null,
+            SessionId = correctSessionId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Conversations.AddAsync(conversation);
+        await _context.SaveChangesAsync();
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversationMessage(conversation.Id, wrongSessionId.ToString());
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
+    }
+
+    [Test]
+    public async Task GetConversationMessage_WhenAnonymousUserWithoutSessionId_ReturnsUnauthorized()
+    {
+        // Arrange
+        var conversationId = Guid.NewGuid();
+
+        var anonymousController = new ConversationsController(_context)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+
+        // Act
+        var result = await anonymousController.GetConversationMessage(conversationId, null);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
+    }
+
+    #endregion
+
+    private async Task SeedSearchData()
+    {
+        var otherUserId = Guid.NewGuid();
+
+        var conversations = new List<Conversation>
+        {
+            new() { Id = Guid.NewGuid(), Name = "Important Meeting Notes", UserId = _testUserId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { Id = Guid.NewGuid(), Name = "Regular Conversation", UserId = _testUserId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new() { Id = Guid.NewGuid(), Name = "Other User's Chat", UserId = otherUserId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        };
+
+        await _context.Conversations.AddRangeAsync(conversations);
+
+        var messages = new List<Models.Chat.ChatMessage>
+        {
+            new() { Id = Guid.NewGuid(), ConversationId = conversations[0].Id, Content = "Hello, this is important", Role = ChatRole.User, UserId = _testUserId, CreatedAt = DateTime.UtcNow, IsSummary = false },
+            new() { Id = Guid.NewGuid(), ConversationId = conversations[0].Id, Content = "Hi there, I understand", Role = ChatRole.Assistant, UserId = _testUserId, CreatedAt = DateTime.UtcNow, IsSummary = false },
+            new() { Id = Guid.NewGuid(), ConversationId = conversations[1].Id, Content = "Random message", Role = ChatRole.User, UserId = _testUserId, CreatedAt = DateTime.UtcNow, IsSummary = false },
+            new() { Id = Guid.NewGuid(), ConversationId = conversations[2].Id, Content = "Hello from other user", Role = ChatRole.User, UserId = otherUserId, CreatedAt = DateTime.UtcNow, IsSummary = false }
+        };
+
+        await _context.ChatMessages.AddRangeAsync(messages);
+        await _context.SaveChangesAsync();
+    }
 }
