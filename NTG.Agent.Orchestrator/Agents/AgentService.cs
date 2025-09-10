@@ -8,7 +8,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Orchestrator.Services.WebSearch;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
 using System.Text;
@@ -20,6 +20,7 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly ITextSearchService _textSearchService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -27,13 +28,15 @@ public class AgentService
         Kernel kernel,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+        IDocumentAnalysisService documentAnalysisService,
+        ITextSearchService textSearchService
          )
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _documentAnalysisService = documentAnalysisService;
+        _textSearchService = textSearchService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -47,6 +50,7 @@ public class AgentService
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
+
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
@@ -155,8 +159,7 @@ public class AgentService
 
     #region Prompt Building + Streaming
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptRequestForm promptRequest,
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(PromptRequestForm promptRequest,
         List<ChatMessage> history,
         List<string> tags,
         List<string> ocrDocuments)
@@ -174,18 +177,17 @@ public class AgentService
         }
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
         var userMessage = BuildUserMessage(promptRequest, prompt);
-
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, promptRequest.ConversationId), "memory");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, promptRequest.ConversationId), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
             Kernel = kernel,
             Arguments = new KernelArguments(new PromptExecutionSettings
             {
@@ -197,6 +199,7 @@ public class AgentService
             yield return item.Message.ToString();
     }
 
+
     private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
@@ -205,7 +208,7 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequestForm promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {
@@ -263,18 +266,24 @@ public class AgentService
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
-    $@"
-    First, check if the answer can be found in the conversation history.
-    If it is relevant, answer based on that context.
+$@"
+First, check if the answer can be found in the conversation history.
+If it is relevant, answer based on that context.
 
-    If the conversation history does not contain the answer,
-    then search the knowledge base with the query: {userPrompt}
-    Knowledge base will answer: {{memory.search}}
+If the conversation history does not contain the answer,
+then search the knowledge base with the query: {userPrompt}
+Knowledge base will answer: {{memory.search}}
 
-    Answer the question in a clear, natural, human-like way.
-    If both conversation history and knowledge base are empty,
-    continue answering with your own knowledge and plugins.";
+If the knowledge base does not contain the answer,
+then search online web with the query: {userPrompt}
+Online web will answer: {{onlineweb.search}}
 
+When using the online web results, always include the provided sources
+at the end of your answer in a clear, readable format (e.g., Markdown links).
+
+Answer the question in a clear, natural, human-like way.
+If both conversation history and knowledge base are empty,
+continue answering with your own knowledge and plugins.";
 
 
     private string BuildOcrPromptAsync(string userPrompt,
@@ -282,7 +291,7 @@ public class AgentService
     {
         var prompt = $@"
 You are a helpful document assistant.
-I will provide one or more documents with text, tables, and selection marks.
+I will provide one or more documents with text
 Answer the user's question naturally, as a human would.
 Do not invent information or include irrelevant details.
 

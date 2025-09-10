@@ -55,6 +55,38 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return result;
     }
 
+    public async Task<SearchResult> SearchPerConversationAsync(string query, Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
+        var result = await _memoryWebClient.SearchAsync(query, filter: filter, limit: 3);
+        return result;
+    }
+
+    public async Task<string> ImportWebPageAsync(
+        string url,
+        Guid conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new ArgumentException("Invalid URL provided.", nameof(url));
+        }
+        var tagCollection = new TagCollection
+        {
+            { "conversationId", conversationId.ToString() }
+        };
+        // Use the conversationId as the collection name to keep memory per conversation
+        var documentId = await _memoryWebClient.ImportWebPageAsync(
+            url,
+            tags: tagCollection,
+            cancellationToken: cancellationToken
+        );
+
+        return documentId;
+    }
+
+
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
@@ -90,5 +122,40 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
         return await _memoryWebClient.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Clears all documents stored for a specific conversation.
+    /// </summary>
+    /// <param name="conversationId">The conversation ID to clear memory for.</param>
+    public async Task ClearDocumentsPerConversationAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        // Create a filter for documents tagged with this conversationId
+        var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
+
+        // Retrieve all matching documents
+        var searchResult = await _memoryWebClient.SearchAsync(
+            query: "*", // wildcard to match all content
+            filter: filter,
+            limit: int.MaxValue, // get all documents
+            cancellationToken: cancellationToken
+        );
+
+        if (searchResult.NoResult)
+            return;
+
+        // Delete each document
+        foreach (var doc in searchResult.Results)
+        {
+            try
+            {
+                await _memoryWebClient.DeleteDocumentAsync(doc.DocumentId, cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                // Ignore failures for individual documents
+                continue;
+            }
+        }
     }
 }
