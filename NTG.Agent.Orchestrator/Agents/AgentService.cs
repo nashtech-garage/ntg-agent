@@ -24,12 +24,6 @@ public class AgentService
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
-    public record PromptStreamingContext(
-    PromptRequestForm PromptRequest,
-    List<ChatMessage> History,
-    List<string> Tags,
-    List<string> OcrDocuments);
-
     public AgentService(
         Kernel kernel,
         AgentDbContext agentDbContext,
@@ -57,13 +51,7 @@ public class AgentService
         }
         var agentMessageSb = new StringBuilder();
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(
-            new PromptStreamingContext(
-                promptRequest,
-                history,
-                tags,
-                ocrDocuments
-            )))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -171,13 +159,11 @@ public class AgentService
 
     #region Prompt Building + Streaming
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
-        PromptStreamingContext context)
+    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(PromptRequestForm promptRequest,
+        List<ChatMessage> history,
+        List<string> tags,
+        List<string> ocrDocuments)
     {
-        var history = context.History;
-        var promptRequest = context.PromptRequest;
-        var tags = context.Tags;
-        var ocrDocuments = context.OcrDocuments;
         var chatHistory = new ChatHistory();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
         {
@@ -195,8 +181,8 @@ public class AgentService
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, context.PromptRequest.ConversationId), "memory");
-        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, context.PromptRequest.ConversationId), "onlineweb");
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, promptRequest.ConversationId), "memory");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, promptRequest.ConversationId), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {

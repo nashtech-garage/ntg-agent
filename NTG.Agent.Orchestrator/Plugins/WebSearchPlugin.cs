@@ -35,8 +35,6 @@ namespace NTG.Agent.Orchestrator.Plugins
         [KernelFunction, Description("Search Online Web")]
         public async Task<string> SearchAsync(string query, int top = 5)
         {
-            var sourceUrls = new List<(string Domain, string Url)>();
-
             // Ingest new web search results
             await foreach (var result in _textSearchService.SearchAsync(query, top))
             {
@@ -48,10 +46,6 @@ namespace NTG.Agent.Orchestrator.Plugins
                             url: result.Link,
                             conversationId: _conversationId
                         );
-
-                        var domain = new Uri(result.Link).Host;
-
-                        sourceUrls.Add((domain, result.Link));
                     }
                     catch
                     {
@@ -91,16 +85,6 @@ namespace NTG.Agent.Orchestrator.Plugins
             var sb = new StringBuilder();
             await foreach (var res in summarizer.InvokeAsync(sbContent.ToString()))
                 sb.Append(res.Message);
-
-            // Append source URLs as Markdown hyperlinks
-            if (sourceUrls.Any())
-            {
-                sb.AppendLine("\nSources:");
-                foreach (var (domain, url) in sourceUrls.Distinct())
-                {
-                    sb.AppendLine($"- [{domain}]({url})");
-                }
-            }
 
             return sb.ToString();
         }
