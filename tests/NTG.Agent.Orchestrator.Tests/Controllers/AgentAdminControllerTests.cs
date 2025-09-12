@@ -7,9 +7,7 @@ using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Shared.Dtos.Agents;
 using System.Security.Claims;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
-
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
-
 [TestFixture]
 public class AgentAdminControllerTests
 {
@@ -17,7 +15,6 @@ public class AgentAdminControllerTests
     private AgentAdminController _controller;
     private Guid _testUserId;
     private Guid _testAdminUserId;
-
     [SetUp]
     public void Setup()
     {
@@ -27,14 +24,12 @@ public class AgentAdminControllerTests
         _context = new AgentDbContext(options);
         _testUserId = Guid.NewGuid();
         _testAdminUserId = Guid.NewGuid();
-
         // Mock the admin user principal
         var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.NameIdentifier, _testAdminUserId.ToString()),
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
-
         _controller = new AgentAdminController(_context)
         {
             ControllerContext = new ControllerContext
@@ -43,46 +38,33 @@ public class AgentAdminControllerTests
             }
         };
     }
-
     [TearDown]
     public void TearDown()
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
     }
-
-    #region Constructor Tests
-
     [Test]
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!));
     }
-
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
         var controller = new AgentAdminController(_context);
-
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
-
-    #endregion
-
-    #region GetAgents Tests
-
     [Test]
     public async Task GetAgents_WhenAgentsExist_ReturnsOkWithAgentList()
     {
         // Arrange
         await SeedAgentsData();
-
         // Act
         var result = await _controller.GetAgents();
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -91,7 +73,6 @@ public class AgentAdminControllerTests
         Assert.That(agents, Is.Not.Null);
         var agentList = agents.ToList();
         Assert.That(agentList, Has.Count.EqualTo(2));
-
         using (Assert.EnterMultipleScope())
         {
             Assert.That(agentList[0].Name, Is.EqualTo("Test Agent 1"));
@@ -100,13 +81,11 @@ public class AgentAdminControllerTests
             Assert.That(agentList[1].Name, Is.EqualTo("Test Agent 2"));
         }
     }
-
     [Test]
     public async Task GetAgents_WhenNoAgentsExist_ReturnsOkWithEmptyList()
     {
         // Act
         var result = await _controller.GetAgents();
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -115,16 +94,13 @@ public class AgentAdminControllerTests
         Assert.That(agents, Is.Not.Null);
         Assert.That(agents, Is.Empty);
     }
-
     [Test]
     public async Task GetAgents_WhenMultipleAgents_ReturnsAllAgents()
     {
         // Arrange
         await SeedLargeAgentsData(10);
-
         // Act
         var result = await _controller.GetAgents();
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -134,20 +110,13 @@ public class AgentAdminControllerTests
         var agentList = agents.ToList();
         Assert.That(agentList, Has.Count.EqualTo(10));
     }
-
-    #endregion
-
-    #region GetAgentById Tests
-
     [Test]
     public async Task GetAgentById_WhenAgentExists_ReturnsOkWithAgentDetail()
     {
         // Arrange
         var agentId = await SeedSingleAgentData();
-
         // Act
         var result = await _controller.GetAgentById(agentId);
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -161,20 +130,16 @@ public class AgentAdminControllerTests
             Assert.That(agentDetail.Instructions, Is.EqualTo("Test instructions for single agent"));
         }
     }
-
     [Test]
     public async Task GetAgentById_WhenAgentDoesNotExist_ReturnsNotFound()
     {
         // Arrange
         var nonExistentId = Guid.NewGuid();
-
         // Act
         var result = await _controller.GetAgentById(nonExistentId);
-
         // Assert
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
-
     [Test]
     public async Task GetAgentById_WhenMultipleAgentsExistButRequestingSpecific_ReturnsCorrectAgent()
     {
@@ -191,10 +156,8 @@ public class AgentAdminControllerTests
         };
         await _context.Agents.AddAsync(specificAgent);
         await _context.SaveChangesAsync();
-
         // Act
         var result = await _controller.GetAgentById(specificAgentId);
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -208,11 +171,6 @@ public class AgentAdminControllerTests
             Assert.That(agentDetail.Instructions, Is.EqualTo("Specific instructions"));
         }
     }
-
-    #endregion
-
-    #region Authorization Tests
-
     [Test]
     public async Task GetAgents_WhenUserIsNotAdmin_RequiresAdminRole()
     {
@@ -222,7 +180,6 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-
         var nonAdminController = new AgentAdminController(_context)
         {
             ControllerContext = new ControllerContext
@@ -230,17 +187,14 @@ public class AgentAdminControllerTests
                 HttpContext = new DefaultHttpContext { User = nonAdminUser }
             }
         };
-
         // Note: In a real scenario, this would be handled by the authorization middleware
         // and the controller method wouldn't be called at all for non-admin users.
         // This test just verifies the controller can be instantiated with non-admin users
         // The actual authorization testing would be done at the integration test level
-
         // Act & Assert - This just verifies the controller works when called
         var result = await nonAdminController.GetAgents();
         Assert.That(result, Is.TypeOf<OkObjectResult>());
     }
-
     [Test]
     public async Task GetAgentById_WhenUserIsNotAdmin_RequiresAdminRole()
     {
@@ -250,7 +204,6 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-
         var nonAdminController = new AgentAdminController(_context)
         {
             ControllerContext = new ControllerContext
@@ -258,21 +211,17 @@ public class AgentAdminControllerTests
                 HttpContext = new DefaultHttpContext { User = nonAdminUser }
             }
         };
-
         // Act & Assert - In real scenario, authorization middleware would block this
         var result = await nonAdminController.GetAgentById(Guid.NewGuid());
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
-
     [Test]
     public async Task GetAgents_WhenUserIsAdmin_AllowsAccess()
     {
         // Arrange - Using the admin controller from setup
         await SeedAgentsData();
-
         // Act
         var result = await _controller.GetAgents();
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -282,16 +231,13 @@ public class AgentAdminControllerTests
         var agentList = agents.ToList();
         Assert.That(agentList, Has.Count.EqualTo(2));
     }
-
     [Test]
     public async Task GetAgentById_WhenUserIsAdmin_AllowsAccess()
     {
         // Arrange - Using the admin controller from setup
         var agentId = await SeedSingleAgentData();
-
         // Act
         var result = await _controller.GetAgentById(agentId);
-
         // Assert
         Assert.That(result, Is.TypeOf<OkObjectResult>());
         var okResult = result as OkObjectResult;
@@ -300,11 +246,6 @@ public class AgentAdminControllerTests
         Assert.That(agentDetail, Is.Not.Null);
         Assert.That(agentDetail.Id, Is.EqualTo(agentId));
     }
-
-    #endregion
-
-    #region Helper Methods
-
     private async Task SeedAgentsData()
     {
         var ownerUser = new User
@@ -313,16 +254,13 @@ public class AgentAdminControllerTests
             UserName = "testowner",
             Email = "owner@test.com"
         };
-
         var updaterUser = new User
         {
             Id = Guid.NewGuid(),
             UserName = "testupdater",
             Email = "updater@test.com"
         };
-
         await _context.Users.AddRangeAsync(ownerUser, updaterUser);
-
         var agents = new List<AgentModel>
         {
             new()
@@ -346,11 +284,9 @@ public class AgentAdminControllerTests
                 UpdatedAt = DateTime.UtcNow
             }
         };
-
         await _context.Agents.AddRangeAsync(agents);
         await _context.SaveChangesAsync();
     }
-
     private async Task<Guid> SeedSingleAgentData()
     {
         var ownerUser = new User
@@ -359,16 +295,13 @@ public class AgentAdminControllerTests
             UserName = "testowner",
             Email = "owner@test.com"
         };
-
         var updaterUser = new User
         {
             Id = Guid.NewGuid(),
             UserName = "testupdater",
             Email = "updater@test.com"
         };
-
         await _context.Users.AddRangeAsync(ownerUser, updaterUser);
-
         var agentId = Guid.NewGuid();
         var agent = new AgentModel
         {
@@ -380,13 +313,10 @@ public class AgentAdminControllerTests
             CreatedAt = DateTime.UtcNow.AddDays(-1),
             UpdatedAt = DateTime.UtcNow
         };
-
         await _context.Agents.AddAsync(agent);
         await _context.SaveChangesAsync();
-
         return agentId;
     }
-
     private async Task SeedLargeAgentsData(int count)
     {
         var ownerUser = new User
@@ -395,16 +325,13 @@ public class AgentAdminControllerTests
             UserName = "testowner",
             Email = "owner@test.com"
         };
-
         var updaterUser = new User
         {
             Id = Guid.NewGuid(),
             UserName = "testupdater",
             Email = "updater@test.com"
         };
-
         await _context.Users.AddRangeAsync(ownerUser, updaterUser);
-
         var agents = new List<AgentModel>();
         for (int i = 1; i <= count; i++)
         {
@@ -419,10 +346,7 @@ public class AgentAdminControllerTests
                 UpdatedAt = DateTime.UtcNow.AddDays(-i + 1)
             });
         }
-
         await _context.Agents.AddRangeAsync(agents);
         await _context.SaveChangesAsync();
     }
-
-    #endregion
 }
