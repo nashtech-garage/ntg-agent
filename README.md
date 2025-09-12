@@ -55,26 +55,7 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 }
 ```
 
-- In the NTG.Agent.Admin project, update the connection string if needed. Then run Update-Database if you are using Visual Studio, or dotnet ef database update if you are using the CLI.
-
-- Repeat the same step for the NTG.Agent.Orchestrator project.
-
-- Setup Azure AI Document Intelligence:
-  Create an [Azure AI Document Intelligence](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/create-document-intelligence-resource?view=doc-intel-4.0.0) resource to enable OCR/text extraction from images and scanned PDFs.
-
-  - Copy the **Endpoint** and **API Key** from the Azure Portal.
-  - Add them into `secrets.json` of the `NTG.Agent.Orchestrator` project:
-
-```json
-{
-  "Azure": {
-    "DocumentIntelligence": {
-      "Endpoint": "https://<your-resource-name>.cognitiveservices.azure.com/",
-      "ApiKey": "<your_api_key>"
-    }
-  }
-}
-```
+- In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
 
 - Start the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
   - NTG.Agent.WebClient is the website for end users

@@ -99,10 +99,10 @@ else if (ConversationId.HasValue)
                        autocapitalize="off" placeholder="Type your message..." />
                 <div class="input-group-append">
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                    <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+@*                     <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
                             title="Upload file">
                         <i class="bi bi-upload fs-6"></i>
-                    </button>
+                    </button> *@
                     <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
                         <i class="bi bi-send fs-6"></i>
                     </button>
@@ -138,10 +138,10 @@ else
                            autocapitalize="off" placeholder="Ask anything" />
                     <div class="input-group-append">
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                        <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+  @*                       <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
                                 title="Upload file">
                             <i class="bi bi-upload fs-6"></i>
-                        </button>
+                        </button> *@
                         <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message"
                                 title="Send message">
                             <i class="bi bi-send fs-6"></i>
