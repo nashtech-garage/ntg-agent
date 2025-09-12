@@ -1,6 +1,7 @@
 # NTG Agent
 This project aims to practice building a chatbot in C#
 
+[![Build](https://github.com/nashtech-garage/ntg-agent/actions/workflows/ntg-agent-ci.yml/badge.svg)](https://github.com/nashtech-garage/ntg-agent/actions/workflows/ntg-agent-ci.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
 [![SonarCloud Coverage](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=coverage)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
