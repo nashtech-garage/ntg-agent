@@ -11,7 +11,7 @@ public class MonkeyService
     }
 
     List<Monkey> monkeyList = new();
-    public async Task<List<Monkey>> GetMonkeys()
+    public virtual async Task<List<Monkey>> GetMonkeys()
     {
         if (monkeyList?.Count > 0)
             return monkeyList;
@@ -27,7 +27,7 @@ public class MonkeyService
         return monkeyList;
     }
 
-    public async Task<Monkey?> GetMonkey(string name)
+    public virtual async Task<Monkey?> GetMonkey(string name)
     {
         var monkeys = await GetMonkeys();
         return monkeys.FirstOrDefault(m => m.Name?.Equals(name, StringComparison.OrdinalIgnoreCase) == true);

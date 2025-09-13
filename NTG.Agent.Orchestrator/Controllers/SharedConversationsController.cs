@@ -22,7 +22,7 @@ public class SharedConversationsController : ControllerBase
 
     public SharedConversationsController(AgentDbContext context)
     {
-        _context = context;
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
     
     /// <summary>
