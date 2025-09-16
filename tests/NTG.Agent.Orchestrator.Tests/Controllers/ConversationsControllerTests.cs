@@ -268,8 +268,6 @@ public class ConversationsControllerTests
         return (userConversation.Id, otherUserConversation.Id);
     }
 
-    #region UpdateMessageReaction Tests
-
     [Test]
     public async Task UpdateMessageReaction_WhenMessageExists_ReturnsNoContent()
     {
@@ -379,10 +377,6 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.None));
     }
 
-    #endregion
-
-    #region UpdateMessageComment Tests
-
     [Test]
     public async Task UpdateMessageComment_WhenMessageExists_ReturnsNoContent()
     {
@@ -491,6 +485,4 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));
     }
-
-    #endregion
 }

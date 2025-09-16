@@ -8,7 +8,6 @@ namespace NTG.Agent.Orchestrator.Knowledge;
 public class DocumentAnalysisService : IDocumentAnalysisService
 {
     private readonly DocumentAnalysisClient _documentAnalysisClient;
-
     public DocumentAnalysisService(IConfiguration configuration)
     {
         //var endpoint = configuration["Azure:DocumentIntelligence:Endpoint"];

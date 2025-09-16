@@ -278,7 +278,6 @@
             OpenAddKnowledgeDialogOnLoad = false;
         }
     }
-    #region Load Documents
     private async Task LoadDocuments()
     {
         try
@@ -304,9 +303,6 @@
         await DocumentCountChanged.InvokeAsync(DocumentCount);
     }
 
-    #endregion
-
-    #region Upload Documents
     public void OpenAddKnowledgeDialog()
     {
         isAddKnowledgeDialogOpen = true;
@@ -324,9 +320,6 @@
         CloseAddKnowledgeDialog();
     }
 
-    #endregion
-
-    #region Delete Documents
     private void RemoveDocument(DocumentListItem document)
     {
         documentToDelete = document;
@@ -358,9 +351,7 @@
         isDeleteConfirmationOpen = false;
         documentToDelete = null;
     }
-    #endregion
 
-    #region View Documents
     private void ViewDocument(DocumentListItem document)
     {
         documentToView = document;
@@ -372,9 +363,7 @@
         isDocumentViewerOpen = false;
         documentToView = null;
     }
-    #endregion
 
-    #region Download Documents
     private async Task DownloadDocument(DocumentListItem document)
     {
         try
@@ -394,5 +383,4 @@
             Logger.LogError(ex, "Error downloading document {DocumentName}", document.Name);
         }
     }
-    #endregion
 }
