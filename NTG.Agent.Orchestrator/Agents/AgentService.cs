@@ -254,8 +254,7 @@ public class AgentService
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
-            Search to knowledge base: {userPrompt}
-            Knowledge base will answer: {{memory.search}}
+            Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
             If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
         ";
 
