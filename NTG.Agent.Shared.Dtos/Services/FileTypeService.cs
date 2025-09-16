@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
 namespace NTG.Agent.Shared.Dtos.Services;
 
 /// <summary>
@@ -229,7 +225,7 @@ public static class FileTypeService
     public static DocumentViewType GetDocumentViewType(string fileName)
     {
         var extension = Path.GetExtension(fileName)?.ToLower() ?? "";
-        
+
         var extensionType = extension switch
         {
             ".txt" or ".md" or ".js" or ".css" or ".sh" or ".csv" or ".rtf" => DocumentViewType.Text,
@@ -343,6 +339,24 @@ public static class FileTypeService
     /// </summary>
     /// <returns>A descriptive string of supported formats.</returns>
     public static string GetSupportedFormatsDescription()
+    {
+        return "Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), OpenDocument (.odt/.ods/.odp), EPUB, Archives (.zip/.rar/.7z/.tar/.gz), Text (.txt/.md/.csv/.rtf), Web (.html/.htm/.xhtml), Data (.json/.jsonld/.xml), Code (.js/.css/.sh), Images, Audio, Video (Max 50MB each)";
+    }
+
+    /// <summary>
+    /// Gets all supported file extensions for Azure AI Document Intelligence file input accept attribute.
+    /// </summary>
+    /// <returns>A comma-separated string of all supported file extensions.</returns>
+    public static string GetSupportedDocumentFileExtensions()
+    {
+        return ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.epub,.zip,.rar,.7z,.tar,.gz,.txt,.md,.csv,.rtf,.html,.htm,.xhtml,.json,.jsonld,.xml,.js,.css,.sh,.bmp,.gif,.jpeg,.jpg,.png,.tiff,.tif,.webp,.svg,.aac,.mp3,.wav,.oga,.opus,.weba,.mp4,.mpeg,.ogv,.ogx,.webm";
+    }
+
+    /// <summary>
+    /// Gets a user-friendly description of all Azure AI Document Intelligence supported file formats.
+    /// </summary>
+    /// <returns>A descriptive string of supported formats.</returns>
+    public static string GetSupportedDocumentFormatsDescription()
     {
         return "Supported formats: PDF, Word (.doc/.docx), Excel (.xls/.xlsx), PowerPoint (.ppt/.pptx), OpenDocument (.odt/.ods/.odp), EPUB, Archives (.zip/.rar/.7z/.tar/.gz), Text (.txt/.md/.csv/.rtf), Web (.html/.htm/.xhtml), Data (.json/.jsonld/.xml), Code (.js/.css/.sh), Images, Audio, Video (Max 50MB each)";
     }

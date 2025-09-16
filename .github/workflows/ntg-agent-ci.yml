@@ -1,4 +1,4 @@
-name: NTG Agent continuous integration flow
+name: NTG Agent Continuous Integration
 
 on:
   push:

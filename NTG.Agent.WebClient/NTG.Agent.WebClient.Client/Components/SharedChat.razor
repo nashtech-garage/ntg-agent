@@ -22,13 +22,13 @@
     {
         @foreach (var item in chatHistory)
         {
-            if (item.IsSystem)
+            if (item.IsAssistant)
             {
                 <div class="p-2 w-100">
                     <EnhancedMarkdown Value="@item.Message" CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                 </div>
             }
-            else
+            else if(item.IsUser)
             {
                 <div class="text-end p-2 w-100">
                     <span class="text-white bg-primary p-2 rounded rounded-4">
@@ -63,10 +63,11 @@
                 foreach (var item in result.Messages!)
                 {
                     var chatMessage = new ChatMessageItem
-                    {
-                        IsSystem = item.Role == (int)ChatRole.Assistant,
-                        Message = item.Content
-                    };
+                        {
+                            IsAssistant = item.Role == (int)ChatRole.Assistant,
+                            IsUser = item.Role == (int)ChatRole.User,
+                            Message = item.Content
+                        };
                     chatHistory.Add(chatMessage);
                 }
 

@@ -1,7 +1,6 @@
 ﻿using Microsoft.KernelMemory;
-using Microsoft.Extensions.Configuration;
 
-namespace NTG.Agent.Orchestrator.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
@@ -11,7 +10,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
         var apiKey = configuration["KernelMemory:ApiKey"] ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
-        
+
         _memoryWebClient = new MemoryWebClient(endpoint, apiKey);
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
@@ -58,7 +57,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }

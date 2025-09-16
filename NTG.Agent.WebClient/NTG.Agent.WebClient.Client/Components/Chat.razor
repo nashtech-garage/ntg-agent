@@ -30,20 +30,18 @@ else if (ConversationId.HasValue)
     <div class="chat-container">
         @foreach (var item in chatHistory)
         {
-            if (item.IsSystem)
+            if (item.IsAssistant)
             {
                 <div class="p-2 w-100">
                     <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
-                        CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                                      CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                     <div class="chat-actions mt-2 ms-2">
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
-                            <i
-                                class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                            <i class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleDislike(item))"
-                            title="Dislike">
-                            <i
-                                class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
+                                title="Dislike">
+                            <i class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleComment(item))" title="Comment">
                             <i class="bi bi-chat-dots"></i>
@@ -65,30 +63,54 @@ else if (ConversationId.HasValue)
                     }
                 </div>
             }
-            else
+            else if (item.IsUser)
             {
                 <div class="text-end p-2 w-100">
-                    <span class="text-white bg-primary p-2 rounded rounded-4">
-                        @item.Message
-                    </span>
+                    @if (!string.IsNullOrEmpty(item.Message))
+                    {
+                        <span class="text-white bg-primary p-2 rounded rounded-4">
+                            @item.Message
+                        </span>
+                    }
                 </div>
             }
         }
     </div>
     <div class="form-group row">
+        <form method="post" @onsubmit="SendMessage" @formname="chat-form">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            @if (uploadItems.Any())
+            {
+                <div class="mb-2">
+                    @foreach (var item in uploadItems)
+                    {
+                        <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            <span class="text-truncate flex-grow-1">@item.Name</span>
+                            <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
             <div class="input-group mb-3">
                 <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
-                    @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
-                    autocapitalize="off" placeholder="Type your message..." />
+                        autocomplete="off" spellcheck="false" autocorrect="off"
+                        autocapitalize="off" placeholder="Type your message..." />
                 <div class="input-group-append">
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                    <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message" title="Send message">
+@*                     <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+                            title="Upload file">
+                        <i class="bi bi-upload fs-6"></i>
+                    </button> *@
+                    <button class="btn" type="submit" aria-label="Send message" title="Send message">
                         <i class="bi bi-send fs-6"></i>
                     </button>
                 </div>
             </div>
         </div>
+        </form>
     </div>
 }
 else
@@ -96,29 +118,52 @@ else
     <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
         <h2 class="mb-4">What can I help with?</h2>
         <div class="form-group w-100">
+            <form method="post" @onsubmit="SendMessage" @formname="chat-form">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
+                @if (uploadItems.Any())
+                {
+                    <div class="mb-2">
+                        @foreach (var item in uploadItems)
+                        {
+                            <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
+                                <i class="bi bi-file-earmark-text me-2"></i>
+                                <span class="text-truncate flex-grow-1">@item.Name</span>
+                                <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
                 <div class="input-group mb-3">
                     <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
-                        @onkeydown="@Enter" @bind:event="oninput" autocomplete="off" spellcheck="false" autocorrect="off"
-                        autocapitalize="off" placeholder="Ask anything" />
+                           autocomplete="off" spellcheck="false" autocorrect="off"
+                           autocapitalize="off" placeholder="Ask anything" />
                     <div class="input-group-append">
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-                        <button class="btn" @onclick="SendMessage" type="button" aria-label="Send message"
-                            title="Send message">
+  @*                       <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+                                title="Upload file">
+                            <i class="bi bi-upload fs-6"></i>
+                        </button> *@
+                        <button class="btn" type="submit" aria-label="Send message"
+                                title="Send message">
                             <i class="bi bi-send fs-6"></i>
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
+            </form>
+        </div>       
     </div>
 }
 
-<ShareConversationModal IsVisible="showShareModal" 
-                        ConversationId="ConversationId" 
+<UploadFileModal IsVisible="showUploadFileModal" OnUploadCompleted="OnFilesUploaded" OnClose="CloseUploadFileModal" />
+
+<ShareConversationModal IsVisible="showShareModal"
+                        ConversationId="ConversationId"
                         ConversationName=""
                         ChatId="shareChatId"
-                        OnClose="CloseShareModal" 
+                        OnClose="CloseShareModal"
                         OnSharedConversationChanged="HandleSharedConversationChanged" />
 
 @code {
@@ -131,11 +176,13 @@ else
 
     private string userInput = string.Empty;
     private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
+    private List<UploadItemClient> uploadItems = new();
     private EnhancedMarkdown? MarkdownSetValue { get; set; }
     private string currentSessionId = string.Empty;
     private bool isAuthenticated = false;
     private bool unauthorized = false;
     private bool showShareModal = false;
+    private bool showUploadFileModal = false;
     private Guid? shareChatId = null;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
@@ -160,13 +207,14 @@ else
                 foreach (var item in chatMessages)
                 {
                     chatHistory.Add(new ChatMessageItem
-                    {
-                        Id = item.Id,
-                        IsSystem = item.Role == (int)ChatRole.Assistant,
-                        Message = item.Content,
-                        Reaction = item.Reaction,
-                        UserComment = item.UserComment
-                    });
+                        {
+                            Id = item.Id,
+                            IsAssistant = item.Role == (int)ChatRole.Assistant,
+                            IsUser = item.Role == (int)ChatRole.User,
+                            Message = item.Content,
+                            Reaction = item.Reaction,
+                            UserComment = item.UserComment
+                        });
                 }
                 StateHasChanged();
             }
@@ -187,12 +235,20 @@ else
         }
     }
 
+    private void OnFilesUploaded(List<UploadItemClient> items)
+    {
+        uploadItems = items.ToList();
+        showUploadFileModal = false;
+        StateHasChanged();
+    }
+
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(userInput))
         {
             return;
         }
+
         var newConversation = false;
         if (!ConversationId.HasValue)
         {
@@ -206,37 +262,37 @@ else
             newConversation = true;
         }
 
+        // Add user input to history
         var query = userInput.Trim();
-        chatHistory.Add(new ChatMessageItem { IsSystem = false, Message = query });
+        chatHistory.Add(new ChatMessageItem { IsAssistant = false, IsUser = true, Message = query });
 
-        var response = new ChatMessageItem { IsSystem = true, Message = "One moment, the agent is thinking ..." };
+
+        // Agent "thinking"
+        var response = new ChatMessageItem { IsAssistant = true, IsUser = false, Message = "One moment, the agent is thinking ..." };
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
 
-        var result = await ChatClient.InvokeStreamAsync(new PromptRequest(query, ConversationId.Value, currentSessionId));
+        // 🚀 Send text + image to backend
+        var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
+            currentSessionId, uploadItems);
+
+        var result = await ChatClient.InvokeStreamAsync(request);
         response.Message = string.Empty;
+        uploadItems.Clear();
+
         await foreach (var item in result)
         {
             response.Message += item.Content;
             await Task.Delay(1);
+
             await MarkdownSetValue!.SetValue(response.Message);
         }
 
         if (newConversation)
         {
-            // Fire Conversation Added event
             ConversationState.NotifyConversationAdded();
-            // Update the URL
             Navigation.NavigateTo($"/c/{ConversationId}", false);
-        }
-    }
-
-    public async Task Enter(KeyboardEventArgs e)
-    {
-        if (e.Code == "Enter" || e.Code == "NumpadEnter")
-        {
-            await SendMessage();
         }
     }
 
@@ -262,6 +318,24 @@ else
         }
     }
 
+    private void RemoveUploadItem(UploadItemClient item)
+    {
+        uploadItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private void ShowUploadFileModal()
+    {
+        showUploadFileModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseUploadFileModal()
+    {
+        showUploadFileModal = false;
+        StateHasChanged();
+    }
+
     private async Task ShowShareMessageModal(ChatMessageItem message)
     {
         if (ConversationId.HasValue && isAuthenticated)
@@ -271,7 +345,7 @@ else
             await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
         }
     }
-    
+
     private async Task ToggleLike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Like ? ReactionType.None : ReactionType.Like;
@@ -295,6 +369,7 @@ else
     {
         StateHasChanged();
     }
+
     private async Task ToggleDislike(ChatMessageItem message)
     {
         var newReaction = message.Reaction == ReactionType.Dislike ? ReactionType.None : ReactionType.Dislike;
