@@ -78,47 +78,47 @@ else if (ConversationId.HasValue)
     </div>
     <div class="form-group row">
         <form method="post" @onsubmit="SendMessage" @formname="chat-form">
-            <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
-                @if (uploadItems.Any())
-                {
-                    <div class="mb-2">
-                        @foreach (var item in uploadItems)
-                        {
-                            <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
-                                <i class="bi bi-file-earmark-text me-2"></i>
-                                <span class="text-truncate flex-grow-1">@item.Name</span>
-                                <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </div>
-                        }
-                    </div>
-                }
-                <div class="input-group mb-3">
-                    <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
-                           autocomplete="off" spellcheck="false" autocorrect="off"
-                           autocapitalize="off" placeholder="Type your message..." />
-                    <div class="input-group-append">
-                        <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
-    @*                     <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
-                                title="Upload file">
-                            <i class="bi bi-upload fs-6"></i>
-                        </button> *@
-                        <button class="btn" type="submit" aria-label="Send message" title="Send message">
-                            <i class="bi bi-send fs-6"></i>
-                        </button>
-                    </div>
+        <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            @if (uploadItems.Any())
+            {
+                <div class="mb-2">
+                    @foreach (var item in uploadItems)
+                    {
+                        <div class="d-flex align-items-center bg-light border rounded px-2 py-1 mb-2" style="max-width: 250px;">
+                            <i class="bi bi-file-earmark-text me-2"></i>
+                            <span class="text-truncate flex-grow-1">@item.Name</span>
+                            <button class="btn btn-sm btn-outline-danger ms-2" type="button" @onclick="() => RemoveUploadItem(item)">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="input-group mb-3">
+                <input type="text" id="userInput" class="form-control rounded rounded-4" @bind="userInput"
+                        autocomplete="off" spellcheck="false" autocorrect="off"
+                        autocapitalize="off" placeholder="Type your message..." />
+                <div class="input-group-append">
+                    <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+@*                     <button class="btn" @onclick="ShowUploadFileModal" type="button" aria-label="Upload file"
+                            title="Upload file">
+                        <i class="bi bi-upload fs-6"></i>
+                    </button> *@
+                    <button class="btn" type="submit" aria-label="Send message" title="Send message">
+                        <i class="bi bi-send fs-6"></i>
+                    </button>
                 </div>
             </div>
+        </div>
         </form>
     </div>
 }
 else
 {
     <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
-        <h2 class="mb-4">What can I help with?</h2>      
+        <h2 class="mb-4">What can I help with?</h2>
         <div class="form-group w-100">
-             <form method="post" @onsubmit="SendMessage" @formname="chat-form">
+            <form method="post" @onsubmit="SendMessage" @formname="chat-form">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
                 @if (uploadItems.Any())
                 {
