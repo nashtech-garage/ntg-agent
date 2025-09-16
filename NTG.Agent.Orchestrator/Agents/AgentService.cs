@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -181,6 +181,7 @@ public class AgentService
 
         var kernel = _kernel.Clone();
         kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        kernel.ImportPluginFromObject(new MermaidPlugin(), "mermaid");
 
         var agent = new ChatCompletionAgent
         {
@@ -207,7 +208,7 @@ public class AgentService
 
     private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
-        if (ocrDocuments.Any())
+        if (ocrDocuments.Count != 0)
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
@@ -262,7 +263,7 @@ public class AgentService
         return sb.ToString();
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
+    private static string BuildTextOnlyPrompt(string userPrompt) =>
     $@"
     First, check if the answer can be found in the conversation history.
     If it is relevant, answer based on that context.
@@ -271,13 +272,26 @@ public class AgentService
     then search the knowledge base with the query: {userPrompt}
     Knowledge base will answer: {{memory.search}}
 
+    For visual diagrams, process documentation, and system visualization, use the mermaid plugin:
+    - {{mermaid.create_flowchart}} for workflows, processes, and decision flows
+    - {{mermaid.create_sequence_diagram}} for system interactions, API calls, and communication flows
+    - {{mermaid.create_class_diagram}} for code structure, object relationships, and software design
+    - {{mermaid.create_er_diagram}} for database schemas, data models, and entity relationships
+    - {{mermaid.create_gantt_chart}} for project timelines, schedules, and task planning
+    - {{mermaid.create_state_diagram}} for state machines, status flows, and system states
+    - {{mermaid.create_journey_map}} for user experiences, customer journeys, and process flows
+    - {{mermaid.suggest_diagram_type}} when unsure what type of diagram to create
+    - {{mermaid.create_diagram_from_description}} for automatic diagram type selection and generation
+
+    Always explain complex processes, architectures, workflows, or data relationships with appropriate diagrams.
+
     Answer the question in a clear, natural, human-like way.
     If both conversation history and knowledge base are empty,
     continue answering with your own knowledge and plugins.";
 
 
 
-    private string BuildOcrPromptAsync(string userPrompt,
+    private static string BuildOcrPromptAsync(string userPrompt,
         List<string> ocrDocuments)
     {
         var prompt = $@"

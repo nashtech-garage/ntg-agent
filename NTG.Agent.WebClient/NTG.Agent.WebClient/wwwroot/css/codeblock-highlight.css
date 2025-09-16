@@ -65,3 +65,59 @@ code[class*=language-], pre[class*=language-] {
     text-shadow: none !important;
     font-size: 1.19em !important;
 }
+
+/* Mermaid diagram styles */
+.mermaid-diagram-container {
+    background: white;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 10px 0;
+    text-align: center;
+    overflow-x: auto;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.mermaid-header {
+    text-align: left;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e1e5e9;
+    font-weight: bold;
+    color: #666;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mermaid-diagram-container .mermaid {
+    background: transparent;
+    border: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.mermaid-error {
+    background: #fff5f5;
+    border: 1px solid #fed7d7;
+    color: #e53e3e;
+    padding: 12px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.mermaid-error strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Hide processed mermaid code blocks */
+.code-block-container:has(.mermaid-rendered) {
+    display: none;
+}
+
+/* Alternative approach if :has() is not supported */
+.mermaid-code-hidden {
+    display: none;
+}

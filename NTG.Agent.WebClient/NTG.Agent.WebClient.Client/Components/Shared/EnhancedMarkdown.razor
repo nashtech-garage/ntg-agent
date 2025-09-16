@@ -45,6 +45,7 @@
         {
             await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
             await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("renderMermaidDiagrams");
         }
         catch (JSDisconnectedException)
         {
@@ -56,7 +57,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error enhancing code blocks");
+            Logger.LogError(ex, "Error enhancing code blocks or rendering diagrams");
         }
     }
 
