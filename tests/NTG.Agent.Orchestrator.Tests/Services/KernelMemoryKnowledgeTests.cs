@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Moq;
-using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 namespace NTG.Agent.Orchestrator.Tests.Services;
 [TestFixture]
 public class KernelMemoryKnowledgeTests

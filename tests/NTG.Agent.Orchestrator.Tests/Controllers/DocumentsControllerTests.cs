@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Knowledge;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
