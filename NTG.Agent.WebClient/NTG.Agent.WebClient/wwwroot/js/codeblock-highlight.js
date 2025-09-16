@@ -20,6 +20,11 @@ window.beautifyCodeBlocks = function () {
         // Mark as enhanced
         codeBlock.classList.add('enhanced');
 
+        // Handle mermaid diagrams specially
+        if (language === 'mermaid' && renderMermaidDiagram(codeBlock, pre)) {
+            return;
+        }
+
         // Create header with language and copy button
         const header = document.createElement('div');
         header.className = 'code-block-header';
@@ -49,6 +54,33 @@ window.beautifyCodeBlocks = function () {
 function getLanguageFromClass(className) {
     const match = className.match(/language-(\w+)/);
     return match ? match[1] : null;
+}
+
+function renderMermaidDiagram(codeBlock, pre) {
+    if (typeof mermaid === 'undefined') {
+        return false;
+    }
+    
+    try {
+        const mermaidCode = codeBlock.textContent;
+        
+        // Create mermaid diagram container
+        const diagramDiv = document.createElement('div');
+        diagramDiv.className = 'mermaid';
+        diagramDiv.textContent = mermaidCode;
+        
+        // Replace the pre element with the diagram
+        pre.parentNode.insertBefore(diagramDiv, pre);
+        pre.style.display = 'none';
+        
+        // Render the diagram
+        mermaid.init(undefined, diagramDiv);
+        return true;
+        
+    } catch (error) {
+        console.error('Mermaid rendering error:', error);
+        return false;
+    }
 }
 
 window.copyToClipboard = async function (button) {
@@ -82,78 +114,7 @@ window.copyToClipboard = async function (button) {
     }
 };
 
-window.renderMermaidDiagrams = function () {
-    if (typeof mermaid === 'undefined') {
-        console.warn('Mermaid library not loaded. Please add mermaid.js to render diagrams.');
-        return;
-    }
 
-    // Find all mermaid code blocks that haven't been processed yet
-    // Handle both 'lang-mermaid' and 'language-mermaid' class formats
-    const mermaidBlocks = document.querySelectorAll('pre lang-mermaid:not(.enhanced)');
-    
-    mermaidBlocks.forEach((codeBlock, index) => {
-        try {
-            const mermaidCode = codeBlock.textContent || codeBlock.innerText;
-            const pre = codeBlock.parentElement;
-            const codeBlockContainer = pre.parentElement; // Should be .code-block-container
-            
-            // Mark as processed to avoid re-rendering
-            codeBlock.classList.add('enhanced');
-            
-            // Create container for the diagram (styles now in CSS)
-            const diagramContainer = document.createElement('div');
-            diagramContainer.className = 'mermaid-diagram-container';
-            
-            // Create unique ID for this diagram
-            const diagramId = `mermaid-diagram-${Date.now()}-${index}`;
-            const diagramDiv = document.createElement('div');
-            diagramDiv.id = diagramId;
-            diagramDiv.className = 'mermaid';
-            diagramDiv.textContent = mermaidCode;
-            
-            // Add header (styles now in CSS)
-            const header = document.createElement('div');
-            header.className = 'mermaid-header';
-            header.innerHTML = `
-                <span>📊</span>
-                <span>Mermaid Diagram</span>
-            `;
-            
-            diagramContainer.appendChild(header);
-            diagramContainer.appendChild(diagramDiv);
-            
-            // Insert the diagram container after the code block container
-            if (codeBlockContainer && codeBlockContainer.classList.contains('code-block-container')) {
-                // Insert after the existing code block container
-                codeBlockContainer.parentNode.insertBefore(diagramContainer, codeBlockContainer.nextSibling);
-                // Hide the code block container using CSS class
-                codeBlockContainer.classList.add('mermaid-code-hidden');
-            } else {
-                // Fallback: insert after the pre element
-                pre.parentNode.insertBefore(diagramContainer, pre.nextSibling);
-                pre.style.display = 'none';
-            }
-            
-            // Initialize mermaid for this specific diagram
-            mermaid.init(undefined, diagramDiv);
-            
-        } catch (error) {
-            console.error('Error rendering Mermaid diagram:', error);
-            
-            // Show error message (styles now in CSS)
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'mermaid-error';
-            errorDiv.innerHTML = `
-                <strong>⚠️ Mermaid Diagram Error:</strong>
-                <span>${error.message || 'Failed to render diagram'}</span>
-            `;
-            
-            const targetElement = codeBlock.parentElement.parentElement || codeBlock.parentElement;
-            targetElement.parentNode.insertBefore(errorDiv, targetElement.nextSibling);
-        }
-    });
-};
 
 
 
