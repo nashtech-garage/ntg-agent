@@ -8,25 +8,24 @@ namespace NTG.Agent.Orchestrator.Knowledge;
 public class DocumentAnalysisService : IDocumentAnalysisService
 {
     private readonly DocumentAnalysisClient _documentAnalysisClient;
-
     public DocumentAnalysisService(IConfiguration configuration)
     {
-        var endpoint = configuration["Azure:DocumentIntelligence:Endpoint"];
-        if (string.IsNullOrWhiteSpace(endpoint))
-        {
-            throw new ArgumentNullException(nameof(endpoint), "Azure:DocumentIntelligence:Endpoint is required but missing or empty.");
-        }
+        //var endpoint = configuration["Azure:DocumentIntelligence:Endpoint"];
+        //if (string.IsNullOrWhiteSpace(endpoint))
+        //{
+        //    throw new ArgumentNullException(nameof(endpoint), "Azure:DocumentIntelligence:Endpoint is required but missing or empty.");
+        //}
 
-        var apiKey = configuration["Azure:DocumentIntelligence:ApiKey"];
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new ArgumentNullException(nameof(apiKey), "Azure:DocumentIntelligence:ApiKey is required but missing or empty.");
-        }
+        //var apiKey = configuration["Azure:DocumentIntelligence:ApiKey"];
+        //if (string.IsNullOrWhiteSpace(apiKey))
+        //{
+        //    throw new ArgumentNullException(nameof(apiKey), "Azure:DocumentIntelligence:ApiKey is required but missing or empty.");
+        //}
 
-        _documentAnalysisClient = new DocumentAnalysisClient(
-            new Uri(endpoint),
-            new Azure.AzureKeyCredential(apiKey)
-        );
+        //_documentAnalysisClient = new DocumentAnalysisClient(
+        //    new Uri(endpoint),
+        //    new Azure.AzureKeyCredential(apiKey)
+        //);
     }
 
     public async Task<List<string>> ExtractDocumentData(

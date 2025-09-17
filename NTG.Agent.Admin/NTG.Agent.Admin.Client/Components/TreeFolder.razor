@@ -198,7 +198,6 @@
             isLoading = false;
         }
     }
-    #region Build Folder Tree
     private List<FolderItem> BuildFolderTree(List<FolderItem> flatList)
     {
         var lookup = flatList.ToDictionary(f => f.Id);
@@ -301,8 +300,6 @@
     }
     </div>
     };
-    #endregion
-    #region Show Menu Conxt
     private async Task SelectFolder(FolderItem item)
     {
         selectedFolderId = item.Id;
@@ -366,8 +363,6 @@
         }
         objRef?.Dispose();
     }
-    #endregion
-    #region Add New Folder
     private void AddNewFolder(FolderItem? parent)
     {
         folderToAddUnder = parent;
@@ -447,8 +442,6 @@
             showNewFolderError = true;
         }
     }
-    #endregion
-    #region Add Knowledge
     private async Task AddKnowledge(FolderItem? parent)
     {
         if (parent != null && OnAddKnowledgeRequested.HasDelegate)
@@ -457,8 +450,6 @@
         }
         HideContextMenu();
     }
-    #endregion
-    #region Delete Folder
     private void DeleteFolder(FolderItem folder)
     {
         folderToDelete = folder;
@@ -569,8 +560,6 @@
 
         return false;
     }
-    #endregion
-    #region Rename Folder
     private void RenameFolder(FolderItem folder)
     {
         editingFolderId = folder.Id;
@@ -661,5 +650,4 @@
         showRenameFolderError = false;
     }
 
-    #endregion
 }

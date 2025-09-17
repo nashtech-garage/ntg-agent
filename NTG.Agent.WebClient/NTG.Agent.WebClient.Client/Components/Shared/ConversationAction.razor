@@ -103,7 +103,6 @@
     private Timer? searchDebounceTimer;
     private const int SearchDebounceDelay = 300; // milliseconds
 
-    #region Navigate To New Chat
     private async Task NavigateToNewChat()
     {
         Navigation.NavigateTo("/", forceLoad: false);
@@ -129,9 +128,7 @@
         await CloseSearchModal();
         await NavigateToNewChat();
     }
-    #endregion
 
-    #region Handle Search Chats
     private async Task ShowSearchModal()
     {
         isSearchModalVisible = true;
@@ -225,5 +222,4 @@
     {
         searchDebounceTimer?.Dispose();
     }
-    #endregion
 }

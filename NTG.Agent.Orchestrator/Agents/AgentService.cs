@@ -56,8 +56,6 @@ public class AgentService
         await SaveMessages(userId, conversation, promptRequest.Prompt, agentMessageSb.ToString(), ocrDocuments);
     }
 
-    #region Conversation Helpers
-
     private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequestForm promptRequest)
     {
         var conversationId = promptRequest.ConversationId;
@@ -151,10 +149,6 @@ public class AgentService
         await _agentDbContext.SaveChangesAsync();
     }
 
-    #endregion
-
-    #region Prompt Building + Streaming
-
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<ChatMessage> history,
@@ -217,10 +211,6 @@ public class AgentService
 
     }
 
-    #endregion
-
-    #region Helpers
-
     private async Task<string> GenerateConversationName(string question)
     {
         var agent = new ChatCompletionAgent
@@ -263,51 +253,38 @@ public class AgentService
         return sb.ToString();
     }
 
-    private static string BuildTextOnlyPrompt(string userPrompt) =>
-    $@"
-    First, check if the answer can be found in the conversation history.
-    If it is relevant, answer based on that context.
+    private string BuildTextOnlyPrompt(string userPrompt) =>
+        $@"
+            Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
+            If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
 
-    If the conversation history does not contain the answer,
-    then search the knowledge base with the query: {userPrompt}
-    Knowledge base will answer: {{memory.search}}
-
-    For visual diagrams, process documentation, and system visualization, use the mermaid plugin:
-    - {{mermaid.create_flowchart}} for workflows, processes, and decision flows
-    - {{mermaid.create_sequence_diagram}} for system interactions, API calls, and communication flows
-    - {{mermaid.create_class_diagram}} for code structure, object relationships, and software design
-    - {{mermaid.create_er_diagram}} for database schemas, data models, and entity relationships
-    - {{mermaid.create_gantt_chart}} for project timelines, schedules, and task planning
-    - {{mermaid.create_state_diagram}} for state machines, status flows, and system states
-    - {{mermaid.create_journey_map}} for user experiences, customer journeys, and process flows
-    - {{mermaid.suggest_diagram_type}} when unsure what type of diagram to create
-    - {{mermaid.create_diagram_from_description}} for automatic diagram type selection and generation
-
-    Always explain complex processes, architectures, workflows, or data relationships with appropriate diagrams.
-
-    Answer the question in a clear, natural, human-like way.
-    If both conversation history and knowledge base are empty,
-    continue answering with your own knowledge and plugins.";
+            For visual diagrams, process documentation, and system visualization, use the mermaid plugin:
+            - {{mermaid.create_flowchart}} for workflows, processes, and decision flows
+            - {{mermaid.create_sequence_diagram}} for system interactions, API calls, and communication flows
+            - {{mermaid.create_class_diagram}} for code structure, object relationships, and software design
+            - {{mermaid.create_er_diagram}} for database schemas, data models, and entity relationships
+            - {{mermaid.create_gantt_chart}} for project timelines, schedules, and task planning
+            - {{mermaid.create_state_diagram}} for state machines, status flows, and system states
+            - {{mermaid.create_journey_map}} for user experiences, customer journeys, and process flows
+            - {{mermaid.suggest_diagram_type}} when unsure what type of diagram to create
+            - {{mermaid.create_diagram_from_description}} for automatic diagram type selection and generation
+        ";
 
 
-
-    private static string BuildOcrPromptAsync(string userPrompt,
-        List<string> ocrDocuments)
+    private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)
     {
         var prompt = $@"
-You are a helpful document assistant.
-I will provide one or more documents with text, tables, and selection marks.
-Answer the user's question naturally, as a human would.
-Do not invent information or include irrelevant details.
+            You are a helpful document assistant.
+            I will provide one or more documents with text, tables, and selection marks.
+            Answer the user's question naturally, as a human would.
+            Do not invent information or include irrelevant details.
 
-Documents:
-{string.Join(Environment.NewLine + Environment.NewLine, ocrDocuments)}
+            Documents:
+            {string.Join(Environment.NewLine + Environment.NewLine, ocrDocuments)}
 
-User query: {userPrompt}
-";
+            User query: {userPrompt}
+            ";
 
         return prompt;
     }
-
-    #endregion
 }
