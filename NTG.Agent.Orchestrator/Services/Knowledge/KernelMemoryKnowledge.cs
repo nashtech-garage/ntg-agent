@@ -51,7 +51,10 @@ public class KernelMemoryKnowledge : IKnowledgeService
                 cancellationToken: cancellationToken);
         }
 
-        _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
+        }
         return result;
     }
 
