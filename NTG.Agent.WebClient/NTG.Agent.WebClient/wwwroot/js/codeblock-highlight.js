@@ -20,10 +20,7 @@ window.beautifyCodeBlocks = function () {
         // Mark as enhanced
         codeBlock.classList.add('enhanced');
 
-        // Handle mermaid diagrams specially
-        if (language === 'mermaid' && renderMermaidDiagram(codeBlock, pre)) {
-            return;
-        }
+
 
         // Create header with language and copy button
         const header = document.createElement('div');
@@ -56,32 +53,7 @@ function getLanguageFromClass(className) {
     return match ? match[1] : null;
 }
 
-function renderMermaidDiagram(codeBlock, pre) {
-    if (typeof mermaid === 'undefined') {
-        return false;
-    }
-    
-    try {
-        const mermaidCode = codeBlock.textContent;
-        
-        // Create mermaid diagram container
-        const diagramDiv = document.createElement('div');
-        diagramDiv.className = 'mermaid';
-        diagramDiv.textContent = mermaidCode;
-        
-        // Replace the pre element with the diagram
-        pre.parentNode.insertBefore(diagramDiv, pre);
-        pre.style.display = 'none';
-        
-        // Render the diagram
-        mermaid.init(undefined, diagramDiv);
-        return true;
-        
-    } catch (error) {
-        console.error('Mermaid rendering error:', error);
-        return false;
-    }
-}
+
 
 window.copyToClipboard = async function (button) {
     const container = button.closest('.code-block-container');
@@ -113,6 +85,8 @@ window.copyToClipboard = async function (button) {
         document.body.removeChild(textArea);
     }
 };
+
+
 
 
 

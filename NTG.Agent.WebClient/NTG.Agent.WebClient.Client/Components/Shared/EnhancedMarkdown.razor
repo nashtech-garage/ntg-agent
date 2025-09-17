@@ -43,6 +43,7 @@
         
         try
         {
+            await JSRuntime.InvokeVoidAsync("renderMermaidBlocks");
             await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
             await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
         }
