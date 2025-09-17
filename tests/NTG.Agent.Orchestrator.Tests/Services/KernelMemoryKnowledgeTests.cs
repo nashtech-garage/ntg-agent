@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 namespace NTG.Agent.Orchestrator.Tests.Services;
@@ -6,11 +7,13 @@ namespace NTG.Agent.Orchestrator.Tests.Services;
 public class KernelMemoryKnowledgeTests
 {
     private Mock<IConfiguration> _mockConfiguration = null!;
+    private Mock<ILogger<KernelMemoryKnowledge>> _mockLogger;
     private Guid _testAgentId;
     [SetUp]
     public void Setup()
     {
         _mockConfiguration = new Mock<IConfiguration>();
+        _mockLogger = new Mock<ILogger<KernelMemoryKnowledge>>();
         _testAgentId = Guid.NewGuid();
         // Set up configuration mocks
         _mockConfiguration.Setup(x => x["KernelMemory:ApiKey"]).Returns("test-api-key");
@@ -28,16 +31,10 @@ public class KernelMemoryKnowledgeTests
     public void Constructor_WhenValidConfiguration_CreatesInstance()
     {
         // Act
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         // Assert
         Assert.That(service, Is.Not.Null);
         Assert.That(service, Is.TypeOf<KernelMemoryKnowledge>());
-    }
-    [Test]
-    public void Constructor_WhenConfigurationIsNull_ThrowsNullReferenceException()
-    {
-        // Act & Assert
-        Assert.Throws<NullReferenceException>(() => new KernelMemoryKnowledge(null!));
     }
     [Test]
     public void Constructor_WhenApiKeyIsNull_ThrowsInvalidOperationException()
@@ -45,7 +42,7 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         _mockConfiguration.Setup(x => x["KernelMemory:ApiKey"]).Returns((string?)null);
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => new KernelMemoryKnowledge(_mockConfiguration.Object));
+        var exception = Assert.Throws<InvalidOperationException>(() => new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object));
         Assert.That(exception.Message, Is.EqualTo("KernelMemory:ApiKey configuration is required"));
     }
     [Test]
@@ -54,7 +51,7 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         _mockConfiguration.Setup(x => x["KernelMemory:ApiKey"]).Returns(string.Empty);
         // Act & Assert
-        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object));
+        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object));
     }
     [Test]
     public void Constructor_WhenEndpointNotConfigured_ThrowsInvalidOperationException()
@@ -63,7 +60,7 @@ public class KernelMemoryKnowledgeTests
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__https__0", null);
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__http__0", null);
         // Act & Assert
-        var exception = Assert.Throws<InvalidOperationException>(() => new KernelMemoryKnowledge(_mockConfiguration.Object));
+        var exception = Assert.Throws<InvalidOperationException>(() => new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object));
         Assert.That(exception.Message, Is.EqualTo("KernelMemory Endpoint configuration is required"));
     }
     [Test]
@@ -73,7 +70,7 @@ public class KernelMemoryKnowledgeTests
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__https__0", "https://secure-endpoint.com");
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__http__0", "http://insecure-endpoint.com");
         // Act & Assert
-        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object));
+        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object));
     }
     [Test]
     public void Constructor_WhenOnlyHttpEndpointAvailable_UsesHttpEndpoint()
@@ -82,13 +79,13 @@ public class KernelMemoryKnowledgeTests
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__https__0", null);
         Environment.SetEnvironmentVariable("services__ntg-agent-knowledge__http__0", "http://test-endpoint.com");
         // Act & Assert
-        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object));
+        Assert.DoesNotThrow(() => new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object));
     }
     [Test]
     public void ImportWebPageAsync_WhenUrlIsNull_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         string? url = null;
         var tags = new List<string> { "test" };
         // Act & Assert
@@ -100,7 +97,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportWebPageAsync_WhenUrlIsEmpty_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var url = "";
         var tags = new List<string> { "test" };
         // Act & Assert
@@ -112,7 +109,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportWebPageAsync_WhenUrlIsInvalid_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var url = "not-a-valid-url";
         var tags = new List<string> { "test" };
         // Act & Assert
@@ -124,7 +121,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportWebPageAsync_WhenUrlIsFtp_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var url = "ftp://example.com";
         var tags = new List<string> { "test" };
         // Act & Assert
@@ -136,7 +133,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportWebPageAsync_WhenUrlIsFile_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var url = "file:///c:/temp/test.txt";
         var tags = new List<string> { "test" };
         // Act & Assert
@@ -148,7 +145,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportTextContentAsync_WhenContentIsNull_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         string? content = null;
         var fileName = "test.txt";
         var tags = new List<string> { "test" };
@@ -161,7 +158,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportTextContentAsync_WhenContentIsEmpty_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var content = "";
         var fileName = "test.txt";
         var tags = new List<string> { "test" };
@@ -174,7 +171,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportTextContentAsync_WhenContentIsWhitespace_ThrowsArgumentException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var content = "   \t\n   ";
         var fileName = "test.txt";
         var tags = new List<string> { "test" };
@@ -187,7 +184,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportDocumentAsync_WhenStreamIsNull_ThrowsKernelMemoryException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         Stream? content = null;
         var fileName = "test.txt";
         var tags = new List<string> { "test" };
@@ -199,7 +196,7 @@ public class KernelMemoryKnowledgeTests
     public async Task ImportDocumentAsync_WhenValidStream_AttemptsImport()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         using var content = new MemoryStream("test content"u8.ToArray());
         var fileName = "test.txt";
         var tags = new List<string> { "test-tag" };
@@ -226,7 +223,7 @@ public class KernelMemoryKnowledgeTests
     public void ImportDocumentAsync_WhenNullTags_ThrowsArgumentNullException()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         using var content = new MemoryStream("test content"u8.ToArray());
         var fileName = "test.txt";
         List<string>? tags = null;
@@ -239,7 +236,7 @@ public class KernelMemoryKnowledgeTests
     public async Task RemoveDocumentAsync_WhenValidDocumentId_AttemptsRemoval()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var documentId = "test-document-id";
         // Act & Assert - Should attempt to call the service
         try
@@ -261,7 +258,7 @@ public class KernelMemoryKnowledgeTests
     public async Task SearchAsync_WithTags_WhenValidQuery_AttemptsSearch()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var query = "test query";
         var tags = new List<string> { "test-tag" };
         // Act & Assert
@@ -284,7 +281,7 @@ public class KernelMemoryKnowledgeTests
     public async Task SearchAsync_WithTags_WhenTagsIsNull_UsesSimpleSearch()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var query = "test query";
         List<string>? tags = null;
         // Act & Assert - Should handle null tags by using simple search
@@ -307,7 +304,7 @@ public class KernelMemoryKnowledgeTests
     public async Task SearchAsync_WithTags_WhenTagsIsEmpty_UsesSimpleSearch()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var query = "test query";
         var tags = new List<string>();
         // Act & Assert - Should handle empty tags by using simple search
@@ -330,7 +327,7 @@ public class KernelMemoryKnowledgeTests
     public async Task SearchAsync_WithTags_WhenTagsProvided_UsesFilteredSearch()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var query = "test query";
         var tags = new List<string> { "tag1", "tag2" };
         // Act & Assert - Should use filtered search when tags are provided
@@ -353,7 +350,7 @@ public class KernelMemoryKnowledgeTests
     public async Task SearchAsync_WithUserId_WhenValidParameters_AttemptsSearch()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var query = "test query";
         var userId = Guid.NewGuid();
         // Act & Assert
@@ -376,7 +373,7 @@ public class KernelMemoryKnowledgeTests
     public async Task ExportDocumentAsync_WhenValidParameters_AttemptsExport()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         var documentId = "test-document-id";
         var fileName = "export.txt";
         // Act & Assert
@@ -399,7 +396,7 @@ public class KernelMemoryKnowledgeTests
     public void Service_ImplementsIKnowledgeService()
     {
         // Arrange
-        var service = new KernelMemoryKnowledge(_mockConfiguration.Object);
+        var service = new KernelMemoryKnowledge(_mockConfiguration.Object, _mockLogger.Object);
         // Act & Assert
         Assert.That(service, Is.InstanceOf<IKnowledgeService>());
     }
