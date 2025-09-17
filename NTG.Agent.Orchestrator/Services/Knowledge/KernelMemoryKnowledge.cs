@@ -5,13 +5,15 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 public class KernelMemoryKnowledge : IKnowledgeService
 {
     private readonly MemoryWebClient _memoryWebClient;
+    private readonly ILogger<KernelMemoryKnowledge> _logger;
 
-    public KernelMemoryKnowledge(IConfiguration configuration)
+    public KernelMemoryKnowledge(IConfiguration configuration, ILogger<KernelMemoryKnowledge> logger)
     {
         var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
         var apiKey = configuration["KernelMemory:ApiKey"] ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
 
         _memoryWebClient = new MemoryWebClient(endpoint, apiKey);
+        _logger = logger;
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
@@ -30,11 +32,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        if (tags != null && tags.Count > 0)
+        SearchResult result;
+        if (tags.Count != 0)
         {
             var filters = (from tagValue in tags
                            select MemoryFilters.ByTag("tags", tagValue)).ToList();
-            return await _memoryWebClient.SearchAsync(
+            result = await _memoryWebClient.SearchAsync(
                 query: query,
                 filters: filters,
                 limit: 3,
@@ -42,11 +45,17 @@ public class KernelMemoryKnowledge : IKnowledgeService
         }
         else
         {
-            return await _memoryWebClient.SearchAsync(
+            result = await _memoryWebClient.SearchAsync(
                 query: query,
                 limit: 3,
                 cancellationToken: cancellationToken);
         }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
+        }
+        return result;
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)

@@ -9,6 +9,7 @@ public sealed class KnowledgePlugin
 {
     private readonly IKnowledgeService _knowledgeService;
     private readonly List<string> _tags;
+
     public KnowledgePlugin(IKnowledgeService knowledgeService, List<string> tags)
     {
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
