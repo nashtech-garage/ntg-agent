@@ -9,12 +9,14 @@ using NTG.Agent.Shared.Dtos.Conversations;
 using NTG.Agent.Shared.Dtos.Enums;
 using System.Security.Claims;
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
+
 [TestFixture]
 public class ConversationsControllerTests
 {
     private AgentDbContext _context;
     private ConversationsController _controller;
     private Guid _testUserId;
+  
     [SetUp]
     public void Setup()
     {
@@ -36,12 +38,14 @@ public class ConversationsControllerTests
             }
         };
     }
+  
     [TearDown]
     public void TearDown()
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
     }
+  
     [Test]
     public async Task GetConversations_WhenUserHasConversations_ReturnsOkWithCorrectlyOrderedConversations()
     {
@@ -60,6 +64,7 @@ public class ConversationsControllerTests
             Assert.That(conversations[2].Name, Is.EqualTo("User Conversation 3"));
         }
     }
+  
     [Test]
     public async Task GetConversations_WhenUserHasNoConversations_ReturnsOkWithEmptyList()
     {
@@ -70,6 +75,7 @@ public class ConversationsControllerTests
         Assert.That(conversations, Is.Not.Null);
         Assert.That(conversations, Is.Empty, "The list of conversations should be empty.");
     }
+  
     [Test]
     public async Task GetConversation_WhenConversationExists_ReturnsConversation()
     {
@@ -99,6 +105,7 @@ public class ConversationsControllerTests
             Assert.That(actualConversation.Name, Is.EqualTo(expectedConversation.Name));
         }
     }
+  
     [Test]
     public async Task GetConversation_WhenConversationDoesNotExist_ReturnsNotFound()
     {
@@ -110,6 +117,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
     }
+  
     [Test]
     public async Task GetConversationMessage_WhenConversationHasMessages_ReturnsCorrectlyOrderedMessages()
     {
@@ -130,6 +138,7 @@ public class ConversationsControllerTests
             Assert.That(messages[1].Role, Is.EqualTo((int)ChatRole.Assistant));
         }
     }
+  
     [Test]
     public async Task GetConversationMessage_WhenConversationHasNoMessages_ReturnsEmptyList()
     {
@@ -144,6 +153,7 @@ public class ConversationsControllerTests
         Assert.That(result.Value, Is.Not.Null);
         Assert.That(result.Value, Is.Empty);
     }
+  
     [Test]
     public async Task GetConversationMessage_WhenAccessingOtherUsersConversation_ReturnsUnAuthorized()
     {
@@ -155,6 +165,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
     }
+  
     [Test]
     public async Task GetConversation_WhenAccessingOtherUsersConversation_ReturnsNotFound()
     {
@@ -176,7 +187,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result.Result, Is.TypeOf<NotFoundResult>());
     }
-    // Rename the existing test and fix its assertion to expect NotFound
+  
     [Test]
     public async Task GetConversationMessage_AccessingOtherUsersConversation_ReturnsUnAuthorized()
     {
@@ -188,6 +199,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result.Result, Is.TypeOf<UnauthorizedResult>());
     }
+  
     private async Task SeedConversationsData()
     {
         var otherUserId = Guid.NewGuid();
@@ -203,6 +215,7 @@ public class ConversationsControllerTests
         await _context.Conversations.AddRangeAsync(conversations);
         await _context.SaveChangesAsync();
     }
+  
     private async Task<(Guid userConversationId, Guid otherUserConversationId)> SeedMessagesData()
     {
         var otherUserId = Guid.NewGuid();
@@ -222,6 +235,7 @@ public class ConversationsControllerTests
         await _context.SaveChangesAsync();
         return (userConversation.Id, otherUserConversation.Id);
     }
+
     [Test]
     public async Task UpdateMessageReaction_WhenMessageExists_ReturnsNoContent()
     {
@@ -239,6 +253,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Like));
     }
+  
     [Test]
     public async Task UpdateMessageReaction_WhenMessageDoesNotExist_ReturnsNotFound()
     {
@@ -251,6 +266,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
+  
     [Test]
     public async Task UpdateMessageReaction_WhenAccessingOtherUsersMessage_ReturnsUnauthorized()
     {
@@ -265,6 +281,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<UnauthorizedResult>());
     }
+  
     [Test]
     public async Task UpdateMessageReaction_WhenChangingReaction_UpdatesCorrectly()
     {
@@ -286,6 +303,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.Dislike));
     }
+  
     [Test]
     public async Task UpdateMessageReaction_WhenSettingToNone_ClearsReaction()
     {
@@ -307,6 +325,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.Reaction, Is.EqualTo(ReactionType.None));
     }
+  
     [Test]
     public async Task UpdateMessageComment_WhenMessageExists_ReturnsNoContent()
     {
@@ -324,6 +343,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo("This is a test comment"));
     }
+  
     [Test]
     public async Task UpdateMessageComment_WhenMessageDoesNotExist_ReturnsNotFound()
     {
@@ -336,6 +356,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
+  
     [Test]
     public async Task UpdateMessageComment_WhenAccessingOtherUsersMessage_ReturnsUnauthorized()
     {
@@ -350,6 +371,7 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<UnauthorizedResult>());
     }
+  
     [Test]
     public async Task UpdateMessageComment_WhenUpdatingExistingComment_ReplacesContent()
     {
@@ -371,6 +393,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo("Updated comment"));
     }
+  
     [Test]
     public async Task UpdateMessageComment_WhenClearingComment_SetsEmptyString()
     {
@@ -392,6 +415,7 @@ public class ConversationsControllerTests
         Assert.That(updatedMessage, Is.Not.Null);
         Assert.That(updatedMessage.UserComment, Is.EqualTo(string.Empty));
     }
+
     [Test]
     public async Task SearchConversationMessages_WhenKeywordMatches_ReturnsMatchingResults()
     {
@@ -411,6 +435,7 @@ public class ConversationsControllerTests
         Assert.That(messageResult.Content, Contains.Substring("Hello"));
         Assert.That(messageResult.Role, Is.EqualTo((int)ChatRole.User));
     }
+  
     [Test]
     public async Task SearchConversationMessages_WhenKeywordInConversationName_ReturnsConversationResults()
     {
