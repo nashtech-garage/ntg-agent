@@ -258,16 +258,7 @@ public class AgentService
             Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
             If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
 
-            For visual diagrams, process documentation, and system visualization, use the mermaid plugin:
-            - {{mermaid.create_flowchart}} for workflows, processes, and decision flows
-            - {{mermaid.create_sequence_diagram}} for system interactions, API calls, and communication flows
-            - {{mermaid.create_class_diagram}} for code structure, object relationships, and software design
-            - {{mermaid.create_er_diagram}} for database schemas, data models, and entity relationships
-            - {{mermaid.create_gantt_chart}} for project timelines, schedules, and task planning
-            - {{mermaid.create_state_diagram}} for state machines, status flows, and system states
-            - {{mermaid.create_journey_map}} for user experiences, customer journeys, and process flows
-            - {{mermaid.suggest_diagram_type}} when unsure what type of diagram to create
-            - {{mermaid.create_diagram_from_description}} for automatic diagram type selection and generation
+            For diagrams use: {{mermaid.create_diagram}}
         ";
 
 
