@@ -12,8 +12,8 @@ window.beautifyCodeBlocks = function () {
         const pre = codeBlock.parentElement;
         const language = getLanguageFromClass(codeBlock.className) || codeBlock.getAttribute('data-language') || 'text';
 
-        // Skip if already enhanced
-        if (codeBlock.classList.contains('enhanced')) {
+        // Skip if already enhanced or if it's a mermaid block. Mermaid diagrams are handled separately in mermaid-render.js.
+        if (codeBlock.classList.contains('enhanced') || language === 'mermaid') {
             return;
         }
 
@@ -81,4 +81,10 @@ window.copyToClipboard = async function (button) {
         document.body.removeChild(textArea);
     }
 };
+
+
+
+
+
+
 

@@ -1,4 +1,4 @@
-﻿﻿@using NTG.Agent.Shared.Dtos.Chats
+﻿@using NTG.Agent.Shared.Dtos.Chats
 @using NTG.Agent.Shared.Dtos.Enums
 @using NTG.Agent.Shared.Dtos.SharedConversations
 @using NTG.Agent.WebClient.Client.Components.Shared
@@ -232,6 +232,7 @@ else
             await Task.Delay(2000);
             await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
             await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("renderMermaidBlocks");
         }
     }
 
