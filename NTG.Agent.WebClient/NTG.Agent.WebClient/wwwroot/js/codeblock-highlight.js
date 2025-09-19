@@ -12,15 +12,13 @@ window.beautifyCodeBlocks = function () {
         const pre = codeBlock.parentElement;
         const language = getLanguageFromClass(codeBlock.className) || codeBlock.getAttribute('data-language') || 'text';
 
-        // Skip if already enhanced
-        if (codeBlock.classList.contains('enhanced')) {
+        // Skip if already enhanced or if it's a mermaid block. Mermaid diagrams are handled separately in mermaid-render.js.
+        if (codeBlock.classList.contains('enhanced') || language === 'mermaid') {
             return;
         }
 
         // Mark as enhanced
         codeBlock.classList.add('enhanced');
-
-
 
         // Create header with language and copy button
         const header = document.createElement('div');
@@ -52,8 +50,6 @@ function getLanguageFromClass(className) {
     const match = className.match(/language-(\w+)/);
     return match ? match[1] : null;
 }
-
-
 
 window.copyToClipboard = async function (button) {
     const container = button.closest('.code-block-container');

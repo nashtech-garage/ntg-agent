@@ -230,9 +230,9 @@ else
         if (firstRender)
         {
             await Task.Delay(2000);
-            await JSRuntime.InvokeVoidAsync("renderMermaidBlocks");
             await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
             await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("renderMermaidBlocks");
         }
     }
 

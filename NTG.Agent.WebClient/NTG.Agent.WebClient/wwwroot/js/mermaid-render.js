@@ -3,25 +3,10 @@ window.renderMermaidBlocks = function () {
 
     codeBlocks.forEach(codeBlock => {
         const pre = codeBlock.parentElement;
-        const language = getLanguageFromClass(codeBlock.className) || codeBlock.getAttribute('data-language') || 'text';
-
-        // Skip if already enhanced
-        if (codeBlock.classList.contains('enhanced')) {
-            return;
-        }
-
-        // Only handle mermaid diagrams
-        if (language === 'mermaid' && renderMermaidDiagram(codeBlock, pre)) {
-            // Mark as enhanced
-            codeBlock.classList.add('enhanced');
-        }
+        renderMermaidDiagram(codeBlock, pre)
     });
 };
 
-function getLanguageFromClass(className) {
-    const match = className.match(/language-(\w+)/);
-    return match ? match[1] : null;
-}
 
 function renderMermaidDiagram(codeBlock, pre) {
     if (typeof mermaid === 'undefined') {
@@ -66,8 +51,7 @@ function renderMermaidDiagram(codeBlock, pre) {
         container.appendChild(header);
         container.appendChild(diagramDiv);
         
-        // Store references for toggling
-        diagramDiv.setAttribute('data-mermaid-code', mermaidCode);
+        // Store references for toggling - use original code element instead of duplicating data
         container.appendChild(pre);
         pre.classList.add('mermaid-code-view');
         pre.style.display = 'none';
@@ -84,8 +68,8 @@ function renderMermaidDiagram(codeBlock, pre) {
 
 window.copyMermaidCode = async function (button) {
     const container = button.closest('.code-block-container');
-    const diagramDiv = container.querySelector('.mermaid');
-    const mermaidCode = diagramDiv.getAttribute('data-mermaid-code');
+    const codeElement = container.querySelector('code');
+    const mermaidCode = codeElement.textContent;
 
     try {
         await navigator.clipboard.writeText(mermaidCode);
