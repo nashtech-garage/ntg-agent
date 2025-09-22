@@ -44,6 +44,35 @@
     height: 14px;
 }
 
+.toggle-button {
+    background: none;
+    border: none;
+    color: #a0aec0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.toggle-button:hover,
+.copy-button:hover {
+    background-color: #e2e8f0;
+    color: #4a5568;
+}
+
+.toggle-button svg {
+    width: 14px;
+    height: 14px;
+}
+
+.toggle-text {
+    font-size: 14px;
+}
+
 .enhanced-pre {
     margin: 0 !important;
     border-radius: 0 !important;
@@ -64,4 +93,12 @@
 code[class*=language-], pre[class*=language-] {
     text-shadow: none !important;
     font-size: 1.19em !important;
+}
+
+/* Mermaid diagram styles */
+.mermaid {
+    background: transparent;
+    border: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 1rem;
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -175,6 +175,7 @@ public class AgentService
 
         var kernel = _kernel.Clone();
         kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        kernel.ImportPluginFromObject(new MermaidPlugin(), "mermaid");
 
         var agent = new ChatCompletionAgent
         {
@@ -201,7 +202,7 @@ public class AgentService
 
     private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
-        if (ocrDocuments.Any())
+        if (ocrDocuments.Count != 0)
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
@@ -256,6 +257,8 @@ public class AgentService
         $@"
             Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
             If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
+
+            For diagrams use: {{mermaid.create_diagram}}
         ";
 
 
