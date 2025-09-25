@@ -8,7 +8,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Shared.Dtos.Chats;
+using NTG.Agent.Orchestrator.Services.WebSearch;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
 using System.Text;
@@ -20,6 +20,7 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly ITextSearchService _textSearchService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -27,13 +28,15 @@ public class AgentService
         Kernel kernel,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+        IDocumentAnalysisService documentAnalysisService,
+        ITextSearchService textSearchService
          )
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _documentAnalysisService = documentAnalysisService;
+        _textSearchService = textSearchService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -47,6 +50,7 @@ public class AgentService
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
+
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
@@ -168,18 +172,17 @@ public class AgentService
         }
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
         var userMessage = BuildUserMessage(promptRequest, prompt);
-
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, promptRequest.ConversationId), "memory");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, promptRequest.ConversationId), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
             Kernel = kernel,
             Arguments = new KernelArguments(new PromptExecutionSettings
             {
@@ -191,6 +194,7 @@ public class AgentService
             yield return item.Message.ToString();
     }
 
+
     private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessageContent { Role = AuthorRole.User };
@@ -199,7 +203,7 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequestForm promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {
@@ -253,10 +257,20 @@ public class AgentService
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
-        $@"
-            Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
-            If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
-        ";
+$@"
+Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
+
+If the answer is empty, continue answering with search online web with the query: {userPrompt}
+By calling the tool{{onlineweb.search}}
+
+When using the online web results, always include the provided sources
+at the end of your answer in a clear, readable format (e.g., Markdown links).
+Answer the question in a clear, natural, human-like way.
+
+If the answer is still empty, continue answering with your knowledge and tools or plugins. 
+Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.";
+
+
 
 
     private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)

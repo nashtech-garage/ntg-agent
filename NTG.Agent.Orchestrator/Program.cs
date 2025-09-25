@@ -9,6 +9,7 @@ using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.WebSearch;
 using NTG.Agent.ServiceDefaults;
 using OpenAI;
 using OpenTelemetry;
@@ -120,6 +121,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
+builder.Services.AddScoped<ITextSearchService, GoogleTextSearchService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {
