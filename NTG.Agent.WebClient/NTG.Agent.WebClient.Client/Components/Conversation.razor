@@ -196,14 +196,11 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    #region Load Conversations
     private async Task LoadAndActiveConversations()
     {
         UpdateActiveConversationFromUrl();
         conversations = await ConversationClient.GetConversationsAsync();
     }
-    #endregion
-    #region Active Conversation Item
     private void UpdateActiveConversationFromUrl()
     {
         var currentUri = Navigation.Uri;
@@ -252,9 +249,6 @@
         ConversationState.OnConversationAdded -= HandleConversationAdded;
     }
 
-    #endregion
-
-    #region Handle Context Menu
     private void ShowMenu(Guid conversationId)
     {
         hoveredConversationId = conversationId;
@@ -292,9 +286,7 @@
         Navigation.LocationChanged -= HandleLocationChanged;
         await JS.InvokeVoidAsync("removeClickOutsideHandler");
     }
-    #endregion
 
-    #region Rename Conversation
     private async Task RenameConversation(Guid conversationId, string currentName)
     {
         contextMenuConversationId = null;
@@ -346,9 +338,6 @@
         StateHasChanged();
     }
 
-    #endregion
-
-    #region Delete A Conversation
     private async Task DeleteConversation(Guid conversationId)
     {
         contextMenuConversationId = null;
@@ -391,9 +380,7 @@
         await JS.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
-    #endregion
 
-    #region Share Conversation
     private async Task ShareConversation(Guid conversationId, string conversationName)
     {
         contextMenuConversationId = null;
@@ -413,9 +400,7 @@
         await JS.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
-    #endregion
 
-    #region Toggle Slide Bar
     private async Task LoadSidebarStateAsync()
     {
         try
@@ -447,9 +432,7 @@
         await SaveSidebarStateAsync();
         await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
     }
-    #endregion
 
-    #region Manage Shared Conversations Modal
     private void ToggleSettingsMenu()
     {
         showSettingsMenu = !showSettingsMenu;
@@ -484,5 +467,4 @@
     {
         StateHasChanged();
     }
-    #endregion
 }

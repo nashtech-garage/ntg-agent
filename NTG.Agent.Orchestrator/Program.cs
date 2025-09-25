@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
@@ -121,6 +122,18 @@ builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITextSearchService, GoogleTextSearchService>();
+
+builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
+{
+    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
+    var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") 
+                   ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") 
+                   ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
+    var apiKey = configuration["KernelMemory:ApiKey"] 
+                ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
+
+    return new MemoryWebClient(endpoint, apiKey);
+});
 
 builder.Services.AddAuthentication("Identity.Application")
     .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");

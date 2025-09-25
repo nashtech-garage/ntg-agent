@@ -4,14 +4,13 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
-    private readonly MemoryWebClient _memoryWebClient;
+    private readonly IKernelMemory _kernelMemory;
+    private readonly ILogger<KernelMemoryKnowledge> _logger;
 
-    public KernelMemoryKnowledge(IConfiguration configuration)
+    public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
     {
-        var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
-        var apiKey = configuration["KernelMemory:ApiKey"] ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
-
-        _memoryWebClient = new MemoryWebClient(endpoint, apiKey);
+        _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
@@ -20,21 +19,22 @@ public class KernelMemoryKnowledge : IKnowledgeService
             { "agentId", agentId.ToString() },
             { "tags", tags.Cast<string?>().ToList() }
         };
-        return await _memoryWebClient.ImportDocumentAsync(content, fileName, tags: tagCollection);
+        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection);
     }
 
     public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
     {
-        await _memoryWebClient.DeleteDocumentAsync(documentId);
+        await _kernelMemory.DeleteDocumentAsync(documentId);
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        if (tags != null && tags.Count > 0)
+        SearchResult result;
+        if (tags.Count != 0)
         {
             var filters = (from tagValue in tags
                            select MemoryFilters.ByTag("tags", tagValue)).ToList();
-            return await _memoryWebClient.SearchAsync(
+            result = await _kernelMemory.SearchAsync(
                 query: query,
                 filters: filters,
                 limit: 3,
@@ -42,16 +42,22 @@ public class KernelMemoryKnowledge : IKnowledgeService
         }
         else
         {
-            return await _memoryWebClient.SearchAsync(
+            result = await _kernelMemory.SearchAsync(
                 query: query,
                 limit: 3,
                 cancellationToken: cancellationToken);
         }
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
+        }
+        return result;
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var result = await _memoryWebClient.SearchAsync(query);
+        var result = await _kernelMemory.SearchAsync(query);
         return result;
     }
 
@@ -98,7 +104,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
             { "agentId", agentId.ToString() },
             { "tags", tags.Cast<string?>().ToList() }
         };
-        var documentId = await _memoryWebClient.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
+        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
         return documentId;
     }
 
@@ -116,12 +122,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
         };
 
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        return await _memoryWebClient.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+        return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
     }
 
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        return await _memoryWebClient.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+        return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
     }
 
     /// <summary>

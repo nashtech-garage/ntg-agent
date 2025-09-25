@@ -12,7 +12,7 @@ public sealed class MonkeyTools
 
     public MonkeyTools(MonkeyService monkeyService)
     {
-        this.monkeyService = monkeyService;
+        this.monkeyService = monkeyService ?? throw new ArgumentNullException(nameof(monkeyService));
     }
 
     [McpServerTool, Description("Get a list of monkeys.")]

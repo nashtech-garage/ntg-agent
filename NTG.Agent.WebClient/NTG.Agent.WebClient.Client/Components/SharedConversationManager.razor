@@ -263,15 +263,12 @@
         return "Active";
     }
 
-    #region View Shared Content
     private async Task ViewSharedConversation(Guid shareId)
     {
         var url = $"{NavigationManager.BaseUri.TrimEnd('/')}/share/{shareId}";
         await JS.InvokeVoidAsync("open", url, "_blank");
     }
-    #endregion
 
-    #region Edit Expiration
     private void EditExpiration(SharedConversationListItem item)
     {
         selectedItem = item;
@@ -341,9 +338,6 @@
         }
     }
 
-    #endregion
-
-    #region Unshare/Reshare content
     private void ConfirmUnshare(SharedConversationListItem item)
     {
         selectedItem = item;
@@ -381,9 +375,7 @@
         if (selectedItem == null) return;
         await SharedConversationClient.UpdateSharedConversationAsync(selectedItem.Id, true);
     }
-    #endregion
 
-    #region Delete Shared Content
     private void ConfirmDelete(SharedConversationListItem item)
     {
         selectedItem = item;
@@ -401,9 +393,7 @@
         if (selectedItem == null) return;
         await SharedConversationClient.DeleteSharedConversationAsync(selectedItem.Id);
     }
-    #endregion
     
-    #region confirm dialog actions
     private void CancelConfirmAction()
     {
         showConfirmDialog = false;
@@ -440,5 +430,4 @@
             }
         }
     }
-    #endregion
 }

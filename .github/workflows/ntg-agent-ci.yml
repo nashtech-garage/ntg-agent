@@ -1,4 +1,4 @@
-name: NTG Agent continuous integration flow
+name: NTG Agent Continuous Integration
 
 on:
   push:
@@ -44,7 +44,7 @@ jobs:
           sonarProjectName: ntg-agent
           sonarOrganization: ${{ secrets.SONARCLOUD_ORGANIZATION_KEY }}
           dotnetTestArguments: --logger trx --collect:"XPlat Code Coverage" --results-directory ./TestResults -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
-          sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/TestResults/**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/NTG.Agent.AppHost/**,**/Program.cs,**/Migrations/**"
+          sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/TestResults/**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/NTG.Agent.AppHost/**,**/Program.cs,**/Migrations/**,**/*Migration*.cs,**/*Migration*.Designer.cs,**/AgentDbContextModelSnapshot.cs"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
