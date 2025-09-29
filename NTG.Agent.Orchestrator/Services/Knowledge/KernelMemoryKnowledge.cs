@@ -64,7 +64,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<SearchResult> SearchPerConversationAsync(string query, Guid conversationId, CancellationToken cancellationToken = default)
     {
         var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
-        var result = await _memoryWebClient.SearchAsync(query, filter: filter, limit: 3);
+        var result = await _kernelMemory.SearchAsync(query, filter: filter, limit: 3);
         return result;
     }
 
@@ -83,7 +83,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
             { "conversationId", conversationId.ToString() }
         };
         // Use the conversationId as the collection name to keep memory per conversation
-        var documentId = await _memoryWebClient.ImportWebPageAsync(
+        var documentId = await _kernelMemory.ImportWebPageAsync(
             url,
             tags: tagCollection,
             cancellationToken: cancellationToken
@@ -140,7 +140,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
 
         // Retrieve all matching documents
-        var searchResult = await _memoryWebClient.SearchAsync(
+        var searchResult = await _kernelMemory.SearchAsync(
             query: "*", // wildcard to match all content
             filter: filter,
             limit: int.MaxValue, // get all documents
@@ -155,7 +155,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         {
             try
             {
-                await _memoryWebClient.DeleteDocumentAsync(doc.DocumentId, cancellationToken: cancellationToken);
+                await _kernelMemory.DeleteDocumentAsync(doc.DocumentId, cancellationToken: cancellationToken);
             }
             catch
             {
