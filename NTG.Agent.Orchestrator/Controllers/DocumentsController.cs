@@ -388,8 +388,6 @@ public class DocumentsController : ControllerBase
             var response = await httpClient.GetAsync(document.Url);
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStreamAsync();
-
             // Prefer server-provided content-type, with fallback to URL/extension
             var headerType = response.Content.Headers.ContentType?.MediaType;
             var inferredType = headerType ?? GetContentTypeFromUrlPath(uri.AbsolutePath);
@@ -397,7 +395,7 @@ public class DocumentsController : ControllerBase
             // File extension from content-type or URL
             var extension = FileTypeService.GetFileExtensionFromContentType(inferredType, uri.ToString());
             var fileName = $"{FileTypeService.SanitizeFileName(document.Name)}{extension}";
-            using var stream = await response.Content.ReadAsStreamAsync(ct);
+            var stream = await response.Content.ReadAsStreamAsync(ct);
             return File(stream, inferredType, fileName);
         }
         catch (OperationCanceledException)
