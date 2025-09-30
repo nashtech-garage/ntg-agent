@@ -388,8 +388,6 @@ public class DocumentsController : ControllerBase
             var response = await httpClient.GetAsync(document.Url);
             response.EnsureSuccessStatusCode();
 
-            var content = await response.Content.ReadAsStreamAsync();
-
             // Prefer server-provided content-type, with fallback to URL/extension
             var headerType = response.Content.Headers.ContentType?.MediaType;
             var inferredType = headerType ?? GetContentTypeFromUrlPath(uri.AbsolutePath);
