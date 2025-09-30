@@ -1,4 +1,5 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.KernelMemory;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
@@ -33,7 +34,7 @@ namespace NTG.Agent.Orchestrator.Plugins
         }
 
         [KernelFunction, Description("Search Online Web")]
-        public async Task<string> SearchAsync(string query, int top = 5)
+        public async Task<SearchResult> SearchAsync(string query, int top = 5)
         {
             // Ingest new web search results
             await foreach (var result in _textSearchService.SearchAsync(query, top))
@@ -43,7 +44,7 @@ namespace NTG.Agent.Orchestrator.Plugins
                     try
                     {
                         await _knowledgeService.ImportWebPageAsync(
-                            url: result.Link,
+                            sourceUrl: result.Link,
                             conversationId: _conversationId
                         );
                     }
@@ -57,52 +58,7 @@ namespace NTG.Agent.Orchestrator.Plugins
             // Retrieve ingested content per conversation
             var searchResult = await _knowledgeService.SearchPerConversationAsync(query, _conversationId);
 
-            // Combine all chunks from Results
-            var sbContent = new StringBuilder();
-            if (searchResult.Results != null)
-            {
-                foreach (var citation in searchResult.Results)
-                {
-                    foreach (var partition in citation.Partitions)
-                    {
-                        var content = CleanText(partition.Text);
-
-                        if (content.Length > 4000) content = content.Substring(0, 4000) + "...";
-
-                        sbContent.AppendLine(content);
-                    }
-                }
-            }
-
-            // Summarize the combined content
-            var summarizer = new ChatCompletionAgent
-            {
-                Name = "ConversationSummarizer",
-                Instructions = "Summarize the following content into a concise paragraph that captures key points.",
-                Kernel = _kernel
-            };
-
-            var sb = new StringBuilder();
-            await foreach (var res in summarizer.InvokeAsync(sbContent.ToString()))
-                sb.Append(res.Message);
-
-            return sb.ToString();
-        }
-
-
-        private string CleanText(string input)
-        {
-            // Decode HTML entities
-            var text = WebUtility.HtmlDecode(input);
-
-            // Strip HTML tags
-            text = Regex.Replace(text, "<.*?>", string.Empty);
-
-            // Replace multiple whitespaces/newlines/tabs with a single space
-            text = Regex.Replace(text, @"\s+", " ");
-
-            // Trim leading/trailing spaces
-            return text.Trim();
+            return searchResult;
         }
     }
 }

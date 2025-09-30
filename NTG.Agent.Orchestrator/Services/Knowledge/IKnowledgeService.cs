@@ -14,7 +14,10 @@ public interface IKnowledgeService
 
     public Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default);
 
-    public Task<string> ImportWebPageAsync(string url, Guid conversationId, CancellationToken cancellationToken = default);
+    public Task<string> ImportWebPageAsync(
+        string sourceUrl,
+        Guid conversationId,
+        CancellationToken cancellationToken = default);
 
     public Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 

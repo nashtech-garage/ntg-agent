@@ -257,21 +257,12 @@ public class AgentService
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
-$@"
-Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
-
-If the answer is empty, continue answering with search online web with the query: {userPrompt}
-By calling the tool{{onlineweb.search}}
-
-When using the online web results, always include the provided sources
-at the end of your answer in a clear, readable format (e.g., Markdown links).
-Answer the question in a clear, natural, human-like way.
-
-If the answer is still empty, continue answering with your knowledge and tools or plugins. 
-Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.";
-
-
-
+        $@"
+        Search for **{userPrompt}** in the knowledge base using {{memory.search}}.
+        If nothing relevant is found, search the web using {{onlineweb.search}}.
+        Answer the question in a clear, natural, human-like way.
+        If the answer is still empty, continue answering with your knowledge and tools or plugins. 
+        ";
 
     private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)
     {
