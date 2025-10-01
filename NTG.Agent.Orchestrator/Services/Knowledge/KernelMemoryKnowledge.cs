@@ -68,7 +68,8 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchPerConversationAsync(string query, Guid conversationId, CancellationToken cancellationToken = default)
     {
-        var result = await _kernelMemory.SearchAsync(query, index:conversationId.ToString(), limit: 3);
+        var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
+        var result = await _kernelMemory.SearchAsync(query, filter: filter, limit: 3);
         return result;
     }
 
@@ -90,9 +91,14 @@ public class KernelMemoryKnowledge : IKnowledgeService
             // 2. Clean the HTML -> plain text
             var cleanText = CleanHtml(html);
 
+            var tagCollection = new TagCollection
+            {
+                { "conversationId", conversationId.ToString() },
+            };
+
             // 4. Import to memory
             documentID = await _kernelMemory.ImportTextAsync(
-                index: conversationId.ToString(), 
+                tags: tagCollection,
                 text: cleanText,
                 cancellationToken: cancellationToken
             );
