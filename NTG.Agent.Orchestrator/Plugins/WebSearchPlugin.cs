@@ -1,4 +1,5 @@
-﻿using Microsoft.SemanticKernel;
+﻿using Microsoft.KernelMemory;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
@@ -33,12 +34,16 @@ namespace NTG.Agent.Orchestrator.Plugins
         }
 
         [KernelFunction, Description("Search Online Web")]
-        public async Task<string> SearchAsync(string query, int top = 5)
+        public async Task<SearchResult> SearchAsync(string query, int top = 5)
         {
-            // Ingest new web search results
-            await foreach (var result in _textSearchService.SearchAsync(query, top))
-            {
-                if (!string.IsNullOrEmpty(result.Link))
+            // 1️⃣ Get search results
+            var results = await _textSearchService.SearchAsync(query, top)
+                                                  .ToListAsync(); // materialize the async enumerable
+
+            // 2️⃣ Import pages in parallel
+            var importTasks = results
+                .Where(r => !string.IsNullOrEmpty(r.Link))
+                .Select(async result =>
                 {
                     try
                     {
@@ -49,16 +54,16 @@ namespace NTG.Agent.Orchestrator.Plugins
                     }
                     catch
                     {
-                        continue; // ignore failures
+                        // ignore failures
                     }
-                }
-            }
+                });
 
-            // Retrieve ingested content per conversation
+            await Task.WhenAll(importTasks);
+
+            // 3️⃣ Retrieve ingested content per conversation
             var searchResult = await _knowledgeService.SearchPerConversationAsync(query, _conversationId);
 
-            // Combine all chunks from Results
-            var sbContent = new StringBuilder();
+            // 4️⃣ Clean and truncate content
             if (searchResult.Results != null)
             {
                 foreach (var citation in searchResult.Results)
@@ -66,27 +71,14 @@ namespace NTG.Agent.Orchestrator.Plugins
                     foreach (var partition in citation.Partitions)
                     {
                         var content = CleanText(partition.Text);
-
-                        if (content.Length > 4000) content = content.Substring(0, 4000) + "...";
-
-                        sbContent.AppendLine(content);
+                        if (content.Length > 4000)
+                            content = content.Substring(0, 4000) + "...";
+                        partition.Text = content;
                     }
                 }
             }
 
-            // Summarize the combined content
-            var summarizer = new ChatCompletionAgent
-            {
-                Name = "ConversationSummarizer",
-                Instructions = "Summarize the following content into a concise paragraph that captures key points.",
-                Kernel = _kernel
-            };
-
-            var sb = new StringBuilder();
-            await foreach (var res in summarizer.InvokeAsync(sbContent.ToString()))
-                sb.Append(res.Message);
-
-            return sb.ToString();
+            return searchResult;
         }
 
 
