@@ -34,7 +34,7 @@ namespace NTG.Agent.Orchestrator.Plugins
         }
 
         [KernelFunction, Description("Search Online Web")]
-        public async Task<SearchResult> SearchAsync(string query, int top = 5)
+        public async Task<SearchResult> SearchAsync(string query, int top = 3)
         {
             // 1️⃣ Get search results
             var results = await _textSearchService.SearchAsync(query, top)
