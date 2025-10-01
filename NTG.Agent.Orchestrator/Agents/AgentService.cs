@@ -177,7 +177,7 @@ public class AgentService
 
         var kernel = _kernel.Clone();
         kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, promptRequest.ConversationId), "memory");
-        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, _kernel, promptRequest.ConversationId), "onlineweb");
+        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, promptRequest.ConversationId), "onlineweb");
 
         var agent = new ChatCompletionAgent
         {

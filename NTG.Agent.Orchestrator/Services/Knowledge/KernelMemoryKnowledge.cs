@@ -48,6 +48,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
                 cancellationToken: cancellationToken);
         }
 
+        result.Results = result.Results
+            .Where(r => r.Partitions.Any(p => !p.Tags.ContainsKey("conversationId")))
+            .Select(r => { r.Partitions = r.Partitions.Where(p => !p.Tags.ContainsKey("conversationId")).ToList(); return r; })
+            .ToList();
+
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
@@ -83,11 +89,21 @@ public class KernelMemoryKnowledge : IKnowledgeService
             { "conversationId", conversationId.ToString() }
         };
         // Use the conversationId as the collection name to keep memory per conversation
-        var documentId = await _kernelMemory.ImportWebPageAsync(
+        string documentId = string.Empty;
+
+        try
+        {
+            documentId = await _kernelMemory.ImportWebPageAsync(
             url,
             tags: tagCollection,
             cancellationToken: cancellationToken
-        );
+            );
+        }
+        catch (Exception ex)
+        {
+
+            _logger.LogError(ex, "Cannot import WebPage to kernelMemory");
+        }
 
         return documentId;
     }
