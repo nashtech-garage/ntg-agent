@@ -1,14 +1,8 @@
 ﻿using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.Pipeline;
 using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
-using System;
 using System.ComponentModel;
-using System.Net;
-using System.Text;
-using System.Text.RegularExpressions;
 
 namespace NTG.Agent.Orchestrator.Plugins
 {
@@ -33,11 +27,11 @@ namespace NTG.Agent.Orchestrator.Plugins
         [KernelFunction, Description("Search Online Web")]
         public async Task<SearchResult> SearchAsync(string query, int top = 3)
         {
-            // 1️⃣ Get search results
+            // 1️. Get search results
             var results = await _textSearchService.SearchAsync(query, top)
-                                                  .ToListAsync(); // materialize the async enumerable
+                                                  .ToListAsync();
 
-            // 2️⃣ Import pages in parallel
+            // 2️. Import pages in parallel
             var importTasks = results
                 .Where(r => !string.IsNullOrEmpty(r.Link))
                 .Select(async result =>
@@ -57,23 +51,8 @@ namespace NTG.Agent.Orchestrator.Plugins
 
             await Task.WhenAll(importTasks);
 
-            // 3️⃣ Retrieve ingested content per conversation
+            // 3️. Retrieve ingested content per conversation
             var searchResult = await _knowledgeService.SearchPerConversationAsync(query, _conversationId);
-
-            //// 4️⃣ Clean and truncate content
-            //if (searchResult.Results != null)
-            //{
-            //    foreach (var citation in searchResult.Results)
-            //    {
-            //        foreach (var partition in citation.Partitions)
-            //        {
-            //            var content = CleanText(partition.Text);
-            //            if (content.Length > 4000)
-            //                content = content.Substring(0, 4000) + "...";
-            //            partition.Text = content;
-            //        }
-            //    }
-            //}
 
             return searchResult;
         }
