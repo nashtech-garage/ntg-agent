@@ -1,4 +1,6 @@
 ﻿using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.DataFormats.WebPages;
+using NTG.Agent.Orchestrator.Extentions;
 
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
@@ -6,11 +8,15 @@ public class KernelMemoryKnowledge : IKnowledgeService
 {
     private readonly IKernelMemory _kernelMemory;
     private readonly ILogger<KernelMemoryKnowledge> _logger;
+    private readonly IWebScraper _webScraper;
 
-    public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
+    public KernelMemoryKnowledge(IKernelMemory kernelMemory,
+        ILogger<KernelMemoryKnowledge> logger,
+        IWebScraper webScraper)
     {
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _webScraper = webScraper;
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
@@ -86,18 +92,26 @@ public class KernelMemoryKnowledge : IKnowledgeService
         }
         var tagCollection = new TagCollection
         {
-            { "conversationId", conversationId.ToString() }
+            { "conversationId", conversationId.ToString() },
+            { "sourceUrl", url }
         };
         // Use the conversationId as the collection name to keep memory per conversation
         string documentId = string.Empty;
-
         try
         {
-            documentId = await _kernelMemory.ImportWebPageAsync(
-            url,
-            tags: tagCollection,
-            cancellationToken: cancellationToken
-            );
+            //documentId = await _kernelMemory.ImportWebPageAsync(
+            //url,
+            //tags: tagCollection,
+            //cancellationToken: cancellationToken
+            //);
+            var webPage = await _webScraper.GetContentAsync(url, cancellationToken);
+            var htmlContent = webPage.Content.ToString();
+            var cleanedHtml = htmlContent.CleanHtml();
+            documentId = await _kernelMemory.ImportTextAsync(
+                cleanedHtml,
+                tags: tagCollection,
+                cancellationToken: cancellationToken);
+
         }
         catch (Exception ex)
         {

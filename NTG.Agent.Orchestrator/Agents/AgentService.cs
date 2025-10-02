@@ -261,10 +261,8 @@ $@"
 Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
 
 If the answer is empty, continue answering with search online web with the query: {userPrompt}
-By calling the tool{{onlineweb.search}}
+By calling the tool{{onlineweb.search}} include the source from 'sourceUrl' tag
 
-When using the online web results, always include the provided sources
-at the end of your answer in a clear, readable format (e.g., Markdown links).
 Answer the question in a clear, natural, human-like way.
 
 If the answer is still empty, continue answering with your knowledge and tools or plugins. 

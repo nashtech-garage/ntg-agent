@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.Context;
+using Microsoft.KernelMemory.DataFormats.WebPages;
 using Moq;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 
@@ -10,6 +12,7 @@ public class KernelMemoryKnowledgeTests
 {
     private Mock<IKernelMemory> _mockKernelMemory = null!;
     private Mock<ILogger<KernelMemoryKnowledge>> _mockLogger = null!;
+    private Mock<IWebScraper> _mockWebScraper = null!;
     private KernelMemoryKnowledge _service = null!;
     private Guid _testAgentId;
 
@@ -18,8 +21,23 @@ public class KernelMemoryKnowledgeTests
     {
         _mockKernelMemory = new Mock<IKernelMemory>();
         _mockLogger = new Mock<ILogger<KernelMemoryKnowledge>>();
+        _mockWebScraper = new Mock<IWebScraper>();
         _testAgentId = Guid.NewGuid();
-        _service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object);
+        _service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object, _mockWebScraper.Object);
+
+        _mockKernelMemory.Setup(m=>m.SearchAsync(
+            It.IsAny<string>(),
+            null,
+            null,
+            It.IsAny<ICollection<MemoryFilter>>(),
+            It.IsAny<double>(),
+            It.IsAny<int>(),
+            It.IsAny<IContext>(),
+            It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new SearchResult
+            {
+                Results = new List<Citation>()
+            });
     }
 
     #region Constructor Tests
@@ -28,9 +46,9 @@ public class KernelMemoryKnowledgeTests
     public void Constructor_WhenKernelMemoryIsNull_ThrowsArgumentNullException()
     {
         // Arrange & Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
-            new KernelMemoryKnowledge(null!, _mockLogger.Object));
-        
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            new KernelMemoryKnowledge(null!, _mockLogger.Object, _mockWebScraper.Object));
+
         Assert.That(exception.ParamName, Is.EqualTo("kernelMemory"));
     }
 
@@ -38,9 +56,9 @@ public class KernelMemoryKnowledgeTests
     public void Constructor_WhenLoggerIsNull_ThrowsArgumentNullException()
     {
         // Arrange & Act & Assert
-        var exception = Assert.Throws<ArgumentNullException>(() => 
-            new KernelMemoryKnowledge(_mockKernelMemory.Object, null!));
-        
+        var exception = Assert.Throws<ArgumentNullException>(() =>
+            new KernelMemoryKnowledge(_mockKernelMemory.Object, null!, _mockWebScraper.Object));
+
         Assert.That(exception.ParamName, Is.EqualTo("logger"));
     }
 
@@ -48,7 +66,7 @@ public class KernelMemoryKnowledgeTests
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Arrange & Act
-        var service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object);
+        var service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object, _mockWebScraper.Object);
 
         // Assert
         Assert.That(service, Is.Not.Null);
@@ -67,9 +85,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportWebPageAsync(url!, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
     }
@@ -82,9 +100,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportWebPageAsync(url, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
     }
@@ -97,9 +115,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportWebPageAsync(url, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
     }
@@ -112,9 +130,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportWebPageAsync(url, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
     }
@@ -127,9 +145,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportWebPageAsync(url, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
     }
@@ -141,11 +159,11 @@ public class KernelMemoryKnowledgeTests
         var url = "https://example.com";
         var tags = new List<string> { "tag1" };
         var expectedDocumentId = "test-doc-id";
-        
+
         _mockKernelMemory.Setup(m => m.ImportWebPageAsync(
-            It.IsAny<string>(), 
-            It.IsAny<string?>(), 
-            It.IsAny<TagCollection?>(), 
+            It.IsAny<string>(),
+            It.IsAny<string?>(),
+            It.IsAny<TagCollection?>(),
             It.IsAny<string?>(),
             It.IsAny<IEnumerable<string>?>(),
             It.IsAny<Microsoft.KernelMemory.Context.IContext?>(),
@@ -154,7 +172,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act - Should not throw validation exception
         var result = await _service.ImportWebPageAsync(url, _testAgentId, tags);
-        
+
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
     }
@@ -166,11 +184,11 @@ public class KernelMemoryKnowledgeTests
         var url = "http://example.com";
         var tags = new List<string> { "tag1" };
         var expectedDocumentId = "test-doc-id";
-        
+
         _mockKernelMemory.Setup(m => m.ImportWebPageAsync(
-            It.IsAny<string>(), 
-            It.IsAny<string?>(), 
-            It.IsAny<TagCollection?>(), 
+            It.IsAny<string>(),
+            It.IsAny<string?>(),
+            It.IsAny<TagCollection?>(),
             It.IsAny<string?>(),
             It.IsAny<IEnumerable<string>?>(),
             It.IsAny<Microsoft.KernelMemory.Context.IContext?>(),
@@ -179,7 +197,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act - Should not throw validation exception
         var result = await _service.ImportWebPageAsync(url, _testAgentId, tags);
-        
+
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
     }
@@ -197,9 +215,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportTextContentAsync(content!, fileName, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
     }
@@ -213,9 +231,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportTextContentAsync(content, fileName, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
     }
@@ -229,9 +247,9 @@ public class KernelMemoryKnowledgeTests
         var tags = new List<string> { "tag1" };
 
         // Act & Assert
-        var exception = Assert.ThrowsAsync<ArgumentException>(() => 
+        var exception = Assert.ThrowsAsync<ArgumentException>(() =>
             _service.ImportTextContentAsync(content, fileName, _testAgentId, tags));
-        
+
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
     }
@@ -244,7 +262,7 @@ public class KernelMemoryKnowledgeTests
         var fileName = "test.txt";
         var tags = new List<string> { "tag1" };
         var expectedDocumentId = "test-doc-id";
-        
+
         _mockKernelMemory.Setup(m => m.ImportDocumentAsync(
             It.IsAny<Stream>(),
             It.IsAny<string?>(),
@@ -258,7 +276,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act - Should not throw validation exception
         var result = await _service.ImportTextContentAsync(content, fileName, _testAgentId, tags);
-        
+
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
     }
@@ -275,9 +293,9 @@ public class KernelMemoryKnowledgeTests
         var fileName = "test.txt";
         var tags = new List<string> { "tag1", "tag2" };
         var expectedDocumentId = "test-doc-id";
-        
+
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        
+
         _mockKernelMemory.Setup(m => m.ImportDocumentAsync(
             It.IsAny<Stream>(),
             It.IsAny<string?>(),
@@ -304,9 +322,9 @@ public class KernelMemoryKnowledgeTests
         var fileName = "test.txt";
         var tags = new List<string>();
         var expectedDocumentId = "test-doc-id";
-        
+
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        
+
         _mockKernelMemory.Setup(m => m.ImportDocumentAsync(
             It.IsAny<Stream>(),
             It.IsAny<string?>(),
@@ -334,7 +352,7 @@ public class KernelMemoryKnowledgeTests
     {
         // Arrange
         var documentId = "test-doc-id";
-        
+
         _mockKernelMemory.Setup(m => m.DeleteDocumentAsync(
             It.IsAny<string>(),
             It.IsAny<string?>(),
@@ -357,7 +375,7 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         var documentId = "test-doc-id";
         var cancellationToken = new CancellationToken();
-        
+
         _mockKernelMemory.Setup(m => m.DeleteDocumentAsync(
             It.IsAny<string>(),
             It.IsAny<string?>(),
@@ -384,11 +402,11 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         var query = "test search query";
         var tags = new List<string> { "tag1", "tag2" };
-        
+
         // Act & Assert - Just verify the method can be called (will throw due to mock but that's expected)
         Assert.DoesNotThrowAsync(async () =>
         {
-           await _service.SearchAsync(query, _testAgentId, tags);
+            await _service.SearchAsync(query, _testAgentId, tags);
         });
     }
 
@@ -398,7 +416,7 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         var query = "test search query";
         var tags = new List<string>();
-        
+
         // Act & Assert - Just verify the method can be called
         Assert.DoesNotThrowAsync(async () =>
         {
@@ -412,7 +430,7 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         var query = "test search query";
         var userId = Guid.NewGuid();
-        
+
         // Act & Assert - Just verify the method can be called
         Assert.DoesNotThrowAsync(async () =>
         {
@@ -431,7 +449,7 @@ public class KernelMemoryKnowledgeTests
         var documentId = "test-doc-id";
         var fileName = "test-file.txt";
         var expectedContent = new StreamableFileContent();
-        
+
         _mockKernelMemory.Setup(m => m.ExportFileAsync(
             It.IsAny<string>(),
             It.IsAny<string>(),
@@ -454,7 +472,7 @@ public class KernelMemoryKnowledgeTests
         var fileName = "test-file.txt";
         var cancellationToken = new CancellationToken();
         var expectedContent = new StreamableFileContent();
-        
+
         _mockKernelMemory.Setup(m => m.ExportFileAsync(
             It.IsAny<string>(),
             It.IsAny<string>(),

@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.DataFormats.WebPages;
 using Microsoft.SemanticKernel;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.WebSearch;
@@ -122,6 +124,7 @@ builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITextSearchService, GoogleTextSearchService>();
+builder.Services.AddSingleton<IWebScraper, WebScraper>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {
