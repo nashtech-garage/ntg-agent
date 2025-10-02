@@ -56,6 +56,18 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 }
 ```
 
+- In the NTG.Agent.Orchestrator project, add your Google SearchEngineId and ApiKey
+following https://developers.google.com/custom-search/docs/tutorial/creatingcse in the secrets.json as below
+
+```json
+{
+    "Google": {
+      "ApiKey": "<your google cse Api Key>",
+      "SearchEngineId": "<your google cse Search EngineID>"
+    }
+}
+```
+
 - In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
 
 - Start the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:

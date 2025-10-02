@@ -182,7 +182,7 @@ public class AgentService
         var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = @"You are an NGT AI Assistant. Answer questions with all your best.",
+            Instructions = @"You are an NTG AI Assistant. Answer questions with all your best.",
             Kernel = kernel,
             Arguments = new KernelArguments(new PromptExecutionSettings
             {
@@ -193,7 +193,6 @@ public class AgentService
         await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
             yield return item.Message.ToString();
     }
-
 
     private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
