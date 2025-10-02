@@ -2,7 +2,6 @@
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Shared.Dtos.Upload;
 
 namespace NTG.Agent.Orchestrator.Knowledge;
 

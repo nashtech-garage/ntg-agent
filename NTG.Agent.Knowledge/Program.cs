@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -8,7 +9,6 @@ using Microsoft.KernelMemory.DocumentStorage;
 using Microsoft.KernelMemory.MemoryStorage;
 using Microsoft.KernelMemory.Pipeline;
 using Microsoft.KernelMemory.Service.AspNetCore;
-using System.Globalization;
 
 namespace Microsoft.KernelMemory.Service;
 
