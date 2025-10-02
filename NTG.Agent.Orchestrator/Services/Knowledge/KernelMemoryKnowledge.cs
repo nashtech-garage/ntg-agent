@@ -99,11 +99,6 @@ public class KernelMemoryKnowledge : IKnowledgeService
         string documentId = string.Empty;
         try
         {
-            //documentId = await _kernelMemory.ImportWebPageAsync(
-            //url,
-            //tags: tagCollection,
-            //cancellationToken: cancellationToken
-            //);
             var webPage = await _webScraper.GetContentAsync(url, cancellationToken);
             var htmlContent = webPage.Content.ToString();
             var cleanedHtml = htmlContent.CleanHtml();
@@ -111,17 +106,14 @@ public class KernelMemoryKnowledge : IKnowledgeService
                 cleanedHtml,
                 tags: tagCollection,
                 cancellationToken: cancellationToken);
-
         }
         catch (Exception ex)
         {
-
-            _logger.LogError(ex, "Cannot import WebPage to kernelMemory");
+            _logger.LogError(ex, "Cannot import WebPage cleaned content to kernelMemory");
         }
 
         return documentId;
     }
-
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
