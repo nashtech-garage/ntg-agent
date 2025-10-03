@@ -3,7 +3,7 @@ using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.Context;
 using Microsoft.KernelMemory.DataFormats.WebPages;
 using Moq;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Shared.Services.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Tests.Services;
 
@@ -12,7 +12,6 @@ public class KernelMemoryKnowledgeTests
 {
     private Mock<IKernelMemory> _mockKernelMemory = null!;
     private Mock<ILogger<KernelMemoryKnowledge>> _mockLogger = null!;
-    private Mock<IWebScraper> _mockWebScraper = null!;
     private KernelMemoryKnowledge _service = null!;
     private Guid _testAgentId;
 
@@ -21,9 +20,8 @@ public class KernelMemoryKnowledgeTests
     {
         _mockKernelMemory = new Mock<IKernelMemory>();
         _mockLogger = new Mock<ILogger<KernelMemoryKnowledge>>();
-        _mockWebScraper = new Mock<IWebScraper>();
         _testAgentId = Guid.NewGuid();
-        _service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object, _mockWebScraper.Object);
+        _service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object);
 
         _mockKernelMemory.Setup(m=>m.SearchAsync(
             It.IsAny<string>(),
@@ -47,7 +45,7 @@ public class KernelMemoryKnowledgeTests
     {
         // Arrange & Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new KernelMemoryKnowledge(null!, _mockLogger.Object, _mockWebScraper.Object));
+            new KernelMemoryKnowledge(null!, _mockLogger.Object));
 
         Assert.That(exception.ParamName, Is.EqualTo("kernelMemory"));
     }
@@ -57,7 +55,7 @@ public class KernelMemoryKnowledgeTests
     {
         // Arrange & Act & Assert
         var exception = Assert.Throws<ArgumentNullException>(() =>
-            new KernelMemoryKnowledge(_mockKernelMemory.Object, null!, _mockWebScraper.Object));
+            new KernelMemoryKnowledge(_mockKernelMemory.Object, null!));
 
         Assert.That(exception.ParamName, Is.EqualTo("logger"));
     }
@@ -66,7 +64,7 @@ public class KernelMemoryKnowledgeTests
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Arrange & Act
-        var service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object, _mockWebScraper.Object);
+        var service = new KernelMemoryKnowledge(_mockKernelMemory.Object, _mockLogger.Object);
 
         // Assert
         Assert.That(service, Is.Not.Null);
