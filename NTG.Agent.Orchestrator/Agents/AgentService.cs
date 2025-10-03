@@ -7,10 +7,9 @@ using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.WebSearch;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Services.Knowledge;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
@@ -20,7 +19,6 @@ public class AgentService
     private readonly Kernel _kernel;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly ITextSearchService _textSearchService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -28,15 +26,13 @@ public class AgentService
         Kernel kernel,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService,
-        ITextSearchService textSearchService
+        IDocumentAnalysisService documentAnalysisService
          )
     {
         _kernel = kernel;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _documentAnalysisService = documentAnalysisService;
-        _textSearchService = textSearchService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -176,8 +172,7 @@ public class AgentService
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags, promptRequest.ConversationId), "memory");
-        kernel.ImportPluginFromObject(new WebSearchPlugin(_textSearchService, _knowledgeService, promptRequest.ConversationId), "onlineweb");
+        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
 
         var agent = new ChatCompletionAgent
         {
@@ -209,7 +204,7 @@ public class AgentService
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
 
-        return BuildTextOnlyPrompt(promptRequest.Prompt);
+        return BuildTextOnlyPrompt(promptRequest);
 
     }
 
@@ -255,17 +250,22 @@ public class AgentService
         return sb.ToString();
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
+    private string BuildTextOnlyPrompt(PromptRequestForm promptRequestForm)
+    {
+        var userPrompt = promptRequestForm.Prompt;
+        return
 $@"
-Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
+Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}.
 
-If the answer is empty, continue answering with search online web with the query: {userPrompt}
-By calling the tool{{onlineweb.search}} include the source from 'sourceUrl' tag
+If no relevant results are found, call:
+{{ntgmcpserver.SearchOnlineAsync query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}
+to search the web and include sources from the 'sourceUrl' tag.
 
 Answer the question in a clear, natural, human-like way.
 
 If the answer is still empty, continue answering with your knowledge and tools or plugins. 
 Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.";
+    }
 
 
 

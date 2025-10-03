@@ -1,6 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Extentions;
+﻿namespace NTG.Agent.Shared.Services.Extensions;
 
-internal static class StreamExtensions
+public static class StreamExtensions
 {
     public static byte[] ReadAllBytes(this Stream stream)
     {

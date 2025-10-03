@@ -1,6 +1,6 @@
 using Microsoft.KernelMemory;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.Shared.Services.Knowledge;
 
 public interface IKnowledgeService
 {
@@ -13,8 +13,6 @@ public interface IKnowledgeService
     public Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
     public Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default);
-
-    public Task<string> ImportWebPageAsync(string url, Guid conversationId, CancellationToken cancellationToken = default);
 
     public Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 

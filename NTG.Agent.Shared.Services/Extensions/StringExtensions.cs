@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace NTG.Agent.Orchestrator.Extentions;
+namespace NTG.Agent.Shared.Services.Extensions;
 
 public static class StringExtensions
 {

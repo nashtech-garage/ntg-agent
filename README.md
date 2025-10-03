@@ -56,7 +56,7 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 }
 ```
 
-- In the NTG.Agent.Orchestrator project, add your Google SearchEngineId and ApiKey
+- In the NTG.Agent.MCP.Server project, add your Google SearchEngineId and ApiKey
 following https://developers.google.com/custom-search/docs/tutorial/creatingcse in the secrets.json as below
 
 ```json

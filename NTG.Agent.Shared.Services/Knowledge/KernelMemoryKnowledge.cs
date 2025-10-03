@@ -1,22 +1,20 @@
-﻿using Microsoft.KernelMemory;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.DataFormats.WebPages;
-using NTG.Agent.Orchestrator.Extentions;
+using NTG.Agent.Shared.Services.Extensions;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.Shared.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
-    private readonly IKernelMemory _kernelMemory;
-    private readonly ILogger<KernelMemoryKnowledge> _logger;
-    private readonly IWebScraper _webScraper;
+    protected readonly IKernelMemory _kernelMemory;
+    protected readonly ILogger<KernelMemoryKnowledge> _logger;
 
     public KernelMemoryKnowledge(IKernelMemory kernelMemory,
-        ILogger<KernelMemoryKnowledge> logger,
-        IWebScraper webScraper)
+        ILogger<KernelMemoryKnowledge> logger)
     {
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _webScraper = webScraper;
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
@@ -80,40 +78,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return result;
     }
 
-    public async Task<string> ImportWebPageAsync(
-        string url,
-        Guid conversationId,
-        CancellationToken cancellationToken = default)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            throw new ArgumentException("Invalid URL provided.", nameof(url));
-        }
-        var tagCollection = new TagCollection
-        {
-            { "conversationId", conversationId.ToString() },
-            { "sourceUrl", url }
-        };
-        // Use the conversationId as the collection name to keep memory per conversation
-        string documentId = string.Empty;
-        try
-        {
-            var webPage = await _webScraper.GetContentAsync(url, cancellationToken);
-            var htmlContent = webPage.Content.ToString();
-            var cleanedHtml = htmlContent.CleanHtml();
-            documentId = await _kernelMemory.ImportTextAsync(
-                cleanedHtml,
-                tags: tagCollection,
-                cancellationToken: cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Cannot import WebPage cleaned content to kernelMemory");
-        }
-
-        return documentId;
-    }
+    
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {

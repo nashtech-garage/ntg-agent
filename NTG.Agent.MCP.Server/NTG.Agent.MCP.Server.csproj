@@ -9,10 +9,13 @@
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.4" />
+	<PackageReference Include="Microsoft.KernelMemory.WebClient" Version="0.98.250508.3" />
+	<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" Version="1.64.0-alpha" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\NTG.Agent.Shared.Services\NTG.Agent.Shared.Services.csproj" />
   </ItemGroup>
 
 </Project>

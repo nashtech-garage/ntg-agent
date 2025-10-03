@@ -1,31 +1,32 @@
 ﻿using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.WebSearch;
+using ModelContextProtocol.Server;
+using NTG.Agent.MCP.Server.Services.WebSearch;
+using NTG.Agent.Shared.Services.Knowledge;
 using System.ComponentModel;
 
-namespace NTG.Agent.Orchestrator.Plugins
+namespace NTG.Agent.MCP.Server.McpTools
 {
-    public sealed class WebSearchPlugin
+    [McpServerToolType]
+    public sealed class WebSearchTool
     {
         private readonly ITextSearchService _textSearchService;
 
-        private readonly IKnowledgeService _knowledgeService;
+        private readonly IKnowledgeScraperService _knowledgeScraperService;
 
-        private readonly Guid _conversationId;
-
-        public WebSearchPlugin(
+        public WebSearchTool(
             ITextSearchService textSearchService,
-            IKnowledgeService knowledgeService,
-            Guid conversationId)
+            IKnowledgeScraperService knowledgeScraperService)
         {
             _textSearchService = textSearchService;
-            _conversationId = conversationId;
-            _knowledgeService = knowledgeService;
+            _knowledgeScraperService = knowledgeScraperService;
         }
 
-        [KernelFunction, Description("Search Online Web")]
-        public async Task<SearchResult> SearchAsync(string query, int top = 3)
+        [McpServerTool, Description("Search Online Web")]
+        public async Task<SearchResult> SearchOnlineAsync(
+        [Description("Search query text")] string query,
+        [Description("Conversation ID for scoping search results")] Guid conversationId,
+        [Description("Maximum number of online search results to fetch")] int top = 3)
         {
             // 1️. Get search results
             var results = await _textSearchService.SearchAsync(query, top)
@@ -38,9 +39,9 @@ namespace NTG.Agent.Orchestrator.Plugins
                 {
                     try
                     {
-                        await _knowledgeService.ImportWebPageAsync(
+                        await _knowledgeScraperService.ImportWebPageAsync(
                             url: result.Link,
-                            conversationId: _conversationId
+                            conversationId: conversationId
                         );
                     }
                     catch
@@ -52,11 +53,9 @@ namespace NTG.Agent.Orchestrator.Plugins
             await Task.WhenAll(importTasks);
 
             // 3️. Retrieve ingested content per conversation
-            var searchResult = await _knowledgeService.SearchPerConversationAsync(query, _conversationId);
+            var searchResult = await _knowledgeScraperService.SearchPerConversationAsync(query, conversationId);
 
             return searchResult;
         }
-
-
     }
 }
