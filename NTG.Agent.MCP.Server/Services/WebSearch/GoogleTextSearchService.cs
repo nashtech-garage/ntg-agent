@@ -5,33 +5,16 @@ namespace NTG.Agent.MCP.Server.Services.WebSearch
 {
     public class GoogleTextSearchService : ITextSearchService
     {
-#pragma warning disable SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        private readonly GoogleTextSearch _googleTextSearch;
-#pragma warning restore SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+        private readonly ITextSearch _googleTextSearch;
 
-        public GoogleTextSearchService(IConfiguration configuration)
+        public GoogleTextSearchService(ITextSearch googleTextSearch)
         {
-            var googleApiKey = !string.IsNullOrWhiteSpace(configuration["Google:ApiKey"])
-                ? configuration["Google:ApiKey"]!
-                : throw new ArgumentNullException("Google:ApiKey");
-
-            var googleCseId = !string.IsNullOrWhiteSpace(configuration["Google:SearchEngineId"])
-                ? configuration["Google:SearchEngineId"]!
-                : throw new ArgumentNullException("Google:SearchEngineId");
-
-#pragma warning disable SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-            _googleTextSearch = new GoogleTextSearch(
-                initializer: new() { ApiKey = googleApiKey },
-                searchEngineId: googleCseId
-            );
-#pragma warning restore SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+            _googleTextSearch = googleTextSearch ?? throw new ArgumentNullException(nameof(googleTextSearch));
         }
 
         public async IAsyncEnumerable<TextSearchResult> SearchAsync(string query, int top)
         {
-#pragma warning disable SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
             var results = await _googleTextSearch.GetTextSearchResultsAsync(query, new() { Top = top });
-#pragma warning restore SKEXP0050 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
             await foreach (var result in results.Results)
             {
