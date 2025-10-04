@@ -8,8 +8,8 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Knowledge;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults;
+using NTG.Agent.Shared.Services.Knowledge;
 using OpenAI;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -120,6 +120,7 @@ builder.Services.AddSingleton<Kernel>(serviceBuilder =>
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
+
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

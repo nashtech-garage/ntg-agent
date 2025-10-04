@@ -7,10 +7,9 @@ using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
+using NTG.Agent.Shared.Services.Knowledge;
 using System.Text;
 
 namespace NTG.Agent.Orchestrator.Agents;
@@ -47,6 +46,7 @@ public class AgentService
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
+
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
@@ -168,9 +168,7 @@ public class AgentService
         }
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
         var userMessage = BuildUserMessage(promptRequest, prompt);
-
         chatHistory.Add(userMessage);
 
         var kernel = _kernel.Clone();
@@ -179,7 +177,7 @@ public class AgentService
         var agent = new ChatCompletionAgent
         {
             Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
+            Instructions = @"You are an NTG AI Assistant. Answer questions with all your best.",
             Kernel = kernel,
             Arguments = new KernelArguments(new PromptExecutionSettings
             {
@@ -199,14 +197,14 @@ public class AgentService
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private string BuildPromptAsync(PromptRequestForm promptRequest, List<string> ocrDocuments)
     {
         if (ocrDocuments.Any())
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
 
-        return BuildTextOnlyPrompt(promptRequest.Prompt);
+        return BuildTextOnlyPrompt(promptRequest);
 
     }
 
@@ -252,11 +250,24 @@ public class AgentService
         return sb.ToString();
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
-        $@"
-            Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
-            If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
-        ";
+    private string BuildTextOnlyPrompt(PromptRequestForm promptRequestForm)
+    {
+        var userPrompt = promptRequestForm.Prompt;
+        return
+$@"
+Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}.
+
+If no relevant results are found, call:
+{{ntgmcpserver.SearchOnlineAsync query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}
+to search the web and include sources from the 'sourceUrl' tag.
+
+Answer the question in a clear, natural, human-like way.
+
+If the answer is still empty, continue answering with your knowledge and tools or plugins. 
+Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.";
+    }
+
+
 
 
     private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)

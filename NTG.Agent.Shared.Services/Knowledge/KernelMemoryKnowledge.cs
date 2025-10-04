@@ -1,13 +1,17 @@
-﻿using Microsoft.KernelMemory;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.KernelMemory;
+using Microsoft.KernelMemory.DataFormats.WebPages;
+using NTG.Agent.Shared.Services.Extensions;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.Shared.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
-    private readonly IKernelMemory _kernelMemory;
-    private readonly ILogger<KernelMemoryKnowledge> _logger;
+    protected readonly IKernelMemory _kernelMemory;
+    protected readonly ILogger<KernelMemoryKnowledge> _logger;
 
-    public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
+    public KernelMemoryKnowledge(IKernelMemory kernelMemory,
+        ILogger<KernelMemoryKnowledge> logger)
     {
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -48,6 +52,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
                 cancellationToken: cancellationToken);
         }
 
+        result.Results = result.Results
+            .Where(r => r.Partitions.Any(p => !p.Tags.ContainsKey("conversationId")))
+            .Select(r => { r.Partitions = r.Partitions.Where(p => !p.Tags.ContainsKey("conversationId")).ToList(); return r; })
+            .ToList();
+
+
         if (_logger.IsEnabled(LogLevel.Debug))
         {
             _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
@@ -60,6 +70,15 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var result = await _kernelMemory.SearchAsync(query);
         return result;
     }
+
+    public async Task<SearchResult> SearchPerConversationAsync(string query, Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
+        var result = await _kernelMemory.SearchAsync(query, filter: filter, limit: 3);
+        return result;
+    }
+
+    
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
@@ -96,5 +115,40 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
         return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+    }
+
+    /// <summary>
+    /// Clears all documents stored for a specific conversation.
+    /// </summary>
+    /// <param name="conversationId">The conversation ID to clear memory for.</param>
+    public async Task ClearDocumentsPerConversationAsync(Guid conversationId, CancellationToken cancellationToken = default)
+    {
+        // Create a filter for documents tagged with this conversationId
+        var filter = MemoryFilters.ByTag("conversationId", conversationId.ToString());
+
+        // Retrieve all matching documents
+        var searchResult = await _kernelMemory.SearchAsync(
+            query: "*", // wildcard to match all content
+            filter: filter,
+            limit: int.MaxValue, // get all documents
+            cancellationToken: cancellationToken
+        );
+
+        if (searchResult.NoResult)
+            return;
+
+        // Delete each document
+        foreach (var doc in searchResult.Results)
+        {
+            try
+            {
+                await _kernelMemory.DeleteDocumentAsync(doc.DocumentId, cancellationToken: cancellationToken);
+            }
+            catch
+            {
+                // Ignore failures for individual documents
+                continue;
+            }
+        }
     }
 }

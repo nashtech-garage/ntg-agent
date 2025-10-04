@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Orchestrator.Tests", "tests\NTG.Agent.Orchestrator.Tests\NTG.Agent.Orchestrator.Tests.csproj", "{5873153C-DC8A-9618-A96C-9DB09F5D803D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Shared.Services", "NTG.Agent.Shared.Services\NTG.Agent.Shared.Services.csproj", "{85786EE2-20D1-4D92-9A89-4D630F16A6FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,10 @@ Global
 		{5873153C-DC8A-9618-A96C-9DB09F5D803D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5873153C-DC8A-9618-A96C-9DB09F5D803D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5873153C-DC8A-9618-A96C-9DB09F5D803D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{85786EE2-20D1-4D92-9A89-4D630F16A6FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{85786EE2-20D1-4D92-9A89-4D630F16A6FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{85786EE2-20D1-4D92-9A89-4D630F16A6FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{85786EE2-20D1-4D92-9A89-4D630F16A6FB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
