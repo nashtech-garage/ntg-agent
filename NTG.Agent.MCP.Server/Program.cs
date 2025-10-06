@@ -16,12 +16,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
 builder.Services.AddScoped<ITextSearchService, GoogleTextSearchService>();
 builder.Services.AddScoped<IKnowledgeScraperService, KernelMemoryKnowledgeScraper>();
-builder.Services.AddSingleton<IWebScraper, WebScraper>();
-
-
+builder.Services.AddScoped<IWebScraper, WebScraper>();
 
 // register GoogleTextSearch as ITextSearch
-builder.Services.AddSingleton<ITextSearch>(serviceProvider =>
+builder.Services.AddScoped<ITextSearch>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
 
