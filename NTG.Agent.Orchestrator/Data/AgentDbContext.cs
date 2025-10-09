@@ -54,6 +54,21 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 .ValueGeneratedNever();
         });
 
+        modelBuilder.Entity<PChatMessage>(p =>
+        {
+            p.ToTable("ChatMessages");
+            p.Property(pm => pm.Role)
+             .HasConversion(new ChatRoleValueConverter())
+             .HasColumnType("nvarchar(50)");
+        });
+
+        modelBuilder.Entity<SharedChatMessage>(p =>
+        {
+            p.Property(pm => pm.Role)
+             .HasConversion(new ChatRoleValueConverter())
+             .HasColumnType("nvarchar(50)");
+        });
+
         modelBuilder.Entity<UserRole>(t =>
         {
             t.HasKey(ur => new { ur.UserId, ur.RoleId });
