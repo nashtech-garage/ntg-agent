@@ -16,7 +16,7 @@ This project aims to practice building a chatbot in C#
 - .NET 9
 - .NET Aspire
 - Blazor
-- Semantic Kernel
+- Microsoft Agent Framework
 - Kernel Memory
 - Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
