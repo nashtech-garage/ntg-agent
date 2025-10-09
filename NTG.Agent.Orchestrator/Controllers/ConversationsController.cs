@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
@@ -121,7 +122,7 @@ public class ConversationsController : ControllerBase
             {
                 Id = x.Id,
                 Content = x.Content,
-                Role = (int)x.Role,
+                Role = x.Role.Value,
                 Reaction = x.Reaction,
                 UserComment = x.UserComment
             })
@@ -161,7 +162,7 @@ public class ConversationsController : ControllerBase
             {
                 ConversationId = c.Id,
                 Content = c.Name,
-                Role = (int)ChatRole.User,
+                Role = ChatRole.User.Value,
                 IsConversation = true
             })
             .ToListAsync();
@@ -184,7 +185,7 @@ public class ConversationsController : ControllerBase
             {
                 ConversationId = m.ConversationId,
                 Content = GetContentWithKeywordContext(m.Content, keyword, m.Role == ChatRole.Assistant),
-                Role = (int)m.Role,
+                Role = m.Role.Value,
                 IsConversation = false
             })
             .ToList();

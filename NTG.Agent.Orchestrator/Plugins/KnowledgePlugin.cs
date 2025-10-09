@@ -1,5 +1,5 @@
-﻿using Microsoft.KernelMemory;
-using Microsoft.SemanticKernel;
+﻿using Microsoft.Extensions.AI;
+using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using System.ComponentModel;
 
@@ -16,10 +16,15 @@ public sealed class KnowledgePlugin
         _tags = tags ?? throw new ArgumentNullException(nameof(tags));
     }
 
-    [KernelFunction, Description("search knowledge base")]
-    public async Task<SearchResult> SearchAsync(string query)
+    [Description("Search knowledge base")]
+    public async Task<SearchResult> SearchAsync([Description("the value to search")]string query)
     {
         var result =  await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
         return result;
+    }
+
+    public AITool AsAITool()
+    {
+        return AIFunctionFactory.Create(this.SearchAsync, new AIFunctionFactoryOptions { Name = "memory"});
     }
 }

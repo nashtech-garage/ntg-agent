@@ -64,8 +64,8 @@
                 {
                     var chatMessage = new ChatMessageItem
                         {
-                            IsAssistant = item.Role == (int)ChatRole.Assistant,
-                            IsUser = item.Role == (int)ChatRole.User,
+                            IsAssistant = item.Role == "assistant",
+                            IsUser = item.Role == "user",
                             Message = item.Content
                         };
                     chatHistory.Add(chatMessage);

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Chat;
@@ -133,9 +134,9 @@ public class ConversationsControllerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(messages[0].Content, Is.EqualTo("Hello"));
-            Assert.That(messages[0].Role, Is.EqualTo((int)ChatRole.User));
+            Assert.That(messages[0].Role, Is.EqualTo("user"));
             Assert.That(messages[1].Content, Is.EqualTo("Hi there!"));
-            Assert.That(messages[1].Role, Is.EqualTo((int)ChatRole.Assistant));
+            Assert.That(messages[1].Role, Is.EqualTo("assistant"));
         }
     }
   
@@ -222,7 +223,7 @@ public class ConversationsControllerTests
         var userConversation = new Conversation { Id = Guid.NewGuid(), UserId = _testUserId, Name = "User's Convo" };
         var otherUserConversation = new Conversation { Id = Guid.NewGuid(), UserId = otherUserId, Name = "Other's Convo" };
         await _context.Conversations.AddRangeAsync(userConversation, otherUserConversation);
-        var messages = new List<Models.Chat.ChatMessage>
+        var messages = new List<Models.Chat.PChatMessage>
         {
             // User's conversation messages
             new() { Id = Guid.NewGuid(), ConversationId = userConversation.Id, Content = "Hello", Role = ChatRole.User, CreatedAt = DateTime.UtcNow.AddMinutes(-10), IsSummary = false },
@@ -433,7 +434,7 @@ public class ConversationsControllerTests
         Assert.That(searchResults, Has.Count.GreaterThan(0));
         var messageResult = searchResults.First(r => !r.IsConversation);
         Assert.That(messageResult.Content, Contains.Substring("Hello"));
-        Assert.That(messageResult.Role, Is.EqualTo((int)ChatRole.User));
+        Assert.That(messageResult.Role, Is.EqualTo("user"));
     }
   
     [Test]
@@ -453,7 +454,7 @@ public class ConversationsControllerTests
         Assert.That(searchResults, Has.Count.GreaterThan(0));
         var conversationResult = searchResults.First(r => r.IsConversation);
         Assert.That(conversationResult.Content, Contains.Substring("Important"));
-        Assert.That(conversationResult.Role, Is.EqualTo((int)ChatRole.User));
+        Assert.That(conversationResult.Role, Is.EqualTo("user"));
         Assert.That(conversationResult.IsConversation, Is.True);
     }
     [Test]
@@ -509,7 +510,7 @@ public class ConversationsControllerTests
         var longContent = new string('a', 500) + "SearchKeyword" + new string('b', 500);
         var conversation = new Conversation { Id = Guid.NewGuid(), UserId = _testUserId, Name = "Test Convo" };
         await _context.Conversations.AddAsync(conversation);
-        var message = new Models.Chat.ChatMessage
+        var message = new Models.Chat.PChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversation.Id,
@@ -868,7 +869,7 @@ public class ConversationsControllerTests
             UpdatedAt = DateTime.UtcNow
         };
         await _context.Conversations.AddAsync(conversation);
-        var message = new Models.Chat.ChatMessage
+        var message = new Models.Chat.PChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversation.Id,
@@ -970,7 +971,7 @@ public class ConversationsControllerTests
             new() { Id = Guid.NewGuid(), Name = "Other User's Chat", UserId = otherUserId, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
         };
         await _context.Conversations.AddRangeAsync(conversations);
-        var messages = new List<Models.Chat.ChatMessage>
+        var messages = new List<Models.Chat.PChatMessage>
         {
             new() { Id = Guid.NewGuid(), ConversationId = conversations[0].Id, Content = "Hello, this is important", Role = ChatRole.User, UserId = _testUserId, CreatedAt = DateTime.UtcNow, IsSummary = false },
             new() { Id = Guid.NewGuid(), ConversationId = conversations[0].Id, Content = "Hi there, I understand", Role = ChatRole.Assistant, UserId = _testUserId, CreatedAt = DateTime.UtcNow, IsSummary = false },

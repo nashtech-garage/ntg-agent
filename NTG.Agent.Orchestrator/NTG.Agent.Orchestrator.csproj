@@ -7,16 +7,16 @@
     <UserSecretsId>9714ec75-2921-4d5a-a138-f1dd4415eae5</UserSecretsId>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup>    
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <PackageReference Include="Azure.Identity" Version="1.17.0" />
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.251007.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.KernelMemory.DataFormats.AzureAIDocIntel" Version="0.98.250508.3" />
-    <PackageReference Include="Microsoft.SemanticKernel" Version="1.65.0" />
-    <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.65.0" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.0" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.3.0-preview.4" />
     <PackageReference Include="Microsoft.KernelMemory.WebClient" Version="0.98.250508.3" />

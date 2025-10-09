@@ -10,7 +10,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 {
     public DbSet<Conversation> Conversations { get; set; } = null!;
 
-    public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
+    public DbSet<PChatMessage> ChatMessages { get; set; } = null!;
 
     public DbSet<SharedConversation> SharedConversations { get; set; } = null!;
     public DbSet<SharedChatMessage> SharedChatMessages { get; set; } = null!;
