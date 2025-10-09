@@ -1,39 +1,34 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.Agents;
-using Microsoft.SemanticKernel.ChatCompletion;
+﻿using Microsoft.Agents.AI;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
-using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Dtos.Chats;
 using NTG.Agent.Shared.Dtos.Constants;
-using NTG.Agent.Shared.Dtos.Enums;
 using System.Text;
+using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
 public class AgentService
 {
-    private readonly Kernel _kernel;
+    private readonly AgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly IDocumentAnalysisService _documentAnalysisService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
-        Kernel kernel,
+        AgentFactory agentFactory,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService,
-        IDocumentAnalysisService documentAnalysisService
+        IKnowledgeService knowledgeService
          )
     {
-        _kernel = kernel;
+        _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
-        _documentAnalysisService = documentAnalysisService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -44,7 +39,7 @@ public class AgentService
         var ocrDocuments = new List<string>();
         if (promptRequest.Documents is not null && promptRequest.Documents.Any())
         {
-            ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+            //ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
@@ -100,7 +95,7 @@ public class AgentService
         }
     }
 
-    private async Task<List<ChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
+    private async Task<List<PChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
     {
         var historyMessages = await _agentDbContext.ChatMessages
             .Where(m => m.ConversationId == conversation.Id)
@@ -112,7 +107,7 @@ public class AgentService
         var toSummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
         var summary = await SummarizeMessagesAsync(toSummarize);
 
-        var summaryMsg = historyMessages.FirstOrDefault(m => m.IsSummary) ?? new ChatMessage
+        var summaryMsg = historyMessages.FirstOrDefault(m => m.IsSummary) ?? new PChatMessage
         {
             UserId = userId,
             Conversation = conversation,
@@ -125,7 +120,7 @@ public class AgentService
 
         _agentDbContext.Update(summaryMsg);
 
-        return new List<ChatMessage> { summaryMsg }
+        return new List<PChatMessage> { summaryMsg }
             .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
@@ -139,32 +134,25 @@ public class AgentService
         }
 
         _agentDbContext.ChatMessages.AddRange(
-            new ChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
-            new ChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
+            new PChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
+            new PChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
         );
-
-        var ocrMessages = ocrDocuments.Select(documentData => new ChatMessage { UserId = userId, Conversation = conversation, Content = documentData, Role = ChatRole.System });
-        _agentDbContext.ChatMessages.AddRange(ocrMessages);
 
         await _agentDbContext.SaveChangesAsync();
     }
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
-        List<ChatMessage> history,
+        List<PChatMessage> history,
         List<string> tags,
         List<string> ocrDocuments)
     {
-        var chatHistory = new ChatHistory();
+        var agent = _agentFactory.CreateAgent(Guid.Empty);
+
+        var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
         {
-            var role = msg.Role switch
-            {
-                ChatRole.User => AuthorRole.User,
-                ChatRole.Assistant => AuthorRole.Assistant,
-                _ => AuthorRole.System
-            };
-            chatHistory.AddMessage(role, msg.Content);
+            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
         }
 
         var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
@@ -173,28 +161,19 @@ public class AgentService
 
         chatHistory.Add(userMessage);
 
-        var kernel = _kernel.Clone();
-        kernel.ImportPluginFromObject(new KnowledgePlugin(_knowledgeService, tags), "memory");
-
-        var agent = new ChatCompletionAgent
+        AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags).AsAITool();
+        var chatOptions = new ChatOptions
         {
-            Name = "NTG-Assistant",
-            Instructions = "You are an NTG AI Assistant. Be helpful and precise.",
-            Kernel = kernel,
-            Arguments = new KernelArguments(new PromptExecutionSettings
-            {
-                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-            })
+            Tools = [memorySearch]
         };
 
-        await foreach (var item in agent.InvokeStreamingAsync(chatHistory))
-            yield return item.Message.ToString();
+        await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            yield return item.Text;
     }
 
-    private ChatMessageContent BuildUserMessage(PromptRequestForm promptRequest, string prompt)
+    private ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
-        var userMessage = new ChatMessageContent { Role = AuthorRole.User };
-        userMessage.Items.Add(new TextContent(prompt));
+        var userMessage = new ChatMessage(ChatRole.User, prompt);
 
         return userMessage;
     }
@@ -212,44 +191,24 @@ public class AgentService
 
     private async Task<string> GenerateConversationName(string question)
     {
-        var agent = new ChatCompletionAgent
-        {
-            Name = "ConversationNameGenerator",
-            Instructions = "Generate a short, descriptive conversation name (≤ 5 words).",
-            Kernel = _kernel
-        };
-
-        var sb = new StringBuilder();
-        await foreach (var res in agent.InvokeAsync(question)) sb.Append(res.Message);
-        return sb.ToString();
+        var agent = _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
+        var results = await agent.RunAsync(question);
+        return results.Text;
     }
 
-    private async Task<string> SummarizeMessagesAsync(List<ChatMessage> messages)
+    private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages)
     {
         if (messages.Count == 0) return string.Empty;
 
-        var chatHistory = new ChatHistory();
+        var chatHistory = new List<ChatMessage>();
         foreach (var msg in messages)
         {
-            var role = msg.Role switch
-            {
-                ChatRole.User => AuthorRole.User,
-                ChatRole.Assistant => AuthorRole.Assistant,
-                _ => AuthorRole.System
-            };
-            chatHistory.AddMessage(role, msg.Content);
+            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
         }
 
-        var summarizer = new ChatCompletionAgent
-        {
-            Name = "ConversationSummarizer",
-            Instructions = "Summarize the following chat into a concise paragraph that captures key points.",
-            Kernel = _kernel
-        };
-
-        var sb = new StringBuilder();
-        await foreach (var res in summarizer.InvokeAsync(chatHistory)) sb.Append(res.Message);
-        return sb.ToString();
+        var agent = _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
+        var runResults = await agent.RunAsync(chatHistory);
+        return runResults.Text;
     }
 
     private string BuildTextOnlyPrompt(string userPrompt) =>

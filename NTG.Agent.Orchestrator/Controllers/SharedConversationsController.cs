@@ -41,7 +41,7 @@ public class SharedConversationsController : ControllerBase
     public async Task<ActionResult<string>> ShareConversation([FromBody] ShareConversationRequest request)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-        var messages = new List<ChatMessage>();
+        var messages = new List<PChatMessage>();
         if (request.ChatId.HasValue)
         {
             var message = await _context.ChatMessages

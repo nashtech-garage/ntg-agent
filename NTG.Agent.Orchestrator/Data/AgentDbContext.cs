@@ -10,7 +10,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 {
     public DbSet<Conversation> Conversations { get; set; } = null!;
 
-    public DbSet<ChatMessage> ChatMessages { get; set; } = null!;
+    public DbSet<PChatMessage> ChatMessages { get; set; } = null!;
 
     public DbSet<SharedConversation> SharedConversations { get; set; } = null!;
     public DbSet<SharedChatMessage> SharedChatMessages { get; set; } = null!;
@@ -52,6 +52,21 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 .HasConversion(guidToString)
                 .HasColumnType("nvarchar(450)")
                 .ValueGeneratedNever();
+        });
+
+        modelBuilder.Entity<PChatMessage>(p =>
+        {
+            p.ToTable("ChatMessages");
+            p.Property(pm => pm.Role)
+             .HasConversion(new ChatRoleValueConverter())
+             .HasColumnType("nvarchar(50)");
+        });
+
+        modelBuilder.Entity<SharedChatMessage>(p =>
+        {
+            p.Property(pm => pm.Role)
+             .HasConversion(new ChatRoleValueConverter())
+             .HasColumnType("nvarchar(50)");
         });
 
         modelBuilder.Entity<UserRole>(t =>
