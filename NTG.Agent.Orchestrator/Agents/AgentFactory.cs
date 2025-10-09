@@ -30,7 +30,7 @@ public class AgentFactory
         }
     }
 
-    public AIAgent CreateBasicClient(string instructions)
+    public AIAgent CreateBasicAgent(string instructions)
     {
         // TODO Make it configurable, now only support GitHub model
         var clientOptions = new OpenAIClientOptions
