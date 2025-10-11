@@ -26,7 +26,10 @@
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
-    <ProjectReference Include="..\NTG.Agent.Shared.Services\NTG.Agent.Shared.Services.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="NewFolder\" />
   </ItemGroup>
 
 </Project>

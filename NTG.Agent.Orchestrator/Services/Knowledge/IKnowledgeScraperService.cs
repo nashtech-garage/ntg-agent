@@ -1,4 +1,4 @@
-namespace NTG.Agent.Shared.Services.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public interface IKnowledgeScraperService : IKnowledgeService
 {

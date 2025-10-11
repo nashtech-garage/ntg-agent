@@ -7,6 +7,7 @@ using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Dtos.Constants;
 using NTG.Agent.Shared.Dtos.Enums;
 using NTG.Agent.Shared.Services.Knowledge;

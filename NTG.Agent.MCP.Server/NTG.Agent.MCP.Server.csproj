@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -14,7 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\NTG.Agent.Shared.Services\NTG.Agent.Shared.Services.csproj" />
   </ItemGroup>
 
 </Project>

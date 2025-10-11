@@ -8,4 +8,7 @@
 	<ItemGroup>
 		<PackageReference Include="Microsoft.KernelMemory.WebClient" Version="0.98.250508.3" />
 	</ItemGroup>
+	<ItemGroup>
+	  <Folder Include="Extensions\" />
+	</ItemGroup>
 </Project>

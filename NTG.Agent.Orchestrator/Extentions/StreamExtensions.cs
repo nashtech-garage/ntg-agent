@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.Shared.Services.Extensions;
+﻿namespace NTG.Agent.Orchestrator.Extentions;
 
 public static class StreamExtensions
 {

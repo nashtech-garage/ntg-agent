@@ -1,9 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
-using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.DataFormats.WebPages;
-using NTG.Agent.Shared.Services.Extensions;
+﻿using Microsoft.KernelMemory;
 
-namespace NTG.Agent.Shared.Services.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {

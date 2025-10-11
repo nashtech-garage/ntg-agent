@@ -1,5 +1,6 @@
 ﻿using Microsoft.KernelMemory;
 using Microsoft.SemanticKernel;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Services.Knowledge;
 using System.ComponentModel;
 

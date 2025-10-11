@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.DataFormats.WebPages;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Services.Extensions;
 
 namespace NTG.Agent.Shared.Services.Knowledge;
