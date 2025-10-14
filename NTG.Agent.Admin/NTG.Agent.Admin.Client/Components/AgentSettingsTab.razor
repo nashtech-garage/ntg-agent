@@ -165,7 +165,7 @@ You are a helpful AI assistant specialized in customer support. Always be polite
 
 @code {
     [Parameter]
-	public AgentDetail AgentDetail { get; set; } = null!;
+    public AgentDetail AgentDetail { get; set; } = null!;
 
     private string systemPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
     private string statusMessage = string.Empty;
@@ -184,12 +184,12 @@ You are a helpful AI assistant specialized in customer support. Always be polite
         {
             isSaving = true;
             statusMessage = string.Empty;
-            
-			await AgentClient.UpdateAgent(AgentDetail);
-            
+
+            await AgentClient.UpdateAgent(AgentDetail);
+
             statusMessage = "Agent setting saved successfully!";
             isSuccess = true;
-            
+
             // Clear message after 3 seconds
             await Task.Delay(3000);
             statusMessage = string.Empty;

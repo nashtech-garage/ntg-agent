@@ -66,7 +66,7 @@ public class AgentFactory
             AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
         };
 
-        return Create(chatClient, instructions: "You are a helpful assistant.", name: "NTG.Agent", tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
     private AIAgent CreateAzureOpenAIAgent(Models.Agents.Agent agent)
@@ -85,7 +85,7 @@ public class AgentFactory
             AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
         };
 
-        return Create(chatClient, instructions: "You are a helpful assistant.", name: "NTG.Agent", tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
     private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
