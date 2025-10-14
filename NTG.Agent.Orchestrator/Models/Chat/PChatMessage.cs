@@ -16,6 +16,7 @@ public class PChatMessage
     public Guid ConversationId { get; set; }
     public Conversation Conversation { get; set; } = null!;
     public ChatRole Role { get; set; } = ChatRole.User;
+    public Guid? AgentId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public bool IsSummary { get; set; } = false;

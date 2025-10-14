@@ -19,6 +19,7 @@ public class AgentService
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
+    private Guid agentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5"); // We will support multiple agents later
 
     public AgentService(
         AgentFactory agentFactory,
@@ -147,7 +148,7 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments)
     {
-        var agent = _agentFactory.CreateAgent(Guid.Empty);
+        var agent = _agentFactory.CreateAgent(agentId);
 
         var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
