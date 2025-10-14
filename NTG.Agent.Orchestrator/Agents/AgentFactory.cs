@@ -58,8 +58,20 @@ public class AgentFactory
             AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
         };
 
-        var agent = openAiClient.GetChatClient(_configuration["GitHub:Models:ModelId"])
-            .CreateAIAgent(instructions: "You are a helpful assistant.", name: "NTG.Agent", tools: tools);
+        var chatClient = openAiClient.GetChatClient(_configuration["GitHub:Models:ModelId"])
+            .AsIChatClient()
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .Build();
+
+        var agent = new ChatClientAgent(chatClient,
+            name: "NTG Agent",
+            instructions: "You are a helpful assistant.",
+            tools: tools)
+            .AsBuilder()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
+            .Build();
         return agent;
     }
 
