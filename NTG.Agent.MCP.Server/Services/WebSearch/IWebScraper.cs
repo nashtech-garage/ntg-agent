@@ -1,0 +1,22 @@
+﻿// Copyright (c) Microsoft. All rights reserved.
+
+
+// Copyright (c) Microsoft. All rights reserved.
+
+using NTG.Agent.MCP.Server.Dtos;
+
+namespace NTG.Agent.MCP.Server.Services.WebSearch;
+
+/// <summary>
+/// Interface used by web scraper classes used to fetch external web pages.
+/// </summary>
+public interface IWebScraper
+{
+    /// <summary>
+    /// Fetch the content of a web page
+    /// </summary>
+    /// <param name="url">Web page URL</param>
+    /// <param name="cancellationToken">Async task cancellation token</param>
+    /// <returns>Web page content</returns>
+    Task<WebScraperResult> GetContentAsync(string url, CancellationToken cancellationToken = default);
+}
