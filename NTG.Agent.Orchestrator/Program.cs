@@ -1,14 +1,42 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
-using Microsoft.KernelMemory.DataFormats.WebPages;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+
+const string SourceName = "NTG.Agent.Orchestrator";
+const string ServiceName = "Orchestrator";
 
 var builder = WebApplication.CreateBuilder(args);
 
+
+var resourceBuilder = ResourceBuilder
+    .CreateDefault()
+    .AddService(ServiceName);
+
+using var tracerProvider = Sdk.CreateTracerProviderBuilder()
+    .SetResourceBuilder(resourceBuilder)
+    .AddSource(SourceName)
+    .AddSource("*Microsoft.Extensions.AI") // Listen to the Experimental.Microsoft.Extensions.AI source for chat client telemetry
+    .AddSource("*Microsoft.Extensions.Agents*") // Listen to the Experimental.Microsoft.Extensions.Agents source for agent telemetry
+    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint))
+    .Build();
+
+using var meterProvider = Sdk.CreateMeterProviderBuilder()
+    .SetResourceBuilder(resourceBuilder)
+    .AddMeter(SourceName)
+    .AddMeter("*Microsoft.Agents.AI") // Agent Framework metrics
+    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint))
+    .Build();
 
 using var loggerFactory = LoggerFactory.Create(builder =>
 {
@@ -21,6 +49,13 @@ using var loggerFactory = LoggerFactory.Create(builder =>
     });
     builder.SetMinimumLevel(LogLevel.Debug);
 });
+
+using var activitySource = new ActivitySource(SourceName);
+using var meter = new Meter(SourceName);
+
+// Create custom metrics
+var interactionCounter = meter.CreateCounter<int>("agent_interactions_total", description: "Total number of agent interactions");
+var responseTimeHistogram = meter.CreateHistogram<double>("agent_response_time_seconds", description: "Agent response time in seconds");
 
 builder.AddServiceDefaults();
 
@@ -36,8 +71,6 @@ builder.Services.AddDataProtection()
 builder.Services.AddScoped<AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
-builder.Services.AddScoped<IWebScraper, WebScraper>();
-
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

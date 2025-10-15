@@ -18,6 +18,7 @@ public class AgentService
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
+    private Guid agentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5"); // We will support multiple agents later
 
     public AgentService(
         AgentFactory agentFactory,
@@ -147,7 +148,7 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments)
     {
-        var agent = _agentFactory.CreateAgent(Guid.Empty);
+        var agent = await _agentFactory.CreateAgent(agentId);
 
         var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
@@ -209,27 +210,11 @@ public class AgentService
         return runResults.Text;
     }
 
-    //    private string BuildTextOnlyPrompt(PromptRequestForm promptRequestForm)
-    //    {
-    //        var userPrompt = promptRequestForm.Prompt;
-    //        return
-    //$@"
-    //Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}.
-
-    //If no relevant results are found, call:
-    //{{ntgmcpserver.searchonline query=""{userPrompt}"" conversationId=""{promptRequestForm.ConversationId}""}}
-    //to search the web and include sources from the 'sourceUrl' tag.
-
-    //Answer the question in a clear, natural, human-like way.
-
-    //If the answer is still empty, continue answering with your knowledge and tools or plugins. 
-    //Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.";
-    //    }
-
     private string BuildTextOnlyPrompt(PromptRequestForm userPrompt) =>
         $@"
-            Search for the {userPrompt.Prompt} in the knowledge base by calling the tool {{memory.search}}.
-            If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
+            Question {userPrompt}, context {{memory.search}}
+            Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
+            If the answer is not in the context, inform the user that you can't answer the question.
         ";
 
     private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)

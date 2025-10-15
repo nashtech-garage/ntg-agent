@@ -21,4 +21,10 @@ public class AgentClient(HttpClient httpClient)
         var result = await response.Content.ReadFromJsonAsync<AgentDetail>();
         return result;
     }
+
+    public async Task UpdateAgent(AgentDetail agentDetail)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentDetail.Id}", agentDetail);
+        response.EnsureSuccessStatusCode();
+    }
 }

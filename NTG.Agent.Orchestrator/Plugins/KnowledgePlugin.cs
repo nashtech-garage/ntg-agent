@@ -17,7 +17,7 @@ public sealed class KnowledgePlugin
     }
 
     [Description("Search knowledge base")]
-    public async Task<SearchResult> SearchAsync([Description("the value to search")]string query, [Description("the id of current conversation")] Guid conversationId)
+    public async Task<SearchResult> SearchAsync([Description("the value to search")]string query)
     {
         var result =  await _knowledgeService.SearchAsync(query, Guid.Empty, _tags);
 
