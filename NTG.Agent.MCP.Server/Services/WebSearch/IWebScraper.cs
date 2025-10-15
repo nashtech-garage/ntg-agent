@@ -1,9 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
-
-
-// Copyright (c) Microsoft. All rights reserved.
-
-using NTG.Agent.MCP.Server.Dtos;
+﻿using NTG.Agent.MCP.Server.Dtos;
 
 namespace NTG.Agent.MCP.Server.Services.WebSearch;
 

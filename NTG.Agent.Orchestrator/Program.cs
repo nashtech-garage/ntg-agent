@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
-using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -72,14 +71,6 @@ builder.Services.AddControllers();
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
-
-var mcpClient = await McpClient.CreateAsync(
-    new HttpClientTransport(new()
-    {
-        Name = "ntgmcpserver",
-        Endpoint = new Uri("http://localhost:5136"),
-        ConnectionTimeout = TimeSpan.FromMinutes(2),
-    }));
 
 builder.Services.AddScoped<AgentFactory>();
 builder.Services.AddScoped<AgentService>();
