@@ -1,5 +1,6 @@
 ﻿using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
@@ -19,9 +20,9 @@ public class AgentFactory
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
     }
 
-    public AIAgent CreateAgent(Guid agentId)
+    public async Task<AIAgent> CreateAgent(Guid agentId)
     {
-        var agentConfig = _agentDbContext.Agents.FirstOrDefault(a => a.Id == agentId) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {

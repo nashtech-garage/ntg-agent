@@ -148,7 +148,7 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments)
     {
-        var agent = _agentFactory.CreateAgent(agentId);
+        var agent = await _agentFactory.CreateAgent(agentId);
 
         var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
