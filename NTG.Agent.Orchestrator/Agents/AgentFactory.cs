@@ -1,6 +1,8 @@
 ﻿using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
@@ -10,24 +12,24 @@ namespace NTG.Agent.Orchestrator.Agents;
 public class AgentFactory
 {
     private readonly IConfiguration _configuration;
-    public AgentFactory(IConfiguration configuration)
+    private readonly AgentDbContext _agentDbContext;
+
+    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
     }
 
-    public AIAgent CreateAgent(Guid agentId)
+    public async Task<AIAgent> CreateAgent(Guid agentId)
     {
-        // TODO Get agent configuration from database by agentId
-        string agentProvider = "OpenAI";
-        switch (agentProvider)
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+        string agentProvider = agentConfig.ProviderName;
+        return agentProvider switch
         {
-            case "OpenAI":
-                return CreateOpenAIAgent();
-            case "AzureOpenAI":
-                return CreateAzureOpenAIAgent();
-            default:
-                throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported.");
-        }
+            "GitHubModel" => CreateOpenAIAgent(agentConfig),
+            "AzureOpenAI" => CreateAzureOpenAIAgent(agentConfig),
+            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+        };
     }
 
     public AIAgent CreateBasicAgent(string instructions)
@@ -44,44 +46,58 @@ public class AgentFactory
         return agent;
     }
 
-    private AIAgent CreateOpenAIAgent()
+    private AIAgent CreateOpenAIAgent(Models.Agents.Agent agent)
     {
         var clientOptions = new OpenAIClientOptions
         {
-            Endpoint = new Uri(_configuration["GitHub:Models:Endpoint"]!)
+            Endpoint = new Uri(agent.ProviderEndpoint)
         };
 
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(_configuration["GitHub:Models:GitHubToken"]!), clientOptions);
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions);
 
-        var tools = new List<AITool>
-        {
-            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
-        };
-
-        var chatClient = openAiClient.GetChatClient(_configuration["GitHub:Models:ModelId"])
+        var chatClient = openAiClient.GetChatClient(agent.ProviderModelName)
             .AsIChatClient()
             .AsBuilder()
             .UseFunctionInvocation()
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
             .Build();
 
+        var tools = new List<AITool>
+        {
+            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
+        };
+
+        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
+    }
+
+    private AIAgent CreateAzureOpenAIAgent(Models.Agents.Agent agent)
+    {
+        var chatClient = new AzureOpenAIClient(
+            new Uri(agent.ProviderEndpoint),
+            new ApiKeyCredential(agent.ProviderApiKey))
+             .GetChatClient(agent.ProviderModelName)
+             .AsIChatClient()
+             .AsBuilder()
+             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+             .Build();
+
+        var tools = new List<AITool>
+        {
+            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
+        };
+
+        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
+    }
+
+    private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
+    {
         var agent = new ChatClientAgent(chatClient,
-            name: "NTG Agent",
-            instructions: "You are a helpful assistant.",
+            name: name,
+            instructions: instructions,
             tools: tools)
             .AsBuilder()
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
             .Build();
-        return agent;
-    }
-
-    private AIAgent CreateAzureOpenAIAgent()
-    {
-        AIAgent agent = new AzureOpenAIClient(
-            new Uri(_configuration["Azure:OpenAI:Endpoint"]!),
-            new ApiKeyCredential(_configuration["Azure:OpenAI:ApiKey"]!))
-             .GetChatClient(_configuration["Azure:OpenAI:DeploymentName"])
-             .CreateAIAgent(instructions: "You are a helpful assistant.", name: "NTG.Agent");
         return agent;
     }
 }

@@ -1,3 +1,6 @@
+@using NTG.Agent.Shared.Dtos.Agents
+@inject AgentClient AgentClient
+
 <div class="tab-pane fade show active">
     <div class="row">
         <div class="col-lg-8">
@@ -6,10 +9,44 @@
                 <p class="text-muted mb-0">Configure the behavior and personality of your agent</p>
             </div>
 
-            <EditForm Model="this" OnValidSubmit="SaveSystemPrompt">
+            <EditForm Model="this" OnValidSubmit="SaveAgentSetting">
                 <div class="card border-0 bg-light">
                     <div class="card-body">
                         <div class="mb-3">
+                            <label for="systemPrompt" class="form-label fw-semibold">
+                                <i class="bi bi-chat-text me-2"></i>Agent provider
+                            </label>
+                            <div class="form-text mb-2">
+                                The AI model that powers your agent. Choose based on your needs for performance, cost, and capabilities.
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Name</label>
+                                <select class="form-select form-select-sm" @bind="AgentDetail.ProviderName">
+                                    <option value="GitHubModel">GitHub Models</option>
+                                    <option value="AzureOpenAI">Azure Open AI</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Endpoint</label>
+                                <InputText id="providerEndpoint"
+                                           @bind-Value="AgentDetail.ProviderEndpoint"
+                                           class="form-control" 
+                                           placeholder="Enter the API endpoint URL..." />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider API Key</label>
+                                <InputText id="providerAccessKey"
+                                           @bind-Value="AgentDetail.ProviderApiKey"
+                                           class="form-control"
+                                           placeholder="Enter the API Key..." />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Model Name</label>
+                                <InputText id="providerModelName"
+                                           @bind-Value="AgentDetail.ProviderModelName"
+                                           class="form-control"
+                                           placeholder="Enter the Model Name..." />
+                            </div>
                             <label for="systemPrompt" class="form-label fw-semibold">
                                 <i class="bi bi-chat-text me-2"></i>System Prompt
                             </label>
@@ -17,7 +54,7 @@
                                 Define how your agent should behave, respond, and interact with users. This sets the personality and guidelines for the AI.
                             </div>
                             <InputTextArea id="systemPrompt" 
-                                         @bind-Value="systemPrompt" 
+                                         @bind-Value="AgentDetail.Instructions" 
                                          class="form-control" 
                                          rows="12" 
                                          placeholder="Enter the system prompt for this agent...
@@ -44,7 +81,7 @@ You are a helpful AI assistant specialized in customer support. Always be polite
                                     {
                                         <i class="bi bi-check-circle me-2"></i>
                                     }
-                                    Save System Prompt
+                                    Save Agent Settings
                                 </button>
                             </div>
                         </div>
@@ -128,7 +165,7 @@ You are a helpful AI assistant specialized in customer support. Always be polite
 
 @code {
     [Parameter]
-    public Guid AgentId { get; set; }
+    public AgentDetail AgentDetail { get; set; } = null!;
 
     private string systemPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
     private string statusMessage = string.Empty;
@@ -141,19 +178,18 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     
     private readonly string defaultPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
 
-    private async Task SaveSystemPrompt()
+    private async Task SaveAgentSetting()
     {
         try
         {
             isSaving = true;
             statusMessage = string.Empty;
-            
-            // TODO: Implement API call to save system prompt
-            await Task.Delay(1000); // Simulate API call
-            
-            statusMessage = "System prompt saved successfully!";
+
+            await AgentClient.UpdateAgent(AgentDetail);
+
+            statusMessage = "Agent setting saved successfully!";
             isSuccess = true;
-            
+
             // Clear message after 3 seconds
             await Task.Delay(3000);
             statusMessage = string.Empty;

@@ -1,4 +1,5 @@
-﻿using NTG.Agent.Orchestrator.Models.Identity;
+﻿using Microsoft.AspNetCore.Identity;
+using NTG.Agent.Orchestrator.Models.Identity;
 
 namespace NTG.Agent.Orchestrator.Models.Agents;
 
@@ -15,6 +16,14 @@ public class Agent
     public string Name { get; set; } = string.Empty;
 
     public string Instructions { get; set; } = string.Empty;
+
+    public string ProviderName { get; set; } = string.Empty;
+
+    public string ProviderModelName { get; set; } = string.Empty;
+
+    public string ProviderEndpoint { get; set; } = string.Empty;
+
+    public string ProviderApiKey { get; set; } = string.Empty;
 
     public DateTime CreatedAt { get; set; }
 
