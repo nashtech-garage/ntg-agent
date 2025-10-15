@@ -17,6 +17,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
+    public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
+
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
@@ -170,5 +172,14 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                UpdatedAt = new DateTime(2025, 6, 24)
            }
        );
+
+        modelBuilder.Entity<Models.Agents.AgentTools>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x=>x.Agent)
+             .WithMany()
+             .HasForeignKey(t => t.AgentId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }
