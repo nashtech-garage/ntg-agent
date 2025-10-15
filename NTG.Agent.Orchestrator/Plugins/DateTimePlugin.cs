@@ -5,8 +5,8 @@ namespace NTG.Agent.Orchestrator.Plugins;
 
 public sealed class DateTimePlugin
 {
-    [KernelFunction, Description("Get current datetime")]
-    public DateTime GetCurrentDateTime()
+    [Description("Get current datetime")]
+    public static DateTime GetCurrentDateTime()
     {
         return DateTime.Now;
     }

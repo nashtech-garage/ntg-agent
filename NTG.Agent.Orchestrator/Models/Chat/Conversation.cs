@@ -19,6 +19,6 @@ public class Conversation
 
     public DateTime UpdatedAt { get; set; }
 
-    public List<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
+    public List<PChatMessage> Messages { get; set; } = new List<PChatMessage>();
 
 }

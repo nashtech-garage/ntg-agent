@@ -3,6 +3,7 @@ using Microsoft.KernelMemory;
 using Microsoft.KernelMemory.Context;
 using Microsoft.KernelMemory.DataFormats.WebPages;
 using Moq;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Shared.Services.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Tests.Services;

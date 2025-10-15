@@ -1,12 +1,12 @@
 using Microsoft.KernelMemory.DataFormats.WebPages;
 using Microsoft.KernelMemory.Diagnostics;
 using Microsoft.KernelMemory.Pipeline;
+using NTG.Agent.Orchestrator.Extentions;
 using Polly;
 using System.Net;
 using System.Net.Mime;
-using NTG.Agent.Shared.Services.Extensions;
 
-namespace NTG.Agent.MCP.Server.Services.WebSearch;
+namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public sealed class WebScraper : IWebScraper, IDisposable
 {

@@ -1,11 +1,11 @@
-using NTG.Agent.Shared.Dtos.Enums;
+using Microsoft.Extensions.AI;
 using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Models.Chat;
 
-public class ChatMessage
+public class PChatMessage
 {
-    public ChatMessage()
+    public PChatMessage()
     {
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;

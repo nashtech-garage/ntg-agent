@@ -10,6 +10,7 @@ using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using NTG.Agent.Shared.Dtos.Documents;
 using NTG.Agent.Shared.Dtos.Services;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

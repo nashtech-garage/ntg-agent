@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Chat;
@@ -95,7 +96,7 @@ public class SharedConversationsControllerTests
             Name = "Test Conversation",
             UserId = _testUserId
         };
-        var chatMessage = new ChatMessage
+        var chatMessage = new PChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,
@@ -137,7 +138,7 @@ public class SharedConversationsControllerTests
         // Arrange
         var conversationId = Guid.NewGuid();
         var chatId = Guid.NewGuid();
-        var chatMessage = new ChatMessage
+        var chatMessage = new PChatMessage
         {
             Id = chatId,
             ConversationId = conversationId,
@@ -170,7 +171,7 @@ public class SharedConversationsControllerTests
     {
         // Arrange
         var conversationId = Guid.NewGuid();
-        var chatMessage = new ChatMessage
+        var chatMessage = new PChatMessage
         {
             Id = Guid.NewGuid(),
             ConversationId = conversationId,

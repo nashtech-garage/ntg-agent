@@ -1,4 +1,4 @@
-﻿using NTG.Agent.Shared.Dtos.Enums;
+﻿using Microsoft.Extensions.AI;
 using System.Text.Json.Serialization;
 
 namespace NTG.Agent.Orchestrator.Models.Chat;
