@@ -163,6 +163,7 @@ public class AgentService
         chatHistory.Add(userMessage);
 
         AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags).AsAITool();
+
         var chatOptions = new ChatOptions
         {
             Tools = [memorySearch]
@@ -214,7 +215,7 @@ public class AgentService
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
-            Question {userPrompt}, context {{memory.search}}
+            Question: {userPrompt}, context: {{memory.search}} then {{search_online}}
             Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
             If the answer is not in the context, inform the user that you can't answer the question.
         ";

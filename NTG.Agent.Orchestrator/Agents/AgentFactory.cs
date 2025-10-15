@@ -2,6 +2,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
@@ -26,8 +27,8 @@ public class AgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
-            "GitHubModel" => CreateOpenAIAgent(agentConfig),
-            "AzureOpenAI" => CreateAzureOpenAIAgent(agentConfig),
+            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
+            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
@@ -46,7 +47,7 @@ public class AgentFactory
         return agent;
     }
 
-    private AIAgent CreateOpenAIAgent(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
     {
         var clientOptions = new OpenAIClientOptions
         {
@@ -67,10 +68,12 @@ public class AgentFactory
             AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
         };
 
+        tools.AddRange(await GetMcpToolsAsync());
+
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
-    private AIAgent CreateAzureOpenAIAgent(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
     {
         var chatClient = new AzureOpenAIClient(
             new Uri(agent.ProviderEndpoint),
@@ -78,6 +81,7 @@ public class AgentFactory
              .GetChatClient(agent.ProviderModelName)
              .AsIChatClient()
              .AsBuilder()
+             .UseFunctionInvocation()
              .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
              .Build();
 
@@ -85,6 +89,8 @@ public class AgentFactory
         {
             AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
         };
+
+        tools.AddRange(await GetMcpToolsAsync());
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
@@ -99,5 +105,22 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
             .Build();
         return agent;
+    }
+
+    private async Task<IEnumerable<AITool>> GetMcpToolsAsync()
+    {
+        var endpoint = "http://localhost:5136";
+        var transport = new HttpClientTransport(new HttpClientTransportOptions
+        {
+            Name = "ntgmcpserver",
+            Endpoint = new Uri(endpoint),
+            ConnectionTimeout = TimeSpan.FromMinutes(2)
+        });
+
+        var mcpClient = await McpClient.CreateAsync(transport);
+
+        var tools = await mcpClient.ListToolsAsync().ConfigureAwait(false);
+        
+        return tools.Cast<AITool>();
     }
 }
