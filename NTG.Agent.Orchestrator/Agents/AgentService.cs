@@ -214,8 +214,9 @@ public class AgentService
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
-            Search for the {userPrompt} in the knowledge base by calling the tool {{memory.search}}.
-            If the answer is empty, continue answering with your knowledge and tools or plugins. Otherwise reply with the answer and include citations to the relevant information where it is referenced in the response.
+            Question {userPrompt}, context {{memory.search}}
+            Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
+            If the answer is not in the context, inform the user that you can't answer the question.
         ";
 
 
