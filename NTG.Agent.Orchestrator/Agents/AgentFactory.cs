@@ -2,6 +2,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Plugins;
@@ -112,7 +113,7 @@ public class AgentFactory
         // For future use, we can enable more tools based on the agent configuration
         return new List<AITool>
         {
-            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
+            AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
         };
     }
 
