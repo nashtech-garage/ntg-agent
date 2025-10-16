@@ -2,7 +2,7 @@
 
 namespace NTG.Agent.AITools.SimpleTools;
 
-public class DateTimeTools
+public static class DateTimeTools
 {
     [Description("Get current datetime")]
     public static DateTime GetCurrentDateTime()
