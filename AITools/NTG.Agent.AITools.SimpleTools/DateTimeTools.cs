@@ -7,6 +7,6 @@ public class DateTimeTools
     [Description("Get current datetime")]
     public static DateTime GetCurrentDateTime()
     {
-        return DateTime.Now;
+        return DateTime.UtcNow;
     }
 }
