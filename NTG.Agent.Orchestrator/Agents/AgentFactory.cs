@@ -34,7 +34,7 @@ public class AgentFactory
         };
     }
 
-    // This agent is uses for simple tasks, like summarization, naming the converstion, etc.
+    // This agent is used for simple tasks, like summarization, naming the conversation, etc.
     // No tools are enabled for this agent
     // For simplicity, we use the sample LLM model with the default agent. You can use smaller model for cost saving.
     public async Task<AIAgent> CreateBasicAgent(string instructions)
