@@ -192,7 +192,7 @@ public class AgentService
 
     private async Task<string> GenerateConversationName(string question)
     {
-        var agent = _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
+        var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
         var results = await agent.RunAsync(question);
         return results.Text;
     }
@@ -207,7 +207,7 @@ public class AgentService
             chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
         }
 
-        var agent = _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
+        var agent = await _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
         var runResults = await agent.RunAsync(chatHistory);
         return runResults.Text;
     }
