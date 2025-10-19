@@ -2,8 +2,10 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.AITools.SimpleTools;
 using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Plugins;
 using OpenAI;
 using System.ClientModel;
@@ -14,6 +16,7 @@ public class AgentFactory
 {
     private readonly IConfiguration _configuration;
     private readonly AgentDbContext _agentDbContext;
+    private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
     public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext)
     {
@@ -33,17 +36,39 @@ public class AgentFactory
         };
     }
 
-    public AIAgent CreateBasicAgent(string instructions)
+    // This agent is used for simple tasks, like summarization, naming the conversation, etc.
+    // No tools are enabled for this agent
+    // For simplicity, we use the sample LLM model with the default agent. You can use smaller model for cost saving.
+    public async Task<AIAgent> CreateBasicAgent(string instructions)
     {
-        // TODO Make it configurable, now only support GitHub model
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == DefaultAgentId) ?? throw new ArgumentException($"Agent with ID '{DefaultAgentId}' not found.");
+        string agentProvider = agentConfig.ProviderName;
+        return agentProvider switch
+        {
+            "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
+            "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
+            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+        };
+    }
+
+    private AIAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
+    {
         var clientOptions = new OpenAIClientOptions
         {
-            Endpoint = new Uri(_configuration["GitHub:Models:Endpoint"]!)
+            Endpoint = new Uri(agentConfig.ProviderEndpoint)
         };
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(agentConfig.ProviderApiKey), clientOptions);
+        var agent = openAiClient.GetChatClient(agentConfig.ProviderModelName).CreateAIAgent(instructions: instructions);
+        return agent;
+    }
 
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(_configuration["GitHub:Models:GitHubToken"]!), clientOptions);
-        var agent = openAiClient.GetChatClient(_configuration["GitHub:Models:ModelId"])
-            .CreateAIAgent(instructions: instructions);
+    private AIAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
+    {
+        var agent = new AzureOpenAIClient(
+             new Uri(agentConfig.ProviderEndpoint),
+             new ApiKeyCredential(agentConfig.ProviderApiKey))
+               .GetChatClient(agentConfig.ProviderModelName)
+               .CreateAIAgent(instructions: instructions);
         return agent;
     }
 
@@ -63,10 +88,7 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
             .Build();
 
-        var tools = new List<AITool>
-        {
-            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
-        };
+        var tools = GetAvailableTools(agent);
 
         tools.AddRange(await GetMcpToolsAsync());
 
@@ -85,14 +107,18 @@ public class AgentFactory
              .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
              .Build();
 
-        var tools = new List<AITool>
-        {
-            AIFunctionFactory.Create(DateTimePlugin.GetCurrentDateTime)
-        };
-
-        tools.AddRange(await GetMcpToolsAsync());
+        var tools = GetAvailableTools(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
+    }
+
+    private List<AITool> GetAvailableTools(Models.Agents.Agent agent)
+    {
+        // For future use, we can enable more tools based on the agent configuration
+        return new List<AITool>
+        {
+            AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
+        };
     }
 
     private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
