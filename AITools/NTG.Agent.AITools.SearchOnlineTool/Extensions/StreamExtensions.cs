@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.MCP.Server.Extensions;
+﻿namespace NTG.Agent.AITools.SearchOnlineTool.Extensions;
 
 public static class StreamExtensions
 {

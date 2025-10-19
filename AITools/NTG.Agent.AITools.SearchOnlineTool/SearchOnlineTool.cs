@@ -1,22 +1,21 @@
 ﻿using Microsoft.SemanticKernel.Data;
 using ModelContextProtocol.Server;
-using NTG.Agent.MCP.Server.Dtos;
-using NTG.Agent.MCP.Server.Extensions;
-using NTG.Agent.MCP.Server.Services.WebSearch;
+using NTG.Agent.AITools.SearchOnlineTool.Dtos;
+using NTG.Agent.AITools.SearchOnlineTool.Extensions;
+using NTG.Agent.AITools.SearchOnlineTool.Services;
 using System.ComponentModel;
-using System.Linq;
 using System.Text.Json;
 
 namespace NTG.Agent.MCP.Server.McpTools
 {
     [McpServerToolType]
-    public sealed class WebSearchTool
+    public sealed class SearchOnlineTool
     {
         private readonly ITextSearchService _textSearchService;
 
         private readonly IWebScraper _webScraper;
 
-        public WebSearchTool(
+        public SearchOnlineTool(
             ITextSearchService textSearchService,
             IWebScraper webScraper )
         {
@@ -45,12 +44,12 @@ namespace NTG.Agent.MCP.Server.McpTools
                 {
                     try
                     {
-                        var webPage = await _webScraper.GetContentAsync(result.Link);
+                        var webPage = await _webScraper.GetContentAsync(result.Link!);
                         var htmlContent = webPage.Content.ToString();
                         var cleanedHtml = htmlContent.CleanHtml();
                         results.Add(new WebSearchResult
                         {
-                            Url = result.Link,
+                            Url = result.Link!,
                             Content = cleanedHtml
                         });
                     }

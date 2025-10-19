@@ -1,12 +1,12 @@
-using NTG.Agent.MCP.Server.Dtos;
-using NTG.Agent.MCP.Server.Enums;
-using NTG.Agent.MCP.Server.Extensions;
-using NTG.Agent.MCP.Server.Services.WebSearch;
+using Microsoft.Extensions.Logging;
+using NTG.Agent.AITools.SearchOnlineTool.Dtos;
+using NTG.Agent.AITools.SearchOnlineTool.Enums;
+using NTG.Agent.AITools.SearchOnlineTool.Extensions;
 using Polly;
 using System.Net;
 using System.Net.Mime;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.AITools.SearchOnlineTool.Services;
 
 public sealed class WebScraper : IWebScraper, IDisposable
 {

@@ -1,6 +1,6 @@
-﻿using NTG.Agent.MCP.Server.Dtos;
+﻿using NTG.Agent.AITools.SearchOnlineTool.Dtos;
 
-namespace NTG.Agent.MCP.Server.Services.WebSearch;
+namespace NTG.Agent.AITools.SearchOnlineTool.Services;
 
 /// <summary>
 /// Interface used by web scraper classes used to fetch external web pages.

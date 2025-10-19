@@ -88,9 +88,7 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
             .Build();
 
-        var tools = GetAvailableTools(agent);
-
-        tools.AddRange(await GetMcpToolsAsync());
+        var tools = await GetAvailableTools(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
@@ -107,18 +105,22 @@ public class AgentFactory
              .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
              .Build();
 
-        var tools = GetAvailableTools(agent);
+        var tools = await GetAvailableTools(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
-    private List<AITool> GetAvailableTools(Models.Agents.Agent agent)
+    private async Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent)
     {
         // For future use, we can enable more tools based on the agent configuration
-        return new List<AITool>
+        var tools = new List<AITool>
         {
             AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
         };
+
+        tools.AddRange(await GetMcpToolsAsync());
+
+        return tools;
     }
 
     private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)

@@ -9,11 +9,10 @@
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.2" />
-	<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" Version="1.64.0-alpha" />
-	<PackageReference Include="System.Memory.Data" Version="9.0.10" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AITools\NTG.Agent.AITools.SearchOnlineTool\NTG.Agent.AITools.SearchOnlineTool.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
   </ItemGroup>
 
