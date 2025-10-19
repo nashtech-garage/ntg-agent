@@ -25,6 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
   </ItemGroup>

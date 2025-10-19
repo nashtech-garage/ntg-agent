@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.MCP.Server.Dtos;
+﻿namespace NTG.Agent.AITools.SearchOnlineTool.Dtos;
 
 public class WebSearchResult
 {

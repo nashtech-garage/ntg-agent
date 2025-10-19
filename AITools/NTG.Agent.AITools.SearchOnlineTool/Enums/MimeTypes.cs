@@ -1,4 +1,4 @@
-﻿namespace NTG.Agent.MCP.Server.Enums;
+﻿namespace NTG.Agent.AITools.SearchOnlineTool.Enums;
 
 public static class MimeTypes
 {
