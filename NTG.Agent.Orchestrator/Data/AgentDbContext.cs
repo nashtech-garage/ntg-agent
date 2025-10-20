@@ -173,13 +173,10 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            }
        );
 
-        modelBuilder.Entity<Models.Agents.AgentTools>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.HasOne(x=>x.Agent)
-             .WithMany()
-             .HasForeignKey(t => t.AgentId)
-             .OnDelete(DeleteBehavior.Cascade);
-        });
+        modelBuilder.Entity<Models.Agents.Agent>()
+        .HasMany(a => a.AgentTools)
+        .WithOne(t => t.Agent)
+        .HasForeignKey(t => t.AgentId)
+        .OnDelete(DeleteBehavior.Cascade);
     }
 }

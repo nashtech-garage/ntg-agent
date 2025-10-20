@@ -12,7 +12,7 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    [Migration("20251015150730_AddAgentToolsModel")]
+    [Migration("20251019133830_AddAgentToolsModel")]
     partial class AddAgentToolsModel
     {
         /// <inheritdoc />
@@ -36,6 +36,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<string>("Instructions")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("McpServer")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Name")
@@ -81,6 +84,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
+                            McpServer = "",
                             Name = "Default Agent",
                             OwnerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
                             ProviderApiKey = "",
@@ -100,6 +104,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<Guid>("AgentId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AgentToolType")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -550,7 +557,7 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
-                        .WithMany()
+                        .WithMany("AgentTools")
                         .HasForeignKey("AgentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -624,6 +631,11 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsRequired();
 
                     b.Navigation("Tag");
+                });
+
+            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
+                {
+                    b.Navigation("AgentTools");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>

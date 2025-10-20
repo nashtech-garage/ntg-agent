@@ -2,11 +2,11 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using NTG.Agent.AITools.SimpleTools;
+using Microsoft.KernelMemory.Context;
 using ModelContextProtocol.Client;
+using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Models.Agents;
-using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Shared.Dtos.Agents;
 using OpenAI;
 using System.ClientModel;
 
@@ -88,7 +88,7 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
             .Build();
 
-        var tools = await GetAvailableTools(agent);
+        var tools = await GetAgentToolsByAgentId(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
@@ -105,23 +105,55 @@ public class AgentFactory
              .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
              .Build();
 
-        var tools = await GetAvailableTools(agent);
+        var tools = await GetAgentToolsByAgentId(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
-    private async Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent)
+    private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent)
     {
-        // For future use, we can enable more tools based on the agent configuration
-        var tools = new List<AITool>
+        var tools = new List<AITool>();
+        if (agent != null)
+        {
+            var allTools = await GetAvailableTools(agent);
+
+            await _agentDbContext.Entry(agent)
+                .Collection(a => a.AgentTools)
+                .LoadAsync();
+            var enabledToolNames = agent.AgentTools
+            .Where(t => t.IsEnabled)
+            .Select(t => t.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            tools = allTools
+                .Where(t => enabledToolNames.Contains(t.Name))
+                .ToList();
+        }
+
+        return tools;
+    }
+
+    public async Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent)
+    {
+        if (agent is null)
+            throw new ArgumentNullException(nameof(agent));
+
+        // 1. Define built-in tools (static plugins)
+        var allTools = new List<AITool>
         {
             AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
         };
 
-        tools.AddRange(await GetMcpToolsAsync());
+        // 2. Add MCP tools (from remote MCP server)
+        if (!string.IsNullOrEmpty(agent.McpServer?.Trim()))
+        {
+            var mcpTools = await GetMcpToolsAsync(agent.McpServer);
+            allTools.AddRange(mcpTools);
+        }
 
-        return tools;
+        return allTools;
     }
+
 
     private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
     {
@@ -135,9 +167,8 @@ public class AgentFactory
         return agent;
     }
 
-    private async Task<IEnumerable<AITool>> GetMcpToolsAsync()
+    public async Task<IEnumerable<AITool>> GetMcpToolsAsync(string endpoint)
     {
-        var endpoint = "http://localhost:5136";
         var transport = new HttpClientTransport(new HttpClientTransportOptions
         {
             Name = "ntgmcpserver",
@@ -148,7 +179,7 @@ public class AgentFactory
         var mcpClient = await McpClient.CreateAsync(transport);
 
         var tools = await mcpClient.ListToolsAsync().ConfigureAwait(false);
-        
+
         return tools.Cast<AITool>();
     }
 }

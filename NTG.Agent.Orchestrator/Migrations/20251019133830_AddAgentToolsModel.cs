@@ -11,6 +11,12 @@ namespace NTG.Agent.Orchestrator.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "McpServer",
+                table: "Agents",
+                type: "nvarchar(max)",
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "AgentTools",
                 columns: table => new
@@ -20,6 +26,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     IsEnabled = table.Column<bool>(type: "bit", nullable: false),
+                    AgentToolType = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
@@ -34,6 +41,13 @@ namespace NTG.Agent.Orchestrator.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.UpdateData(
+                table: "Agents",
+                keyColumn: "Id",
+                keyValue: new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+                column: "McpServer",
+                value: "");
+
             migrationBuilder.CreateIndex(
                 name: "IX_AgentTools_AgentId",
                 table: "AgentTools",
@@ -45,6 +59,10 @@ namespace NTG.Agent.Orchestrator.Migrations
         {
             migrationBuilder.DropTable(
                 name: "AgentTools");
+
+            migrationBuilder.DropColumn(
+                name: "McpServer",
+                table: "Agents");
         }
     }
 }

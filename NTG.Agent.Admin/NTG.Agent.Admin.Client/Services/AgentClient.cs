@@ -27,4 +27,30 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentDetail.Id}", agentDetail);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task UpdateAgentToolsAsync(Guid agentId, IList<AgentToolDto> tools)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/tools", tools);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IList<AgentToolDto>> GetAgentToolsByAgentId(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/{id}/tools");
+
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<AgentToolDto>>();
+        return result ?? [];
+    }
+
+    public async Task<IList<AgentToolDto>> ConnectToMcpServerAsync(Guid id, string endpoint)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/agentadmin/{id}/connect",endpoint);
+
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<AgentToolDto>>();
+        return result ?? [];
+    }
 }

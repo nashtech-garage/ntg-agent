@@ -25,6 +25,8 @@ public class Agent
 
     public string ProviderApiKey { get; set; } = string.Empty;
 
+    public string? McpServer { get; set; } = string.Empty;
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -36,4 +38,7 @@ public class Agent
     public Guid UpdatedByUserId { get; set; }
 
     public User UpdatedByUser { get; set; } = null!;
+
+    public ICollection<AgentTools> AgentTools { get; set; } = new List<AgentTools>();
+
 }
