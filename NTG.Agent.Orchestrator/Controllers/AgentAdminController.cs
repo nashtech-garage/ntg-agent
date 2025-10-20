@@ -16,10 +16,10 @@ namespace NTG.Agent.Orchestrator.Controllers;
 public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
-    private readonly AgentFactory _agentFactory;
+    private readonly IAgentFactory _agentFactory;
 
     public AgentAdminController(AgentDbContext agentDbContext,
-        AgentFactory agentFactory
+        IAgentFactory agentFactory
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));

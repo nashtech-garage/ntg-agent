@@ -12,7 +12,7 @@ using System.ClientModel;
 
 namespace NTG.Agent.Orchestrator.Agents;
 
-public class AgentFactory
+public class AgentFactory : IAgentFactory
 {
     private readonly IConfiguration _configuration;
     private readonly AgentDbContext _agentDbContext;

@@ -72,7 +72,7 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
 
-builder.Services.AddScoped<AgentFactory>();
+builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 
