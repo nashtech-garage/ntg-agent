@@ -16,6 +16,8 @@ public class AgentFactory
 {
     private readonly IConfiguration _configuration;
     private readonly AgentDbContext _agentDbContext;
+    public string ToolContext { get; set; } = string.Empty;
+
     private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
     public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext)
@@ -120,10 +122,11 @@ public class AgentFactory
             await _agentDbContext.Entry(agent)
                 .Collection(a => a.AgentTools)
                 .LoadAsync();
+
             var enabledToolNames = agent.AgentTools
-            .Where(t => t.IsEnabled)
-            .Select(t => t.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .Where(t => t.IsEnabled)
+                .Select(t => t.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             tools = allTools
                 .Where(t => enabledToolNames.Contains(t.Name))
