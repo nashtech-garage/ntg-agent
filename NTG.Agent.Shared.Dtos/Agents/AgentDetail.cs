@@ -10,8 +10,6 @@ public class AgentDetail
     public string ProviderApiKey { get; set; }
     public string ProviderModelName { get; set; }
 
-    public AgentDetail() { }
-
     public AgentDetail(
         Guid id,
         string name,
