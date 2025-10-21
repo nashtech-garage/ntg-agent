@@ -1,3 +1,4 @@
+using NTG.Agent.AITools.SearchOnlineTool.Extensions;
 using NTG.Agent.MCP.Server.Services;
 using NTG.Agent.ServiceDefaults;
 
@@ -10,7 +11,8 @@ builder.Services.AddSingleton<MonkeyService>();
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()
-    .WithToolsFromAssembly();
+    .WithToolsFromAssembly()
+    .AddAiTool();
 
 var app = builder.Build();
 

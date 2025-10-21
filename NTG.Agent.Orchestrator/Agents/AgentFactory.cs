@@ -3,6 +3,7 @@ using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.AITools.SimpleTools;
+using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Plugins;
@@ -29,8 +30,8 @@ public class AgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
-            "GitHubModel" => CreateOpenAIAgent(agentConfig),
-            "AzureOpenAI" => CreateAzureOpenAIAgent(agentConfig),
+            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
+            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
@@ -71,7 +72,7 @@ public class AgentFactory
         return agent;
     }
 
-    private AIAgent CreateOpenAIAgent(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
     {
         var clientOptions = new OpenAIClientOptions
         {
@@ -87,12 +88,12 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
             .Build();
 
-        var tools = GetAvailableTools(agent);
+        var tools = await GetAvailableTools(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
-    private AIAgent CreateAzureOpenAIAgent(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
     {
         var chatClient = new AzureOpenAIClient(
             new Uri(agent.ProviderEndpoint),
@@ -100,21 +101,26 @@ public class AgentFactory
              .GetChatClient(agent.ProviderModelName)
              .AsIChatClient()
              .AsBuilder()
+             .UseFunctionInvocation()
              .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
              .Build();
 
-        var tools = GetAvailableTools(agent);
+        var tools = await GetAvailableTools(agent);
 
         return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
     }
 
-    private List<AITool> GetAvailableTools(Models.Agents.Agent agent)
+    private async Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent)
     {
         // For future use, we can enable more tools based on the agent configuration
-        return new List<AITool>
+        var tools = new List<AITool>
         {
             AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
         };
+
+        tools.AddRange(await GetMcpToolsAsync());
+
+        return tools;
     }
 
     private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
@@ -127,5 +133,29 @@ public class AgentFactory
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
             .Build();
         return agent;
+    }
+
+    private async Task<IEnumerable<AITool>> GetMcpToolsAsync()
+    {
+        var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-mcp-server__https__0")
+        ?? Environment.GetEnvironmentVariable($"services__ntg-agent-mcp-server__http__0");
+
+        if (string.IsNullOrEmpty(endpoint))
+        {
+            throw new InvalidOperationException("MCP server endpoint is not configured.");
+        }
+
+        var transport = new HttpClientTransport(new HttpClientTransportOptions
+        {
+            Name = "ntgmcpserver",
+            Endpoint = new Uri(endpoint),
+            ConnectionTimeout = TimeSpan.FromMinutes(2)
+        });
+
+        var mcpClient = await McpClient.CreateAsync(transport);
+
+        var tools = await mcpClient.ListToolsAsync().ConfigureAwait(false);
+        
+        return tools.Cast<AITool>();
     }
 }
