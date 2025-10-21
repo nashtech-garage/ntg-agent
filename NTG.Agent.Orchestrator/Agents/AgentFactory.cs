@@ -137,7 +137,14 @@ public class AgentFactory
 
     private async Task<IEnumerable<AITool>> GetMcpToolsAsync()
     {
-        var endpoint = "http://localhost:5136";
+        var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-mcp-server__https__0")
+        ?? Environment.GetEnvironmentVariable($"services__ntg-agent-mcp-server__http__0");
+
+        if (string.IsNullOrEmpty(endpoint))
+        {
+            throw new InvalidOperationException("MCP server endpoint is not configured.");
+        }
+
         var transport = new HttpClientTransport(new HttpClientTransportOptions
         {
             Name = "ntgmcpserver",
