@@ -82,6 +82,15 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == toolsTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(toolsTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-tools me-2"></i>
+                                    Tools
+                                    <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
                                 <button class="nav-link @(activeTab == documentsTab ? "active" : "") d-flex align-items-center" 
                                         @onclick="() => SetActiveTab(documentsTab)" 
                                         type="button" role="tab">
@@ -113,6 +122,12 @@
                                         <i class="bi bi-gear me-2"></i>
                                         <span>Agent Settings</span>
                                     }
+                                    else if (activeTab == toolsTab)
+                                    {
+                                        <i class="bi bi-tools me-2"></i>
+                                        <span>Tools</span>
+                                        <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
+                                    }
                                     else if (activeTab == documentsTab)
                                     {
                                         <i class="bi bi-book me-2"></i>
@@ -133,6 +148,14 @@
                                             @onclick="() => SetActiveTab(settingsTab)" type="button">
                                         <i class="bi bi-gear me-2"></i>
                                         Agent Settings
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == toolsTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(toolsTab)" type="button">
+                                        <i class="bi bi-tools me-2"></i>
+                                        Tools
+                                        <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
                                     </button>
                                 </li>
                                 <li>
@@ -169,18 +192,18 @@
                                 <div class="tab-pane fade show active p-0">
                                     <div class="row g-0">
                                         <div class="col-md-3 border-end">
-                                            <TreeFolder AgentId="Id" 
-                                                       OnFolderSelected="HandleFolderSelected" 
-                                                       OnAddKnowledgeRequested="HandleAddKnowledgeRequested" />
+                                            <TreeFolder AgentId="Id"
+                                                        OnFolderSelected="HandleFolderSelected"
+                                                        OnAddKnowledgeRequested="HandleAddKnowledgeRequested" />
                                         </div>
                                         <div class="col-md-9 p-2 p-md-4">
                                             @if (selectedFolderId.HasValue)
                                             {
                                                 <DocumentsTab @ref="documentsTabRef"
-                                                             AgentId="Id" 
-                                                             @bind-DocumentCount="documentCount" 
-                                                             FolderId="selectedFolderId"
-                                                             OpenAddKnowledgeDialogOnLoad="openAddKnowledgeDialog" />
+                                                              AgentId="Id"
+                                                              @bind-DocumentCount="documentCount"
+                                                              FolderId="selectedFolderId"
+                                                              OpenAddKnowledgeDialogOnLoad="openAddKnowledgeDialog" />
                                             }
                                             else
                                             {
@@ -194,6 +217,12 @@
                                             }
                                         </div>
                                     </div>
+                                </div>
+                            }
+                            else if (activeTab == toolsTab)
+                            {
+                                <div class="tab-pane fade show active p-2 p-md-4">
+                                    <ToolManagementTab AgentDetail="agentDetail" />
                                 </div>
                             } 
                             else if (activeTab == tagsManagementTab)
@@ -250,6 +279,7 @@
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
+    private const string toolsTab = "tools";
     private const string tagsManagementTab = "tagsmanagement";
     private string activeTab = settingsTab;
     private int documentCount = 0;

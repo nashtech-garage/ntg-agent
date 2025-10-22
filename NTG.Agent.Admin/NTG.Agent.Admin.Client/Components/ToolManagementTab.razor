@@ -1,0 +1,213 @@
+﻿@using NTG.Agent.Orchestrator.Models.Agents
+@using NTG.Agent.Shared.Dtos.Agents
+@inject AgentClient AgentClient
+
+<div class="tab-pane fade show active" id="mcp-tools" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+
+            <!-- === MCP Server Section === -->
+            <div class="mb-4">
+                <h5 class="mb-1">MCP Server Connection</h5>
+                <p class="text-muted mb-0">Connect to an MCP server and explore registered tools.</p>
+            </div>
+
+            <EditForm Model="this" OnValidSubmit="ConnectToMcpServer">
+                <div class="card border-0 bg-light">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-link-45deg me-2"></i>MCP Server Endpoint
+                            </label>
+                            <InputText @bind-Value="mcpEndpoint"
+                                       @oninput="HandleEndpointInput"
+                                       class="form-control"
+                                       placeholder="Enter MCP server endpoint (e.g., http://localhost:5136)" />
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary" disabled="@isConnecting">
+                                @if (isConnecting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-plug me-1"></i>
+                                }
+                                Connect
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </EditForm>
+
+            @if (!string.IsNullOrEmpty(statusMessage))
+            {
+                <div class="alert @(isConnected ? "alert-success" : "alert-danger") mt-3 d-flex align-items-center" role="alert">
+                    <i class="@(isConnected ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+                    <div>@statusMessage</div>
+                </div>
+            }
+
+            <!-- === MCP Tools === -->
+            @if (isConnected && mcpTools?.Any() == true)
+            {
+                <div class="card border-0 bg-light mt-3">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-wrench me-2"></i>Available MCP Tools
+                        </h6>
+                        <ul class="list-group list-group-flush small">
+                            @foreach (var tool in mcpTools)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>@tool.Name</strong>
+                                        <div class="text-muted">@tool.Description</div>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox"
+                                               @bind="tool.IsEnabled" />
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+
+            <!-- === Built-in Tools === -->
+            @if (builtInTools?.Any() == true)
+            {
+                <div class="card border-0 bg-light mt-4">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <i class="bi bi-gear-fill me-2"></i>Built-in Tools
+                        </h6>
+                        <ul class="list-group list-group-flush small">
+                            @foreach (var tool in builtInTools)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>@tool.Name</strong>
+                                        <div class="text-muted">@tool.Description</div>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox"
+                                               @bind="tool.IsEnabled" />
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+
+            <!-- === Save Button === -->
+            <div class="d-flex justify-content-end mt-4">
+                <button class="btn btn-success" @onclick="SaveAiToolsSettings">
+                    <i class="bi bi-save me-1"></i> Save AI Tools Settings
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    [Parameter]
+    public AgentDetail AgentDetail { get; set; } = null!;
+
+    private string mcpEndpoint = "http://localhost:5136";
+    private bool isConnecting = false;
+    private bool isConnected = false;
+    private bool hasEndpointChanged = false;
+    private string statusMessage = string.Empty;
+
+    private List<AgentToolDto>? mcpTools;
+    private List<AgentToolDto>? builtInTools;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var tools = await AgentClient.GetAgentToolsByAgentId(AgentDetail.Id);
+        builtInTools = tools.Where(x => x.AgentToolType == AgentToolType.BuiltIn).ToList();
+        mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
+        if (!string.IsNullOrEmpty(AgentDetail.McpServer))
+        {
+            mcpEndpoint = AgentDetail.McpServer;
+            await ConnectToMcpServer();
+            if (isConnected)
+            {
+                statusMessage = string.Empty;
+            }
+        }
+    }
+
+    private void HandleEndpointInput(ChangeEventArgs e)
+    {
+        var newValue = e.Value?.ToString() ?? string.Empty;
+
+        // Detect changes from the saved endpoint
+        if (newValue != AgentDetail.McpServer)
+        {
+            hasEndpointChanged = true;
+            isConnected = false;
+            statusMessage = string.Empty;
+            StateHasChanged();
+        }
+
+        mcpEndpoint = newValue;
+    }
+
+    private async Task ConnectToMcpServer()
+    {
+        try
+        {
+            isConnecting = true;
+            statusMessage = string.Empty;
+            isConnected = false;
+
+            mcpTools = (await AgentClient.ConnectToMcpServerAsync(AgentDetail.Id, mcpEndpoint)).ToList();
+
+            isConnected = true;
+            hasEndpointChanged = false;
+            statusMessage = $"Connected successfully! {mcpTools.Count} tools found.";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to connect: {ex.Message}";
+        }
+        finally
+        {
+            isConnecting = false;
+        }
+    }
+
+
+    private async Task SaveAiToolsSettings()
+    {
+        // If endpoint changed but not reconnected, try connecting first
+        if (hasEndpointChanged)
+        {
+            await ConnectToMcpServer();
+
+            if (!isConnected)
+            {
+                return;
+            }
+        }
+
+        // Combine both lists
+        var allTools = new List<AgentToolDto>();
+        if (builtInTools != null) allTools.AddRange(builtInTools);
+        if (mcpTools != null) allTools.AddRange(mcpTools);
+
+        AgentDetail.McpServer = mcpEndpoint;
+
+        await AgentClient.UpdateAgent(AgentDetail);
+        await AgentClient.UpdateAgentToolsAsync(AgentDetail.Id, allTools);
+        statusMessage = $"Saved {allTools.Count(t => t.IsEnabled)} tools as enabled.";
+        isConnected = true;
+    }
+}

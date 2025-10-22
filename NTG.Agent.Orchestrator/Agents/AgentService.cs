@@ -15,14 +15,14 @@ namespace NTG.Agent.Orchestrator.Agents;
 
 public class AgentService
 {
-    private readonly AgentFactory _agentFactory;
+    private readonly IAgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
     private Guid agentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5"); // We will support multiple agents later
 
     public AgentService(
-        AgentFactory agentFactory,
+        IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService
          )
@@ -215,7 +215,7 @@ public class AgentService
 
     private string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
-            Question: {userPrompt}, context: {{memory.search}} then {{search_online}}
+            Question: {userPrompt}. Context: {{memory.search}} then {{search_online}}
             Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
             If the answer is not in the context, inform the user that you can't answer the question.
         ";

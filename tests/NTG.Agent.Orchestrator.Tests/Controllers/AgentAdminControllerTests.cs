@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Moq;
+using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Identity;
@@ -15,6 +17,8 @@ public class AgentAdminControllerTests
     private AgentAdminController _controller;
     private Guid _testUserId;
     private Guid _testAdminUserId;
+    private Mock<IAgentFactory> _mockAgentFactory;
+
     [SetUp]
     public void Setup()
     {
@@ -24,13 +28,14 @@ public class AgentAdminControllerTests
         _context = new AgentDbContext(options);
         _testUserId = Guid.NewGuid();
         _testAdminUserId = Guid.NewGuid();
+        _mockAgentFactory = new();
         // Mock the admin user principal
         var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.NameIdentifier, _testAdminUserId.ToString()),
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
-        _controller = new AgentAdminController(_context)
+        _controller = new AgentAdminController(_context, _mockAgentFactory.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -48,13 +53,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -180,7 +185,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -204,7 +209,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object)
         {
             ControllerContext = new ControllerContext
             {

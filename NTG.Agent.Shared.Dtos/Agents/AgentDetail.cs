@@ -10,6 +10,10 @@ public class AgentDetail
     public string ProviderApiKey { get; set; }
     public string ProviderModelName { get; set; }
 
+    public string? McpServer { get; set; }
+
+    public string ToolCount { get; set; } = "0";
+
     public AgentDetail(
         Guid id,
         string name,
