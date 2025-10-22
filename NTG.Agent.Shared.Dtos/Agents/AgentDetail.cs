@@ -14,8 +14,6 @@ public class AgentDetail
 
     public string ToolCount { get; set; } = "0";
 
-    public AgentDetail() { }
-
     public AgentDetail(
         Guid id,
         string name,
