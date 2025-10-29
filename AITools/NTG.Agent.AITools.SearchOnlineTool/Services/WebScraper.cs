@@ -48,7 +48,7 @@ public sealed class WebScraper : IWebScraper, IDisposable
 
         if (!response.IsSuccessStatusCode)
         {
-            _logger.LogError("Error while fetching page {0}, status code: {1}", url.AbsoluteUri, response.StatusCode);
+            _logger.LogError("Error while fetching page {url}, status code: {statusCode}", url.AbsoluteUri, response.StatusCode);
             return new WebScraperResult { Success = false, Error = $"HTTP error, status code: {response.StatusCode}" };
         }
 
@@ -59,7 +59,7 @@ public sealed class WebScraper : IWebScraper, IDisposable
         }
 
         contentType = FixContentType(contentType, url);
-        _logger.LogDebug("URL '{0}' fetched, content type: {1}", url.AbsoluteUri, contentType);
+        _logger.LogDebug("URL '{url}' fetched, content type: {contentType}", url.AbsoluteUri, contentType);
 
         var content = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         // Read all bytes to avoid System.InvalidOperationException exception "Timeouts are not supported on this stream"
