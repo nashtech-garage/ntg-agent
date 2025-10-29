@@ -219,7 +219,7 @@
     private string generalMessage = string.Empty;
     private bool isError = false;
     private bool isUploading = false;
-    private int MAX_FILE_UPLOAD = 10;
+    private readonly int MAX_FILE_UPLOAD = 10;
 
     // Tags related fields
     private List<TagDto> availableTags = new();
@@ -432,7 +432,7 @@
         try
         {
             var tagIds = GetSelectedTagIds();
-            var documentId = await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, tagIds);
+            await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully processed URL content";
@@ -489,7 +489,7 @@
             StateHasChanged();
 
             var tagIds = GetSelectedTagIds();
-            var documentId = await DocumentClient.UploadTextContentAsync(AgentId, title, textContent, FolderId, tagIds);
+            await DocumentClient.UploadTextContentAsync(AgentId, title, textContent, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
             uploadItem.Message = "Successfully added text content";
