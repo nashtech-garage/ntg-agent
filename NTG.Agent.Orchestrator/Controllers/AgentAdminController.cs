@@ -41,7 +41,7 @@ public class AgentAdminController : ControllerBase
         var agent = await _agentDbContext.Agents
             .Where(x => x.Id == id)
             .Include(x => x.AgentTools)
-            .Select(x => new AgentDetail(x.Id, x.Name, x.Instructions, x.ProviderName, x.ProviderEndpoint, x.ProviderApiKey, x.ProviderModelName)
+            .Select(x => new AgentDetail(x.Id, x.Name, x.Instructions, x.ProviderName, x.ProviderEndpoint, x.ProviderApiKey, x.ProviderModelName, x.Temperature)
             {
                 McpServer = x.McpServer,
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}"
@@ -75,6 +75,7 @@ public class AgentAdminController : ControllerBase
         agent.ProviderApiKey = updatedAgent.ProviderApiKey;
         agent.ProviderModelName = updatedAgent.ProviderModelName;
         agent.McpServer = updatedAgent.McpServer;
+        agent.Temperature = updatedAgent.Temperature;
         agent.UpdatedAt = DateTime.UtcNow;
         agent.UpdatedByUserId = userId;
         await _agentDbContext.SaveChangesAsync();

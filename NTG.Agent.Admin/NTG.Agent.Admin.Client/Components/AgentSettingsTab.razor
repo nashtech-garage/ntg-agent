@@ -136,12 +136,12 @@ You are a helpful AI assistant specialized in customer support. Always be polite
                     </h6>
                     <div class="mb-3">
                         <label class="form-label small">Temperature</label>
-                        <input type="range" class="form-range" min="0" max="1" step="0.1" @bind="temperature">
+                        <input type="range" class="form-range" min="0" max="1" step="0.1" @bind="AgentDetail.Temperature">
                         <div class="d-flex justify-content-between">
                             <small class="text-muted">Conservative</small>
                             <small class="text-muted">Creative</small>
                         </div>
-                        <small class="text-muted">Current: @temperature.ToString("F1")</small>
+                        <small class="text-muted">Current: @AgentDetail.Temperature.ToString("F1")</small>
                     </div>
                     
                     <div class="mb-3">
@@ -173,7 +173,6 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     private bool isSuccess = false;
     
     // Advanced settings
-    private double temperature = 0.7;
     private int maxTokens = 500;
     
     private readonly string defaultPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
@@ -214,8 +213,11 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     {
         try
         {
-            // TODO: Implement API call to save advanced settings
-            await Task.Delay(500);
+            isSaving = true;
+            statusMessage = string.Empty;
+
+            await AgentClient.UpdateAgent(AgentDetail);
+            
             statusMessage = "Advanced settings saved successfully!";
             isSuccess = true;
             
@@ -226,6 +228,10 @@ You are a helpful AI assistant specialized in customer support. Always be polite
         {
             statusMessage = $"Error saving settings: {ex.Message}";
             isSuccess = false;
+        }
+        finally
+        {
+            isSaving = false;
         }
     }
 }

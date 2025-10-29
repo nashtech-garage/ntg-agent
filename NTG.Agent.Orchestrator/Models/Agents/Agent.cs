@@ -27,6 +27,8 @@ public class Agent
 
     public string? McpServer { get; set; } = string.Empty;
 
+    public double Temperature { get; set; } = 0.7;
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

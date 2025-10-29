@@ -251,6 +251,131 @@ public class AgentAdminControllerTests
         Assert.That(agentDetail, Is.Not.Null);
         Assert.That(agentDetail.Id, Is.EqualTo(agentId));
     }
+
+    [Test]
+    public async Task GetAgentById_WhenAgentHasTemperature_ReturnsAgentDetailWithTemperature()
+    {
+        // Arrange
+        var agentId = await SeedAgentWithTemperature(0.8);
+        // Act
+        var result = await _controller.GetAgentById(agentId);
+        // Assert
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var agentDetail = okResult.Value as AgentDetail;
+        Assert.That(agentDetail, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(agentDetail.Id, Is.EqualTo(agentId));
+            Assert.That(agentDetail.Temperature, Is.EqualTo(0.8));
+        }
+    }
+
+    [Test]
+    public async Task UpdateAgent_WhenTemperatureIsProvided_UpdatesTemperature()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        var updatedAgent = new AgentDetail(
+            agentId,
+            "Updated Agent Name",
+            "Updated instructions",
+            "AzureOpenAI",
+            "https://updated-endpoint.com",
+            "updated-key",
+            "gpt-4",
+            0.9
+        );
+        // Act
+        var result = await _controller.UpdateAgent(agentId, updatedAgent);
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var agent = await _context.Agents.FindAsync(agentId);
+        Assert.That(agent, Is.Not.Null);
+        Assert.That(agent.Temperature, Is.EqualTo(0.9));
+    }
+
+    [Test]
+    public async Task UpdateAgent_WhenTemperatureIsZero_UpdatesTemperatureToZero()
+    {
+        // Arrange
+        var agentId = await SeedAgentWithTemperature(0.7);
+        var updatedAgent = new AgentDetail(
+            agentId,
+            "Updated Agent",
+            "Updated instructions",
+            "GitHubModel",
+            "https://endpoint.com",
+            "key",
+            "model",
+            0.0
+        );
+        // Act
+        var result = await _controller.UpdateAgent(agentId, updatedAgent);
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var agent = await _context.Agents.FindAsync(agentId);
+        Assert.That(agent, Is.Not.Null);
+        Assert.That(agent.Temperature, Is.EqualTo(0.0));
+    }
+
+    [Test]
+    public async Task UpdateAgent_WhenTemperatureIsOne_UpdatesTemperatureToOne()
+    {
+        // Arrange
+        var agentId = await SeedAgentWithTemperature(0.5);
+        var updatedAgent = new AgentDetail(
+            agentId,
+            "Updated Agent",
+            "Updated instructions",
+            "GitHubModel",
+            "https://endpoint.com",
+            "key",
+            "model",
+            1.0
+        );
+        // Act
+        var result = await _controller.UpdateAgent(agentId, updatedAgent);
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var agent = await _context.Agents.FindAsync(agentId);
+        Assert.That(agent, Is.Not.Null);
+        Assert.That(agent.Temperature, Is.EqualTo(1.0));
+    }
+
+    private async Task<Guid> SeedAgentWithTemperature(double temperature)
+    {
+        var ownerUser = new User
+        {
+            Id = _testUserId,
+            UserName = "testowner",
+            Email = "owner@test.com"
+        };
+        var updaterUser = new User
+        {
+            Id = Guid.NewGuid(),
+            UserName = "testupdater",
+            Email = "updater@test.com"
+        };
+        await _context.Users.AddRangeAsync(ownerUser, updaterUser);
+        var agentId = Guid.NewGuid();
+        var agent = new AgentModel
+        {
+            Id = agentId,
+            Name = "Temperature Test Agent",
+            Instructions = "Test instructions",
+            Temperature = temperature,
+            OwnerUserId = ownerUser.Id,
+            UpdatedByUserId = updaterUser.Id,
+            CreatedAt = DateTime.UtcNow.AddDays(-1),
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.SaveChangesAsync();
+        return agentId;
+    }
+
     private async Task SeedAgentsData()
     {
         var ownerUser = new User

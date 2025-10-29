@@ -12,6 +12,8 @@ public class AgentDetail
 
     public string? McpServer { get; set; }
 
+    public double Temperature { get; set; } = 0.7;
+
     public string ToolCount { get; set; } = "0";
 
     public AgentDetail(
@@ -21,7 +23,8 @@ public class AgentDetail
         string providerName,
         string providerEndpoint,
         string providerApiKey,
-        string providerModelName)
+        string providerModelName,
+        double temperature = 0.7)
     {
         Id = id;
         Name = name;
@@ -30,5 +33,6 @@ public class AgentDetail
         ProviderEndpoint = providerEndpoint;
         ProviderApiKey = providerApiKey;
         ProviderModelName = providerModelName;
+        Temperature = temperature;
     }
 }
