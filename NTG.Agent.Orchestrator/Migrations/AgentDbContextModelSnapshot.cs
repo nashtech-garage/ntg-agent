@@ -91,7 +91,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                             ProviderEndpoint = "",
                             ProviderModelName = "",
                             ProviderName = "",
-                            Temperature = 0.69999999999999996,
+                            Temperature = 0.7,
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
                         });

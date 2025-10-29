@@ -23,7 +23,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                 keyColumn: "Id",
                 keyValue: new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
                 column: "Temperature",
-                value: 0.69999999999999996);
+                value: 0.7);
         }
 
         /// <inheritdoc />
