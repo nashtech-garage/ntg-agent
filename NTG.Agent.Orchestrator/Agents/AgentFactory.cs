@@ -2,12 +2,9 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using Microsoft.KernelMemory.Context;
 using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
-using ModelContextProtocol.Client;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Shared.Dtos.Agents;
 using OpenAI;
 using System.ClientModel;
 
