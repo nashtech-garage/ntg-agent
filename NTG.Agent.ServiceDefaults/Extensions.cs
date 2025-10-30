@@ -23,7 +23,6 @@ public static class Extensions
 
         builder.AddDefaultHealthChecks();
 
-        builder.Services.AddScoped(typeof(IApplicationLogger<>), typeof(ApplicationLogger<>));
         builder.Services.AddScoped<IMetricsCollector, MetricsCollector>();
 
         // Register exception handler

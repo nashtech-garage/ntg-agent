@@ -11,13 +11,14 @@ using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using System.Security.Claims;
 using System.Text;
 using NTG.Agent.Common.Dtos.Documents;
+using Microsoft.Extensions.Logging;
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]
 public class DocumentsControllerTests
 {
     private AgentDbContext _context;
     private Mock<IKnowledgeService> _mockKnowledgeService;
-    private Mock<IApplicationLogger<DocumentsController>> _mockLogger;
+    private Mock<ILogger<DocumentsController>> _mockLogger;
     private Mock<IMetricsCollector> _mockMetrics;
     private DocumentsController _controller;
     private Guid _testUserId;
@@ -30,11 +31,10 @@ public class DocumentsControllerTests
             .Options;
         _context = new AgentDbContext(options);
         _mockKnowledgeService = new Mock<IKnowledgeService>();
-        _mockLogger = new Mock<IApplicationLogger<DocumentsController>>();
+        _mockLogger = new Mock<ILogger<DocumentsController>>();
         _mockMetrics = new Mock<IMetricsCollector>();
         var mockScope = new Mock<IDisposable>();
         var mockTimer = new Mock<IDisposable>();
-        _mockLogger.Setup(x => x.BeginScope(It.IsAny<string>(), It.IsAny<object>())).Returns(mockScope.Object);
         _mockMetrics.Setup(x => x.StartTimer(It.IsAny<string>(), It.IsAny<(string, string)[]>())).Returns(mockTimer.Object);
         _testUserId = Guid.NewGuid();
         _testAgentId = Guid.NewGuid();

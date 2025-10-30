@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Controllers;
@@ -8,16 +9,16 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
-using NTG.Agent.ServiceDefaults.Logging;
-using NUnit.Framework;
 using System.Security.Claims;
+
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
+
 [TestFixture]
 public class TagsControllerTests
 {
     private AgentDbContext _dbContext = null!;
     private TagsController _controller = null!;
-    private Mock<IApplicationLogger<TagsController>> _mockLogger = null!;
+    private Mock<ILogger<TagsController>> _mockLogger = null!;
     [SetUp]
     public void Setup()
     {
@@ -28,7 +29,7 @@ public class TagsControllerTests
             .Options;
         _dbContext = new AgentDbContext(options);
         // Setup mocks
-        _mockLogger = new Mock<IApplicationLogger<TagsController>>();
+        _mockLogger = new Mock<ILogger<TagsController>>();
         // Create controller
         _controller = new TagsController(_dbContext, _mockLogger.Object);
         // Setup HTTP context with authenticated admin user

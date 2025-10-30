@@ -7,7 +7,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.Common.Logger;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using NTG.Agent.Common.Dtos.Documents;
 
@@ -20,10 +20,10 @@ public class DocumentsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly IApplicationLogger<DocumentsController> _logger;
+    private readonly ILogger<DocumentsController> _logger;
     private readonly IMetricsCollector _metrics;
 
-    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, IApplicationLogger<DocumentsController> logger, IMetricsCollector metrics)
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, ILogger<DocumentsController> logger, IMetricsCollector metrics)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
