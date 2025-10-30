@@ -98,7 +98,7 @@ public class AgentAdminController : ControllerBase
         return Ok(tools);
     }
 
-    private List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools)
+    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools)
     {
         return availableTools
                 .Select(t =>

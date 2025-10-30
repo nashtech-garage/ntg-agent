@@ -173,16 +173,16 @@ public class AgentService
             yield return item.Text;
     }
 
-    private ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
+    private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessage(ChatRole.User, prompt);
 
         return userMessage;
     }
 
-    private string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
+    private static string BuildPromptAsync(PromptRequest<UploadItemForm> promptRequest, List<string> ocrDocuments)
     {
-        if (ocrDocuments.Any())
+        if (ocrDocuments.Count != 0)
         {
             return BuildOcrPromptAsync(promptRequest.Prompt, ocrDocuments);
         }
@@ -213,7 +213,7 @@ public class AgentService
         return runResults.Text;
     }
 
-    private string BuildTextOnlyPrompt(string userPrompt) =>
+    private static string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
             Question: {userPrompt}. Context: {{memory.search}} then {{search_online}}
             Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
@@ -221,7 +221,7 @@ public class AgentService
         ";
 
 
-    private string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)
+    private static string BuildOcrPromptAsync(string userPrompt, List<string> ocrDocuments)
     {
         var prompt = $@"
             You are a helpful document assistant.

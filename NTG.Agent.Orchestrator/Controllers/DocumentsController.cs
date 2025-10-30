@@ -145,7 +145,7 @@ public class DocumentsController : ControllerBase
             }
         }
 
-        if (documents.Any())
+        if (documents.Count != 0)
         {
             _agentDbContext.Documents.AddRange(documents);
             _agentDbContext.DocumentTags.AddRange(documentTags);
@@ -366,7 +366,7 @@ public class DocumentsController : ControllerBase
 
         var contentType = FileTypeService.GetContentType(fileName);
 
-        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId);
+        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId, ct);
 
         if (content is null) return NotFound();
 
@@ -385,7 +385,7 @@ public class DocumentsController : ControllerBase
         try
         {
             using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(document.Url);
+            var response = await httpClient.GetAsync(document.Url, ct);
             response.EnsureSuccessStatusCode();
 
             // Prefer server-provided content-type, with fallback to URL/extension

@@ -21,7 +21,7 @@ public class Folder
     [JsonIgnore]
     public Folder? Parent { get; set; }
     public bool IsDeletable { get; set; } = true;
-    public int? SortOrder { get; set; } = null;
+    public int? SortOrder { get; set; }
     public ICollection<Folder> Children { get; set; } = new List<Folder>();
     public ICollection<Document> Documents { get; set; } = new List<Document>();
     public Guid AgentId { get; set; }

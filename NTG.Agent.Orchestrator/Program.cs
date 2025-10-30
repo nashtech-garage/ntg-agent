@@ -19,7 +19,7 @@ const string ServiceName = "Orchestrator";
 var builder = WebApplication.CreateBuilder(args);
 
 // Endpoint to the Aspire Dashboard
-var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new Exception("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
+var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new ConfigurationException("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
 
 var resourceBuilder = ResourceBuilder
     .CreateDefault()
