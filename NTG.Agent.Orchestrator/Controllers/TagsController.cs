@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Tags;
-using NTG.Agent.ServiceDefaults.Logging;
+using NTG.Agent.Common.Logger;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -18,7 +18,7 @@ namespace NTG.Agent.Orchestrator.Controllers;
 public class TagsController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
-    private readonly IApplicationLogger<TagsController> _logger;
+    private readonly ILogger<TagsController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the TagsController.
@@ -26,7 +26,7 @@ public class TagsController : ControllerBase
     /// <param name="agentDbContext">The database context for agent operations.</param>
     /// <param name="logger">The logger instance for logging operations.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
-    public TagsController(AgentDbContext agentDbContext, IApplicationLogger<TagsController> logger)
+    public TagsController(AgentDbContext agentDbContext, ILogger<TagsController> logger)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));

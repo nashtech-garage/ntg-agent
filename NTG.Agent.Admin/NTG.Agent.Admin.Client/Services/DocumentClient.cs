@@ -39,7 +39,7 @@ public class DocumentClient(HttpClient httpClient)
         if (folderId.HasValue)
             queryParams.Add($"folderId={folderId}");
         
-        if (tags != null && tags.Any())
+        if (tags != null && tags.Count != 0)
         {
             foreach (var tag in tags)
             {
@@ -47,7 +47,7 @@ public class DocumentClient(HttpClient httpClient)
             }
         }
         
-        var queryString = queryParams.Any() ? "?" + string.Join("&", queryParams) : "";
+        var queryString = queryParams.Count != 0 ? "?" + string.Join("&", queryParams) : "";
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
     }

@@ -1,6 +1,8 @@
+using Castle.Core.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Controllers;
@@ -17,7 +19,7 @@ public class TagsControllerTests
 {
     private AgentDbContext _dbContext = null!;
     private TagsController _controller = null!;
-    private Mock<IApplicationLogger<TagsController>> _mockLogger = null!;
+    private Mock<ILogger<TagsController>> _mockLogger = null!;
     [SetUp]
     public void Setup()
     {
@@ -28,7 +30,7 @@ public class TagsControllerTests
             .Options;
         _dbContext = new AgentDbContext(options);
         // Setup mocks
-        _mockLogger = new Mock<IApplicationLogger<TagsController>>();
+        _mockLogger = new Mock<ILogger<TagsController>>();
         // Create controller
         _controller = new TagsController(_dbContext, _mockLogger.Object);
         // Setup HTTP context with authenticated admin user
