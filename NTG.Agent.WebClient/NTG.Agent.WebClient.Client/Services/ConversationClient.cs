@@ -1,5 +1,5 @@
-using NTG.Agent.Shared.Dtos.Chats;
-using NTG.Agent.Shared.Dtos.Conversations;
+using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Conversations;
 using System.Net;
 using System.Net.Http.Json;
 

@@ -1,12 +1,5 @@
-﻿using Microsoft.AspNetCore.Components.Forms;
-using NTG.Agent.Shared.Dtos.Chats;
-using System.Net.Http.Headers;
+﻿using NTG.Agent.Common.Dtos.Chats;
 using System.Net.Http.Json;
-using System.Reflection;
-using System.Text.Json;
-using System.Text;
-using NTG.Agent.Shared.Dtos.Services;
-using System.ComponentModel;
 using NTG.Agent.WebClient.Client.Dtos;
 
 namespace NTG.Agent.WebClient.Client.Services;

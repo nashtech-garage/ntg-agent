@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Components.Forms;
-using NTG.Agent.Shared.Dtos.Chats;
-using NTG.Agent.Shared.Dtos.Upload;
+using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Upload;
 
 namespace NTG.Agent.Orchestrator.Dtos;
 

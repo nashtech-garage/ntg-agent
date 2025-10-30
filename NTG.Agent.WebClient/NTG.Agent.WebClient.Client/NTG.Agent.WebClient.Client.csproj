@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj" />
+    <ProjectReference Include="..\..\NTG.Agent.Common\NTG.Agent.Common.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,11 +2,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Enums;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Chat;
-using NTG.Agent.Shared.Dtos.Enums;
-using NTG.Agent.Shared.Dtos.SharedConversations;
+using NTG.Agent.Common.Dtos.SharedConversations;
 using System.Security.Claims;
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]

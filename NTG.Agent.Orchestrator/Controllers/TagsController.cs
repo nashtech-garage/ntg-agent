@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.ServiceDefaults.Logging;
-using NTG.Agent.Shared.Dtos.Tags;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

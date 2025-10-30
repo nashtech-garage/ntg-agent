@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Orchestrator.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Extentions;
-using NTG.Agent.Shared.Dtos.Chats;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

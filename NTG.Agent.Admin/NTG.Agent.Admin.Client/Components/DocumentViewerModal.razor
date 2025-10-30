@@ -1,3 +1,5 @@
+@using NTG.Agent.Common.Dtos.Services
+@using NTG.Agent.Common.Dtos.Documents
 @inject ILogger<DocumentViewerModal> Logger
 @inject DocumentClient DocumentClient
 @inject IJSRuntime JSRuntime
@@ -158,7 +160,6 @@
 
     private bool isLoading = false;
     private string? documentContent;
-    private string? contentType;
     private string? errorMessage;
     private bool shouldHighlight = false;
 
@@ -173,7 +174,6 @@
         {
             // Reset state when modal is closed
             documentContent = null;
-            contentType = null;
             errorMessage = null;
             shouldHighlight = false;
         }
@@ -229,7 +229,6 @@
             
             var (content, type) = await DocumentClient.ViewDocumentAsync(AgentId, Document.Id);
             documentContent = content;
-            contentType = type;
             shouldHighlight = true;
         }
         catch (Exception ex)

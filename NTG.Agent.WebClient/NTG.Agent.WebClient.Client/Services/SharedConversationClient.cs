@@ -1,4 +1,4 @@
-﻿using NTG.Agent.Shared.Dtos.SharedConversations;
+﻿using NTG.Agent.Common.Dtos.SharedConversations;
 using System.Net;
 using System.Net.Http.Json;
 

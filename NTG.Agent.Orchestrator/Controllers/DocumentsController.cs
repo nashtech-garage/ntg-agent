@@ -2,14 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Services;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
-using NTG.Agent.Shared.Dtos.Documents;
-using NTG.Agent.Shared.Dtos.Services;
+using NTG.Agent.Common.Dtos.Documents;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

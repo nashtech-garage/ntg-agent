@@ -1,4 +1,4 @@
-using NTG.Agent.Shared.Dtos.Tags;
+using NTG.Agent.Common.Dtos.Tags;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;

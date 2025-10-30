@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.0.11010.61 d18.0
+VisualStudioVersion = 18.0.11010.61
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Orchestrator", "NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj", "{3C10E607-0834-4673-AF30-0D745694BA42}"
 EndProject
@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Admin", "NTG.Agen
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Admin.Client", "NTG.Agent.Admin\NTG.Agent.Admin.Client\NTG.Agent.Admin.Client.csproj", "{7FCA62B2-ED32-0DD4-3684-9F61CEA019ED}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Shared.Dtos", "NTG.Agent.Shared.Dtos\NTG.Agent.Shared.Dtos.csproj", "{D956E923-624E-4619-837D-30C697183E87}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Common", "NTG.Agent.Common\NTG.Agent.Common.csproj", "{D956E923-624E-4619-837D-30C697183E87}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server", "NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj", "{BAFC9973-3BF1-C228-4602-6B61468FCD1B}"
 EndProject

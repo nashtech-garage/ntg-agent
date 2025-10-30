@@ -8,9 +8,9 @@ using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.ServiceDefaults.Logging;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
-using NTG.Agent.Shared.Dtos.Documents;
 using System.Security.Claims;
 using System.Text;
+using NTG.Agent.Common.Dtos.Documents;
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]
 public class DocumentsControllerTests
