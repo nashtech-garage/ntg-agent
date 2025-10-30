@@ -19,12 +19,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
             { "agentId", agentId.ToString() },
             { "tags", tags.Cast<string?>().ToList() }
         };
-        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection);
+        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, cancellationToken: cancellationToken);
     }
 
     public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
     {
-        await _kernelMemory.DeleteDocumentAsync(documentId);
+        await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
@@ -50,14 +50,14 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
-            _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {query}, tags:{tags} => {result}", query, string.Join(", ", tags), result.ToJson());
+            _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {Query}, tags:{Tags} => {Result}", query, string.Join(", ", tags), result.ToJson());
         }
         return result;
     }
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var result = await _kernelMemory.SearchAsync(query);
+        var result = await _kernelMemory.SearchAsync(query, cancellationToken: cancellationToken);
         return result;
     }
 

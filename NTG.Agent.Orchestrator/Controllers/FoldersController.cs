@@ -182,14 +182,14 @@ public class FoldersController : ControllerBase
             return BadRequest("This folder cannot be deleted as it is a system folder.");
         }
 
-        if (folder.Children.Any())
+        if (folder.Children.Count != 0)
         {
             return BadRequest("Cannot delete folder with child folders.");
         }
 
         _agentDbContext.Folders.Remove(folder);
         // Remove associated documents from the folder
-        if (folder.Documents.Any())
+        if (folder.Documents.Count != 0)
         {
             _agentDbContext.Documents.RemoveRange(folder.Documents);
             // Remove associated documents from knowledge base if they exist

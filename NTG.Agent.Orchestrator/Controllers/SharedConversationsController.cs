@@ -7,6 +7,8 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Shared.Dtos.Enums;
 using NTG.Agent.Shared.Dtos.SharedConversations;
 
+namespace NTG.Agent.Orchestrator.Controllers;
+
 /// <summary>
 /// Controller responsible for managing shared conversations in the application.
 /// </summary>
@@ -58,7 +60,7 @@ public class SharedConversationsController : ControllerBase
                  .ToListAsync();
         }
 
-        if (!messages.Any())
+        if (messages.Count == 0)
             return BadRequest("Conversation has no messages.");
 
         var sharedConversation = new SharedConversation

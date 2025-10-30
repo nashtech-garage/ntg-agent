@@ -51,7 +51,7 @@ public class AgentFactory : IAgentFactory
         };
     }
 
-    private AIAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
+    private static ChatClientAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
         var clientOptions = new OpenAIClientOptions
         {
@@ -62,7 +62,7 @@ public class AgentFactory : IAgentFactory
         return agent;
     }
 
-    private AIAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
+    private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
         var agent = new AzureOpenAIClient(
              new Uri(agentConfig.ProviderEndpoint),
@@ -136,8 +136,7 @@ public class AgentFactory : IAgentFactory
 
     public async Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent)
     {
-        if (agent is null)
-            throw new ArgumentNullException(nameof(agent));
+        ArgumentNullException.ThrowIfNull(agent);
 
         // 1. Define built-in tools (static plugins)
         var allTools = new List<AITool>
@@ -156,7 +155,7 @@ public class AgentFactory : IAgentFactory
     }
 
 
-    private AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
+    private static AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
     {
         var agent = new ChatClientAgent(chatClient,
             name: name,

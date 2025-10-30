@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace NTG.Agent.Orchestrator.Controllers;
 
 [ApiExplorerSettings(IgnoreApi = true)]
-public class ErrorController  : ControllerBase
+public partial class ErrorController : ControllerBase
 {
     private readonly ILogger<ErrorController> _logger;
     public ErrorController(ILogger<ErrorController> logger)
@@ -21,7 +21,7 @@ public class ErrorController  : ControllerBase
         }
 
         var exceptionHandlerFeature = HttpContext.Features.Get<IExceptionHandlerFeature>()!;
-        _logger.LogError(exceptionHandlerFeature.Error, "Unhandled exception occurred while processing request.");
+        LogUnhandledException(_logger, exceptionHandlerFeature.Error);
 
         return Problem(
             detail: exceptionHandlerFeature.Error.StackTrace,
@@ -32,8 +32,14 @@ public class ErrorController  : ControllerBase
     public IActionResult HandleError([FromServices] IHostEnvironment hostEnvironment)
     {
         var exceptionHandlerFeature = HttpContext.Features.Get<IExceptionHandlerFeature>()!;
-        _logger.LogError(exceptionHandlerFeature.Error, "Unhandled exception occurred while processing request.");
+        LogUnhandledException(_logger, exceptionHandlerFeature.Error);
 
         return Problem();
     }
+
+    [LoggerMessage(
+        EventId = 1,
+        Level = LogLevel.Error,
+        Message = "Unhandled exception occurred while processing request.")]
+    private static partial void LogUnhandledException(ILogger logger, Exception exception);
 }

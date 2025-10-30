@@ -199,7 +199,7 @@ public class ConversationsController : ControllerBase
     /// <summary>
     /// Extracts content around the matched keyword to provide context
     /// </summary>
-    private string GetContentWithKeywordContext(string content, string keyword, bool isAssistant)
+    private static string GetContentWithKeywordContext(string content, string keyword, bool isAssistant)
     {
         // For non-assistant messages or short messages, return the full content
         if (!isAssistant || content.Length <= 200)
@@ -212,7 +212,7 @@ public class ConversationsController : ControllerBase
         int keywordPos = content.IndexOf(keyword, StringComparison.OrdinalIgnoreCase);
 
         if (keywordPos < 0) // Shouldn't happen, but just in case
-            return content.Length <= maxContextLength ? content : content.Substring(0, maxContextLength) + "...";
+            return content.Length <= maxContextLength ? content : string.Concat(content.AsSpan(0, maxContextLength), "...");
 
         int startPos = Math.Max(0, keywordPos - maxContextLength / 2);
         int endPos = Math.Min(content.Length, keywordPos + keyword.Length + maxContextLength / 2);

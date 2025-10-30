@@ -19,7 +19,7 @@ public class PChatMessage
     public Guid? AgentId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-    public bool IsSummary { get; set; } = false;
+    public bool IsSummary { get; set; }
     public ReactionType Reaction { get; set; }
     public string UserComment { get; set; } = string.Empty;
 }
