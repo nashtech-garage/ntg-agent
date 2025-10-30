@@ -1,4 +1,6 @@
-﻿namespace NTG.Agent.Orchestrator.Models.Agents;
+﻿using NTG.Agent.Common.Dtos.Agents;
+
+namespace NTG.Agent.Orchestrator.Models.Agents;
 
 public class AgentTools
 {

@@ -1,13 +1,13 @@
 ﻿using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Shared.Dtos.Chats;
-using NTG.Agent.Shared.Dtos.Constants;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 

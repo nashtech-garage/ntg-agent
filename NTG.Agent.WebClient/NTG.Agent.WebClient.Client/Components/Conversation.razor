@@ -1,7 +1,7 @@
 ﻿@attribute [Authorize]
 
-@using NTG.Agent.Shared.Dtos.Chats
-@using NTG.Agent.Shared.Dtos.SharedConversations
+@using NTG.Agent.Common.Dtos.Chats
+@using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.WebClient.Client.Components.Shared
 @using Microsoft.AspNetCore.Components
 @using System.Threading
@@ -11,6 +11,7 @@
 @inject SharedConversationClient SharedConversationClient
 @inject NavigationManager Navigation
 @inject ConversationState ConversationState
+@implements IAsyncDisposable
 
 <div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")" @onclick="CloseSettingsMenuIfOpen">
     <div class="conversation-header">
@@ -244,10 +245,6 @@
         await LoadAndActiveConversations();
         StateHasChanged();
     }
-    public void Dispose()
-    {
-        ConversationState.OnConversationAdded -= HandleConversationAdded;
-    }
 
     private void ShowMenu(Guid conversationId)
     {
@@ -285,6 +282,7 @@
         // Unregister from location changes
         Navigation.LocationChanged -= HandleLocationChanged;
         await JS.InvokeVoidAsync("removeClickOutsideHandler");
+        ConversationState.OnConversationAdded -= HandleConversationAdded;
     }
 
     private async Task RenameConversation(Guid conversationId, string currentName)

@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
@@ -167,7 +168,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            {
                Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
                TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               RoleId = new Guid(Shared.Dtos.Constants.Constants.AnonymousRoleId),
+               RoleId = new Guid(Constants.AnonymousRoleId),
                CreatedAt = new DateTime(2025, 6, 24),
                UpdatedAt = new DateTime(2025, 6, 24)
            }

@@ -1,8 +1,9 @@
-@using NTG.Agent.Shared.Dtos.Chats
+@using NTG.Agent.Common.Dtos.Chats
 @using System.Threading
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
+@implements IDisposable
 
 <div class="cta-chat-section">
     <div class="button-container">

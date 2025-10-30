@@ -1,11 +1,11 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Enums;
+using NTG.Agent.Common.Dtos.SharedConversations;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
-using NTG.Agent.Shared.Dtos.Enums;
-using NTG.Agent.Shared.Dtos.SharedConversations;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

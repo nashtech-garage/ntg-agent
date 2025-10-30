@@ -1,6 +1,8 @@
-﻿using NTG.Agent.Shared.Dtos.SharedConversations;
+﻿using NTG.Agent.Common.Dtos.SharedConversations;
 using System.Net;
 using System.Net.Http.Json;
+
+namespace NTG.Agent.WebClient.Client.Services;
 
 public class SharedConversationClient(HttpClient httpClient)
 {

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.Forms;
-using NTG.Agent.Shared.Dtos.Documents;
-using NTG.Agent.Shared.Dtos.Services;
+using NTG.Agent.Common.Dtos.Documents;
+using NTG.Agent.Common.Dtos.Services;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;

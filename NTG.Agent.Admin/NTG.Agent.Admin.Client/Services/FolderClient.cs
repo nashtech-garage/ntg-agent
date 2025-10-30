@@ -1,4 +1,4 @@
-using NTG.Agent.Shared.Dtos.Folders;
+using NTG.Agent.Common.Dtos.Folders;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
