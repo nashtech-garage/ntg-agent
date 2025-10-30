@@ -1,7 +1,5 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System.Diagnostics.CodeAnalysis;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
