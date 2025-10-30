@@ -47,7 +47,7 @@ public class DocumentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetDocumentsByAgentId(Guid agentId, Guid? folderId)
     {
-        using (_logger.BeginScope("GetDocuments", new { AgentId = agentId })) ;
+        using var scope = _logger.BeginScope("GetDocuments", new { AgentId = agentId });
         using var timer = _metrics.StartTimer("documents.get", ("agent_id", agentId.ToString()));
 
         var isRootfolder = await _agentDbContext.Folders

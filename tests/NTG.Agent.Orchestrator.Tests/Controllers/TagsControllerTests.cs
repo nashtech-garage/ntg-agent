@@ -1,4 +1,3 @@
-using Castle.Core.Logging;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +9,10 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
-using NTG.Agent.ServiceDefaults.Logging;
-using NUnit.Framework;
 using System.Security.Claims;
+
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
+
 [TestFixture]
 public class TagsControllerTests
 {
