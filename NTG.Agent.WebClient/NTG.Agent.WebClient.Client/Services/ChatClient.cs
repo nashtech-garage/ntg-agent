@@ -1,6 +1,7 @@
 ﻿using NTG.Agent.Common.Dtos.Chats;
 using System.Net.Http.Json;
 using NTG.Agent.WebClient.Client.Dtos;
+using System.Globalization;
 
 namespace NTG.Agent.WebClient.Client.Services;
 
@@ -31,7 +32,7 @@ public class ChatClient(HttpClient httpClient)
                 form.Add(new StringContent(doc.Name ?? ""), $"{nameof(request.Documents)}[{i}].{nameof(doc.Name)}");
                 form.Add(new StringContent(doc.Status.ToString()), $"{nameof(request.Documents)}[{i}].{nameof(doc.Status)}");
                 form.Add(new StringContent(doc.Message ?? ""), $"{nameof(request.Documents)}[{i}].{nameof(doc.Message)}");
-                form.Add(new StringContent(doc.Progress.ToString()), $"{nameof(request.Documents)}[{i}].{nameof(doc.Progress)}");
+                form.Add(new StringContent(doc.Progress.ToString(CultureInfo.InvariantCulture)), $"{nameof(request.Documents)}[{i}].{nameof(doc.Progress)}");
             }
         }
 
