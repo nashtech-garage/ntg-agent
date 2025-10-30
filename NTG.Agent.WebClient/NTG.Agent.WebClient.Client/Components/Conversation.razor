@@ -11,7 +11,7 @@
 @inject SharedConversationClient SharedConversationClient
 @inject NavigationManager Navigation
 @inject ConversationState ConversationState
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="conversation-sidebar @(IsSidebarCollapsed ? "collapsed" : "")" @onclick="CloseSettingsMenuIfOpen">
     <div class="conversation-header">
@@ -245,10 +245,6 @@
         await LoadAndActiveConversations();
         StateHasChanged();
     }
-    public void Dispose()
-    {
-        ConversationState.OnConversationAdded -= HandleConversationAdded;
-    }
 
     private void ShowMenu(Guid conversationId)
     {
@@ -286,6 +282,7 @@
         // Unregister from location changes
         Navigation.LocationChanged -= HandleLocationChanged;
         await JS.InvokeVoidAsync("removeClickOutsideHandler");
+        ConversationState.OnConversationAdded -= HandleConversationAdded;
     }
 
     private async Task RenameConversation(Guid conversationId, string currentName)
