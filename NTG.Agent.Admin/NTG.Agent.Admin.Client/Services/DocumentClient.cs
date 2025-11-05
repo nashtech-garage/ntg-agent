@@ -121,4 +121,11 @@ public class DocumentClient(HttpClient httpClient)
             throw new InvalidOperationException($"Content type '{contentType}' is not suitable for text preview");
         }
     }
+
+    public async Task UpdateDocumentTagsAsync(Guid agentId, Guid documentId, List<string> tagIds)
+    {
+        var request = new { TagIds = tagIds };
+        var response = await httpClient.PutAsJsonAsync($"api/documents/{documentId}/{agentId}/tags", request);
+        response.EnsureSuccessStatusCode();
+    }
 }

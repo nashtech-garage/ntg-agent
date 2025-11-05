@@ -97,4 +97,25 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
     }
+
+    public async Task UpdateDocumentTagsAsync(string documentId, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    {
+        // Kernel Memory doesn't support updating tags directly, so we need to delete and re-import
+        // First, export the document to get its content
+        var fileContent = await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+        var stream = await fileContent.GetStreamAsync();
+
+        // Delete the old document
+        await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
+
+        // Re-import with new tags
+        var tagCollection = new TagCollection
+        {
+            { "agentId", agentId.ToString() },
+            { "tags", tags.Cast<string?>().ToList() }
+        };
+        
+        // Use the same documentId to maintain consistency
+        await _kernelMemory.ImportDocumentAsync(stream, documentId: documentId, fileName: fileName, tags: tagCollection, cancellationToken: cancellationToken);
+    }
 }
