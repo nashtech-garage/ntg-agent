@@ -163,8 +163,10 @@
             availableTags = await TagClient.GetTagsAsync();
 
             // Set selected tags based on document's current tags
+            // Use HashSet for O(1) lookup performance with large tag lists
+            var documentTagNames = new HashSet<string>(Document!.Tags);
             selectedTags = availableTags
-                .Where(t => Document!.Tags.Contains(t.Name))
+                .Where(t => documentTagNames.Contains(t.Name))
                 .ToList();
         }
         catch (Exception ex)

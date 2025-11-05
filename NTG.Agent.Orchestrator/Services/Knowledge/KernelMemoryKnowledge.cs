@@ -103,7 +103,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         // Kernel Memory doesn't support updating tags directly, so we need to delete and re-import
         // First, export the document to get its content
         var fileContent = await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
-        var stream = await fileContent.GetStreamAsync();
+        using var stream = await fileContent.GetStreamAsync();
 
         // Delete the old document
         await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
