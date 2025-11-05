@@ -1,0 +1,275 @@
+@using NTG.Agent.Common.Dtos.Documents
+@using NTG.Agent.Common.Dtos.Tags
+@inject DocumentClient DocumentClient
+@inject TagClient TagClient
+@inject ILogger<EditDocumentTagsModal> Logger
+
+@if (IsVisible && Document != null)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-tags me-2"></i>Edit Tags - @Document.Name
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoading)
+                    {
+                        <div class="d-flex justify-content-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading tags...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>@errorMessage
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-4">
+                            <p class="text-muted">Select tags to control document access. These tags determine which users can see this document based on their role permissions.</p>
+                        </div>
+
+                        <!-- Selected Tags Display -->
+                        @if (selectedTags.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Selected Tags:</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    @foreach (var tag in selectedTags)
+                                    {
+                                        <span class="badge bg-primary d-flex align-items-center fs-6 py-2 px-3">
+                                            @tag.Name
+                                            <button type="button" class="btn-close btn-close-white ms-2" 
+                                                    @onclick="() => RemoveTag(tag)"
+                                                    style="font-size: 0.7em;"></button>
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle me-2"></i>No tags selected. Document will not be accessible to any users.
+                            </div>
+                        }
+
+                        <!-- Available Tags -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Available Tags:</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var tag in GetUnselectedTags())
+                                {
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                            @onclick="() => AddTag(tag)">
+                                        <i class="bi bi-plus-circle me-1"></i>@tag.Name
+                                    </button>
+                                }
+                            </div>
+                            @if (!GetUnselectedTags().Any())
+                            {
+                                <p class="text-muted small mt-2">All available tags are already selected.</p>
+                            }
+                        </div>
+
+                        <!-- Quick Add Tag -->
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Create New Tag:</label>
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="bi bi-tag"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       placeholder="Enter new tag name" 
+                                       @bind="newTagName"
+                                       @onkeypress="HandleTagKeyPress" />
+                                <button class="btn btn-outline-primary" 
+                                        @onclick="CreateAndAddTag" 
+                                        disabled="@(string.IsNullOrWhiteSpace(newTagName) || isCreatingTag)">
+                                    @if (isCreatingTag)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    <i class="bi bi-plus-circle me-1"></i>Create & Add
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSaving">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveTags" disabled="@(isSaving || isLoading)">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        <i class="bi bi-save me-1"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter]
+    public DocumentListItem? Document { get; set; }
+
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnTagsUpdated { get; set; }
+
+    private List<TagDto> availableTags = new();
+    private List<TagDto> selectedTags = new();
+    private string newTagName = string.Empty;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isCreatingTag = false;
+    private string? errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && Document != null)
+        {
+            await LoadData();
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            // Load all available tags
+            availableTags = await TagClient.GetTagsAsync();
+
+            // Set selected tags based on document's current tags
+            selectedTags = availableTags
+                .Where(t => Document!.Tags.Contains(t.Name))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading tags for document {DocumentId}", Document?.Id);
+            errorMessage = "Failed to load tags. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private List<TagDto> GetUnselectedTags()
+    {
+        return availableTags.Where(t => !selectedTags.Contains(t)).ToList();
+    }
+
+    private void AddTag(TagDto tag)
+    {
+        if (!selectedTags.Contains(tag))
+        {
+            selectedTags.Add(tag);
+        }
+    }
+
+    private void RemoveTag(TagDto tag)
+    {
+        selectedTags.Remove(tag);
+    }
+
+    private async Task HandleTagKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newTagName))
+        {
+            await CreateAndAddTag();
+        }
+    }
+
+    private async Task CreateAndAddTag()
+    {
+        if (string.IsNullOrWhiteSpace(newTagName))
+        {
+            return;
+        }
+
+        try
+        {
+            isCreatingTag = true;
+            var createDto = new TagCreateDto(newTagName.Trim());
+            var newTag = await TagClient.CreateTagAsync(createDto);
+
+            // Add to available tags and select it
+            availableTags.Add(newTag);
+            AddTag(newTag);
+
+            newTagName = string.Empty;
+        }
+        catch (HttpRequestException ex) when (ex.Message.Contains("Conflict"))
+        {
+            errorMessage = "A tag with this name already exists.";
+            Logger.LogWarning("Attempted to create duplicate tag: {TagName}", newTagName);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating tag: {TagName}", newTagName);
+            errorMessage = "Failed to create tag. Please try again.";
+        }
+        finally
+        {
+            isCreatingTag = false;
+        }
+    }
+
+    private async Task SaveTags()
+    {
+        if (Document == null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+
+            var tagIds = selectedTags.Select(t => t.Id.ToString()).ToList();
+            await DocumentClient.UpdateDocumentTagsAsync(AgentId, Document.Id, tagIds);
+
+            await OnTagsUpdated.InvokeAsync();
+            await Close();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating document tags for document {DocumentId}", Document.Id);
+            errorMessage = "Failed to update tags. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
