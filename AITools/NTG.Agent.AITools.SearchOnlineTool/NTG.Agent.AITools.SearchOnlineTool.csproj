@@ -1,15 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net9.0</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.2" />
-		<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" Version="1.64.0-alpha" />
-		<PackageReference Include="System.Memory.Data" Version="9.0.10" />
+		<PackageReference Include="ModelContextProtocol.AspNetCore" Version="0.4.0-preview.3" />
+		<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" Version="1.67.1-alpha" />
+		<PackageReference Include="System.Memory.Data" Version="10.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
