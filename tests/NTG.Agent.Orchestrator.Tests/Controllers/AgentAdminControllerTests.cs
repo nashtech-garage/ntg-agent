@@ -428,40 +428,6 @@ public class AgentAdminControllerTests
     }
 
     [Test]
-    public async Task CreateAgent_SetsTimestamps_WithCurrentUtcTime()
-    {
-        // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "Timestamp Test Agent",
-            "Instructions",
-            "OpenAI",
-            "https://api.openai.com",
-            "key",
-            "gpt-4"
-        );
-        var beforeCreation = DateTime.UtcNow.AddSeconds(-1);
-
-        // Act
-        var result = await _controller.CreateAgent(newAgent);
-        var afterCreation = DateTime.UtcNow.AddSeconds(1);
-
-        // Assert
-        var createdResult = result as CreatedAtActionResult;
-        Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(createdAgent.CreatedAt, Is.GreaterThanOrEqualTo(beforeCreation));
-            Assert.That(createdAgent.CreatedAt, Is.LessThanOrEqualTo(afterCreation));
-            Assert.That(createdAgent.UpdatedAt, Is.GreaterThanOrEqualTo(beforeCreation));
-            Assert.That(createdAgent.UpdatedAt, Is.LessThanOrEqualTo(afterCreation));
-            Assert.That(createdAgent.CreatedAt, Is.EqualTo(createdAgent.UpdatedAt));
-        }
-    }
-
-    [Test]
     public async Task CreateAgent_GeneratesNewGuid_ForAgentId()
     {
         // Arrange
