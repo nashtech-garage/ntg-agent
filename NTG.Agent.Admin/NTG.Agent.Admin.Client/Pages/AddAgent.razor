@@ -1,0 +1,288 @@
+﻿@page "/agents/new"
+@page "/agents/duplicate/{sourceAgentId:guid}"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+@inject FolderClient FolderClient
+@inject NavigationManager Navigation
+@inject ILogger<AddAgent> Logger
+
+<PageTitle>@(isDuplicating ? "Duplicate Agent" : "Create New Agent")</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Agents</a></li>
+                    @if (isDuplicating && !string.IsNullOrEmpty(sourceAgentName))
+                    {
+                        <li class="breadcrumb-item"><a href="/agents/@SourceAgentId" class="text-decoration-none">@sourceAgentName</a></li>
+                        <li class="breadcrumb-item active" aria-current="page">Duplicate Agent</li>
+                    }
+                    else
+                    {
+                        <li class="breadcrumb-item active" aria-current="page">Create New Agent</li>
+                    }
+                </ol>
+            </nav>
+            
+            <div class="d-flex align-items-center mb-3">
+                <div class="bg-primary rounded-circle d-flex align-items-center justify-content-center me-3" 
+                     style="width: 40px; height: 40px;">
+                    <i class="bi @(isDuplicating ? "bi-copy" : "bi-plus-circle") text-white" style="font-size: 1.2rem;"></i>
+                </div>
+                <div>
+                    <h1 class="h3 mb-0">@(isDuplicating ? "Duplicate Agent" : "Create New Agent")</h1>
+                    @if (isDuplicating && !string.IsNullOrEmpty(sourceAgentName))
+                    {
+                        <small class="text-muted">Creating a copy of "@sourceAgentName"</small>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    @errorMessage
+                    <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (isLoadingSource)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-center align-items-center" style="min-height: 200px;">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="text-muted">Loading agent details...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-12 col-lg-10 col-xl-8">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-4">
+                        <EditForm Model="@agentDetail" OnValidSubmit="HandleValidSubmit">
+                        <DataAnnotationsValidator />
+                        
+                        <div class="mb-4">
+                            <label for="name" class="form-label fw-semibold">
+                                <i class="bi bi-robot me-2 text-primary"></i>
+                                Agent Name <span class="text-danger">*</span>
+                            </label>
+                            <InputText id="name" class="form-control form-control-lg" @bind-Value="agentDetail.Name" 
+                                       placeholder="Enter agent name" disabled="@isSubmitting" />
+                            <ValidationMessage For="@(() => agentDetail.Name)" class="text-danger small mt-1" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="instructions" class="form-label fw-semibold">
+                                <i class="bi bi-card-text me-2 text-primary"></i>
+                                Instructions <span class="text-muted">(Optional)</span>
+                            </label>
+                            <InputTextArea id="instructions" class="form-control" rows="6" @bind-Value="agentDetail.Instructions" 
+                                           placeholder="Enter detailed instructions for the agent..." disabled="@isSubmitting" />
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Provide clear instructions on how the agent should behave and respond.
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <h5 class="mb-3">
+                            <i class="bi bi-gear-fill me-2 text-primary"></i>
+                            Provider Configuration
+                        </h5>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="providerName" class="form-label fw-semibold">
+                                    Provider Name <span class="text-muted">(Optional)</span>
+                                </label>
+                                <InputText id="providerName" class="form-control" @bind-Value="agentDetail.ProviderName" 
+                                           placeholder="e.g., OpenAI, Azure OpenAI" disabled="@isSubmitting" />
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="providerModelName" class="form-label fw-semibold">
+                                    Model Name <span class="text-muted">(Optional)</span>
+                                </label>
+                                <InputText id="providerModelName" class="form-control" @bind-Value="agentDetail.ProviderModelName" 
+                                           placeholder="e.g., gpt-4, gpt-3.5-turbo" disabled="@isSubmitting" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="providerEndpoint" class="form-label fw-semibold">
+                                Provider Endpoint <span class="text-muted">(Optional)</span>
+                            </label>
+                            <InputText id="providerEndpoint" class="form-control" @bind-Value="agentDetail.ProviderEndpoint" 
+                                       placeholder="https://api.openai.com/v1" disabled="@isSubmitting" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="providerApiKey" class="form-label fw-semibold">
+                                API Key <span class="text-muted">(Optional)</span>
+                            </label>
+                            <InputText id="providerApiKey" type="password" class="form-control" @bind-Value="agentDetail.ProviderApiKey" 
+                                       placeholder="Enter API key" disabled="@isSubmitting" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="mcpServer" class="form-label fw-semibold">
+                                MCP Server <span class="text-muted">(Optional)</span>
+                            </label>
+                            <InputText id="mcpServer" class="form-control" @bind-Value="agentDetail.McpServer" 
+                                       placeholder="Enter MCP server endpoint (optional)" disabled="@isSubmitting" />
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Model Context Protocol server endpoint for additional capabilities.
+                            </div>
+                        </div>
+
+                        <hr class="my-4" />
+
+                        <div class="d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="NavigateBack" disabled="@isSubmitting">
+                                <i class="bi bi-x-circle me-2"></i>
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+                                @if (isSubmitting)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Creating...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-check-circle me-2"></i>
+                                    <span>Create Agent</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid? SourceAgentId { get; set; }
+
+    private AgentDetail agentDetail = new AgentDetail();
+    private bool isSubmitting = false;
+    private bool isLoadingSource = false;
+    private string? errorMessage;
+    private bool isDuplicating => SourceAgentId.HasValue;
+    private string sourceAgentName = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SourceAgentId.HasValue)
+        {
+            await LoadSourceAgent(SourceAgentId.Value);
+        }
+    }
+
+    private async Task LoadSourceAgent(Guid sourceId)
+    {
+        try
+        {
+            isLoadingSource = true;
+            var sourceAgent = await AgentClient.GetAgentDetails(sourceId);
+            
+            if (sourceAgent != null)
+            {
+                agentDetail = new AgentDetail
+                {
+                    Name = $"{sourceAgent.Name} (Copy)",
+                    Instructions = sourceAgent.Instructions,
+                    ProviderName = sourceAgent.ProviderName,
+                    ProviderEndpoint = sourceAgent.ProviderEndpoint,
+                    ProviderApiKey = sourceAgent.ProviderApiKey,
+                    ProviderModelName = sourceAgent.ProviderModelName,
+                    McpServer = sourceAgent.McpServer
+                };
+                sourceAgentName = sourceAgent.Name;
+            }
+            else
+            {
+                errorMessage = "Source agent not found.";
+                Logger.LogWarning("Source agent with ID {SourceId} not found", sourceId);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load source agent: {ex.Message}";
+            Logger.LogError(ex, "Error loading source agent with ID {SourceId}", sourceId);
+        }
+        finally
+        {
+            isLoadingSource = false;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            // Create the agent
+            var newAgentId = await AgentClient.CreateAgent(agentDetail);
+
+            // Create default folder for the new agent
+            if (newAgentId != Guid.Empty)
+            {
+                try
+                {
+                    await FolderClient.CreateDefaultFoldersForAgent(newAgentId);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error but don't fail the agent creation
+                    Logger.LogWarning(ex, "Failed to create default folder for agent {AgentId}", newAgentId);
+                }
+            }
+
+            // Navigate back to home page on success
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to create agent: {ex.Message}";
+            Logger.LogError(ex, "Error creating agent");
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

@@ -251,6 +251,350 @@ public class AgentAdminControllerTests
         Assert.That(agentDetail, Is.Not.Null);
         Assert.That(agentDetail.Id, Is.EqualTo(agentId));
     }
+
+    [Test]
+    public async Task CreateAgent_WhenValidAgentProvided_ReturnsCreatedAtActionResult()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "New Test Agent",
+            "Test instructions",
+            "OpenAI",
+            "https://api.openai.com/v1",
+            "test-api-key",
+            "gpt-4"
+        );
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<CreatedAtActionResult>());
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        Assert.That(createdResult.ActionName, Is.EqualTo(nameof(_controller.GetAgentById)));
+
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.Id, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(createdAgent.Name, Is.EqualTo("New Test Agent"));
+            Assert.That(createdAgent.Instructions, Is.EqualTo("Test instructions"));
+            Assert.That(createdAgent.ProviderName, Is.EqualTo("OpenAI"));
+            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo("https://api.openai.com/v1"));
+            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo("test-api-key"));
+            Assert.That(createdAgent.ProviderModelName, Is.EqualTo("gpt-4"));
+            Assert.That(createdAgent.OwnerUserId, Is.EqualTo(_testAdminUserId));
+            Assert.That(createdAgent.UpdatedByUserId, Is.EqualTo(_testAdminUserId));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenValidAgentProvided_SavesAgentToDatabase()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "Database Test Agent",
+            "Instructions",
+            "AzureOpenAI",
+            "https://azure.openai.com",
+            "azure-key",
+            "gpt-4"
+        );
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+
+        // Verify agent was saved to database
+        var savedAgent = await _context.Agents.FindAsync(createdAgent.Id);
+        Assert.That(savedAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(savedAgent.Name, Is.EqualTo("Database Test Agent"));
+            Assert.That(savedAgent.Instructions, Is.EqualTo("Instructions"));
+            Assert.That(savedAgent.ProviderName, Is.EqualTo("AzureOpenAI"));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenOnlyNameProvided_CreatesAgentWithEmptyOptionalFields()
+    {
+        // Arrange
+        var newAgent = new AgentDetail()
+        {
+            Name = "Minimal Agent"
+        };
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<CreatedAtActionResult>());
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.Name, Is.EqualTo("Minimal Agent"));
+            Assert.That(createdAgent.Instructions, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderName, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderModelName, Is.EqualTo(string.Empty));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenNullInstructionsProvided_CreatesAgentWithEmptyInstructions()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "Agent With Null Instructions",
+            null!,
+            null!,
+            null!,
+            null!,
+            null!
+        );
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.Instructions, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderName, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo(string.Empty));
+            Assert.That(createdAgent.ProviderModelName, Is.EqualTo(string.Empty));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenMcpServerProvided_SavesMcpServerValue()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "Agent With MCP",
+            "Instructions",
+            "OpenAI",
+            "https://api.openai.com/v1",
+            "key",
+            "gpt-4"
+        )
+        {
+            McpServer = "https://mcp.example.com"
+        };
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        Assert.That(createdAgent.McpServer, Is.EqualTo("https://mcp.example.com"));
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenNullAgentProvided_ReturnsBadRequest()
+    {
+        // Act
+        var result = await _controller.CreateAgent(null!);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult.Value, Is.EqualTo("Invalid agent data."));
+    }
+
+    [Test]
+    public async Task CreateAgent_SetsTimestamps_WithCurrentUtcTime()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "Timestamp Test Agent",
+            "Instructions",
+            "OpenAI",
+            "https://api.openai.com",
+            "key",
+            "gpt-4"
+        );
+        var beforeCreation = DateTime.UtcNow.AddSeconds(-1);
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+        var afterCreation = DateTime.UtcNow.AddSeconds(1);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.CreatedAt, Is.GreaterThanOrEqualTo(beforeCreation));
+            Assert.That(createdAgent.CreatedAt, Is.LessThanOrEqualTo(afterCreation));
+            Assert.That(createdAgent.UpdatedAt, Is.GreaterThanOrEqualTo(beforeCreation));
+            Assert.That(createdAgent.UpdatedAt, Is.LessThanOrEqualTo(afterCreation));
+            Assert.That(createdAgent.CreatedAt, Is.EqualTo(createdAgent.UpdatedAt));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_GeneratesNewGuid_ForAgentId()
+    {
+        // Arrange
+        var agent1 = new AgentDetail(Guid.Empty, "Agent 1", null!, null!, null!, null!, null!);
+        var agent2 = new AgentDetail(Guid.Empty, "Agent 2", null!, null!, null!, null!, null!);
+
+        // Act
+        var result1 = await _controller.CreateAgent(agent1);
+        var result2 = await _controller.CreateAgent(agent2);
+
+        // Assert
+        var created1 = (result1 as CreatedAtActionResult)?.Value as AgentModel;
+        var created2 = (result2 as CreatedAtActionResult)?.Value as AgentModel;
+
+        Assert.That(created1, Is.Not.Null);
+        Assert.That(created2, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(created1.Id, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(created2.Id, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(created1.Id, Is.Not.EqualTo(created2.Id));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+
+        // Act & Assert
+        Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+            await unauthenticatedController.CreateAgent(newAgent));
+    }
+
+    [Test]
+    public async Task CreateAgent_SetsOwnerAndUpdater_ToAuthenticatedUser()
+    {
+        // Arrange
+        var specificUserId = Guid.NewGuid();
+        var userWithSpecificId = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, specificUserId.ToString()),
+            new Claim(ClaimTypes.Role, "Admin"),
+        ], "mock"));
+
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = userWithSpecificId }
+            }
+        };
+
+        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+
+        // Act
+        var result = await controllerWithSpecificUser.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.OwnerUserId, Is.EqualTo(specificUserId));
+            Assert.That(createdAgent.UpdatedByUserId, Is.EqualTo(specificUserId));
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_ReturnsLocationHeader_WithNewAgentId()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        Assert.That(createdResult.RouteValues, Does.ContainKey("id"));
+        Assert.That(createdResult.RouteValues["id"], Is.EqualTo(createdAgent.Id));
+    }
+
+    [Test]
+    public async Task CreateAgent_WithCompleteData_PreservesAllFields()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(
+            Guid.Empty,
+            "Complete Agent",
+            "Detailed instructions for the agent",
+            "GitHub Models",
+            "https://models.github.com",
+            "github-api-key-12345",
+            "gpt-4o"
+        )
+        {
+            McpServer = "https://mcp-server.example.com/api"
+        };
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgent = createdResult.Value as AgentModel;
+        Assert.That(createdAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(createdAgent.Name, Is.EqualTo("Complete Agent"));
+            Assert.That(createdAgent.Instructions, Is.EqualTo("Detailed instructions for the agent"));
+            Assert.That(createdAgent.ProviderName, Is.EqualTo("GitHub Models"));
+            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo("https://models.github.com"));
+            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo("github-api-key-12345"));
+            Assert.That(createdAgent.ProviderModelName, Is.EqualTo("gpt-4o"));
+            Assert.That(createdAgent.McpServer, Is.EqualTo("https://mcp-server.example.com/api"));
+        }
+    }
+
     private async Task SeedAgentsData()
     {
         var ownerUser = new User

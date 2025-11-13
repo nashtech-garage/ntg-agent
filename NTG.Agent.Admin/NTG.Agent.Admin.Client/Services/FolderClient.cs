@@ -45,4 +45,10 @@ public class FolderClient
         var response = await _httpClient.DeleteAsync($"api/folders/{id}");
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task CreateDefaultFoldersForAgent(Guid agentId)
+    {
+        var response = await _httpClient.PostAsync($"api/folders/{agentId}/folders/default", null);
+        response.EnsureSuccessStatusCode();
+    }
 }
