@@ -59,7 +59,7 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PostAsJsonAsync($"api/agentadmin", agentDetail);
         response.EnsureSuccessStatusCode();
         
-        var createdAgent = await response.Content.ReadFromJsonAsync<AgentDetail>();
-        return createdAgent?.Id ?? Guid.Empty;
+        var createdAgentId = await response.Content.ReadFromJsonAsync<Guid>();
+        return createdAgentId;
     }
 }

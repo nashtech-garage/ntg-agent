@@ -347,6 +347,6 @@ public class AgentAdminController : ControllerBase
         _agentDbContext.Agents.Add(agent);
         await _agentDbContext.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent);
+        return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
     }
 }
