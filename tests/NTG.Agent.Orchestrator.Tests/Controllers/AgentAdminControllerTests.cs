@@ -275,19 +275,24 @@ public class AgentAdminControllerTests
         Assert.That(createdResult, Is.Not.Null);
         Assert.That(createdResult.ActionName, Is.EqualTo(nameof(_controller.GetAgentById)));
 
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+        Assert.That(createdAgentId.Value, Is.Not.EqualTo(Guid.Empty));
+
+        // Verify agent was saved to database with correct properties
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(createdAgent.Id, Is.Not.EqualTo(Guid.Empty));
-            Assert.That(createdAgent.Name, Is.EqualTo("New Test Agent"));
-            Assert.That(createdAgent.Instructions, Is.EqualTo("Test instructions"));
-            Assert.That(createdAgent.ProviderName, Is.EqualTo("OpenAI"));
-            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo("https://api.openai.com/v1"));
-            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo("test-api-key"));
-            Assert.That(createdAgent.ProviderModelName, Is.EqualTo("gpt-4"));
-            Assert.That(createdAgent.OwnerUserId, Is.EqualTo(_testAdminUserId));
-            Assert.That(createdAgent.UpdatedByUserId, Is.EqualTo(_testAdminUserId));
+            Assert.That(savedAgent.Id, Is.EqualTo(createdAgentId.Value));
+            Assert.That(savedAgent.Name, Is.EqualTo("New Test Agent"));
+            Assert.That(savedAgent.Instructions, Is.EqualTo("Test instructions"));
+            Assert.That(savedAgent.ProviderName, Is.EqualTo("OpenAI"));
+            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo("https://api.openai.com/v1"));
+            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo("test-api-key"));
+            Assert.That(savedAgent.ProviderModelName, Is.EqualTo("gpt-4"));
+            Assert.That(savedAgent.OwnerUserId, Is.EqualTo(_testAdminUserId));
+            Assert.That(savedAgent.UpdatedByUserId, Is.EqualTo(_testAdminUserId));
         }
     }
 
@@ -311,11 +316,11 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
 
         // Verify agent was saved to database
-        var savedAgent = await _context.Agents.FindAsync(createdAgent.Id);
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
         Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
@@ -341,16 +346,20 @@ public class AgentAdminControllerTests
         Assert.That(result, Is.TypeOf<CreatedAtActionResult>());
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+
+        // Verify agent was saved to database with correct properties
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(createdAgent.Name, Is.EqualTo("Minimal Agent"));
-            Assert.That(createdAgent.Instructions, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderName, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderModelName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.Name, Is.EqualTo("Minimal Agent"));
+            Assert.That(savedAgent.Instructions, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderModelName, Is.EqualTo(string.Empty));
         }
     }
 
@@ -374,15 +383,19 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+
+        // Verify agent was saved to database with correct properties
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(createdAgent.Instructions, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderName, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo(string.Empty));
-            Assert.That(createdAgent.ProviderModelName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.Instructions, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderModelName, Is.EqualTo(string.Empty));
         }
     }
 
@@ -409,9 +422,13 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
-        Assert.That(createdAgent.McpServer, Is.EqualTo("https://mcp.example.com"));
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+
+        // Verify agent was saved to database with MCP server
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
+        Assert.That(savedAgent.McpServer, Is.EqualTo("https://mcp.example.com"));
     }
 
     [Test]
@@ -439,16 +456,16 @@ public class AgentAdminControllerTests
         var result2 = await _controller.CreateAgent(agent2);
 
         // Assert
-        var created1 = (result1 as CreatedAtActionResult)?.Value as AgentModel;
-        var created2 = (result2 as CreatedAtActionResult)?.Value as AgentModel;
+        var createdId1 = (result1 as CreatedAtActionResult)?.Value as Guid?;
+        var createdId2 = (result2 as CreatedAtActionResult)?.Value as Guid?;
 
-        Assert.That(created1, Is.Not.Null);
-        Assert.That(created2, Is.Not.Null);
+        Assert.That(createdId1, Is.Not.Null);
+        Assert.That(createdId2, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(created1.Id, Is.Not.EqualTo(Guid.Empty));
-            Assert.That(created2.Id, Is.Not.EqualTo(Guid.Empty));
-            Assert.That(created1.Id, Is.Not.EqualTo(created2.Id));
+            Assert.That(createdId1.Value, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(createdId2.Value, Is.Not.EqualTo(Guid.Empty));
+            Assert.That(createdId1.Value, Is.Not.EqualTo(createdId2.Value));
         }
     }
 
@@ -497,12 +514,16 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+
+        // Verify agent was saved with correct owner and updater
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(createdAgent.OwnerUserId, Is.EqualTo(specificUserId));
-            Assert.That(createdAgent.UpdatedByUserId, Is.EqualTo(specificUserId));
+            Assert.That(savedAgent.OwnerUserId, Is.EqualTo(specificUserId));
+            Assert.That(savedAgent.UpdatedByUserId, Is.EqualTo(specificUserId));
         }
     }
 
@@ -518,10 +539,10 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
         Assert.That(createdResult.RouteValues, Does.ContainKey("id"));
-        Assert.That(createdResult.RouteValues["id"], Is.EqualTo(createdAgent.Id));
+        Assert.That(createdResult.RouteValues["id"], Is.EqualTo(createdAgentId.Value));
     }
 
     [Test]
@@ -547,17 +568,21 @@ public class AgentAdminControllerTests
         // Assert
         var createdResult = result as CreatedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
-        var createdAgent = createdResult.Value as AgentModel;
-        Assert.That(createdAgent, Is.Not.Null);
+        var createdAgentId = createdResult.Value as Guid?;
+        Assert.That(createdAgentId, Is.Not.Null);
+
+        // Verify agent was saved with all fields preserved
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId.Value);
+        Assert.That(savedAgent, Is.Not.Null);
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(createdAgent.Name, Is.EqualTo("Complete Agent"));
-            Assert.That(createdAgent.Instructions, Is.EqualTo("Detailed instructions for the agent"));
-            Assert.That(createdAgent.ProviderName, Is.EqualTo("GitHub Models"));
-            Assert.That(createdAgent.ProviderEndpoint, Is.EqualTo("https://models.github.com"));
-            Assert.That(createdAgent.ProviderApiKey, Is.EqualTo("github-api-key-12345"));
-            Assert.That(createdAgent.ProviderModelName, Is.EqualTo("gpt-4o"));
-            Assert.That(createdAgent.McpServer, Is.EqualTo("https://mcp-server.example.com/api"));
+            Assert.That(savedAgent.Name, Is.EqualTo("Complete Agent"));
+            Assert.That(savedAgent.Instructions, Is.EqualTo("Detailed instructions for the agent"));
+            Assert.That(savedAgent.ProviderName, Is.EqualTo("GitHub Models"));
+            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo("https://models.github.com"));
+            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo("github-api-key-12345"));
+            Assert.That(savedAgent.ProviderModelName, Is.EqualTo("gpt-4o"));
+            Assert.That(savedAgent.McpServer, Is.EqualTo("https://mcp-server.example.com/api"));
         }
     }
 
