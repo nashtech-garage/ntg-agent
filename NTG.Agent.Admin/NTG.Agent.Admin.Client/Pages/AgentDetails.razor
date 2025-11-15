@@ -57,7 +57,7 @@
                         </button>
                         <ul class="dropdown-menu">
                             <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Edit Agent</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="bi bi-copy me-2"></i>Duplicate Agent</a></li>
+                            <li><a class="dropdown-item" href="#" @onclick="HandleDuplicateAgent" @onclick:preventDefault="true"><i class="bi bi-copy me-2"></i>Duplicate Agent</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-trash me-2"></i>Delete Agent</a></li>
                         </ul>
@@ -353,6 +353,11 @@
                 StateHasChanged();
             }
         }
+    }
+
+    private void HandleDuplicateAgent()
+    {
+        Navigation.NavigateTo($"/agents/duplicate/{Id}");
     }
 }
 

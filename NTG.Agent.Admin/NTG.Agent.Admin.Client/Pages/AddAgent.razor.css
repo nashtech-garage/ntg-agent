@@ -1,0 +1,76 @@
+﻿.breadcrumb {
+    background-color: transparent;
+    padding: 0;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    color: #6c757d;
+}
+
+.breadcrumb-item a {
+    color: #1b6ec2;
+}
+
+.breadcrumb-item a:hover {
+    color: #155a9c;
+    text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+    color: #6c757d;
+}
+
+.card {
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.form-control:focus,
+.form-control:active {
+    border-color: #1b6ec2;
+    box-shadow: 0 0 0 0.25rem rgba(27, 110, 194, 0.25);
+}
+
+.btn-primary {
+    background-color: #1b6ec2;
+    border-color: #1b6ec2;
+}
+
+.btn-primary:hover {
+    background-color: #155a9c;
+    border-color: #145389;
+}
+
+.btn-outline-secondary:hover {
+    color: #fff;
+    background-color: #6c757d;
+    border-color: #6c757d;
+}
+
+.alert {
+    border-radius: 0.5rem;
+}
+
+h1, h5 {
+    color: #212529;
+}
+
+.form-label {
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+.form-text {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+hr {
+    border-color: rgba(0, 0, 0, 0.1);
+}

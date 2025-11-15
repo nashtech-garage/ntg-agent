@@ -53,4 +53,13 @@ public class AgentClient(HttpClient httpClient)
         var result = await response.Content.ReadFromJsonAsync<IList<AgentToolDto>>();
         return result ?? [];
     }
+
+    public async Task<Guid> CreateAgent(AgentDetail agentDetail)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/agentadmin", agentDetail);
+        response.EnsureSuccessStatusCode();
+        
+        var createdAgentId = await response.Content.ReadFromJsonAsync<Guid>();
+        return createdAgentId;
+    }
 }

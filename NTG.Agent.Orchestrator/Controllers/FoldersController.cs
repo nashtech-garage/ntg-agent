@@ -86,7 +86,7 @@ public class FoldersController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Folder>> CreateFolder(CreateFolderDto folderToCreate)
     {
-        if(!ModelState.IsValid)
+        if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
         }
@@ -105,6 +105,45 @@ public class FoldersController : ControllerBase
         await _agentDbContext.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetFolder), new { id = folder.Id }, folder);
+    }
+
+    /// <summary>
+    /// Creates a default folder for the specified agent if it does not already exist.
+    /// </summary>
+    /// <remarks>This method creates a default folder named "All Folders" for the specified agent. The folder
+    /// is non-deletable  and has no parent folder. If a default folder already exists for the agent, the method returns
+    /// a  <see cref="BadRequestObjectResult"/> with an appropriate error message.</remarks>
+    /// <param name="agentId">The unique identifier of the agent for whom the default folder is to be created.</param>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Folder"/> object if successful,  or an
+    /// appropriate HTTP status code if the operation fails.</returns>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
+    [HttpPost("{agentId}/folders/default")]
+    public async Task<ActionResult<Folder>> CreateDefaultFoldersForAgent(Guid agentId)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+
+        var isFolderExists = await _agentDbContext.Folders.AnyAsync(f => f.AgentId == agentId && f.ParentId == null);
+        if (isFolderExists)
+        {
+            return BadRequest("Default folder already exists for this agent.");
+        }
+
+        var folder = new Folder
+        {
+            Name = "All Folders",
+            AgentId = agentId,
+            ParentId = null,
+            IsDeletable = false,
+        };
+        _agentDbContext.Folders.Add(folder);
+
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok();
     }
 
     /// <summary>
