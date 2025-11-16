@@ -36,14 +36,14 @@ public class AgentService
     {
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, conversation);
-        var tags = await GetUserTags(userId);
+        var tags = await GetUserTags(userId, agentId);
         var ocrDocuments = new List<string>();
         if (promptRequest.Documents is not null && promptRequest.Documents.Any())
         {
             //ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, agentId, tags, ocrDocuments))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -74,7 +74,7 @@ public class AgentService
         return conversation ?? throw new InvalidOperationException($"Conversation {conversationId} not found.");
     }
 
-    private async Task<List<string>> GetUserTags(Guid? userId)
+    private async Task<List<string>> GetUserTags(Guid? userId, Guid agentId)
     {
         if (userId is not null)
         {
@@ -82,7 +82,7 @@ public class AgentService
                 .Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
 
             return await _agentDbContext.TagRoles
-                .Where(c => roleIds.Contains(c.RoleId))
+                .Where(c => roleIds.Contains(c.RoleId) && c.Tag.AgentId == agentId)
                 .Select(c => c.TagId.ToString())
                 .ToListAsync();
         }
@@ -90,7 +90,7 @@ public class AgentService
         {
             var anonymousRoleId = new Guid(Constants.AnonymousRoleId);
             return await _agentDbContext.TagRoles
-                .Where(c => c.RoleId == anonymousRoleId)
+                .Where(c => c.RoleId == anonymousRoleId && c.Tag.AgentId == agentId)
                 .Select(c => c.TagId.ToString())
                 .ToListAsync();
         }
@@ -145,6 +145,7 @@ public class AgentService
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
+        Guid agentId,
         List<string> tags,
         List<string> ocrDocuments)
     {
@@ -162,7 +163,7 @@ public class AgentService
 
         chatHistory.Add(userMessage);
 
-        AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags).AsAITool();
+        AITool memorySearch = new KnowledgePlugin(_knowledgeService, agentId, tags).AsAITool();
 
         var chatOptions = new ChatOptions
         {

@@ -1,10 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Extentions;
+using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Tags;
-using NTG.Agent.Common.Logger;
+using System.Reflection.Metadata;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -43,9 +46,10 @@ public class TagsController : ControllerBase
     /// <response code="403">If the user does not have Admin role.</response>
     // GET /api/tags?q=foo
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] string? q, CancellationToken ct)
+    public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] Guid agentId, [FromQuery] string? q, CancellationToken ct)
     {
         var query = _agentDbContext.Tags.AsNoTracking().AsQueryable();
+        query = query.Where(t => t.AgentId == agentId);
 
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(t => t.Name.Contains(q));
@@ -56,7 +60,8 @@ public class TagsController : ControllerBase
                 t.Id, 
                 t.Name, 
                 t.CreatedAt, 
-                t.UpdatedAt, 
+                t.UpdatedAt,
+                t.IsDefault,
                 _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
             ))
             .ToListAsync(ct);
@@ -85,6 +90,7 @@ public class TagsController : ControllerBase
                 t.Name, 
                 t.CreatedAt, 
                 t.UpdatedAt, 
+                t.IsDefault,
                 _agentDbContext.DocumentTags.Count(dt => dt.TagId == t.Id)
             ))
             .FirstOrDefaultAsync(ct);
@@ -112,15 +118,15 @@ public class TagsController : ControllerBase
 
         var name = dto.Name.Trim();
 
-        var exists = await _agentDbContext.Tags.AnyAsync(t => t.Name == name, ct);
+        var exists = await _agentDbContext.Tags.AnyAsync(t => t.Name == name && t.AgentId == dto.AgentId, ct);
         if (exists) return Conflict($"Tag with name '{name}' already exists.");
 
-        var entity = new Tag { Name = name };
+        var entity = new Tag { Name = name, AgentId = dto.AgentId };
         _agentDbContext.Tags.Add(entity);
         await _agentDbContext.SaveChangesAsync(ct);
 
         var documentCount = await _agentDbContext.DocumentTags.CountAsync(dt => dt.TagId == entity.Id, ct);
-        var result = new TagDto(entity.Id, entity.Name, entity.CreatedAt, entity.UpdatedAt, documentCount);
+        var result = new TagDto(entity.Id, entity.Name, entity.CreatedAt, entity.UpdatedAt, entity.IsDefault, documentCount);
         return CreatedAtAction(nameof(GetTagById), new { id = entity.Id }, result);
     }
 
@@ -141,17 +147,20 @@ public class TagsController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateTag(Guid id, [FromBody] TagUpdateDto dto, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest("Tag Name is required.");
+
         var entity = await _agentDbContext.Tags.FindAsync([id], ct);
         if (entity is null) return NotFound();
 
-        if (string.IsNullOrWhiteSpace(dto.Name))
-            return BadRequest("Tag Name is required.");
+        if (entity.AgentId != dto.AgentId)
+            return Forbid("You do not have permission to update this tag.");
 
         var name = dto.Name.Trim();
 
         if (!string.Equals(entity.Name, name, StringComparison.Ordinal))
         {
-            var nameTaken = await _agentDbContext.Tags.AnyAsync(t => t.Name == name && t.Id != id, ct);
+            var nameTaken = await _agentDbContext.Tags.AnyAsync(t => t.Name == name && t.Id != id && t.AgentId == dto.AgentId, ct);
             if (nameTaken) return Conflict($"Tag with name '{name}' already exists.");
         }
 
@@ -187,6 +196,9 @@ public class TagsController : ControllerBase
     {
         var entity = await _agentDbContext.Tags.FindAsync([id], ct);
         if (entity is null) return NotFound();
+
+        if (entity.IsDefault)
+            return Forbid("Default tags cannot be deleted.");
 
         // Check if the tag is associated with any documents
         var hasDocuments = await _agentDbContext.DocumentTags.AnyAsync(dt => dt.TagId == id, ct);
@@ -236,7 +248,6 @@ public class TagsController : ControllerBase
     {
         var tagExists = await _agentDbContext.Tags.AsNoTracking().AnyAsync(t => t.Id == tagId, ct);
         if (!tagExists) return NotFound($"Tag {tagId} not found.");
-
         var items = await _agentDbContext.TagRoles.AsNoTracking()
             .Where(x => x.TagId == tagId)
             .OrderBy(x => x.RoleId)
@@ -307,6 +318,50 @@ public class TagsController : ControllerBase
         _agentDbContext.TagRoles.Remove(entity);
         await _agentDbContext.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Creates default tags for a specific agent.
+    /// Creates a "Public" tag with anonymous role assignment.
+    /// </summary>
+    /// <param name="agentId">The unique identifier of the agent.</param>
+    /// <returns>No content on successful creation.</returns>
+    /// <response code="200">The default tags were successfully created.</response>
+    /// <response code="400">If default tags already exist for the agent.</response>
+    /// <response code="401">If the user is not authenticated.</response>
+    /// <response code="403">If the user does not have Admin role.</response>
+    [HttpPost("{agentId}/default")]
+    public async Task<ActionResult<Folder>> CreateDefaultTagsForAgent(Guid agentId)
+    {
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+
+        var isTagExists = await _agentDbContext.Tags.AnyAsync(f => f.AgentId == agentId && f.IsDefault);
+        if (isTagExists)
+        {
+            return BadRequest("Default Tags already exists for this agent.");
+        }
+
+        // Create Default Tags
+        var tag = new Tag
+        {
+            Name = "Public",
+            AgentId = agentId,
+            IsDefault = true,
+            Id = Guid.NewGuid()
+        };
+        _agentDbContext.Tags.Add(tag);
+        // Create Default TagRoles
+        var tagRole = new TagRole
+        {
+            TagId = tag.Id,
+            RoleId = new Guid(Constants.AnonymousRoleId),
+            Id = Guid.NewGuid()
+        };
+        _agentDbContext.TagRoles.Add(tagRole);
+
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok();
     }
 }
 

@@ -117,7 +117,7 @@ public class FoldersController : ControllerBase
     /// <returns>An <see cref="ActionResult{T}"/> containing the created <see cref="Folder"/> object if successful,  or an
     /// appropriate HTTP status code if the operation fails.</returns>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
-    [HttpPost("{agentId}/folders/default")]
+    [HttpPost("{agentId}/default")]
     public async Task<ActionResult<Folder>> CreateDefaultFoldersForAgent(Guid agentId)
     {
         if (!ModelState.IsValid)

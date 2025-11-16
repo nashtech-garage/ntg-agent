@@ -32,6 +32,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         SearchResult result;
         if (tags.Count != 0)
         {
+            // TODO: Tags should include agentId filter as well
             var filters = (from tagValue in tags
                            select MemoryFilters.ByTag("tags", tagValue)).ToList();
             result = await _kernelMemory.SearchAsync(

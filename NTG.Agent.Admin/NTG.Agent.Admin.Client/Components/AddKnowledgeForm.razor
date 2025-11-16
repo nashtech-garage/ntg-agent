@@ -242,7 +242,7 @@
     {
         try
         {
-            availableTags = await TagClient.GetTagsAsync();
+            availableTags = await TagClient.GetTagsAsync(AgentId);
             
             // Set "Public" tag as default if it exists
             var publicTag = availableTags.FirstOrDefault(t => t.Name.Equals("Public", StringComparison.OrdinalIgnoreCase));
@@ -310,7 +310,7 @@
             }
 
             // Create new tag
-            var newTag = await TagClient.CreateTagAsync(new TagCreateDto(tagName));
+            var newTag = await TagClient.CreateTagAsync(new TagCreateDto(AgentId, tagName));
             
             // Add to available tags and select it
             availableTags.Add(newTag);

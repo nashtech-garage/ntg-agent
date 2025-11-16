@@ -48,7 +48,7 @@ public class FolderClient
 
     public async Task CreateDefaultFoldersForAgent(Guid agentId)
     {
-        var response = await _httpClient.PostAsync($"api/folders/{agentId}/folders/default", null);
+        var response = await _httpClient.PostAsync($"api/folders/{agentId}/default", null);
         response.EnsureSuccessStatusCode();
     }
 }

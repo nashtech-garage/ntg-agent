@@ -19,6 +19,9 @@ public class TagsControllerTests
     private AgentDbContext _dbContext = null!;
     private TagsController _controller = null!;
     private Mock<ILogger<TagsController>> _mockLogger = null!;
+    private static readonly Guid TestAgentId = Guid.Parse("12345678-1234-1234-1234-123456789012");
+    private static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    
     [SetUp]
     public void Setup()
     {
@@ -35,7 +38,7 @@ public class TagsControllerTests
         // Setup HTTP context with authenticated admin user
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, "test-user-id"),
+            new(ClaimTypes.NameIdentifier, TestUserId.ToString()),
             new(ClaimTypes.Role, "Admin")
         };
         var identity = new ClaimsIdentity(claims, "TestAuth");
@@ -54,7 +57,7 @@ public class TagsControllerTests
     public async Task GetTags_WhenNoTags_ReturnsEmptyList()
     {
         // Act
-        var result = await _controller.GetTags(null, CancellationToken.None);
+        var result = await _controller.GetTags(TestAgentId, null, CancellationToken.None);
         // Assert
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
@@ -65,12 +68,12 @@ public class TagsControllerTests
     public async Task GetTags_WhenTagsExist_ReturnsAllTags()
     {
         // Arrange
-        var tag1 = new Tag { Name = "Important" };
-        var tag2 = new Tag { Name = "Archive" };
+        var tag1 = new Tag { Name = "Important", AgentId = TestAgentId };
+        var tag2 = new Tag { Name = "Archive", AgentId = TestAgentId };
         _dbContext.Tags.AddRange(tag1, tag2);
         await _dbContext.SaveChangesAsync();
         // Act
-        var result = await _controller.GetTags(null, CancellationToken.None);
+        var result = await _controller.GetTags(TestAgentId, null, CancellationToken.None);
         // Assert
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
@@ -83,13 +86,13 @@ public class TagsControllerTests
     public async Task GetTags_WhenSearchQuery_ReturnsFilteredTags()
     {
         // Arrange
-        var tag1 = new Tag { Name = "Important" };
-        var tag2 = new Tag { Name = "Archive" };
-        var tag3 = new Tag { Name = "Urgent" };
+        var tag1 = new Tag { Name = "Important", AgentId = TestAgentId };
+        var tag2 = new Tag { Name = "Archive", AgentId = TestAgentId };
+        var tag3 = new Tag { Name = "Urgent", AgentId = TestAgentId };
         _dbContext.Tags.AddRange(tag1, tag2, tag3);
         await _dbContext.SaveChangesAsync();
         // Act - using case-insensitive search that works with in-memory database
-        var result = await _controller.GetTags("Import", CancellationToken.None);
+        var result = await _controller.GetTags(TestAgentId, "Import", CancellationToken.None);
         // Assert
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
@@ -101,11 +104,11 @@ public class TagsControllerTests
     public async Task GetTags_WhenSearchQueryNoMatch_ReturnsEmptyList()
     {
         // Arrange
-        var tag1 = new Tag { Name = "Important" };
+        var tag1 = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag1);
         await _dbContext.SaveChangesAsync();
         // Act
-        var result = await _controller.GetTags("nonexistent", CancellationToken.None);
+        var result = await _controller.GetTags(TestAgentId, "nonexistent", CancellationToken.None);
         // Assert
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
@@ -116,13 +119,13 @@ public class TagsControllerTests
     public async Task GetTags_OrdersByName()
     {
         // Arrange
-        var tag1 = new Tag { Name = "Zebra" };
-        var tag2 = new Tag { Name = "Alpha" };
-        var tag3 = new Tag { Name = "Beta" };
+        var tag1 = new Tag { Name = "Zebra", AgentId = TestAgentId };
+        var tag2 = new Tag { Name = "Alpha", AgentId = TestAgentId };
+        var tag3 = new Tag { Name = "Beta", AgentId = TestAgentId };
         _dbContext.Tags.AddRange(tag1, tag2, tag3);
         await _dbContext.SaveChangesAsync();
         // Act
-        var result = await _controller.GetTags(null, CancellationToken.None);
+        var result = await _controller.GetTags(TestAgentId, null, CancellationToken.None);
         // Assert
         Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
         var okResult = result.Result as OkObjectResult;
@@ -135,7 +138,7 @@ public class TagsControllerTests
     public async Task GetTagById_WhenTagExists_ReturnsTag()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
         // Act
@@ -159,7 +162,7 @@ public class TagsControllerTests
     public async Task CreateTag_WhenValidDto_CreatesTag()
     {
         // Arrange
-        var dto = new TagCreateDto("Important");
+        var dto = new TagCreateDto(TestAgentId, "Important");
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -174,7 +177,7 @@ public class TagsControllerTests
     public async Task CreateTag_WhenNameIsNull_ReturnsBadRequest()
     {
         // Arrange
-        var dto = new TagCreateDto(null!);
+        var dto = new TagCreateDto(TestAgentId, null!);
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -186,7 +189,7 @@ public class TagsControllerTests
     public async Task CreateTag_WhenNameIsEmpty_ReturnsBadRequest()
     {
         // Arrange
-        var dto = new TagCreateDto("");
+        var dto = new TagCreateDto(TestAgentId, "");
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -198,7 +201,7 @@ public class TagsControllerTests
     public async Task CreateTag_WhenNameIsWhitespace_ReturnsBadRequest()
     {
         // Arrange
-        var dto = new TagCreateDto("   ");
+        var dto = new TagCreateDto(TestAgentId, "   ");
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -210,10 +213,10 @@ public class TagsControllerTests
     public async Task CreateTag_WhenTagNameExists_ReturnsConflict()
     {
         // Arrange
-        var existingTag = new Tag { Name = "Important" };
+        var existingTag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(existingTag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagCreateDto("Important");
+        var dto = new TagCreateDto(TestAgentId, "Important");
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -225,7 +228,7 @@ public class TagsControllerTests
     public async Task CreateTag_TrimsWhitespace()
     {
         // Arrange
-        var dto = new TagCreateDto("  Important  ");
+        var dto = new TagCreateDto(TestAgentId, "  Important  ");
         // Act
         var result = await _controller.CreateTag(dto, CancellationToken.None);
         // Assert
@@ -238,10 +241,10 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenValidDto_UpdatesTag()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto("VeryImportant");
+        var dto = new TagUpdateDto(TestAgentId, "VeryImportant");
         // Act
         var result = await _controller.UpdateTag(tag.Id, dto, CancellationToken.None);
         // Assert
@@ -253,7 +256,7 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenTagNotFound_ReturnsNotFound()
     {
         // Arrange
-        var dto = new TagUpdateDto("Updated");
+        var dto = new TagUpdateDto(TestAgentId, "Updated");
         // Act
         var result = await _controller.UpdateTag(Guid.NewGuid(), dto, CancellationToken.None);
         // Assert
@@ -263,10 +266,10 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenNameIsNull_ReturnsBadRequest()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto(null!);
+        var dto = new TagUpdateDto(TestAgentId, null!);
         // Act
         var result = await _controller.UpdateTag(tag.Id, dto, CancellationToken.None);
         // Assert
@@ -278,10 +281,10 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenNameIsEmpty_ReturnsBadRequest()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto("");
+        var dto = new TagUpdateDto(TestAgentId, "");
         // Act
         var result = await _controller.UpdateTag(tag.Id, dto, CancellationToken.None);
         // Assert
@@ -293,11 +296,11 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenNewNameAlreadyExists_ReturnsConflict()
     {
         // Arrange
-        var tag1 = new Tag { Name = "Important" };
-        var tag2 = new Tag { Name = "Archive" };
+        var tag1 = new Tag { Name = "Important", AgentId = TestAgentId };
+        var tag2 = new Tag { Name = "Archive", AgentId = TestAgentId };
         _dbContext.Tags.AddRange(tag1, tag2);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto("Archive");
+        var dto = new TagUpdateDto(TestAgentId, "Archive");
         // Act
         var result = await _controller.UpdateTag(tag1.Id, dto, CancellationToken.None);
         // Assert
@@ -309,10 +312,10 @@ public class TagsControllerTests
     public async Task UpdateTag_WhenSameName_SucceedsWithoutConflict()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto("Important");
+        var dto = new TagUpdateDto(TestAgentId, "Important");
         // Act
         var result = await _controller.UpdateTag(tag.Id, dto, CancellationToken.None);
         // Assert
@@ -322,10 +325,10 @@ public class TagsControllerTests
     public async Task UpdateTag_TrimsWhitespace()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
-        var dto = new TagUpdateDto("  VeryImportant  ");
+        var dto = new TagUpdateDto(TestAgentId, "  VeryImportant  ");
         // Act
         var result = await _controller.UpdateTag(tag.Id, dto, CancellationToken.None);
         // Assert
@@ -337,7 +340,7 @@ public class TagsControllerTests
     public async Task DeleteTag_WhenTagExists_DeletesTag()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId, IsDefault = false };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
         // Act
@@ -359,7 +362,7 @@ public class TagsControllerTests
     public async Task DeleteTag_WhenTagHasDocuments_ReturnsBadRequest()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId, IsDefault = false };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
         // Add a document tag relationship
@@ -436,7 +439,7 @@ public class TagsControllerTests
     public async Task GetRolesForTag_WhenTagExistsWithNoRoles_ReturnsEmptyList()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         _dbContext.Tags.Add(tag);
         await _dbContext.SaveChangesAsync();
         // Act
@@ -451,7 +454,7 @@ public class TagsControllerTests
     public async Task GetRolesForTag_WhenTagHasRoles_ReturnsRoles()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         var role1 = new Role { Id = Guid.NewGuid(), Name = "Admin" };
         var role2 = new Role { Id = Guid.NewGuid(), Name = "User" };
         _dbContext.Tags.Add(tag);
@@ -487,7 +490,7 @@ public class TagsControllerTests
     public async Task AttachRoleToTag_WhenValidDto_CreatesMapping()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         var role = new Role { Id = Guid.NewGuid(), Name = "Admin" };
         _dbContext.Tags.Add(tag);
         _dbContext.Roles.Add(role);
@@ -508,7 +511,7 @@ public class TagsControllerTests
     public async Task AttachRoleToTag_WhenMappingAlreadyExists_ReturnsConflict()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         var role = new Role { Id = Guid.NewGuid(), Name = "Admin" };
         _dbContext.Tags.Add(tag);
         _dbContext.Roles.Add(role);
@@ -528,7 +531,7 @@ public class TagsControllerTests
     public async Task DetachRoleFromTag_WhenMappingExists_RemovesMapping()
     {
         // Arrange
-        var tag = new Tag { Name = "Important" };
+        var tag = new Tag { Name = "Important", AgentId = TestAgentId };
         var role = new Role { Id = Guid.NewGuid(), Name = "Admin" };
         _dbContext.Tags.Add(tag);
         _dbContext.Roles.Add(role);
@@ -561,5 +564,144 @@ public class TagsControllerTests
             .FirstOrDefault();
         Assert.That(authorizeAttribute, Is.Not.Null);
         Assert.That(authorizeAttribute!.Roles, Is.EqualTo("Admin"));
+    }
+
+    [Test]
+    public async Task CreateDefaultTagsForAgent_WhenNoDefaultTags_CreatesDefaultTagAndRole()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var anonymousRoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169");
+        
+        // Create the anonymous role in the database
+        var anonymousRole = new Role { Id = anonymousRoleId, Name = "Anonymous" };
+        _dbContext.Roles.Add(anonymousRole);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.CreateDefaultTagsForAgent(agentId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<OkResult>());
+
+        // Verify tag was created
+        var createdTag = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId && t.IsDefault);
+        Assert.That(createdTag, Is.Not.Null);
+        Assert.That(createdTag!.Name, Is.EqualTo("Public"));
+        Assert.That(createdTag.IsDefault, Is.True);
+        Assert.That(createdTag.AgentId, Is.EqualTo(agentId));
+
+        // Verify tag role was created
+        var createdTagRole = await _dbContext.TagRoles.FirstOrDefaultAsync(tr => tr.TagId == createdTag.Id);
+        Assert.That(createdTagRole, Is.Not.Null);
+        Assert.That(createdTagRole!.RoleId, Is.EqualTo(anonymousRoleId));
+    }
+
+    [Test]
+    public async Task CreateDefaultTagsForAgent_WhenDefaultTagAlreadyExists_ReturnsBadRequest()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var existingDefaultTag = new Tag 
+        { 
+            Name = "Public", 
+            AgentId = agentId, 
+            IsDefault = true 
+        };
+        _dbContext.Tags.Add(existingDefaultTag);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.CreateDefaultTagsForAgent(agentId);
+
+        // Assert
+        Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
+        var badResult = result.Result as BadRequestObjectResult;
+        Assert.That(badResult!.Value, Is.EqualTo("Default Tags already exists for this agent."));
+
+        // Verify no additional tags were created
+        var tagCount = await _dbContext.Tags.CountAsync(t => t.AgentId == agentId && t.IsDefault);
+        Assert.That(tagCount, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task CreateDefaultTagsForAgent_CreatesTagWithCorrectProperties()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var anonymousRoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169");
+        
+        // Create the anonymous role in the database
+        var anonymousRole = new Role { Id = anonymousRoleId, Name = "Anonymous" };
+        _dbContext.Roles.Add(anonymousRole);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _controller.CreateDefaultTagsForAgent(agentId);
+
+        // Assert
+        var createdTag = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId && t.IsDefault);
+        Assert.That(createdTag, Is.Not.Null);
+        Assert.That(createdTag!.Id, Is.Not.EqualTo(Guid.Empty));
+        Assert.That(createdTag.Name, Is.EqualTo("Public"));
+        Assert.That(createdTag.IsDefault, Is.True);
+        Assert.That(createdTag.AgentId, Is.EqualTo(agentId));
+        Assert.That(createdTag.CreatedAt, Is.Not.EqualTo(default(DateTime)));
+        Assert.That(createdTag.UpdatedAt, Is.Not.EqualTo(default(DateTime)));
+    }
+
+    [Test]
+    public async Task CreateDefaultTagsForAgent_CreatesTagRoleWithCorrectProperties()
+    {
+        // Arrange
+        var agentId = Guid.NewGuid();
+        var anonymousRoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169");
+        
+        // Create the anonymous role in the database
+        var anonymousRole = new Role { Id = anonymousRoleId, Name = "Anonymous" };
+        _dbContext.Roles.Add(anonymousRole);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _controller.CreateDefaultTagsForAgent(agentId);
+
+        // Assert
+        var createdTag = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId && t.IsDefault);
+        var createdTagRole = await _dbContext.TagRoles.FirstOrDefaultAsync(tr => tr.TagId == createdTag!.Id);
+        
+        Assert.That(createdTagRole, Is.Not.Null);
+        Assert.That(createdTagRole!.Id, Is.Not.EqualTo(Guid.Empty));
+        Assert.That(createdTagRole.TagId, Is.EqualTo(createdTag!.Id));
+        Assert.That(createdTagRole.RoleId, Is.EqualTo(anonymousRoleId));
+        Assert.That(createdTagRole.CreatedAt, Is.Not.EqualTo(default(DateTime)));
+        Assert.That(createdTagRole.UpdatedAt, Is.Not.EqualTo(default(DateTime)));
+    }
+
+    [Test]
+    public async Task CreateDefaultTagsForAgent_ForDifferentAgents_CreatesMultipleDefaultTags()
+    {
+        // Arrange
+        var agentId1 = Guid.NewGuid();
+        var agentId2 = Guid.NewGuid();
+        var anonymousRoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169");
+        
+        // Create the anonymous role in the database
+        var anonymousRole = new Role { Id = anonymousRoleId, Name = "Anonymous" };
+        _dbContext.Roles.Add(anonymousRole);
+        await _dbContext.SaveChangesAsync();
+
+        // Act
+        await _controller.CreateDefaultTagsForAgent(agentId1);
+        await _controller.CreateDefaultTagsForAgent(agentId2);
+
+        // Assert
+        var tag1 = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId1 && t.IsDefault);
+        var tag2 = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId2 && t.IsDefault);
+        
+        Assert.That(tag1, Is.Not.Null);
+        Assert.That(tag2, Is.Not.Null);
+        Assert.That(tag1!.Id, Is.Not.EqualTo(tag2!.Id));
+        Assert.That(tag1.AgentId, Is.EqualTo(agentId1));
+        Assert.That(tag2.AgentId, Is.EqualTo(agentId2));
     }
 }

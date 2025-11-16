@@ -114,12 +114,16 @@
                                                 <button class="btn btn-outline-primary" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
                                                     <i class="bi bi-people"></i>
                                                 </button>
-                                                <button class="btn btn-outline-danger" 
-                                                        @onclick="() => ShowDeleteConfirmation(tag)" 
-                                                        disabled="@(tag.DocumentCount > 0)"
-                                                        title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
+                                                @if (!tag.IsDefault)
+                                                {
+                                                    <button class="btn btn-outline-danger"
+                                                            @onclick="() => ShowDeleteConfirmation(tag)"
+                                                            disabled="@(tag.DocumentCount > 0)"
+                                                            title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                }
+                                               
                                             </div>
                                         </td>
                                     </tr>
@@ -178,12 +182,15 @@
                                     <button class="btn btn-outline-primary btn-sm flex-fill" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
                                         <i class="bi bi-people me-1"></i>Roles
                                     </button>
-                                    <button class="btn btn-outline-danger btn-sm flex-fill" 
-                                            @onclick="() => ShowDeleteConfirmation(tag)" 
-                                            disabled="@(tag.DocumentCount > 0)"
-                                            title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
-                                        <i class="bi bi-trash me-1"></i>Delete
-                                    </button>
+                                    @if (!tag.IsDefault)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm flex-fill"
+                                                @onclick="() => ShowDeleteConfirmation(tag)"
+                                                disabled="@(tag.DocumentCount > 0)"
+                                                title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                            <i class="bi bi-trash me-1"></i>Delete
+                                        </button>
+                                    }
                                 </div>
                             </div>
                         }
@@ -350,6 +357,9 @@
 }
 
 @code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
     private List<TagDto> tags = new();
     private List<RoleDto> availableRoles = new();
     private Dictionary<Guid, List<TagRoleDto>> tagRoles = new();
@@ -387,7 +397,7 @@
             errorMessage = string.Empty;
 
             // Load tags and roles in parallel
-            var tagsTask = TagClient.GetTagsAsync(searchQuery);
+            var tagsTask = TagClient.GetTagsAsync(AgentId, searchQuery);
             var rolesTask = TagClient.GetAvailableRolesAsync();
 
             await Task.WhenAll(tagsTask, rolesTask);
@@ -473,11 +483,11 @@
 
             if (editingTag == null)
             {
-                await TagClient.CreateTagAsync(new TagCreateDto(tagName.Trim()));
+                await TagClient.CreateTagAsync(new TagCreateDto(AgentId, tagName.Trim()));
             }
             else
             {
-                await TagClient.UpdateTagAsync(editingTag.Id, new TagUpdateDto(tagName.Trim()));
+                await TagClient.UpdateTagAsync(editingTag.Id, new TagUpdateDto(AgentId, tagName.Trim()));
             }
 
             HideTagModal();

@@ -6,6 +6,7 @@
 @using NTG.Agent.Common.Dtos.Agents
 @inject AgentClient AgentClient
 @inject FolderClient FolderClient
+@inject TagClient TagClient
 @inject NavigationManager Navigation
 @inject ILogger<AddAgent> Logger
 
@@ -253,17 +254,18 @@
             // Create the agent
             var newAgentId = await AgentClient.CreateAgent(agentDetail);
 
-            // Create default folder for the new agent
+            // Create default folder & tags for the new agent
             if (newAgentId != Guid.Empty)
             {
                 try
                 {
                     await FolderClient.CreateDefaultFoldersForAgent(newAgentId);
+                    await TagClient.CreateDefaultTagsForAgent(newAgentId);
                 }
                 catch (Exception ex)
                 {
                     // Log the error but don't fail the agent creation
-                    Logger.LogWarning(ex, "Failed to create default folder for agent {AgentId}", newAgentId);
+                    Logger.LogWarning(ex, "Failed to create default folder & tags for agent {AgentId}", newAgentId);
                 }
             }
 

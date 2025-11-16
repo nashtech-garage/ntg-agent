@@ -138,7 +138,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             e.Property(x => x.Name)
                 .IsRequired()
                 .HasMaxLength(256);
-            e.HasIndex(x => x.Name).IsUnique();
+            e.HasIndex(x => x.Name);
         });
 
         modelBuilder.Entity<TagRole>(e =>
@@ -158,6 +158,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            {
                Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
                Name = "Public",
+               AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+               IsDefault = true,
                CreatedAt = new DateTime(2025, 6, 24),
                UpdatedAt = new DateTime(2025, 6, 24)
            }

@@ -227,7 +227,7 @@
                             } 
                             else if (activeTab == tagsManagementTab)
                             {
-                                <TagManagementTab />
+                                <TagManagementTab AgentId="Id" />
                             }
                         </div>
                     </div>
@@ -317,7 +317,7 @@
     {
         try
         {
-            var tags = await TagClient.GetTagsAsync();
+            var tags = await TagClient.GetTagsAsync(Id);
             tagCount = tags.Count;
             StateHasChanged();
         }

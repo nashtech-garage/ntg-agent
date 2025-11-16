@@ -8,12 +8,12 @@ public class TagClient(HttpClient httpClient)
     private readonly HttpClient _httpClient = httpClient;
 
     // Get all tags with optional search query
-    public async Task<List<TagDto>> GetTagsAsync(string? searchQuery = null, CancellationToken cancellationToken = default)
+    public async Task<List<TagDto>> GetTagsAsync(Guid agentId, string? searchQuery = null, CancellationToken cancellationToken = default)
     {
-        var url = "api/tags";
+        var url = $"api/tags?agentId={agentId}";
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
-            url += $"?q={Uri.EscapeDataString(searchQuery)}";
+            url += $"&q={Uri.EscapeDataString(searchQuery)}";
         }
 
         try
@@ -179,5 +179,11 @@ public class TagClient(HttpClient httpClient)
         {
             throw new HttpRequestException($"Failed to fetch available roles: {ex.Message}", ex);
         }
+    }
+
+    public async Task CreateDefaultTagsForAgent(Guid agentId)
+    {
+        var response = await _httpClient.PostAsync($"api/tags/{agentId}/default", null);
+        response.EnsureSuccessStatusCode();
     }
 }
