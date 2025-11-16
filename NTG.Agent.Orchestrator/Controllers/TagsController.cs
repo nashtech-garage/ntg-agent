@@ -331,7 +331,7 @@ public class TagsController : ControllerBase
     /// <response code="401">If the user is not authenticated.</response>
     /// <response code="403">If the user does not have Admin role.</response>
     [HttpPost("{agentId}/default")]
-    public async Task<ActionResult<Folder>> CreateDefaultTagsForAgent(Guid agentId)
+    public async Task<ActionResult<TagDto>> CreateDefaultTagsForAgent(Guid agentId)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
