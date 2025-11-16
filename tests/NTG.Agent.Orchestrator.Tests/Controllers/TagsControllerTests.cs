@@ -582,7 +582,13 @@ public class TagsControllerTests
         var result = await _controller.CreateDefaultTagsForAgent(agentId);
 
         // Assert
-        Assert.That(result.Result, Is.TypeOf<OkResult>());
+        Assert.That(result.Result, Is.TypeOf<OkObjectResult>());
+        var okResult = result.Result as OkObjectResult;
+        var returnedTag = okResult!.Value as TagDto;
+        Assert.That(returnedTag, Is.Not.Null);
+        Assert.That(returnedTag!.Name, Is.EqualTo("Public"));
+        Assert.That(returnedTag.IsDefault, Is.True);
+        Assert.That(returnedTag.DocumentCount, Is.EqualTo(0));
 
         // Verify tag was created
         var createdTag = await _dbContext.Tags.FirstOrDefaultAsync(t => t.AgentId == agentId && t.IsDefault);
@@ -617,7 +623,7 @@ public class TagsControllerTests
         // Assert
         Assert.That(result.Result, Is.TypeOf<BadRequestObjectResult>());
         var badResult = result.Result as BadRequestObjectResult;
-        Assert.That(badResult!.Value, Is.EqualTo("Default Tags already exists for this agent."));
+        Assert.That(badResult!.Value, Is.EqualTo("Default tag already exists for this agent."));
 
         // Verify no additional tags were created
         var tagCount = await _dbContext.Tags.CountAsync(t => t.AgentId == agentId && t.IsDefault);

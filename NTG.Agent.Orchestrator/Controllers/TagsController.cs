@@ -4,10 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.Tags;
 using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Extentions;
-using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Tags;
-using System.Reflection.Metadata;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -48,6 +45,9 @@ public class TagsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] Guid agentId, [FromQuery] string? q, CancellationToken ct)
     {
+        if (agentId == Guid.Empty) 
+            return BadRequest("Agent ID is required.");
+
         var query = _agentDbContext.Tags.AsNoTracking().AsQueryable();
         query = query.Where(t => t.AgentId == agentId);
 
@@ -333,12 +333,10 @@ public class TagsController : ControllerBase
     [HttpPost("{agentId}/default")]
     public async Task<ActionResult<TagDto>> CreateDefaultTagsForAgent(Guid agentId)
     {
-        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-
         var isTagExists = await _agentDbContext.Tags.AnyAsync(f => f.AgentId == agentId && f.IsDefault);
         if (isTagExists)
         {
-            return BadRequest("Default Tags already exists for this agent.");
+            return BadRequest("Default tag already exists for this agent.");
         }
 
         // Create Default Tags
@@ -361,7 +359,7 @@ public class TagsController : ControllerBase
 
         await _agentDbContext.SaveChangesAsync();
 
-        return Ok();
+        return Ok(new TagDto(tag.Id, tag.Name, tag.CreatedAt, tag.UpdatedAt, tag.IsDefault, 0));
     }
 }
 
