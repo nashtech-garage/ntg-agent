@@ -1,0 +1,159 @@
+@* Component for confirming agent deletion with error handling *@
+@using NTG.Agent.Admin.Client.Services
+@inject AgentClient AgentClient
+@inject ILogger<DeleteAgentConfirmationModal> Logger
+
+@if (showConfirmation)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Confirm Deletion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        Are you sure you want to delete the agent <strong>"@agentName"</strong>?
+                    </p>
+                    <p class="text-danger mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        This action cannot be undone.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        <i class="bi bi-trash me-2"></i>
+                        Delete Agent
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showError)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-circle-fill me-2"></i>
+                        Deletion Failed
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseErrorDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-0" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @errorMessage
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CloseErrorDialog">
+                        <i class="bi bi-check-circle me-2"></i>
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid? AgentId { get; set; }
+
+    [Parameter]
+    public string? AgentName { get; set; }
+
+    [Parameter]
+    public EventCallback OnDeleted { get; set; }
+
+    private bool showConfirmation;
+    private bool showError;
+    private string? agentName;
+    private string? errorMessage;
+
+    public void ShowDeleteConfirmation(Guid agentId, string name)
+    {
+        AgentId = agentId;
+        agentName = name;
+        showConfirmation = true;
+        errorMessage = null;
+        showError = false;
+        StateHasChanged();
+    }
+
+    private void CancelDelete()
+    {
+        AgentId = null;
+        agentName = null;
+        showConfirmation = false;
+        errorMessage = null;
+        showError = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (AgentId == null)
+            return;
+
+        try
+        {
+            await AgentClient.DeleteAgent(AgentId.Value);
+            showConfirmation = false;
+            AgentId = null;
+            agentName = null;
+            errorMessage = null;
+            showError = false;
+            
+            // Notify parent that deletion was successful
+            await OnDeleted.InvokeAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Error deleting agent");
+            
+            errorMessage = ex.Message.Contains("400")
+                ? ParseErrorMessage(ex)
+                : "An error occurred while deleting the agent. Please try again.";
+            
+            showError = true;
+            showConfirmation = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting agent");
+            errorMessage = "An unexpected error occurred. Please try again.";
+            showError = true;
+            showConfirmation = false;
+        }
+    }
+
+    private string ParseErrorMessage(HttpRequestException ex)
+    {
+        if (ex.Message.Contains("default"))
+            return "This agent cannot be deleted because it is a default agent.";
+        if (ex.Message.Contains("documents") || ex.Message.Contains("associated"))
+            return "This agent cannot be deleted because it is associated with documents.";
+        
+        return "Unable to delete the agent. Please check if it's associated with any documents.";
+    }
+
+    private void CloseErrorDialog()
+    {
+        showError = false;
+        errorMessage = null;
+        AgentId = null;
+        agentName = null;
+    }
+}

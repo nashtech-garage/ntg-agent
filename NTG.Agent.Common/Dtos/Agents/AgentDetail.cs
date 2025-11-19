@@ -15,7 +15,8 @@ public class AgentDetail
     public string? ProviderEndpoint { get; set; }
     public string? ProviderApiKey { get; set; }
     public string? ProviderModelName { get; set; }
-
+    public bool IsDefault { get; set; }
+    public bool IsPublished { get; set; }
     public string? McpServer { get; set; }
 
     public string ToolCount { get; set; } = "0";

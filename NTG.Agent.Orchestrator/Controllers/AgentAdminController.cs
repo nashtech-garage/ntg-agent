@@ -43,7 +43,7 @@ public class AgentAdminController : ControllerBase
     public async Task<IActionResult> GetAgents()
     {
         var agents = await _agentDbContext.Agents
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished))
             .ToListAsync();
         return Ok(agents);
     }
@@ -73,7 +73,9 @@ public class AgentAdminController : ControllerBase
             .Select(x => new AgentDetail(x.Id, x.Name, x.Instructions, x.ProviderName, x.ProviderEndpoint, x.ProviderApiKey, x.ProviderModelName)
             {
                 McpServer = x.McpServer,
-                ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}"
+                ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
+                IsDefault = x.IsDefault,
+                IsPublished = x.IsPublished
             })
             .FirstOrDefaultAsync();
 
@@ -340,6 +342,8 @@ public class AgentAdminController : ControllerBase
             ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
+            IsDefault = false,
+            IsPublished = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -348,5 +352,83 @@ public class AgentAdminController : ControllerBase
         await _agentDbContext.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
+    }
+
+    /// <summary>
+    /// Updates the publication status of an agent.
+    /// </summary>
+    /// <remarks>
+    /// This endpoint allows toggling the publication status of an agent between published and draft states.
+    /// When an agent is published, it becomes available for use. The authenticated user is recorded as 
+    /// the updater, and the update timestamp is automatically set to the current UTC time.
+    /// Only users with Admin role can access this endpoint.
+    /// </remarks>
+    /// <param name="id">The unique identifier (GUID) of the agent to update.</param>
+    /// <param name="isPublished">Boolean value indicating whether the agent should be published (true) or set to draft (false).</param>
+    /// <returns>
+    /// An <see cref="IActionResult"/> indicating the result of the update operation.
+    /// Returns 200 OK on success, or 404 Not Found if the agent doesn't exist.
+    /// </returns>
+    /// <response code="200">Agent publication status updated successfully</response>
+    /// <response code="404">If the agent with the specified ID is not found</response>
+    /// <response code="401">If the user is not authenticated</response>
+    /// <response code="403">If the user does not have Admin role</response>
+    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
+    [HttpPatch("{id}/publish")]
+    public async Task<IActionResult> UpdateAgentPublishStatus(Guid id, [FromBody] bool isPublished)
+    {
+        var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
+        var agent = await _agentDbContext.Agents.FindAsync(id);
+        
+        if (agent == null)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        agent.IsPublished = isPublished;
+        agent.UpdatedAt = DateTime.UtcNow;
+        agent.UpdatedByUserId = userId;
+        
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok(new { message = $"Agent successfully {(isPublished ? "published" : "unpublished")}.", isPublished = agent.IsPublished });
+    }
+
+    /// <summary>
+    /// Deletes the agent with the specified identifier.
+    /// </summary>
+    /// <remarks>Default agents cannot be deleted. Additionally, agents associated with documents cannot be
+    /// deleted.</remarks>
+    /// <param name="id">The unique identifier of the agent to delete.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation: <list type="bullet">
+    /// <item><description><see cref="NotFoundResult"/> if no agent with the specified identifier
+    /// exists.</description></item> <item><description><see cref="BadRequestResult"/> if the agent is a default agent
+    /// or is associated with documents.</description></item> <item><description><see cref="NoContentResult"/> if the
+    /// agent is successfully deleted.</description></item> </list></returns>
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteAgent(Guid id)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(id);
+        if (agent == null)
+        {
+            return NotFound();
+        }
+
+        if (agent.IsDefault)
+        {
+            return BadRequest("Default agent cannot be deleted.");
+        }
+
+        var associatedDocs = await _agentDbContext.Documents.AnyAsync(d => d.AgentId == id);
+
+        if (associatedDocs)
+        {
+            return BadRequest("Agent cannot be deleted because it is associated with documents.");
+        }
+
+        _agentDbContext.Agents.Remove(agent);
+        await _agentDbContext.SaveChangesAsync();
+
+        return NoContent();
     }
 }

@@ -26,7 +26,7 @@ public class AgentFactory : IAgentFactory
 
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
-        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
