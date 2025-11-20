@@ -5,7 +5,6 @@
 @using NTG.Agent.Common.Dtos.Agents
 @inject ILogger<AgentDetails> Logger
 @inject AgentClient AgentClient
-@inject TagClient TagClient
 @inject NavigationManager Navigation
 
 <PageTitle>Agent Details</PageTitle>
@@ -99,15 +98,6 @@
                                     <span class="badge bg-secondary ms-2">@documentCount</span>
                                 </button>
                             </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link @(activeTab == tagsManagementTab ? "active" : "") d-flex align-items-center"
-                                        @onclick="() => SetActiveTab(tagsManagementTab)"
-                                        type="button" role="tab">
-                                    <i class="bi bi-tags me-2"></i>
-                                    Tags Management
-                                    <span class="badge bg-secondary ms-2">@tagCount</span>
-                                </button>
-                            </li>
                         </ul>
                     </div>
 
@@ -134,12 +124,6 @@
                                         <span>Knowledge Base</span>
                                         <span class="badge bg-secondary ms-2">@documentCount</span>
                                     }
-                                    else if (activeTab == tagsManagementTab)
-                                    {
-                                        <i class="bi bi-tags me-2"></i>
-                                        <span>Tags Management</span>
-                                        <span class="badge bg-secondary ms-2">@tagCount</span>
-                                    }
                                 </span>
                             </button>
                             <ul class="dropdown-menu w-100">
@@ -164,14 +148,6 @@
                                         <i class="bi bi-book me-2"></i>
                                         Knowledge Base
                                         <span class="badge bg-secondary ms-2">@documentCount</span>
-                                    </button>
-                                </li>
-                                <li>
-                                    <button class="dropdown-item @(activeTab == tagsManagementTab ? "active" : "")"
-                                            @onclick="() => SetActiveTab(tagsManagementTab)" type="button">
-                                        <i class="bi bi-tags me-2"></i>
-                                        Tags Management
-                                        <span class="badge bg-secondary ms-2">@tagCount</span>
                                     </button>
                                 </li>
                             </ul>
@@ -224,10 +200,6 @@
                                 <div class="tab-pane fade show active p-2 p-md-4">
                                     <ToolManagementTab AgentDetail="agentDetail" />
                                 </div>
-                            } 
-                            else if (activeTab == tagsManagementTab)
-                            {
-                                <TagManagementTab />
                             }
                         </div>
                     </div>
@@ -280,10 +252,8 @@
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private const string toolsTab = "tools";
-    private const string tagsManagementTab = "tagsmanagement";
     private string activeTab = settingsTab;
     private int documentCount = 0;
-    private int tagCount = 0;
     private Guid? selectedFolderId;
     private DocumentsTab? documentsTabRef;
     private bool openAddKnowledgeDialog = false;
@@ -298,10 +268,6 @@
             {
                 Navigation.NavigateTo("/agents");
             }
-            else
-            {
-                await LoadTagCount();
-            }
         }
         catch (Exception ex)
         {
@@ -310,20 +276,6 @@
         finally
         {
             isLoading = false;
-        }
-    }
-
-    private async Task LoadTagCount()
-    {
-        try
-        {
-            var tags = await TagClient.GetTagsAsync();
-            tagCount = tags.Count;
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading tag count");
         }
     }
 
