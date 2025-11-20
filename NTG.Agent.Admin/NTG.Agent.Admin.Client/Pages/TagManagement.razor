@@ -1,216 +1,238 @@
-﻿@using NTG.Agent.Common.Dtos.Tags
+@page "/tags-management"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Common.Dtos.Tags
+@using NTG.Agent.Admin.Client.Services
 @inject TagClient TagClient
-@inject IJSRuntime JSRuntime
 @implements IDisposable
-@inject ILogger<TagManagementTab> Logger
+@inject ILogger<TagManagement> Logger
 
-<div class="p-4">
-    <!-- Header with Add Tag Button -->
-    <div class="d-flex justify-content-between align-items-center mb-4 header-section">
-        <div class="flex-grow-1">
-            <h4 class="mb-1">Tags Management</h4>
-            <p class="text-muted mb-0 d-none d-sm-block">Manage tags and their role assignments</p>
-        </div>
-        <button class="btn btn-primary create-tag-btn" @onclick="ShowCreateTagModal">
-            <i class="bi bi-plus-circle me-2"></i>Create Tag
-        </button>
-    </div>
+<PageTitle>Tags Management</PageTitle>
 
-    <!-- Search Bar -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input type="text" class="form-control" placeholder="Search tags..." 
-                       @bind="searchQuery" @bind:event="oninput" @onkeyup="OnSearchInputChanged" />
-            </div>
+<div class="container-fluid px-2 px-md-4 py-2 py-md-3">
+    <div class="row mb-2 mb-md-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Tags Management</li>
+                </ol>
+            </nav>
         </div>
     </div>
 
-    <!-- Error Display -->
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            @errorMessage
-            <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
-        </div>
-    }
-
-    <!-- Loading State -->
-    @if (isLoading)
-    {
-        <div class="d-flex justify-content-center py-5">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-        </div>
-    }
-    else
-    {
-        <!-- Tags Table -->
-        <div class="card">
-            <div class="card-body p-0">
-                @if (tags?.Any() == true)
-                {
-                    <!-- Desktop Table View -->
-                    <div class="table-responsive d-none d-md-block">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>Name</th>
-                                    <th>Assigned Roles</th>
-                                    <th>Documents</th>
-                                    <th>Created</th>
-                                    <th>Updated</th>
-                                    <th width="120">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var tag in tags)
-                                {
-                                    <tr>
-                                        <td>
-                                            <span class="badge bg-primary">@tag.Name</span>
-                                        </td>
-                                        <td>
-                                            @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
-                                            {
-                                                @foreach (var tagRole in tagRoles[tag.Id])
-                                                {
-                                                    var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
-                                                    if (role != null)
-                                                    {
-                                                        <span class="badge bg-secondary me-1">@role.Name</span>
-                                                    }
-                                                }
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">No roles assigned</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            @if (tag.DocumentCount > 0)
-                                            {
-                                                <span class="badge bg-info">@tag.DocumentCount documents</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-muted">No documents</span>
-                                            }
-                                        </td>
-                                        <td>
-                                            <small class="text-muted">@tag.CreatedAt.ToString("MMM dd, yyyy")</small>
-                                        </td>
-                                        <td>
-                                            <small class="text-muted">@tag.UpdatedAt.ToString("MMM dd, yyyy")</small>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-secondary" @onclick="() => ShowEditTagModal(tag)" title="Edit">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                <button class="btn btn-outline-primary" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
-                                                    <i class="bi bi-people"></i>
-                                                </button>
-                                                <button class="btn btn-outline-danger" 
-                                                        @onclick="() => ShowDeleteConfirmation(tag)" 
-                                                        disabled="@(tag.DocumentCount > 0)"
-                                                        title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="p-4">
+                <!-- Header with Add Tag Button -->
+                <div class="d-flex justify-content-between align-items-center mb-4 header-section">
+                    <div class="flex-grow-1">
+                        <h4 class="mb-1">Tags Management</h4>
+                        <p class="text-muted mb-0 d-none d-sm-block">Manage tags and their role assignments</p>
                     </div>
-                    
-                    <!-- Mobile Card View -->
-                    <div class="d-block d-md-none p-3">
-                        @foreach (var tag in tags)
-                        {
-                            <div class="tag-card mb-3 p-3 shadow-sm rounded bg-white">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <span class="badge bg-primary fs-6">@tag.Name</span>
-                                    <small class="text-muted">@tag.CreatedAt.ToString("MMM dd")</small>
-                                </div>
-                                
-                                <div class="mb-2 d-flex align-items-center flex-wrap">
-                                    <strong class="text-muted small me-2">Assigned Roles:</strong>
-                                    @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
-                                    {
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach (var tagRole in tagRoles[tag.Id])
-                                            {
-                                                var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
-                                                if (role != null)
-                                                {
-                                                    <span class="badge bg-secondary badge-sm">@role.Name</span>
-                                                }
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">No roles assigned</span>
-                                    }
-                                </div>
-                                
-                                <div class="mb-2 d-flex align-items-center flex-wrap">
-                                    <strong class="text-muted small me-2">Documents:</strong>
-                                    @if (tag.DocumentCount > 0)
-                                    {
-                                        <span class="badge bg-info">@tag.DocumentCount documents</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted small">No documents</span>
-                                    }
-                                </div>
-                                
-                                <div class="d-flex gap-2 mt-3">
-                                    <button class="btn btn-outline-secondary btn-sm flex-fill" @onclick="() => ShowEditTagModal(tag)" title="Edit">
-                                        <i class="bi bi-pencil me-1"></i>Edit
-                                    </button>
-                                    <button class="btn btn-outline-primary btn-sm flex-fill" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
-                                        <i class="bi bi-people me-1"></i>Roles
-                                    </button>
-                                    <button class="btn btn-outline-danger btn-sm flex-fill" 
-                                            @onclick="() => ShowDeleteConfirmation(tag)" 
-                                            disabled="@(tag.DocumentCount > 0)"
-                                            title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
-                                        <i class="bi bi-trash me-1"></i>Delete
-                                    </button>
-                                </div>
-                            </div>
-                        }
+                    <button class="btn btn-primary create-tag-btn" @onclick="ShowCreateTagModal">
+                        <i class="bi bi-plus-circle me-2"></i>Create Tag
+                    </button>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Search tags..." 
+                                   @bind="searchQuery" @bind:event="oninput" @onkeyup="OnSearchInputChanged" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Display -->
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        @errorMessage
+                        <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                    </div>
+                }
+
+                <!-- Loading State -->
+                @if (isLoading)
+                {
+                    <div class="d-flex justify-content-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
                     </div>
                 }
                 else
                 {
-                    <div class="text-center py-5">
-                        <div class="mb-3">
-                            <i class="bi bi-tags text-muted" style="font-size: 3rem;"></i>
-                        </div>
-                        <h5 class="text-muted">No tags found</h5>
-                        <p class="text-muted">
-                            @if (string.IsNullOrWhiteSpace(searchQuery))
+                    <!-- Tags Table -->
+                    <div class="card">
+                        <div class="card-body p-0">
+                            @if (tags?.Any() == true)
                             {
-                                <span>Create your first tag to get started</span>
+                                <!-- Desktop Table View -->
+                                <div class="table-responsive d-none d-md-block">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Assigned Roles</th>
+                                                <th>Documents</th>
+                                                <th>Created</th>
+                                                <th>Updated</th>
+                                                <th width="120">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var tag in tags)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge bg-primary">@tag.Name</span>
+                                                    </td>
+                                                    <td>
+                                                        @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
+                                                        {
+                                                            @foreach (var tagRole in tagRoles[tag.Id])
+                                                            {
+                                                                var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
+                                                                if (role != null)
+                                                                {
+                                                                    <span class="badge bg-secondary me-1">@role.Name</span>
+                                                                }
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">No roles assigned</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        @if (tag.DocumentCount > 0)
+                                                        {
+                                                            <span class="badge bg-info">@tag.DocumentCount documents</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted">No documents</span>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        <small class="text-muted">@tag.CreatedAt.ToString("MMM dd, yyyy")</small>
+                                                    </td>
+                                                    <td>
+                                                        <small class="text-muted">@tag.UpdatedAt.ToString("MMM dd, yyyy")</small>
+                                                    </td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <button class="btn btn-outline-secondary" @onclick="() => ShowEditTagModal(tag)" title="Edit">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-primary" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
+                                                                <i class="bi bi-people"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-danger" 
+                                                                    @onclick="() => ShowDeleteConfirmation(tag)" 
+                                                                    disabled="@(tag.DocumentCount > 0)"
+                                                                    title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Mobile Card View -->
+                                <div class="d-block d-md-none p-3">
+                                    @foreach (var tag in tags)
+                                    {
+                                        <div class="tag-card mb-3 p-3 shadow-sm rounded bg-white">
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <span class="badge bg-primary fs-6">@tag.Name</span>
+                                                <small class="text-muted">@tag.CreatedAt.ToString("MMM dd")</small>
+                                            </div>
+                                            
+                                            <div class="mb-2 d-flex align-items-center flex-wrap">
+                                                <strong class="text-muted small me-2">Assigned Roles:</strong>
+                                                @if (tagRoles.ContainsKey(tag.Id) && tagRoles[tag.Id].Any())
+                                                {
+                                                    <div class="d-flex flex-wrap gap-1">
+                                                        @foreach (var tagRole in tagRoles[tag.Id])
+                                                        {
+                                                            var role = availableRoles.FirstOrDefault(r => r.Id == tagRole.RoleId);
+                                                            if (role != null)
+                                                            {
+                                                                <span class="badge bg-secondary badge-sm">@role.Name</span>
+                                                            }
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">No roles assigned</span>
+                                                }
+                                            </div>
+                                            
+                                            <div class="mb-2 d-flex align-items-center flex-wrap">
+                                                <strong class="text-muted small me-2">Documents:</strong>
+                                                @if (tag.DocumentCount > 0)
+                                                {
+                                                    <span class="badge bg-info">@tag.DocumentCount documents</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">No documents</span>
+                                                }
+                                            </div>
+                                            
+                                            <div class="d-flex gap-2 mt-3">
+                                                <button class="btn btn-outline-secondary btn-sm flex-fill" @onclick="() => ShowEditTagModal(tag)" title="Edit">
+                                                    <i class="bi bi-pencil me-1"></i>Edit
+                                                </button>
+                                                <button class="btn btn-outline-primary btn-sm flex-fill" @onclick="() => ShowManageRolesModal(tag)" title="Manage Roles">
+                                                    <i class="bi bi-people me-1"></i>Roles
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-sm flex-fill" 
+                                                        @onclick="() => ShowDeleteConfirmation(tag)" 
+                                                        disabled="@(tag.DocumentCount > 0)"
+                                                        title="@(tag.DocumentCount > 0 ? "Cannot delete - tag is used by documents" : "Delete")">
+                                                    <i class="bi bi-trash me-1"></i>Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
                             }
                             else
                             {
-                                <span>No tags match your search criteria</span>
+                                <div class="text-center py-5">
+                                    <div class="mb-3">
+                                        <i class="bi bi-tags text-muted" style="font-size: 3rem;"></i>
+                                    </div>
+                                    <h5 class="text-muted">No tags found</h5>
+                                    <p class="text-muted">
+                                        @if (string.IsNullOrWhiteSpace(searchQuery))
+                                        {
+                                            <span>Create your first tag to get started</span>
+                                        }
+                                        else
+                                        {
+                                            <span>No tags match your search criteria</span>
+                                        }
+                                    </p>
+                                </div>
                             }
-                        </p>
+                        </div>
                     </div>
                 }
             </div>
         </div>
-    }
+    </div>
 </div>
 
 <!-- Create/Edit Tag Modal -->
@@ -412,14 +434,12 @@
             // Handle HTTP errors (401, 403, etc.)
             errorMessage = $"HTTP Error: {httpEx.Message}";
             Logger.LogError(httpEx, "HTTP Error loading data: {Message}", httpEx.Message);
-            await JSRuntime.InvokeVoidAsync("console.error", $"HTTP Error: {httpEx.Message}");
         }
         catch (Exception ex)
         {
             // Handle other errors
             errorMessage = $"Unexpected Error: {ex.Message}";
             Logger.LogError(ex, "Error loading data: {Message}", ex.Message);
-            await JSRuntime.InvokeVoidAsync("console.error", $"Error: {ex.Message}");
         }
         finally
         {
