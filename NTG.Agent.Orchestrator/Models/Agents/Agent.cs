@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
-using NTG.Agent.Orchestrator.Models.Identity;
+﻿using NTG.Agent.Orchestrator.Models.Identity;
 
 namespace NTG.Agent.Orchestrator.Models.Agents;
 
@@ -24,6 +23,10 @@ public class Agent
     public string ProviderEndpoint { get; set; } = string.Empty;
 
     public string ProviderApiKey { get; set; } = string.Empty;
+
+    public bool IsPublished { get; set; }
+
+    public bool IsDefault { get; set; }
 
     public string? McpServer { get; set; } = string.Empty;
 

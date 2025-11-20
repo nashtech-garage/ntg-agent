@@ -3,6 +3,7 @@
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
 @using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Admin.Client.Components
 @inject AgentClient AgentClient
 @inject NavigationManager Navigation
 
@@ -86,6 +87,31 @@
                                 <div class="row g-2">
                                     <div class="col-12">
                                         <div class="d-flex align-items-center">
+                                            @if (agent.IsPublished)
+                                            {
+                                                <i class="bi bi-globe me-2 text-success"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-lock me-2 text-secondary"></i>
+                                            }
+                                            <div class="flex-grow-1">
+                                                <small class="text-muted d-block">Status</small>
+                                                <span class="fw-medium">
+                                                    @if (agent.IsPublished)
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success">Published</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                                                    }
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center">
                                             <i class="bi bi-person-circle me-2 text-info"></i>
                                             <div class="flex-grow-1">
                                                 <small class="text-muted d-block">Owner</small>
@@ -106,30 +132,37 @@
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <div class="d-flex align-items-center">
-                                    <i class="bi bi-clock me-2 text-success"></i>
-                                    <div>
-                                        <small class="text-muted d-block">Last Updated</small>
-                                        <span class="fw-medium">
-                                            @agent.UpdatedAt.ToString("MMM dd, yyyy")
-                                        </span>
-                                        <small class="text-muted d-block">
-                                            @agent.UpdatedAt.ToString("HH:mm")
-                                        </small>
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-clock me-2 text-success"></i>
+                                            <div>
+                                                <small class="text-muted d-block">Last Updated</small>
+                                                <span class="fw-medium">
+                                                    @agent.UpdatedAt.ToString("MMM dd, yyyy")
+                                                </span>
+                                                <small class="text-muted d-block">
+                                                    @agent.UpdatedAt.ToString("HH:mm")
+                                                </small>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="card-footer bg-transparent border-0 pt-0">
-                            <a href="@($"/agents/{agent.Id}")" class="btn btn-primary w-100">
-                                <i class="bi bi-arrow-right-circle me-2"></i>
-                                View Details
-                            </a>
+                            <div class="d-flex gap-2">
+                                <a href="@($"/agents/{agent.Id}")" class="btn btn-primary flex-grow-1">
+                                    <i class="bi bi-arrow-right-circle me-2"></i>
+                                    View Details
+                                </a>
+                                <button class="btn btn-danger" 
+                                        @onclick="() => ShowDeleteConfirmation(agent.Id, agent.Name)"
+                                        disabled="@agent.IsDefault"
+                                        title="@(agent.IsDefault ? "Default agent cannot be deleted" : "Delete agent")">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -138,11 +171,25 @@
     }
 </div>
 
+<DeleteAgentConfirmationModal @ref="deleteModal" OnDeleted="HandleAgentDeleted" />
+
 @code {
     private IList<AgentListItem>? agents;
+    private DeleteAgentConfirmationModal? deleteModal;
 
     protected override async Task OnInitializedAsync()
     {
         agents = await AgentClient.GetListAsync();
+    }
+
+    private void ShowDeleteConfirmation(Guid agentId, string agentName)
+    {
+        deleteModal?.ShowDeleteConfirmation(agentId, agentName);
+    }
+
+    private async Task HandleAgentDeleted()
+    {
+        agents = await AgentClient.GetListAsync();
+        StateHasChanged();
     }
 }

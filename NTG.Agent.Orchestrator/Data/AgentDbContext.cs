@@ -91,7 +91,9 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             CreatedAt = new DateTime(2025, 6, 24),
             UpdatedAt = new DateTime(2025, 6, 24),
             Name = "Default Agent",
-            Instructions = "You are a helpful assistant. Answer questions to the best of your ability."
+            Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
+            IsDefault = true,
+            IsPublished = true
         });
 
         modelBuilder.Entity<Folder>().HasData(

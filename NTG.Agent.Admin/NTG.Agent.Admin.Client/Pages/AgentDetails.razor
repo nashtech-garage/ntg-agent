@@ -48,7 +48,20 @@
                         </div>
                         <div>
                             <h1 class="h3 h-md-2 mb-1">@agentDetail.Name</h1>
-                            <span class="badge bg-success">Active</span>
+                            @if (agentDetail.IsPublished)
+                            {
+                                <span class="badge bg-success">
+                                    <i class="bi bi-globe me-1"></i>
+                                    Published
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-lock me-1"></i>
+                                    Draft
+                                </span>
+                            }
                         </div>
                     </div>
                     <div class="dropdown">
@@ -59,7 +72,33 @@
                             <li><a class="dropdown-item" href="#"><i class="bi bi-pencil me-2"></i>Edit Agent</a></li>
                             <li><a class="dropdown-item" href="#" @onclick="HandleDuplicateAgent" @onclick:preventDefault="true"><i class="bi bi-copy me-2"></i>Duplicate Agent</a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="#"><i class="bi bi-trash me-2"></i>Delete Agent</a></li>
+                            <li>
+                                <button class="dropdown-item" 
+                                        @onclick="TogglePublishStatus" 
+                                        @onclick:preventDefault="true">
+                                    @if (agentDetail.IsPublished)
+                                    {
+                                        <i class="bi bi-lock me-2"></i>
+                                        <span>Unpublish Agent</span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-globe me-2"></i>
+                                        <span>Publish Agent</span>
+                                    }
+                                </button>
+                            </li>
+                            @if (!agentDetail.IsDefault)
+                            {
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button class="dropdown-item text-danger" 
+                                            @onclick="ShowDeleteConfirmation" 
+                                            title="Delete agent">
+                                        <i class="bi bi-trash me-2"></i>Delete Agent
+                                    </button>
+                                </li>
+                            }
                         </ul>
                     </div>
                 </div>
@@ -270,12 +309,31 @@
     }
 </div>
 
+@if (!string.IsNullOrEmpty(publishStatusMessage))
+{
+    <div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
+        <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header bg-success text-white">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <strong class="me-auto">Success</strong>
+                <button type="button" class="btn-close btn-close-white" @onclick="ClearPublishMessage"></button>
+            </div>
+            <div class="toast-body">
+                @publishStatusMessage
+            </div>
+        </div>
+    </div>
+}
+
+<DeleteAgentConfirmationModal @ref="deleteModal" OnDeleted="HandleAgentDeleted" />
+
 @code {
     [Parameter]
     public Guid Id { get; set; }
     private AgentDetail? agentDetail;
     private bool isLoading = true;
     private bool showSidebar = false;
+    private DeleteAgentConfirmationModal? deleteModal;
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
@@ -287,6 +345,7 @@
     private Guid? selectedFolderId;
     private DocumentsTab? documentsTabRef;
     private bool openAddKnowledgeDialog = false;
+    private string? publishStatusMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -358,6 +417,49 @@
     private void HandleDuplicateAgent()
     {
         Navigation.NavigateTo($"/agents/duplicate/{Id}");
+    }
+
+    private async Task TogglePublishStatus()
+    {
+        try
+        {
+            var newPublishStatus = !agentDetail!.IsPublished;
+            await AgentClient.UpdateAgentPublishStatus(Id, newPublishStatus);
+            
+            // Update local state
+            agentDetail.IsPublished = newPublishStatus;
+            
+            // Show success message
+            publishStatusMessage = newPublishStatus 
+                ? $"Agent '{agentDetail.Name}' has been successfully published." 
+                : $"Agent '{agentDetail.Name}' has been successfully unpublished.";
+            
+            StateHasChanged();
+            
+            // Auto-hide message after 3 seconds
+            await Task.Delay(3000);
+            ClearPublishMessage();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating agent publish status");
+        }
+    }
+
+    private void ClearPublishMessage()
+    {
+        publishStatusMessage = null;
+        StateHasChanged();
+    }
+
+    private void ShowDeleteConfirmation()
+    {
+        deleteModal?.ShowDeleteConfirmation(Id, agentDetail?.Name ?? string.Empty);
+    }
+
+    private void HandleAgentDeleted()
+    {
+        Navigation.NavigateTo("/");
     }
 }
 

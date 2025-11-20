@@ -586,6 +586,311 @@ public class AgentAdminControllerTests
         }
     }
 
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenAgentExists_UpdatesPublishStatus()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        var agent = await _context.Agents.FindAsync(agentId);
+        Assert.That(agent, Is.Not.Null);
+        Assert.That(agent.IsPublished, Is.False); // Initially false
+        var originalTimestamp = agent.UpdatedAt;
+
+        // Wait to ensure timestamp difference (100ms for CI reliability)
+        await Task.Delay(100);
+
+        // Act
+        var result = await _controller.UpdateAgentPublishStatus(agentId, true);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+
+        // Verify the agent was updated in the database
+        var updatedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(updatedAgent, Is.Not.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(updatedAgent.IsPublished, Is.True);
+            Assert.That(updatedAgent.UpdatedByUserId, Is.EqualTo(_testAdminUserId));
+            Assert.That(updatedAgent.UpdatedAt, Is.GreaterThan(originalTimestamp));
+        }
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenPublishing_ReturnsCorrectMessage()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+
+        // Act
+        var result = await _controller.UpdateAgentPublishStatus(agentId, true);
+
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var response = okResult.Value;
+        Assert.That(response, Is.Not.Null);
+
+        var messageProperty = response.GetType().GetProperty("message");
+        var isPublishedProperty = response.GetType().GetProperty("isPublished");
+        
+        Assert.That(messageProperty, Is.Not.Null);
+        Assert.That(isPublishedProperty, Is.Not.Null);
+        
+        var message = messageProperty.GetValue(response) as string;
+        var isPublished = (bool)isPublishedProperty.GetValue(response)!;
+        
+        Assert.That(message, Does.Contain("successfully published"));
+        Assert.That(isPublished, Is.True);
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenUnpublishing_ReturnsCorrectMessage()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        // First publish it
+        await _controller.UpdateAgentPublishStatus(agentId, true);
+
+        // Act - Now unpublish
+        var result = await _controller.UpdateAgentPublishStatus(agentId, false);
+
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var response = okResult.Value;
+        Assert.That(response, Is.Not.Null);
+
+        var messageProperty = response.GetType().GetProperty("message");
+        var isPublishedProperty = response.GetType().GetProperty("isPublished");
+        
+        var message = messageProperty!.GetValue(response) as string;
+        var isPublished = (bool)isPublishedProperty!.GetValue(response)!;
+        
+        Assert.That(message, Does.Contain("successfully unpublished"));
+        Assert.That(isPublished, Is.False);
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenAgentDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        var result = await _controller.UpdateAgentPublishStatus(nonExistentId, true);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundObjectResult>());
+        var notFoundResult = result as NotFoundObjectResult;
+        Assert.That(notFoundResult, Is.Not.Null);
+        Assert.That(notFoundResult.Value, Does.Contain(nonExistentId.ToString()));
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
+            }
+        };
+        var agentId = await SeedSingleAgentData();
+
+        // Act & Assert
+        Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+            await unauthenticatedController.UpdateAgentPublishStatus(agentId, true));
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_UpdatesTimestamp()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        var originalAgent = await _context.Agents.FindAsync(agentId);
+        var originalTimestamp = originalAgent!.UpdatedAt;
+
+        // Wait to ensure timestamp difference (100ms for CI reliability)
+        await Task.Delay(100);
+
+        // Act
+        await _controller.UpdateAgentPublishStatus(agentId, true);
+
+        // Assert
+        var updatedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(updatedAgent!.UpdatedAt, Is.GreaterThan(originalTimestamp));
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenAgentExists_DeletesSuccessfully()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+
+        // Act
+        var result = await _controller.DeleteAgent(agentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify the agent was deleted from the database
+        var deletedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(deletedAgent, Is.Null);
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenAgentDoesNotExist_ReturnsNotFound()
+    {
+        // Arrange
+        var nonExistentId = Guid.NewGuid();
+
+        // Act
+        var result = await _controller.DeleteAgent(nonExistentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenAgentIsDefault_ReturnsBadRequest()
+    {
+        // Arrange
+        var defaultAgent = new AgentModel
+        {
+            Id = Guid.NewGuid(),
+            Name = "Default Agent",
+            Instructions = "Default instructions",
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId,
+            IsDefault = true
+        };
+        await _context.Agents.AddAsync(defaultAgent);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.DeleteAgent(defaultAgent.Id);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult.Value, Is.EqualTo("Default agent cannot be deleted."));
+
+        // Verify agent still exists
+        var agent = await _context.Agents.FindAsync(defaultAgent.Id);
+        Assert.That(agent, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenAgentHasAssociatedDocuments_ReturnsBadRequest()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        
+        // Add a document associated with the agent
+        var document = new NTG.Agent.Orchestrator.Models.Documents.Document
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agentId,
+            Name = "Test Document",
+            Url = "https://example.com/test.pdf",
+            CreatedByUserId = _testUserId,
+            UpdatedByUserId = _testUserId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        await _context.Documents.AddAsync(document);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.DeleteAgent(agentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult.Value, Does.Contain("associated with documents"));
+
+        // Verify agent still exists
+        var agent = await _context.Agents.FindAsync(agentId);
+        Assert.That(agent, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenAgentHasNoDocuments_DeletesSuccessfully()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+
+        // Verify no documents exist for this agent
+        var hasDocuments = await _context.Documents.AnyAsync(d => d.AgentId == agentId);
+        Assert.That(hasDocuments, Is.False);
+
+        // Act
+        var result = await _controller.DeleteAgent(agentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify the agent was deleted
+        var deletedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(deletedAgent, Is.Null);
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenNonDefaultAgentWithNoDocuments_AllowsDeletion()
+    {
+        // Arrange
+        var agent = new AgentModel
+        {
+            Id = Guid.NewGuid(),
+            Name = "Non-Default Agent",
+            Instructions = "Instructions",
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId,
+            IsDefault = false
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.DeleteAgent(agent.Id);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify deletion
+        var deletedAgent = await _context.Agents.FindAsync(agent.Id);
+        Assert.That(deletedAgent, Is.Null);
+    }
+
+    [Test]
+    public async Task DeleteAgent_DeletesOnlySpecifiedAgent()
+    {
+        // Arrange
+        await SeedAgentsData(); // Creates 2 agents
+        var agentToDelete = await _context.Agents.FirstAsync();
+        var agentToKeep = await _context.Agents.Where(a => a.Id != agentToDelete.Id).FirstAsync();
+
+        // Act
+        var result = await _controller.DeleteAgent(agentToDelete.Id);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify only the specified agent was deleted
+        var deletedAgent = await _context.Agents.FindAsync(agentToDelete.Id);
+        var remainingAgent = await _context.Agents.FindAsync(agentToKeep.Id);
+        
+        Assert.That(deletedAgent, Is.Null);
+        Assert.That(remainingAgent, Is.Not.Null);
+    }
+
     private async Task SeedAgentsData()
     {
         var ownerUser = new User
