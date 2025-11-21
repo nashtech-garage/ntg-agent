@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using NTG.Agent.WebClient.Client.Dtos;
 using System.Globalization;
+using NTG.Agent.Common.Dtos.Agents;
 
 namespace NTG.Agent.WebClient.Client.Services;
 
@@ -41,6 +42,7 @@ public class ChatClient(HttpClient httpClient)
         form.Add(new StringContent(request.ConversationId.ToString()), nameof(request.ConversationId));
         if (!string.IsNullOrEmpty(request.SessionId))
             form.Add(new StringContent(request.SessionId), nameof(request.SessionId));
+        form.Add(new StringContent(request.AgentId.ToString()), nameof(request.AgentId));
 
         // --- 3️ Send request ---
         var response = await httpClient.PostAsync(REQUEST_URI, form);
@@ -49,6 +51,12 @@ public class ChatClient(HttpClient httpClient)
         return response.Content.ReadFromJsonAsAsyncEnumerable<PromptResponse>()!;
     }
 
-
+    public async Task<List<AgentListItemDto>> GetAgentsAsync()
+    {
+        var response = await httpClient.GetAsync("/api/agents");
+        response.EnsureSuccessStatusCode();
+        var agents = await response.Content.ReadFromJsonAsync<List<AgentListItemDto>>();
+        return agents ?? new List<AgentListItemDto>();
+    }
 
 }

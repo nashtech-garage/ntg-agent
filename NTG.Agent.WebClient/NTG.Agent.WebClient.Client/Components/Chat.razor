@@ -1,6 +1,7 @@
 ﻿﻿@using NTG.Agent.Common.Dtos.Chats
 @using NTG.Agent.Common.Dtos.Enums
 @using NTG.Agent.Common.Dtos.SharedConversations
+@using NTG.Agent.Common.Dtos.Agents
 @using NTG.Agent.WebClient.Client.Components.Shared
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
@@ -104,6 +105,10 @@ else if (ConversationId.HasValue)
                             title="Upload file">
                         <i class="bi bi-upload fs-6"></i>
                     </button> *@
+                    <button class="btn" @onclick="ShowAgentSelector" type="button" aria-label="Select agent"
+                            title="@GetSelectedAgentName()">
+                        <i class="bi bi-robot fs-6"></i>
+                    </button>
                     <button class="btn" type="submit" aria-label="Send message" title="Send message">
                         <i class="bi bi-send fs-6"></i>
                     </button>
@@ -145,6 +150,10 @@ else
                                 title="Upload file">
                             <i class="bi bi-upload fs-6"></i>
                         </button> *@
+                        <button class="btn" @onclick="ShowAgentSelector" type="button" aria-label="Select agent"
+                                title="@GetSelectedAgentName()">
+                            <i class="bi bi-robot fs-6"></i>
+                        </button>
                         <button class="btn" type="submit" aria-label="Send message"
                                 title="Send message">
                             <i class="bi bi-send fs-6"></i>
@@ -166,6 +175,46 @@ else
                         OnClose="CloseShareModal"
                         OnSharedConversationChanged="HandleSharedConversationChanged" />
 
+<!-- Agent Selector Modal -->
+@if (showAgentSelector)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseAgentSelector"></div>
+    <div class="agent-selector-modal fade show" style="display: block;">
+        <div class="agent-selector-content">
+            <div class="agent-selector-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-robot me-2"></i>Select an AI Agent
+                </h5>
+                <button type="button" class="btn-close" @onclick="CloseAgentSelector"></button>
+            </div>
+            <div class="agent-selector-body">
+                @foreach (var agent in availableAgents)
+                {
+                    <div class="agent-card @(selectedAgentId == agent.Id ? "selected" : "")" 
+                         @onclick="() => SelectAgent(agent.Id)">
+                        <div class="agent-card-icon">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <div class="agent-card-content">
+                            <div class="agent-card-name">@agent.Name</div>
+                            @if (agent.IsDefault)
+                            {
+                                <span class="badge bg-primary">Default</span>
+                            }
+                        </div>
+                        @if (selectedAgentId == agent.Id)
+                        {
+                            <div class="agent-card-check">
+                                <i class="bi bi-check-circle-fill"></i>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
 
     [Parameter]
@@ -186,11 +235,19 @@ else
     private Guid? shareChatId = null;
     private Guid? showCommentFor = null;
     private string currentComment = string.Empty;
+    private List<AgentListItemDto> availableAgents = new();
+    private Guid selectedAgentId;
+    private bool showAgentSelector = false;
 
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        // Load available agents
+        availableAgents = await ChatClient.GetAgentsAsync();
+        // Select the default agent
+        selectedAgentId = availableAgents.FirstOrDefault(a => a.IsDefault)?.Id ?? availableAgents.FirstOrDefault()?.Id ?? Guid.Empty;
 
         if (ConversationId.HasValue)
         {
@@ -275,7 +332,7 @@ else
 
         // 🚀 Send text + image to backend
         var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
-            currentSessionId, uploadItems);
+            currentSessionId, uploadItems, selectedAgentId);
 
         var result = await ChatClient.InvokeStreamAsync(request);
         response.Message = string.Empty;
@@ -360,7 +417,7 @@ else
     private void CloseShareModal()
     {
         showShareModal = false;
-        shareChatId = null; // Reset chatId when closing modal
+        shareChatId = null;
         JSRuntime.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
@@ -406,5 +463,30 @@ else
             currentComment = string.Empty;
             StateHasChanged();
         }
+    }
+
+    private void ShowAgentSelector()
+    {
+        showAgentSelector = true;
+        StateHasChanged();
+    }
+
+    private void CloseAgentSelector()
+    {
+        showAgentSelector = false;
+        StateHasChanged();
+    }
+
+    private void SelectAgent(Guid agentId)
+    {
+        selectedAgentId = agentId;
+        showAgentSelector = false;
+        StateHasChanged();
+    }
+
+    private string GetSelectedAgentName()
+    {
+        var agent = availableAgents.FirstOrDefault(a => a.Id == selectedAgentId);
+        return agent?.Name ?? "Select Agent";
     }
 }
