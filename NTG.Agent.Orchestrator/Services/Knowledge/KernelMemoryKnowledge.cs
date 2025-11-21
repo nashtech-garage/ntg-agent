@@ -30,13 +30,13 @@ public class KernelMemoryKnowledge : IKnowledgeService
         SearchResult result;
         if (tags.Count != 0)
         {
-            List<MemoryFilter> filters = new List<MemoryFilter>();
-            foreach (var tag in tags)
-            {
-                var memoryFilter = MemoryFilters.ByTag("tags", tag);
-                memoryFilter.Add("agentId", agentId.ToString());
-                filters.Add(memoryFilter);
-            }
+            var filters = tags
+                .Select(tag => {
+                    var memoryFilter = MemoryFilters.ByTag("tags", tag);
+                    memoryFilter.Add("agentId", agentId.ToString());
+                    return memoryFilter;
+                })
+                .ToList();
 
             result = await _kernelMemory.SearchAsync(
                 query: query,
