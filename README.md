@@ -27,19 +27,8 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 ## Getting started
 
 - Setup [GitHub models](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models) (free): Create your Fine-grained personal access tokens in GitHub https://github.com/settings/personal-access-tokens. The token needs to have **models:read** permissions.
-- Update file secrets.json for the NTG.Agent.Orchestrator with content below Or run the cli command `dotnet user-secrets set "GitHub:Models:GitHubToken" "<your_token_here>"`. Read [this link](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) if you don't know how to set the secrets
+- Update file secrets.json for the NTG.Agent.Knowledge with content below Or run the cli command `dotnet user-secrets set "KernelMemory:Services:OpenAI:APIKey" "<your_token_here>"`. Read [this link](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) if you don't know how to set the secrets
 
-```json
-{
-  "GitHub": {
-    "Models": {
-      "GitHubToken": "your GitHub token"
-    }
-  }
-}
-```
-
-- In the NTG.Agent.Knowledge project, add your GitHub access token and update the database connection string in the secrets.json as below
 
 ```json
 {
@@ -47,9 +36,6 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
     "Services": {
       "OpenAI": {
         "APIKey": "your GitHub token"
-      },
-      "SqlServer": {
-        "ConnectionString": "Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true"
       }
     }
   }
@@ -68,13 +54,21 @@ following https://developers.google.com/custom-search/docs/tutorial/creatingcse 
 }
 ```
 
+- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connects to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of three projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge
+
 - In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
 
-- Start the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
+- Run the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
   - NTG.Agent.WebClient is the website for end users
   - NTG.Agent.Admin is the website for administrators. The default admin account is admin@ntgagent.com / Ntg@123
   - NTG.Agent.Orchestrator is the backend API
   - NTG.Agent.Knowledge is the service responsible for ingesting documents. It extracts the content of uploaded files, generates embeddings, and stores them in a vector database. It also provides an API to search for relevant documents
+
+- Open the NTG.Agent.Admin --> Agent Management --> Agent Default and update the Agent Provider with GitHub Model information that you created earlier. 
+  - Provider Name: GitHub Model
+  - Provider Endpoint: https://models.github.ai/inference
+  - Provider API Key: Your GitHub token
+  - Model Name: openai/gpt-4.1 or other model that GitHub model supports
 
 ## How authentication work
 
