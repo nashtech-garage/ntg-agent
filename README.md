@@ -54,7 +54,7 @@ following https://developers.google.com/custom-search/docs/tutorial/creatingcse 
 }
 ```
 
-- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connect to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of three projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge
+- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connects to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of three projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge
 
 - In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
 
