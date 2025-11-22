@@ -9,4 +9,4 @@ public class UploadItemForm : UploadItem
     public IFormFile? Content { get; set; }
 }
 
-public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents);
+public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId);

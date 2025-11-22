@@ -1,5 +1,4 @@
 ﻿using Microsoft.KernelMemory;
-
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
@@ -26,14 +25,19 @@ public class KernelMemoryKnowledge : IKnowledgeService
     {
         await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
     }
-
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         SearchResult result;
         if (tags.Count != 0)
         {
-            var filters = (from tagValue in tags
-                           select MemoryFilters.ByTag("tags", tagValue)).ToList();
+            var filters = tags
+                .Select(tag => {
+                    var memoryFilter = MemoryFilters.ByTag("tags", tag);
+                    memoryFilter.Add("agentId", agentId.ToString());
+                    return memoryFilter;
+                })
+                .ToList();
+
             result = await _kernelMemory.SearchAsync(
                 query: query,
                 filters: filters,
