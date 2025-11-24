@@ -71,7 +71,7 @@ following https://developers.google.com/custom-search/docs/tutorial/creatingcse 
   - Model Name: openai/gpt-4.1 or other model that GitHub model supports
 
 ## Using other LLM models
-NTG Agent mupport multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
+NTG Agent supports multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
 
 ### Google Gemini
 
