@@ -31,6 +31,7 @@ public class AgentFactory : IAgentFactory
         return agentProvider switch
         {
             "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
+            "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
             "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
@@ -46,6 +47,7 @@ public class AgentFactory : IAgentFactory
         return agentProvider switch
         {
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
+            "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };

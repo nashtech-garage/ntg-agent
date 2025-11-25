@@ -117,8 +117,12 @@
                                 <label for="providerName" class="form-label fw-semibold">
                                     Provider Name <span class="text-muted">(Optional)</span>
                                 </label>
-                                <InputText id="providerName" class="form-control" @bind-Value="agentDetail.ProviderName" 
-                                           placeholder="e.g., OpenAI, Azure OpenAI" disabled="@isSubmitting" />
+                                <select id="providerName" class="form-select" @bind="agentDetail.ProviderName" disabled="@isSubmitting">
+                                    <option value="">Select a provider...</option>
+                                    <option value="GitHubModel">GitHub Models</option>
+                                    <option value="AzureOpenAI">Azure Open AI</option>
+                                    <option value="GoogleGemini">Google Gemini</option>
+                                </select>
                             </div>
 
                             <div class="col-md-6 mb-3">

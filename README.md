@@ -70,6 +70,14 @@ following https://developers.google.com/custom-search/docs/tutorial/creatingcse 
   - Provider API Key: Your GitHub token
   - Model Name: openai/gpt-4.1 or other model that GitHub model supports
 
+## Using other LLM models
+NTG Agent supports multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
+
+### Google Gemini
+
+Setup [Gemini API](https://aistudio.google.com/): Create your API key in Google AI Studio https://aistudio.google.com/api-keys
+The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
+
 ## How authentication work
 
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
