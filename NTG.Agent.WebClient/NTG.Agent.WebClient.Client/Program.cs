@@ -29,4 +29,9 @@ builder.Services.AddHttpClient<SharedConversationClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<PreferenceClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 await builder.Build().RunAsync();
