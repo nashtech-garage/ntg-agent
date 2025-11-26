@@ -1,4 +1,5 @@
 ﻿using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Chats;
@@ -8,6 +9,7 @@ using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using System.Collections.Generic;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
@@ -147,7 +149,52 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments)
     {
-        var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
+        if (promptRequest.AgentId == new Guid("3022DA07-568E-4561-B41C-FAE8102CF4C4"))
+        {
+            await foreach(var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags))
+            {
+                yield return response;
+            }
+        }
+        else
+        {
+            var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
+
+            var chatHistory = new List<ChatMessage>();
+            foreach (var msg in history.OrderBy(m => m.CreatedAt))
+            {
+                chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
+            }
+
+            var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
+
+            var userMessage = BuildUserMessage(promptRequest, prompt);
+
+            chatHistory.Add(userMessage);
+
+            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
+
+            var chatOptions = new ChatOptions
+            {
+                Tools = [memorySearch]
+            };
+
+            await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+                yield return item.Text;
+        }
+    }
+
+    private async IAsyncEnumerable<string> TestOrchestratorInvokePromptStreamingInternalAsync(
+        PromptRequestForm promptRequest,
+        List<PChatMessage> history,
+        List<string> tags)
+    {
+        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
+        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
+        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F")); // Azure OpenAI Agent ID
+        var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(triageAgent)
+            .WithHandoffs(triageAgent, [csharpAgent, javaAgent])
+            .Build();
 
         var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
@@ -155,21 +202,24 @@ public class AgentService
             chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
         }
 
-        var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
+        var prompt = BuildPromptAsync(promptRequest, []);
 
         var userMessage = BuildUserMessage(promptRequest, prompt);
 
         chatHistory.Add(userMessage);
-
-        AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
-
-        var chatOptions = new ChatOptions
+        StreamingRun run = await InProcessExecution.StreamAsync(workflow, chatHistory);
+        await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
+        await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
         {
-            Tools = [memorySearch]
-        };
-
-        await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
-            yield return item.Text;
+            if (evt is AgentRunUpdateEvent e)
+            {
+               yield return e.Data.ToString();
+            }
+            else if (evt is WorkflowOutputEvent completed)
+            {
+               // yield return ((List<ChatMessage>)completed.Data).Last().Text;
+            }
+        }
     }
 
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
