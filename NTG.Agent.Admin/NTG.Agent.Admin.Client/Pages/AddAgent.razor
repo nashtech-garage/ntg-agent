@@ -93,6 +93,20 @@
                         </div>
 
                         <div class="mb-4">
+                            <label for="description" class="form-label fw-semibold">
+                                <i class="bi bi-info-square me-2 text-primary"></i>
+                                Description <span class="text-muted">(Optional)</span>
+                            </label>
+                            <InputTextArea id="description" class="form-control" rows="3" @bind-Value="agentDetail.Description" 
+                                           placeholder="Enter a brief description of the agent..." disabled="@isSubmitting" />
+                            <ValidationMessage For="@(() => agentDetail.Description)" class="text-danger small mt-1" />
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                A short description to help identify the purpose of this agent.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
                             <label for="instructions" class="form-label fw-semibold">
                                 <i class="bi bi-card-text me-2 text-primary"></i>
                                 Instructions <span class="text-muted">(Optional)</span>
@@ -221,6 +235,7 @@
                 agentDetail = new AgentDetail
                 {
                     Name = $"{sourceAgent.Name} (Copy)",
+                    Description = sourceAgent.Description,
                     Instructions = sourceAgent.Instructions,
                     ProviderName = sourceAgent.ProviderName,
                     ProviderEndpoint = sourceAgent.ProviderEndpoint,

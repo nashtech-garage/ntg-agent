@@ -14,6 +14,8 @@ public class Agent
 
     public string Name { get; set; } = string.Empty;
 
+    public string? Description { get; set; }
+
     public string Instructions { get; set; } = string.Empty;
 
     public string ProviderName { get; set; } = string.Empty;

@@ -9,6 +9,9 @@ public class AgentDetail
     [Required(ErrorMessage = "Agent Name is required")]
     [StringLength(200, MinimumLength = 1, ErrorMessage = "Agent Name must be between 1 and 200 characters")]
     public string Name { get; set; }
+
+    [StringLength(1000, ErrorMessage = "Description cannot exceed 1000 characters")]
+    public string? Description { get; set; }
     
     public string? Instructions { get; set; }
     public string? ProviderName { get; set; }
