@@ -48,6 +48,17 @@
                                            class="form-control"
                                            placeholder="Enter the Model Name..." />
                             </div>
+                            <label for="description" class="form-label fw-semibold">
+                                <i class="bi bi-info-square me-2"></i>Description
+                            </label>
+                            <div class="form-text mb-2">
+                                A brief description of the agent's purpose to help identify it.
+                            </div>
+                            <InputTextArea id="description"
+                                         @bind-Value="AgentDetail.Description"
+                                         class="form-control mb-3"
+                                         rows="3"
+                                         placeholder="Enter a brief description of the agent..." />
                             <label for="systemPrompt" class="form-label fw-semibold">
                                 <i class="bi bi-chat-text me-2"></i>System Prompt
                             </label>

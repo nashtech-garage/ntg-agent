@@ -72,6 +72,7 @@ public class AgentAdminController : ControllerBase
             .Include(x => x.AgentTools)
             .Select(x => new AgentDetail(x.Id, x.Name, x.Instructions, x.ProviderName, x.ProviderEndpoint, x.ProviderApiKey, x.ProviderModelName)
             {
+                Description = x.Description,
                 McpServer = x.McpServer,
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
                 IsDefault = x.IsDefault,
@@ -121,6 +122,7 @@ public class AgentAdminController : ControllerBase
             return NotFound();
         }
         agent.Name = updatedAgent.Name;
+        agent.Description = updatedAgent.Description;
         agent.Instructions = updatedAgent.Instructions ?? string.Empty;
         agent.ProviderName = updatedAgent.ProviderName ?? string.Empty;
         agent.ProviderEndpoint = updatedAgent.ProviderEndpoint ?? string.Empty;
@@ -334,6 +336,7 @@ public class AgentAdminController : ControllerBase
         {
             Id = Guid.NewGuid(),
             Name = updatedAgent.Name,
+            Description = updatedAgent.Description,
             Instructions = updatedAgent.Instructions ?? string.Empty,
             ProviderName = updatedAgent.ProviderName ?? string.Empty,
             McpServer = updatedAgent.McpServer,
