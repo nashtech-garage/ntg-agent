@@ -8,7 +8,9 @@
 @inject ConversationClient ConversationClient
 @inject SharedConversationClient SharedConversationClient
 @inject ConversationState ConversationState
+@inject PreferenceClient PreferenceClient
 @inject IJSRuntime JSRuntime
+@inject ILogger<Chat> Logger
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
 
@@ -246,14 +248,15 @@ else
 
         // Load available agents
         availableAgents = await ChatClient.GetAgentsAsync();
-        // Select the default agent
-        selectedAgentId = availableAgents.FirstOrDefault(a => a.IsDefault)?.Id ?? availableAgents.FirstOrDefault()?.Id ?? Guid.Empty;
+        
+        // Try to load saved agent selection from localStorage
+        await LoadSavedAgentSelection();
 
         if (ConversationId.HasValue)
         {
             if (!isAuthenticated)
             {
-                currentSessionId = await JSRuntime.InvokeAsync<string>("sessionStorage.getItem", "CurrentSessionId");
+                currentSessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
             }
 
             try
@@ -312,7 +315,7 @@ else
             if (!isAuthenticated)
             {
                 currentSessionId = Guid.NewGuid().ToString();
-                await JSRuntime.InvokeVoidAsync("sessionStorage.setItem", "CurrentSessionId", currentSessionId);
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", currentSessionId);
             }
             var conversation = await ConversationClient.Create(currentSessionId);
             ConversationId = conversation.Id;
@@ -481,6 +484,10 @@ else
     {
         selectedAgentId = agentId;
         showAgentSelector = false;
+        
+        // Save the selected agent to the database via API
+        _ = SaveAgentSelection(agentId);
+        
         StateHasChanged();
     }
 
@@ -488,5 +495,84 @@ else
     {
         var agent = availableAgents.FirstOrDefault(a => a.Id == selectedAgentId);
         return agent?.Name ?? "Select Agent";
+    }
+
+    /// <summary>
+    /// Load the saved agent selection from the database via API.
+    /// If no saved selection exists or the saved agent is not available, use the default agent.
+    /// </summary>
+    private async Task LoadSavedAgentSelection()
+    {
+        try
+        {
+            // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
+            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            
+            // Try to load preference from the server
+            var preference = await PreferenceClient.GetPreferenceAsync(sessionId);
+            
+            if (preference != null)
+            {
+                // Check if the saved agent still exists in the available agents list
+                if (availableAgents.Any(a => a.Id == preference.SelectedAgentId))
+                {
+                    selectedAgentId = preference.SelectedAgentId;
+                    Logger.LogInformation("Loaded saved agent preference: {AgentId}", preference.SelectedAgentId);
+                    return;
+                }
+                else
+                {
+                    Logger.LogWarning("Saved agent {AgentId} no longer exists in available agents", preference.SelectedAgentId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // If API call fails or there's an error, continue to use default
+            Logger.LogWarning(ex, "Failed to load saved agent preference from server");
+        }
+        
+        // Fallback to default agent if no valid saved selection
+        selectedAgentId = availableAgents.FirstOrDefault(a => a.IsDefault)?.Id 
+                          ?? availableAgents.FirstOrDefault()?.Id 
+                          ?? Guid.Empty;
+        Logger.LogInformation("Using default agent: {AgentId}", selectedAgentId);
+    }
+
+    /// <summary>
+    /// Save the selected agent ID to the database via API for persistence across sessions.
+    /// </summary>
+    private async Task SaveAgentSelection(Guid agentId)
+    {
+        try
+        {
+            // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
+            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            
+            // If anonymous user doesn't have a session ID yet, create one
+            if (!isAuthenticated && string.IsNullOrEmpty(sessionId))
+            {
+                sessionId = Guid.NewGuid().ToString();
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
+                Logger.LogInformation("Created new session ID: {SessionId}", sessionId);
+            }
+            
+            // Save preference to the server
+            var success = await PreferenceClient.SavePreferenceAsync(agentId, sessionId);
+            
+            if (success)
+            {
+                Logger.LogInformation("Successfully saved agent preference: {AgentId}", agentId);
+            }
+            else
+            {
+                Logger.LogWarning("Failed to save agent preference to server");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log the error but don't fail the UI operation
+            Logger.LogError(ex, "Error saving agent preference");
+        }
     }
 }

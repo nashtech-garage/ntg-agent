@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
+using NTG.Agent.Orchestrator.Models.UserPreferences;
 namespace NTG.Agent.Orchestrator.Data;
 
 public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContext(options)
@@ -35,6 +36,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Role> Roles { get; set; } = null!;
 
     public DbSet<UserRole> UserRoles { get; set; } = null!;
+
+    public DbSet<UserPreference> UserPreferences { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,5 +184,26 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .WithOne(t => t.Agent)
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
+
+        // UserPreference configuration
+        modelBuilder.Entity<UserPreference>(e =>
+        {
+            e.HasKey(x => x.Id);
+            
+            // Create unique index on UserId (for authenticated users)
+            e.HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasFilter("[UserId] IS NOT NULL");
+            
+            // Create unique index on SessionId (for anonymous users)
+            e.HasIndex(x => x.SessionId)
+                .IsUnique()
+                .HasFilter("[SessionId] IS NOT NULL");
+            
+            // Ensure either UserId or SessionId is provided, but not both
+            e.ToTable(t => t.HasCheckConstraint(
+                "CK_UserPreference_UserIdOrSessionId",
+                "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)"));
+        });
     }
 }
