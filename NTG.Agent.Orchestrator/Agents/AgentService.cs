@@ -9,7 +9,6 @@ using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using System.Collections.Generic;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
@@ -213,11 +212,7 @@ public class AgentService
         {
             if (evt is AgentRunUpdateEvent e)
             {
-               yield return e.Data.ToString();
-            }
-            else if (evt is WorkflowOutputEvent completed)
-            {
-               // yield return ((List<ChatMessage>)completed.Data).Last().Text;
+               yield return e.Data?.ToString() ?? string.Empty;
             }
         }
     }
