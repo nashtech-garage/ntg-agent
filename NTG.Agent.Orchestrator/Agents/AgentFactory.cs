@@ -92,7 +92,7 @@ public class AgentFactory : IAgentFactory
 
         var tools = await GetAgentToolsByAgentId(agent);
 
-        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
@@ -109,7 +109,7 @@ public class AgentFactory : IAgentFactory
 
         var tools = await GetAgentToolsByAgentId(agent);
 
-        return Create(chatClient, instructions: agent.Instructions, name: "NTG.Agent", tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 
     private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent)
@@ -157,11 +157,12 @@ public class AgentFactory : IAgentFactory
     }
 
 
-    private static AIAgent Create(IChatClient chatClient, string instructions, string name, List<AITool> tools)
+    private static AIAgent Create(IChatClient chatClient, string instructions, string name, string? description, List<AITool> tools)
     {
         var agent = new ChatClientAgent(chatClient,
             name: name,
             instructions: instructions,
+            description: description,
             tools: tools)
             .AsBuilder()
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
