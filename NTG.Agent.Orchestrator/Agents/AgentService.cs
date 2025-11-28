@@ -259,9 +259,9 @@ public class AgentService
 
     private static string BuildTextOnlyPrompt(string userPrompt) =>
         $@"
-            Question: {userPrompt}. Context: {{memory.search}} then {{search_online}}
-            Given the context and provided history information, tools definitions and prior knowledge, reply to the user question.
-            If the answer is not in the context, inform the user that you can't answer the question.
+            Question: {userPrompt}. Context: Use search knowledge base tool if available.
+            Given the context and provided history information, tools definitions and prior knowledge, reply to the user question. Include citations to the context where appropriate.
+            If the answer is not in the context, try to use the search online tool if available or inform the user that you can't answer the question.
         ";
 
 
