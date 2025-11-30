@@ -89,6 +89,9 @@
                                 <td class="text-center"><span class="text-muted">--</span></td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-info" @onclick="() => EditDocumentTags(doc)" title="Edit Tags">
+                                            <i class="bi bi-tags"></i>
+                                        </button>
                                         <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
                                             <i class="bi bi-download"></i>
                                         </button>
@@ -146,6 +149,9 @@
                         </div>
                         <div class="mt-2">
                             <div class="btn-group btn-group-sm w-100" role="group">
+                                <button class="btn btn-outline-info" @onclick="() => EditDocumentTags(doc)" title="Edit Tags">
+                                    <i class="bi bi-tags"></i>
+                                </button>
                                 <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
                                     <i class="bi bi-download"></i>
                                 </button>
@@ -234,6 +240,14 @@
     OnClose="CloseDocumentViewer"
     OnDownload="DownloadDocument" />
 
+<!-- Edit Document Tags Modal -->
+<EditDocumentTagsModal 
+    Document="documentToEditTags" 
+    AgentId="AgentId" 
+    IsVisible="isEditTagsModalOpen" 
+    OnClose="CloseEditTagsModal"
+    OnTagsUpdated="HandleTagsUpdated" />
+
 @code {
     [Parameter]
     public Guid AgentId { get; set; }
@@ -254,10 +268,12 @@
     private bool isLoading = true;
     private bool isDeleteConfirmationOpen = false;
     private bool isDocumentViewerOpen = false;
+    private bool isEditTagsModalOpen = false;
 
     private IList<DocumentListItem> documents = [];
     private DocumentListItem? documentToDelete;
     private DocumentListItem? documentToView;
+    private DocumentListItem? documentToEditTags;
 
     private Guid? _previousFolderId;
 
@@ -364,6 +380,24 @@
     {
         isDocumentViewerOpen = false;
         documentToView = null;
+    }
+
+    private void EditDocumentTags(DocumentListItem document)
+    {
+        documentToEditTags = document;
+        isEditTagsModalOpen = true;
+    }
+
+    private void CloseEditTagsModal()
+    {
+        isEditTagsModalOpen = false;
+        documentToEditTags = null;
+    }
+
+    private async Task HandleTagsUpdated()
+    {
+        await LoadDocuments();
+        CloseEditTagsModal();
     }
 
     private async Task DownloadDocument(DocumentListItem document)

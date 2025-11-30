@@ -513,6 +513,173 @@ public class DocumentsControllerTests
         // we're just verifying the method executes without null reference exceptions
         Assert.That(result, Is.Not.Null);
     }
+
+    [Test]
+    public async Task UpdateDocumentTags_WhenUserNotAuthenticated_ReturnsUnauthorized()
+    {
+        // Arrange
+        var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
+        _controller.ControllerContext.HttpContext.User = anonymousUser;
+        var request = new UpdateDocumentTagsRequest(new List<string>());
+
+        // Act
+        var result = await _controller.UpdateDocumentTags(Guid.NewGuid(), _testAgentId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<UnauthorizedResult>());
+    }
+
+    [Test]
+    public async Task UpdateDocumentTags_WhenDocumentNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var request = new UpdateDocumentTagsRequest(new List<string>());
+
+        // Act
+        var result = await _controller.UpdateDocumentTags(Guid.NewGuid(), _testAgentId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task UpdateDocumentTags_WhenValidRequest_UpdatesTagsSuccessfully()
+    {
+        // Arrange
+        var tag1 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "OldTag" };
+        var tag2 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "NewTag1" };
+        var tag3 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "NewTag2" };
+        
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "test.pdf",
+            AgentId = _testAgentId,
+            KnowledgeDocId = "knowledge-doc-id",
+            DocumentTags = new List<DocumentTag>
+            {
+                new DocumentTag { TagId = tag1.Id, Tag = tag1 }
+            }
+        };
+
+        _context.Tags.AddRange(tag1, tag2, tag3);
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+
+        var newTagIds = new List<string> { tag2.Id.ToString(), tag3.Id.ToString() };
+        var request = new UpdateDocumentTagsRequest(newTagIds);
+
+        _mockKnowledgeService.Setup(x => x.UpdateDocumentTagsAsync(
+            It.IsAny<string>(), 
+            It.IsAny<string>(), 
+            It.IsAny<Guid>(), 
+            It.IsAny<List<string>>(), 
+            It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _controller.UpdateDocumentTags(document.Id, _testAgentId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify database tags were updated
+        var updatedDocument = await _context.Documents
+            .Include(d => d.DocumentTags)
+            .FirstAsync(d => d.Id == document.Id);
+
+        Assert.That(updatedDocument.DocumentTags, Has.Count.EqualTo(2));
+        Assert.That(updatedDocument.DocumentTags.Select(dt => dt.TagId), Does.Contain(tag2.Id));
+        Assert.That(updatedDocument.DocumentTags.Select(dt => dt.TagId), Does.Contain(tag3.Id));
+        Assert.That(updatedDocument.DocumentTags.Select(dt => dt.TagId), Does.Not.Contain(tag1.Id));
+
+        // Verify Kernel Memory was called
+        _mockKnowledgeService.Verify(x => x.UpdateDocumentTagsAsync(
+            "knowledge-doc-id",
+            "test.pdf",
+            _testAgentId,
+            newTagIds,
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateDocumentTags_WhenNoKnowledgeDocId_UpdatesDatabaseOnly()
+    {
+        // Arrange
+        var tag1 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "Tag1" };
+        var tag2 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "Tag2" };
+
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "test.txt",
+            AgentId = _testAgentId,
+            KnowledgeDocId = null
+        };
+
+        _context.Tags.AddRange(tag1, tag2);
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+
+        var newTagIds = new List<string> { tag1.Id.ToString(), tag2.Id.ToString() };
+        var request = new UpdateDocumentTagsRequest(newTagIds);
+
+        // Act
+        var result = await _controller.UpdateDocumentTags(document.Id, _testAgentId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify Kernel Memory was NOT called
+        _mockKnowledgeService.Verify(x => x.UpdateDocumentTagsAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<Guid>(),
+            It.IsAny<List<string>>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateDocumentTags_WhenKernelMemoryFails_ContinuesAndReturnsSuccess()
+    {
+        // Arrange
+        var tag1 = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "Tag1" };
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "test.pdf",
+            AgentId = _testAgentId,
+            KnowledgeDocId = "knowledge-doc-id"
+        };
+
+        _context.Tags.Add(tag1);
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+
+        var request = new UpdateDocumentTagsRequest(new List<string> { tag1.Id.ToString() });
+
+        _mockKnowledgeService.Setup(x => x.UpdateDocumentTagsAsync(
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<Guid>(),
+            It.IsAny<List<string>>(),
+            It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Kernel Memory error"));
+
+        // Act
+        var result = await _controller.UpdateDocumentTags(document.Id, _testAgentId, request);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+
+        // Verify database tags were still updated
+        var updatedDocument = await _context.Documents
+            .Include(d => d.DocumentTags)
+            .FirstAsync(d => d.Id == document.Id);
+
+        Assert.That(updatedDocument.DocumentTags, Has.Count.EqualTo(1));
+    }
+
     private static IFormFile CreateTestFile(string fileName, string content)
     {
         var bytes = Encoding.UTF8.GetBytes(content);

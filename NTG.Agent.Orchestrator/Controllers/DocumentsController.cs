@@ -418,6 +418,73 @@ public class DocumentsController : ControllerBase
 
         return "application/octet-stream";
     }
+
+    /// <summary>
+    /// Updates the tags associated with a document.
+    /// </summary>
+    /// <remarks>This method requires the user to be authenticated and authorized. 
+    /// It updates both the database DocumentTag records and re-indexes the document in Kernel Memory with the new tags.
+    /// This ensures that tag-based access control is immediately reflected in search results.</remarks>
+    /// <param name="documentId">The unique identifier of the document to update.</param>
+    /// <param name="agentId">The unique identifier of the agent associated with the document.</param>
+    /// <param name="request">The request containing the new list of tag IDs to assign to the document.</param>
+    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation: <list type="bullet">
+    /// <item><description><see cref="UnauthorizedResult"/> if the user is not authenticated.</description></item>
+    /// <item><description><see cref="NotFoundResult"/> if the document with the specified <paramref name="documentId"/> does not exist.</description></item>
+    /// <item><description><see cref="NoContentResult"/> if the tags are successfully updated.</description></item>
+    /// </list></returns>
+    [HttpPut("{documentId}/{agentId}/tags")]
+    [Authorize]
+    public async Task<IActionResult> UpdateDocumentTags(Guid documentId, Guid agentId, [FromBody] UpdateDocumentTagsRequest request)
+    {
+        if (User.GetUserId() == null)
+        {
+            return Unauthorized();
+        }
+
+        var document = await _agentDbContext.Documents
+            .Include(d => d.DocumentTags)
+            .FirstOrDefaultAsync(d => d.Id == documentId && d.AgentId == agentId);
+
+        if (document == null)
+        {
+            return NotFound();
+        }
+
+        // Remove existing document tags
+        _agentDbContext.DocumentTags.RemoveRange(document.DocumentTags);
+
+        // Add new document tags
+        var newDocumentTags = request.TagIds.Select(tagId => new DocumentTag
+        {
+            DocumentId = documentId,
+            TagId = Guid.Parse(tagId)
+        }).ToList();
+
+        _agentDbContext.DocumentTags.AddRange(newDocumentTags);
+
+        // Update the UpdatedAt timestamp
+        document.UpdatedAt = DateTime.UtcNow;
+        document.UpdatedByUserId = User.GetUserId()!.Value;
+
+        await _agentDbContext.SaveChangesAsync();
+
+        // Update tags in Kernel Memory if the document has a KnowledgeDocId
+        if (!string.IsNullOrEmpty(document.KnowledgeDocId))
+        {
+            try
+            {
+                await _knowledgeService.UpdateDocumentTagsAsync(document.KnowledgeDocId, document.Name, agentId, request.TagIds);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update document tags in Kernel Memory for document {DocumentId}", documentId);
+                // Continue - database tags are updated, Kernel Memory will be eventually consistent
+            }
+        }
+
+        return NoContent();
+    }
 }
 
 public record ImportWebPageRequest(string Url, Guid? FolderId, List<string> Tags);

@@ -475,4 +475,115 @@ public class KernelMemoryKnowledgeTests
     }
 
     #endregion
+
+    #region UpdateDocumentTagsAsync Tests
+
+    [Test]
+    public async Task UpdateDocumentTagsAsync_WithValidParameters_ExportsDeletesAndReimports()
+    {
+        // Arrange
+        var documentId = "doc-123";
+        var fileName = "test.pdf";
+        var tags = new List<string> { "tag1", "tag2" };
+        var cancellationToken = CancellationToken.None;
+
+        var expectedContent = new StreamableFileContent();
+
+        _mockKernelMemory
+            .Setup(m => m.ExportFileAsync(documentId, fileName, It.IsAny<string?>(), cancellationToken))
+            .ReturnsAsync(expectedContent);
+
+        _mockKernelMemory
+            .Setup(m => m.DeleteDocumentAsync(documentId, It.IsAny<string?>(), cancellationToken))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.UpdateDocumentTagsAsync(documentId, fileName, _testAgentId, tags, cancellationToken);
+
+        // Assert
+        _mockKernelMemory.Verify(m => m.ExportFileAsync(documentId, fileName, It.IsAny<string?>(), cancellationToken), Times.Once);
+        _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(documentId, It.IsAny<string?>(), cancellationToken), Times.Once);
+        // Verify ImportDocumentAsync was called - using It.IsAny for complex parameters
+        _mockKernelMemory.Verify(m => m.ImportDocumentAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<TagCollection?>(),
+            It.IsAny<string?>(),
+            It.IsAny<IEnumerable<string>?>(),
+            It.IsAny<Microsoft.KernelMemory.Context.IContext?>(),
+            cancellationToken), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateDocumentTagsAsync_WithEmptyTags_ReimportsWithEmptyTagList()
+    {
+        // Arrange
+        var documentId = "doc-123";
+        var fileName = "test.txt";
+        var tags = new List<string>();
+        var cancellationToken = CancellationToken.None;
+
+        var expectedContent = new StreamableFileContent();
+
+        _mockKernelMemory
+            .Setup(m => m.ExportFileAsync(documentId, fileName, It.IsAny<string?>(), cancellationToken))
+            .ReturnsAsync(expectedContent);
+
+        _mockKernelMemory
+            .Setup(m => m.DeleteDocumentAsync(documentId, It.IsAny<string?>(), cancellationToken))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.UpdateDocumentTagsAsync(documentId, fileName, _testAgentId, tags, cancellationToken);
+
+        // Assert
+        _mockKernelMemory.Verify(m => m.ImportDocumentAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<TagCollection?>(),
+            It.IsAny<string?>(),
+            It.IsAny<IEnumerable<string>?>(),
+            It.IsAny<Microsoft.KernelMemory.Context.IContext?>(),
+            cancellationToken), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateDocumentTagsAsync_WithCancellationToken_PassesCancellationToken()
+    {
+        // Arrange
+        var documentId = "doc-123";
+        var fileName = "test.pdf";
+        var tags = new List<string> { "tag1" };
+        var cancellationToken = new CancellationTokenSource().Token;
+
+        var expectedContent = new StreamableFileContent();
+
+        _mockKernelMemory
+            .Setup(m => m.ExportFileAsync(documentId, fileName, It.IsAny<string?>(), cancellationToken))
+            .ReturnsAsync(expectedContent);
+
+        _mockKernelMemory
+            .Setup(m => m.DeleteDocumentAsync(documentId, It.IsAny<string?>(), cancellationToken))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.UpdateDocumentTagsAsync(documentId, fileName, _testAgentId, tags, cancellationToken);
+
+        // Assert - Verify all operations received the cancellation token
+        _mockKernelMemory.Verify(m => m.ExportFileAsync(documentId, fileName, It.IsAny<string?>(), cancellationToken), Times.Once);
+        _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(documentId, It.IsAny<string?>(), cancellationToken), Times.Once);
+        _mockKernelMemory.Verify(m => m.ImportDocumentAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string?>(),
+            It.IsAny<string?>(),
+            It.IsAny<TagCollection?>(),
+            It.IsAny<string?>(),
+            It.IsAny<IEnumerable<string>?>(),
+            It.IsAny<Microsoft.KernelMemory.Context.IContext?>(),
+            cancellationToken), Times.Once);
+    }
+
+    #endregion
 }
