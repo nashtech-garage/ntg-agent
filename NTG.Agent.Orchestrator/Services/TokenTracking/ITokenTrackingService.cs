@@ -5,13 +5,6 @@ namespace NTG.Agent.Orchestrator.Services.TokenTracking;
 public interface ITokenTrackingService
 {
     /// <summary>
-    /// Records token usage for an AI operation.
-    /// </summary>
-    /// <param name="usage">Token usage data to record</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    Task TrackUsageAsync(TokenUsageDto usage, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Gets aggregated token usage statistics for a specific user or all users within a date range.
     /// </summary>
     /// <param name="userId">Optional user ID to filter by</param>

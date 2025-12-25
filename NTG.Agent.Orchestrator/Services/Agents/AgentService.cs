@@ -8,9 +8,9 @@ using NTG.Agent.Common.Dtos.TokenUsage;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.TokenTracking;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
@@ -21,19 +21,16 @@ public class AgentService
     private readonly IAgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
-    private readonly ITokenTrackingService _tokenTrackingService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService,
-        ITokenTrackingService tokenTrackingService)
+        IKnowledgeService knowledgeService)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
-        _tokenTrackingService = tokenTrackingService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -346,27 +343,28 @@ public class AgentService
 
         var sessionIdGuid = !userId.HasValue && Guid.TryParse(sessionId, out var sid) ? sid : (Guid?)null;
 
-        await _tokenTrackingService.TrackUsageAsync(new TokenUsageDto(
-            Id: Guid.NewGuid(),
-            UserId: userId,
-            SessionId: sessionIdGuid,
-            UserEmail: null,
-            ConversationId: conversation.Id,
-            ConversationName: conversation.Name,
-            MessageId: messageId,
-            AgentId: agentId,
-            AgentName: agentConfig.Name,
-            ModelName: agentConfig.ProviderModelName,
-            ProviderName: agentConfig.ProviderName,
-            InputTokens: tokenUsageInfo.InputTokens,
-            OutputTokens: tokenUsageInfo.OutputTokens,
-            TotalTokens: tokenUsageInfo.TotalTokens,
-            InputTokenCost: null,
-            OutputTokenCost: null,
-            TotalCost: null,
-            OperationType: operationType,
-            ResponseTime: responseTime,
-            CreatedAt: DateTime.UtcNow
-        ));
+        var tokenUsage = new TokenUsage
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            SessionId = sessionIdGuid,
+            ConversationId = conversation.Id,
+            MessageId = messageId,
+            AgentId = agentId,
+            ModelName = agentConfig.ProviderModelName,
+            ProviderName = agentConfig.ProviderName,
+            InputTokens = tokenUsageInfo.InputTokens,
+            OutputTokens = tokenUsageInfo.OutputTokens,
+            TotalTokens = tokenUsageInfo.TotalTokens,
+            InputTokenCost = null,
+            OutputTokenCost = null,
+            TotalCost = null,
+            OperationType = operationType,
+            ResponseTime = responseTime,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _agentDbContext.TokenUsages.Add(tokenUsage);
+        await _agentDbContext.SaveChangesAsync();
     }
 }

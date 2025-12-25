@@ -289,7 +289,7 @@ else
                                             <div>
                                                 @if (string.IsNullOrEmpty(item.UserEmail))
                                                 {
-                                                    <span class="badge bg-secondary">Anonymous Session @item.SessionId?.ToString().Substring(0, 8)</span>
+                                                    <span class="badge bg-secondary">Anonymous Session @(item.SessionId is Guid sid ? sid.ToString()[..8] : "Unknown")</span>
                                                 }
                                                 else
                                                 {
@@ -365,7 +365,7 @@ else
     private DateTime? toDate;
     private string selectedView = "users";
     private int currentPage = 1;
-    private int pageSize = 20;
+    private readonly int pageSize = 20;
 
     protected override async Task OnInitializedAsync()
     {
@@ -392,10 +392,14 @@ else
                 await LoadUsageHistory();
             }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
+        {
+             throw;
+        }
+        catch (HttpRequestException ex)
         {
             Logger.LogError(ex, "Error loading token usage data");
-            errorMessage = "Failed to load token usage data. Please try again.";
+            errorMessage = "Failed to load token usage data. Please check your network connection and try again.";
         }
         finally
         {
@@ -409,10 +413,14 @@ else
         {
             userStats = await TokenUsageClient.GetUserStatsAsync(fromDate, toDate);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
+        {
+             throw;
+        }
+         catch (HttpRequestException ex)
         {
             Logger.LogError(ex, "Error loading user stats");
-            errorMessage = "Failed to load user statistics.";
+            errorMessage = "Failed to load user statistics. Please check your network connection and try again.";
         }
     }
 
@@ -422,10 +430,14 @@ else
         {
             usageHistory = await TokenUsageClient.GetUsageHistoryAsync(currentPage, pageSize, fromDate, toDate);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
+        {
+             throw;
+        }
+        catch (HttpRequestException ex)
         {
             Logger.LogError(ex, "Error loading usage history");
-            errorMessage = "Failed to load usage history.";
+            errorMessage = "Failed to load usage history. Please check your network connection and try again.";
         }
     }
 

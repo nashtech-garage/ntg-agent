@@ -15,45 +15,6 @@ public class TokenTrackingService : ITokenTrackingService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task TrackUsageAsync(TokenUsageDto usage, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var tokenUsage = new Models.TokenUsage.TokenUsage
-            {
-                Id = Guid.NewGuid(),
-                UserId = usage.UserId,
-                SessionId = usage.SessionId,
-                ConversationId = usage.ConversationId,
-                MessageId = usage.MessageId,
-                AgentId = usage.AgentId,
-                ModelName = usage.ModelName,
-                ProviderName = usage.ProviderName,
-                InputTokens = usage.InputTokens,
-                OutputTokens = usage.OutputTokens,
-                TotalTokens = usage.TotalTokens,
-                InputTokenCost = usage.InputTokenCost,
-                OutputTokenCost = usage.OutputTokenCost,
-                TotalCost = usage.TotalCost,
-                OperationType = usage.OperationType,
-                ResponseTime = usage.ResponseTime,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.TokenUsages.Add(tokenUsage);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation(
-                "Token usage tracked: User={UserId}, Session={SessionId}, Tokens={TotalTokens}, Cost={TotalCost}, Operation={OperationType}",
-                usage.UserId, usage.SessionId, usage.TotalTokens, usage.TotalCost, usage.OperationType);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error tracking token usage for User={UserId}, Session={SessionId}", usage.UserId, usage.SessionId);
-            // Don't throw - token tracking failure should not break the user experience
-        }
-    }
-
     public async Task<TokenUsageStatsDto> GetUsageStatsAsync(
         Guid? userId = null,
         Guid? sessionId = null,
@@ -61,19 +22,19 @@ public class TokenTrackingService : ITokenTrackingService
         DateTime? to = null,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.TokenUsages.AsQueryable();
+        var query = _context.TokenUsages.AsNoTracking().AsQueryable();
 
-        if (userId.HasValue)
-            query = query.Where(t => t.UserId == userId.Value);
+        if (userId is Guid uid)
+            query = query.Where(t => t.UserId == uid);
 
-        if (sessionId.HasValue)
-            query = query.Where(t => t.SessionId == sessionId.Value);
+        if (sessionId is Guid sid)
+            query = query.Where(t => t.SessionId == sid);
 
-        if (from.HasValue)
-            query = query.Where(t => t.CreatedAt >= from.Value);
+        if (from is DateTime frm)
+            query = query.Where(t => t.CreatedAt >= frm);
 
-        if (to.HasValue)
-            query = query.Where(t => t.CreatedAt <= to.Value);
+        if (to is DateTime tr)
+            query = query.Where(t => t.CreatedAt <= tr);
 
         var stats = await query
             .GroupBy(t => 1)
@@ -125,78 +86,51 @@ public class TokenTrackingService : ITokenTrackingService
         int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.TokenUsages.AsQueryable();
-
-        if (from.HasValue)
-            query = query.Where(t => t.CreatedAt >= from.Value);
-
-        if (to.HasValue)
-            query = query.Where(t => t.CreatedAt <= to.Value);
-
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        // Get token usage records with just the data we need
-        var tokenUsages = await query
+        // Base query for filtering and counting
+        var baseQuery = _context.TokenUsages.AsNoTracking().AsQueryable();
+        if (from is DateTime frm)
+        {
+            baseQuery = baseQuery.Where(t => t.CreatedAt >= frm);
+        }
+        if (to is DateTime tr)
+        {
+            baseQuery = baseQuery.Where(t => t.CreatedAt <= tr);
+        }
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+        // Apply paging to the filtered base query
+        var pagedQuery = baseQuery
             .OrderByDescending(t => t.CreatedAt)
             .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => new
-            {
-                t.Id,
-                t.UserId,
-                t.SessionId,
-                t.ConversationId,
-                t.MessageId,
-                t.AgentId,
-                t.ModelName,
-                t.ProviderName,
-                t.InputTokens,
-                t.OutputTokens,
-                t.TotalTokens,
-                t.InputTokenCost,
-                t.OutputTokenCost,
-                t.TotalCost,
-                t.OperationType,
-                t.ResponseTime,
-                t.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        // Load related data in separate optimized queries to avoid N+1
-        var userIds = tokenUsages.Where(t => t.UserId.HasValue).Select(t => t.UserId!.Value).Distinct().ToList();
-        var agentIds = tokenUsages.Select(t => t.AgentId).Distinct().ToList();
-
-        var userEmails = await _context.Users
-            .Where(u => userIds.Contains(u.Id))
-            .ToDictionaryAsync(u => u.Id, u => u.Email, cancellationToken);
-
-        var agentNames = await _context.Agents
-            .Where(a => agentIds.Contains(a.Id))
-            .ToDictionaryAsync(a => a.Id, a => a.Name, cancellationToken);
-
-        // Map to DTOs with lookups
-        var items = tokenUsages.Select(t => new TokenUsageDto(
-            t.Id,
-            t.UserId,
-            t.SessionId,
-            t.UserId.HasValue && userEmails.TryGetValue(t.UserId.Value, out var email) ? email : null,
-            t.ConversationId,
-            "N/A",
-            t.MessageId,
-            t.AgentId,
-            agentNames.TryGetValue(t.AgentId, out var agentName) ? agentName : "Unknown",
-            t.ModelName,
-            t.ProviderName,
-            t.InputTokens,
-            t.OutputTokens,
-            t.TotalTokens,
-            t.InputTokenCost,
-            t.OutputTokenCost,
-            t.TotalCost,
-            t.OperationType,
-            t.ResponseTime,
-            t.CreatedAt
-        )).ToList();
+            .Take(pageSize);
+        // Single query with left joins to Users and Agents, projecting directly to DTO
+        var items = await
+            (from t in pagedQuery
+             join u in _context.Users on t.UserId equals u.Id into userGroup
+             from u in userGroup.DefaultIfEmpty()
+             join a in _context.Agents on t.AgentId equals a.Id into agentGroup
+             from a in agentGroup.DefaultIfEmpty()
+             select new TokenUsageDto(
+                 t.Id,
+                 t.UserId,
+                 t.SessionId,
+                 t.UserId.HasValue ? u!.Email : null,
+                 t.ConversationId,
+                 "N/A",
+                 t.MessageId,
+                 t.AgentId,
+                 a != null ? a.Name : "Unknown",
+                 t.ModelName,
+                 t.ProviderName,
+                 t.InputTokens,
+                 t.OutputTokens,
+                 t.TotalTokens,
+                 t.InputTokenCost,
+                 t.OutputTokenCost,
+                 t.TotalCost,
+                 t.OperationType,
+                 t.ResponseTime,
+                 t.CreatedAt
+             )).ToListAsync(cancellationToken);
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
@@ -211,11 +145,11 @@ public class TokenTrackingService : ITokenTrackingService
     {
         var query = _context.TokenUsages.AsQueryable();
 
-        if (from.HasValue)
-            query = query.Where(t => t.CreatedAt >= from.Value);
+        if (from is DateTime frm)
+            query = query.Where(t => t.CreatedAt >= frm);
 
-        if (to.HasValue)
-            query = query.Where(t => t.CreatedAt <= to.Value);
+        if (to is DateTime tr)
+            query = query.Where(t => t.CreatedAt <= tr);
 
         // Group by UserId (authenticated users)
         var authenticatedStats = await query
