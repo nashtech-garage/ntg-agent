@@ -4,38 +4,43 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
+using NTG.Agent.Common.Dtos.TokenUsage;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.TokenTracking;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
-namespace NTG.Agent.Orchestrator.Agents;
+namespace NTG.Agent.Orchestrator.Services.Agents;
 
 public class AgentService
 {
     private readonly IAgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly ITokenTrackingService _tokenTrackingService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService
-         )
+        IKnowledgeService knowledgeService,
+        ITokenTrackingService tokenTrackingService)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
+        _tokenTrackingService = tokenTrackingService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
+        var startTime = DateTime.UtcNow;
         var conversation = await ValidateConversation(userId, promptRequest);
-        var history = await PrepareConversationHistory(userId, conversation);
+        var history = await PrepareConversationHistory(userId, promptRequest.SessionId, promptRequest.AgentId, conversation);
         var tags = await GetUserTags(userId);
         var ocrDocuments = new List<string>();
         if (promptRequest.Documents is not null && promptRequest.Documents.Any())
@@ -43,13 +48,18 @@ public class AgentService
             //ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
         var agentMessageSb = new StringBuilder();
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments))
+        var tokenUsageInfo = new TokenUsageInfo();
+
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo))
         {
             agentMessageSb.Append(item);
             yield return item;
         }
 
-        await SaveMessages(userId, conversation, promptRequest.Prompt, agentMessageSb.ToString(), ocrDocuments);
+        var responseTime = DateTime.UtcNow - startTime;
+        var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
+
+        await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
     }
 
     private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequestForm promptRequest)
@@ -96,7 +106,7 @@ public class AgentService
         }
     }
 
-    private async Task<List<PChatMessage>> PrepareConversationHistory(Guid? userId, Conversation conversation)
+    private async Task<List<PChatMessage>> PrepareConversationHistory(Guid? userId, string? sessionId, Guid agentId, Conversation conversation)
     {
         var historyMessages = await _agentDbContext.ChatMessages
             .Where(m => m.ConversationId == conversation.Id)
@@ -106,8 +116,10 @@ public class AgentService
         if (historyMessages.Count <= MAX_LATEST_MESSAGE_TO_KEEP_FULL) return historyMessages;
 
         var toSummarize = historyMessages.Take(historyMessages.Count - MAX_LATEST_MESSAGE_TO_KEEP_FULL).ToList();
-        var summary = await SummarizeMessagesAsync(toSummarize);
-
+        var tokenUsageInfo = new TokenUsageInfo();
+        var startTime = DateTime.UtcNow;
+        var summary = await SummarizeMessagesAsync(toSummarize, tokenUsageInfo);
+        var responseTime = DateTime.UtcNow - startTime;
         var summaryMsg = historyMessages.FirstOrDefault(m => m.IsSummary) ?? new PChatMessage
         {
             UserId = userId,
@@ -121,39 +133,51 @@ public class AgentService
 
         _agentDbContext.Update(summaryMsg);
 
+        await TrackTokenUsageAsync(userId, sessionId, agentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.SummarizeMessages, tokenUsageInfo, responseTime);
+
         return new List<PChatMessage> { summaryMsg }
             .Concat(historyMessages.TakeLast(MAX_LATEST_MESSAGE_TO_KEEP_FULL))
             .ToList();
     }
 
-    private async Task SaveMessages(Guid? userId, Conversation conversation, string userPrompt, string assistantReply, List<string> ocrDocuments)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, List<string> ocrDocuments)
     {
         if (conversation.Name == "New Conversation")
         {
-            conversation.Name = await GenerateConversationName(userPrompt);
+            var tokenUsageInfo = new TokenUsageInfo();
+            var startTime = DateTime.UtcNow;
+            conversation.Name = await GenerateConversationName(promptRequest.Prompt, tokenUsageInfo);
+            var responseTime = DateTime.UtcNow - startTime;
+
             _agentDbContext.Conversations.Update(conversation);
+            await _agentDbContext.SaveChangesAsync();
+
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, tokenUsageInfo, responseTime);
         }
 
-        _agentDbContext.ChatMessages.AddRange(
-            new PChatMessage { UserId = userId, Conversation = conversation, Content = userPrompt, Role = ChatRole.User },
-            new PChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant }
-        );
+        var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
+        var assistantMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant };
+
+        _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
 
         await _agentDbContext.SaveChangesAsync();
+
+        return assistantMessage;
     }
 
     private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
         List<string> tags,
-        List<string> ocrDocuments)
+        List<string> ocrDocuments,
+        TokenUsageInfo tokenUsageInfo)
     {
         if (promptRequest.AgentId == new Guid("3022DA07-568E-4561-B41C-FAE8102CF4C4"))
         {
             await foreach(var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags))
             {
                 yield return response;
-            }
+             }
         }
         else
         {
@@ -179,8 +203,28 @@ public class AgentService
             };
 
             await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
-                yield return item.Text;
+            {
+                if (!string.IsNullOrEmpty(item.Text))
+                {
+                    yield return item.Text;
+                }
+                ExtractTokenUsage(item.RawRepresentation, tokenUsageInfo);
+            }
         }
+    }
+
+    private static void ExtractTokenUsage(object? rawRepresentation, TokenUsageInfo tokenUsage)
+    {
+        if (rawRepresentation is not ChatResponseUpdate update) return;
+        var usageContent = update.Contents?.OfType<UsageContent>().FirstOrDefault();
+        ExtractTokenUsage(usageContent?.Details, tokenUsage);
+    }
+    private static void ExtractTokenUsage(UsageDetails? usageDetails, TokenUsageInfo tokenUsage)
+    {
+        if (usageDetails == null) return;
+        tokenUsage.InputTokens = usageDetails.InputTokenCount;
+        tokenUsage.OutputTokens = usageDetails.OutputTokenCount;
+        tokenUsage.TotalTokens = usageDetails.TotalTokenCount;
     }
 
     private async IAsyncEnumerable<string> TestOrchestratorInvokePromptStreamingInternalAsync(
@@ -212,9 +256,10 @@ public class AgentService
         {
             if (evt is AgentRunUpdateEvent e)
             {
-               yield return e.Data?.ToString() ?? string.Empty;
+                yield return e.Data?.ToString() ?? string.Empty;
             }
         }
+        // TODO: Extract token usage from workflow run if possible
     }
 
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
@@ -235,14 +280,15 @@ public class AgentService
 
     }
 
-    private async Task<string> GenerateConversationName(string question)
+    private async Task<string> GenerateConversationName(string question, TokenUsageInfo tokenUsageInfo)
     {
         var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
         var results = await agent.RunAsync(question);
+        ExtractTokenUsage(results.Usage, tokenUsageInfo);
         return results.Text;
     }
 
-    private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages)
+    private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages, TokenUsageInfo tokenUsageInfo)
     {
         if (messages.Count == 0) return string.Empty;
 
@@ -254,6 +300,9 @@ public class AgentService
 
         var agent = await _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
         var runResults = await agent.RunAsync(chatHistory);
+
+        ExtractTokenUsage(runResults.Usage, tokenUsageInfo);
+        
         return runResults.Text;
     }
 
@@ -280,5 +329,44 @@ public class AgentService
             ";
 
         return prompt;
+    }
+
+    private async Task TrackTokenUsageAsync(
+        Guid? userId,
+        string? sessionId,
+        Guid agentId,
+        ConversationListItem conversation,
+        Guid? messageId,
+        string operationType,
+        TokenUsageInfo tokenUsageInfo,
+        TimeSpan responseTime)
+    {
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
+        if (agentConfig == null) return;
+
+        var sessionIdGuid = !userId.HasValue && Guid.TryParse(sessionId, out var sid) ? sid : (Guid?)null;
+
+        await _tokenTrackingService.TrackUsageAsync(new TokenUsageDto(
+            Id: Guid.NewGuid(),
+            UserId: userId,
+            SessionId: sessionIdGuid,
+            UserEmail: null,
+            ConversationId: conversation.Id,
+            ConversationName: conversation.Name,
+            MessageId: messageId,
+            AgentId: agentId,
+            AgentName: agentConfig.Name,
+            ModelName: agentConfig.ProviderModelName,
+            ProviderName: agentConfig.ProviderName,
+            InputTokens: tokenUsageInfo.InputTokens,
+            OutputTokens: tokenUsageInfo.OutputTokens,
+            TotalTokens: tokenUsageInfo.TotalTokens,
+            InputTokenCost: null,
+            OutputTokenCost: null,
+            TotalCost: null,
+            OperationType: operationType,
+            ResponseTime: responseTime,
+            CreatedAt: DateTime.UtcNow
+        ));
     }
 }

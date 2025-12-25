@@ -1,0 +1,59 @@
+using NTG.Agent.Common.Dtos.TokenUsage;
+
+namespace NTG.Agent.Orchestrator.Services.TokenTracking;
+
+public interface ITokenTrackingService
+{
+    /// <summary>
+    /// Records token usage for an AI operation.
+    /// </summary>
+    /// <param name="usage">Token usage data to record</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task TrackUsageAsync(TokenUsageDto usage, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets aggregated token usage statistics for a specific user or all users within a date range.
+    /// </summary>
+    /// <param name="userId">Optional user ID to filter by</param>
+    /// <param name="sessionId">Optional session ID for anonymous users</param>
+    /// <param name="from">Start date for filtering</param>
+    /// <param name="to">End date for filtering</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Aggregated statistics</returns>
+    Task<TokenUsageStatsDto> GetUsageStatsAsync(
+        Guid? userId = null,
+        Guid? sessionId = null,
+        DateTime? from = null,
+        DateTime? to = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets paginated token usage history with optional filtering.
+    /// </summary>
+    /// <param name="from">Start date for filtering</param>
+    /// <param name="to">End date for filtering</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="pageSize">Number of items per page</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Paginated token usage records</returns>
+    Task<PagedResult<TokenUsageDto>> GetUsageHistoryAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        int page = 1,
+        int pageSize = 50,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets token usage statistics aggregated by user.
+    /// </summary>
+    /// <param name="from">Start date for filtering</param>
+    /// <param name="to">End date for filtering</param>
+    /// <param name="topN">Number of top users to return (0 = all)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of user statistics</returns>
+    Task<List<UserTokenStatsDto>> GetStatsByUserAsync(
+        DateTime? from = null,
+        DateTime? to = null,
+        int topN = 0,
+        CancellationToken cancellationToken = default);
+}

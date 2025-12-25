@@ -8,7 +8,7 @@ using NTG.Agent.Orchestrator.Data;
 using OpenAI;
 using System.ClientModel;
 
-namespace NTG.Agent.Orchestrator.Agents;
+namespace NTG.Agent.Orchestrator.Services.Agents;
 
 public class AgentFactory : IAgentFactory
 {
