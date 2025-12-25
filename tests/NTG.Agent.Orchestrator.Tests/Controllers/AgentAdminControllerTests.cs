@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
-using NTG.Agent.Orchestrator.Agents;
+using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Identity;

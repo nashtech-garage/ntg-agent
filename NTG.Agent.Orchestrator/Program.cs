@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
-using NTG.Agent.Orchestrator.Agents;
+using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.TokenTracking;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -75,6 +76,7 @@ builder.Services.AddDataProtection()
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
+builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

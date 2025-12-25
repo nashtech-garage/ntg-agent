@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Tags;
+using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
 namespace NTG.Agent.Orchestrator.Data;
 
@@ -39,6 +40,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<UserPreference> UserPreferences { get; set; } = null!;
 
+    public DbSet<TokenUsage> TokenUsages { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var guidToString = new ValueConverter<Guid, string>(
@@ -46,8 +49,16 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
            s => Guid.Parse(s)
         );
 
-        modelBuilder.Entity<User>()
-                    .ToTable("AspNetUsers", t => t.ExcludeFromMigrations());
+        modelBuilder.Entity<User>(b =>
+        {
+            b.ToTable("AspNetUsers", t => t.ExcludeFromMigrations());
+            b.HasKey(x => x.Id);
+
+            b.Property(x => x.Id)
+                .HasConversion(guidToString)
+                .HasColumnType("nvarchar(450)")
+                .ValueGeneratedNever();
+        });
 
         modelBuilder.Entity<Role>(b =>
         {
@@ -203,6 +214,16 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_UserPreference_UserIdOrSessionId",
+                "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)"));
+        });
+
+        modelBuilder.Entity<TokenUsage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            
+            // Ensure either UserId or SessionId is provided, but not both
+            e.ToTable(t => t.HasCheckConstraint(
+                "CK_TokenUsage_UserIdOrSessionId",
                 "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)"));
         });
     }
