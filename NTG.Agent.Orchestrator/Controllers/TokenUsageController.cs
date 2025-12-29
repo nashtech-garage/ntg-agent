@@ -36,15 +36,8 @@ public partial class TokenUsageController : ControllerBase
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null)
     {
-        try
-        {
-            var stats = await _tokenTrackingService.GetUsageStatsAsync(userId, sessionId, from, to);
-            return Ok(stats);
-        }
-        catch
-        {
-            return StatusCode(500, "An error occurred while retrieving token usage statistics");
-        }
+        var stats = await _tokenTrackingService.GetUsageStatsAsync(userId, sessionId, from, to);
+        return Ok(stats);
     }
 
     /// <summary>
@@ -62,22 +55,15 @@ public partial class TokenUsageController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        try
-        {
-            if (page < 1)
-                return BadRequest("Page number must be greater than 0");
+        if (page < 1)
+            return BadRequest("Page number must be greater than 0");
 
-            if (pageSize < 1 || pageSize > 100)
-                return BadRequest("Page size must be between 1 and 100");
+        if (pageSize < 1 || pageSize > 100)
+            return BadRequest("Page size must be between 1 and 100");
 
-            var result = await _tokenTrackingService.GetUsageHistoryAsync(from, to, page, pageSize);
+        var result = await _tokenTrackingService.GetUsageHistoryAsync(from, to, page, pageSize);
 
-            return Ok(result);
-        }
-        catch
-        {
-            return StatusCode(500, "An error occurred while retrieving token usage history");
-        }
+        return Ok(result);
     }
 
     /// <summary>
@@ -93,17 +79,10 @@ public partial class TokenUsageController : ControllerBase
         [FromQuery] DateTime? to = null,
         [FromQuery] int topN = 0)
     {
-        try
-        {
-            if (topN < 0)
-                return BadRequest("TopN must be greater than or equal to 0");
+        if (topN < 0)
+            return BadRequest("TopN must be greater than or equal to 0");
 
-            var stats = await _tokenTrackingService.GetStatsByUserAsync(from, to, topN);
-            return Ok(stats);
-        }
-        catch
-        {
-            return StatusCode(500, "An error occurred while retrieving user token statistics");
-        }
+        var stats = await _tokenTrackingService.GetStatsByUserAsync(from, to, topN);
+        return Ok(stats);
     }
 }
