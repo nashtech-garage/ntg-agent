@@ -11,6 +11,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Memory;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
@@ -21,16 +22,19 @@ public class AgentService
     private readonly IAgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IUserMemoryService _memoryService;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService)
+        IKnowledgeService knowledgeService,
+        IUserMemoryService memoryService)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
+        _memoryService = memoryService;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -47,7 +51,7 @@ public class AgentService
         var agentMessageSb = new StringBuilder();
         var tokenUsageInfo = new TokenUsageInfo();
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
         {
             agentMessageSb.Append(item);
             yield return item;
@@ -57,6 +61,20 @@ public class AgentService
         var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
+        
+        // Store memory if needed
+        if (userId is Guid userGuid)
+        {
+            var memoryResult = await _memoryService.ExtractMemoryAsync(promptRequest.Prompt, userGuid);
+            if (memoryResult.ShouldWriteMemory && memoryResult.Confidence.HasValue && memoryResult.Confidence.Value > 0.5f && !string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
+            {
+                await _memoryService.StoreMemoryAsync(
+                    userGuid,
+                    memoryResult.MemoryToWrite,
+                    memoryResult.Category ?? "general",
+                    memoryResult.Tags);
+            }
+        }
     }
 
     private async Task<Conversation> ValidateConversation(Guid? userId, PromptRequestForm promptRequest)
@@ -167,20 +185,33 @@ public class AgentService
         List<PChatMessage> history,
         List<string> tags,
         List<string> ocrDocuments,
-        TokenUsageInfo tokenUsageInfo)
+        TokenUsageInfo tokenUsageInfo,
+        Guid? userId)
     {
-        if (promptRequest.AgentId == new Guid("3022DA07-568E-4561-B41C-FAE8102CF4C4"))
+        if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
         {
-            await foreach(var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags))
+            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
             {
                 yield return response;
-             }
+            }
         }
         else
         {
             var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
 
             var chatHistory = new List<ChatMessage>();
+
+            // Inject long-term memories at the beginning for authenticated users
+            if (userId is Guid userIdGuid)
+            {
+                var memories = await _memoryService.RetrieveMemoriesAsync(userIdGuid, topN: 20);
+                if (memories.Count > 0)
+                {
+                    var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
+                    chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
+                }
+            }
+
             foreach (var msg in history.OrderBy(m => m.CreatedAt))
             {
                 chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
@@ -227,7 +258,8 @@ public class AgentService
     private async IAsyncEnumerable<string> TestOrchestratorInvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
-        List<string> tags)
+        List<string> tags,
+        Guid? userId)
     {
         var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
         var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
@@ -256,7 +288,16 @@ public class AgentService
                 yield return e.Data?.ToString() ?? string.Empty;
             }
         }
-        // TODO: Extract token usage from workflow run if possible
+        // Inject long-term memories for authenticated users
+        if (userId is Guid userIdGuid)
+        {
+            var memories = await _memoryService.RetrieveMemoriesAsync(userIdGuid);
+            if (memories.Count > 0)
+            {
+                var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
+                chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
+            }
+        }
     }
 
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
@@ -299,7 +340,7 @@ public class AgentService
         var runResults = await agent.RunAsync(chatHistory);
 
         ExtractTokenUsage(runResults.Usage, tokenUsageInfo);
-        
+
         return runResults.Text;
     }
 

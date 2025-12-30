@@ -7,6 +7,7 @@ using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Memory;
 using System.Security.Claims;
 
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
@@ -38,7 +39,8 @@ public class AgentsControllerTests
         _mockAgentService = new Mock<AgentService>(
             Mock.Of<IAgentFactory>(),
             _context,
-            Mock.Of<IKnowledgeService>()
+            Mock.Of<IKnowledgeService>(),
+            Mock.Of<IUserMemoryService>()
         );
 
         _controller = new AgentsController(_mockAgentService.Object, _context)
