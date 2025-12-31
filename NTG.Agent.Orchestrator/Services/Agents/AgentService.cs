@@ -53,7 +53,6 @@ public class AgentService
         }
         var agentMessageSb = new StringBuilder();
         var tokenUsageInfo = new TokenUsageInfo();
-
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
         {
             agentMessageSb.Append(item);
@@ -64,7 +63,6 @@ public class AgentService
         var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
-        
         // Store or update memories if needed
         if (userId is Guid userGuid)
         {
@@ -218,7 +216,7 @@ public class AgentService
             await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
             {
                 yield return response;
-            }
+             }
         }
         else
         {
@@ -333,6 +331,7 @@ public class AgentService
                 chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
             }
         }
+        // TODO: Extract token usage from workflow run if possible
     }
 
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
@@ -375,7 +374,6 @@ public class AgentService
         var runResults = await agent.RunAsync(chatHistory);
 
         ExtractTokenUsage(runResults.Usage, tokenUsageInfo);
-
         return runResults.Text;
     }
 

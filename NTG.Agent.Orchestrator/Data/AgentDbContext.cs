@@ -220,7 +220,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         modelBuilder.Entity<TokenUsage>(e =>
         {
             e.HasKey(x => x.Id);
-
+            
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_TokenUsage_UserIdOrSessionId",
