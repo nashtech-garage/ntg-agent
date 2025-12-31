@@ -1,7 +1,5 @@
-using Microsoft.EntityFrameworkCore;
+using Microsoft.KernelMemory;
 using NTG.Agent.Common.Dtos.Memory;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Models.Memory;
 using NTG.Agent.Orchestrator.Services.Agents;
 using System.Globalization;
 using System.Text.Json;
@@ -10,9 +8,10 @@ namespace NTG.Agent.Orchestrator.Services.Memory;
 
 public class UserMemoryService : IUserMemoryService
 {
-    private readonly AgentDbContext _dbContext;
+    private readonly IKernelMemory _kernelMemory;
     private readonly IAgentFactory _agentFactory;
     private readonly ILogger<UserMemoryService> _logger;
+    private const string MEMORY_INDEX = "user-memories";
     private static readonly JsonSerializerOptions _llmJsonOptions = new JsonSerializerOptions
     {
         PropertyNameCaseInsensitive = true,
@@ -24,10 +23,11 @@ public class UserMemoryService : IUserMemoryService
 
         ### RULES
         1. **Analyze for:**
-           - User Preferences (favorite topics, hobbies, likes/dislikes)
-           - Profile Details (profession, education, name, location, hardware/software stack)
+           - User Preferences (favorite topics, hobbies, likes/dislikes, sports teams)
+           - Profile Details (NAME, age, profession, education, location, hardware/software stack)
+           - Personal Info (marital status, children, family, birthdate)
            - Goals & Projects (current focus, long-term aspirations)
-           - Relationships (names of coworkers, family mentioned)
+           - Relationships (names of coworkers, family, friends)
            - Important life facts
            - Communication style preferences
 
@@ -40,48 +40,132 @@ public class UserMemoryService : IUserMemoryService
            - Temporary context
 
         3. **Extraction Guidelines:**
+           - **CRITICAL:** If user provides MULTIPLE pieces of information in ONE message, extract ALL of them. Create one consolidated memory with all facts.
            - **Third-Person Only:** Extract facts about the user. Do not use ""I"" or ""You"". Use ""User"".
              - BAD: ""I like using C#""
              - GOOD: ""User prefers using C#""
            - **Standalone:** The extracted memory must make sense entirely on its own without the original conversation context.
+           - **Updates/Corrections:** If the user corrects or updates previous information (e.g., ""Actually my name is..."", ""Oops, I meant...""), use searchQuery to find and replace the old memory.
+           - **New Information:** If this is the FIRST time the user mentions something, set searchQuery to null (no need to search for conflicts).
+
+        ### EXAMPLES
+        
+        Example 1 - Multiple NEW facts (searchQuery should be null):
+        User: ""My name is John, I am 35 years old, I work as a software engineer""
+        Output: [
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User's name is John"",
+            ""confidence"": 0.95,
+            ""category"": ""profile"",
+            ""tags"": ""name"",
+            ""searchQuery"": null
+          }},
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User is 35 years old"",
+            ""confidence"": 0.95,
+            ""category"": ""profile"",
+            ""tags"": ""age"",
+            ""searchQuery"": null
+          }},
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User works as a software engineer"",
+            ""confidence"": 0.95,
+            ""category"": ""profile"",
+            ""tags"": ""profession,job"",
+            ""searchQuery"": null
+          }}
+        ]
+        
+        ### CRITICAL RULES FOR TAGS:
+        - **EACH MEMORY MUST HAVE ITS OWN UNIQUE TAGS** based on what it contains!
+        - Name memory → tags: ""name""
+        - Age memory → tags: ""age""
+        - Profession memory → tags: ""profession,job""
+        - Marital status → tags: ""married,marital_status""
+        - Children → tags: ""children,family""
+        - **DO NOT reuse the same tag for different facts!**
+
+        Example 2 - Family information (NEW facts):
+        User: ""I got married in 2014 and have 2 kids (1 son, 1 daughter)""
+        Output: [
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User married since 2014"",
+            ""confidence"": 0.9,
+            ""category"": ""profile"",
+            ""tags"": ""married,marital_status"",
+            ""searchQuery"": null
+          }},
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User has 2 children: 1 son and 1 daughter"",
+            ""confidence"": 0.9,
+            ""category"": ""profile"",
+            ""tags"": ""children,family"",
+            ""searchQuery"": null
+          }}
+        ]
+
+        Example 3 - CORRECTION (searchQuery to find old value):
+        User: ""Actually, I am 38 years old"" (correcting previous age)
+        Output: [
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User is 38 years old"",
+            ""confidence"": 0.95,
+            ""category"": ""profile"",
+            ""tags"": ""age"",
+            ""searchQuery"": ""age""
+          }}
+        ]
 
         ### OUTPUT FORMAT
-        Response must be valid JSON only. Do not use Markdown blocks (```json).
-        {{
-            ""shouldWriteMemory"": true/false,
-            ""memoryToWrite"": ""User-centric, standalone fact in third person. Extracted information in clear, concise form"" (or null if false),
-            ""confidence"": 0.1 to 1.0 (float),
-            ""category"": ""preference|profile|goal|project|general"",
-            ""tags"": ""comma-separated tags or null""
-        }}
+        Response must be a JSON ARRAY containing one object per fact. Each fact should be stored separately. Do not use Markdown blocks (```json).
+        [
+            {{
+                ""shouldWriteMemory"": true/false,
+                ""memoryToWrite"": ""User-centric, standalone SINGLE fact in third person (or null if false)"",
+                ""confidence"": 0.1 to 1.0,
+                ""category"": ""preference|profile|goal|project|general"",
+                ""tags"": ""comma-separated tags or null"",
+                ""searchQuery"": ""Keywords to find OLD memories to REPLACE. ONLY use when user says 'Actually...', 'I meant...', 'Correction:'. For NEW information, ALWAYS use null.""
+            }}
+        ]
+
+        **CRITICAL RULES for searchQuery:**
+        - NEW information (first time mentioned) → searchQuery: null
+        - CORRECTION (user says 'actually', 'I meant', 'mistake') → searchQuery: ""field name""
+        - If unsure → searchQuery: null (safer to keep both than lose one)
+
+        **CRITICAL:** Extract each fact as a SEPARATE object in the array. If user says ""My name is John, I am 35, I work as engineer"", return 3 objects: one for name, one for age, one for profession.
 
         User message: {0}
 
-        Response (JSON only):";
+        Response (JSON array only):";
 
     public UserMemoryService(
-        AgentDbContext dbContext,
+        IKernelMemory kernelMemory,
         IAgentFactory agentFactory,
         ILogger<UserMemoryService> logger)
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<MemoryExtractionResultDto> ExtractMemoryAsync(
+    public async Task<List<MemoryExtractionResultDto>> ExtractMemoryAsync(
     string userMessage,
     Guid userId,
     CancellationToken ct = default)
     {
         try
         {
-            _logger.LogInformation("Extracting memory from message for user {UserId}", userId);
-
             string prompt = string.Format(CultureInfo.InvariantCulture, MemoryExtractionPrompt, userMessage);
 
-            // Note: The system prompt here reinforces the instruction, which is good practice.
-            var agent = await _agentFactory.CreateBasicAgent("You are a memory extraction assistant. Respond only with valid JSON.");
+            var agent = await _agentFactory.CreateBasicAgent("You are a memory extraction assistant. Respond only with valid JSON array.");
             var runResults = await agent.RunAsync(prompt);
             var responseText = runResults.Text.Trim();
 
@@ -105,159 +189,197 @@ public class UserMemoryService : IUserMemoryService
                 }
             }
 
-            var result = JsonSerializer.Deserialize<MemoryExtractionResultDto>(responseText, _llmJsonOptions);
+            var results = JsonSerializer.Deserialize<List<MemoryExtractionResultDto>>(responseText, _llmJsonOptions);
 
-            if (result == null)
+            if (results == null || results.Count == 0)
             {
-                _logger.LogWarning("Failed to parse memory extraction response. Raw Text: {RawText}", responseText);
-                return new MemoryExtractionResultDto(false, null, null, null, null);
+                _logger.LogWarning("Failed to parse memory extraction response or empty array. Raw Text: {RawText}", responseText);
+                return new List<MemoryExtractionResultDto>();
             }
 
-            return result;
+            return results;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error extraction memory");
-            return new MemoryExtractionResultDto(false, null, null, null, null);
+            return new List<MemoryExtractionResultDto>();
         }
     }
 
-    public async Task<UserMemory> StoreMemoryAsync(
+    public async Task<UserMemoryDto> StoreMemoryAsync(
         Guid userId,
         string content,
         string category,
         string? tags = null,
         CancellationToken ct = default)
     {
-        _logger.LogInformation("Storing memory for user {UserId}", userId);
-
-        // Check for similar existing memories to avoid exact duplicates
-        var existingMemory = await _dbContext.UserMemories
-            .Where(m => m.UserId == userId && m.Content == content && m.IsActive)
-            .FirstOrDefaultAsync(ct);
-
-        if (existingMemory != null)
+        var memoryId = Guid.NewGuid();
+        var documentId = $"memory-{userId}-{memoryId}";
+        
+        var tagCollection = new TagCollection
         {
-            // Update access information
-            existingMemory.UpdatedAt = DateTime.UtcNow;
-            existingMemory.AccessCount++;
-            await _dbContext.SaveChangesAsync(ct);
-            return existingMemory;
-        }
-
-        var memory = new UserMemory
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Content = content,
-            Category = category,
-            Tags = tags,
-            IsActive = true,
-            AccessCount = 0
+            { "userId", userId.ToString() },
+            { "category", category },
+            { "memoryId", memoryId.ToString() },
+            { "createdAt", DateTime.UtcNow.ToString("O") }
         };
 
-        _dbContext.UserMemories.Add(memory);
-        await _dbContext.SaveChangesAsync(ct);
+        if (!string.IsNullOrWhiteSpace(tags))
+        {
+            tagCollection.Add("tags", tags);
+        }
 
-        _logger.LogInformation("Memory stored successfully with ID {MemoryId}", memory.Id);
-        return memory;
+        await _kernelMemory.ImportTextAsync(
+            content,
+            documentId: documentId,
+            index: MEMORY_INDEX,
+            tags: tagCollection,
+            cancellationToken: ct);
+
+        return new UserMemoryDto(
+            Id: memoryId,
+            UserId: userId,
+            Content: content,
+            Category: category,
+            Tags: tags,
+            CreatedAt: DateTime.UtcNow,
+            UpdatedAt: DateTime.UtcNow
+        );
     }
 
-    public async Task<List<UserMemory>> RetrieveMemoriesAsync(
+    public async Task<List<UserMemoryDto>> RetrieveMemoriesAsync(
         Guid userId,
         string? query = null,
         int topN = 5,
         string? category = null,
         CancellationToken ct = default)
     {
-        _logger.LogInformation("Retrieving memories for user {UserId}", userId);
-
-        var memoriesQuery = _dbContext.UserMemories
-            .Where(m => m.UserId == userId && m.IsActive);
+        var filter = new MemoryFilter();
+        filter.Add("userId", userId.ToString());
 
         if (!string.IsNullOrWhiteSpace(category))
         {
-            memoriesQuery = memoriesQuery.Where(m => m.Category == category);
+            filter.Add("category", category);
         }
 
-        // Simple text-based search if query is provided
+        SearchResult searchResult;
+
         if (!string.IsNullOrWhiteSpace(query))
         {
-            memoriesQuery = memoriesQuery.Where(m => m.Content.Contains(query) || (m.Tags != null && m.Tags.Contains(query)));
+            searchResult = await _kernelMemory.SearchAsync(
+                query: query,
+                index: MEMORY_INDEX,
+                filters: new List<MemoryFilter> { filter },
+                limit: topN,
+                cancellationToken: ct);
         }
-
-        var memories = await memoriesQuery
-            .OrderByDescending(m => m.UpdatedAt)
-            .Take(topN)
-            .ToListAsync(ct);
-
-        // Update access information
-        foreach (var memory in memories)
+        else
         {
-            memory.AccessCount++;
-            memory.LastAccessedAt = DateTime.UtcNow;
+            searchResult = await _kernelMemory.SearchAsync(
+                query: "user information profile preferences goals",
+                index: MEMORY_INDEX,
+                filters: new List<MemoryFilter> { filter },
+                limit: topN,
+                cancellationToken: ct);
         }
 
-        await _dbContext.SaveChangesAsync(ct);
-
-        _logger.LogInformation("Retrieved {Count} memories for user {UserId}", memories.Count, userId);
+        var memories = ParseSearchResults(searchResult, userId);
         return memories;
     }
 
-    public async Task<UserMemory?> UpdateMemoryAsync(
-        Guid memoryId,
-        string content,
-        string category,
-        string? tags,
-        bool isActive,
-        CancellationToken ct = default)
+    private static List<UserMemoryDto> ParseSearchResults(SearchResult searchResult, Guid userId)
     {
-        var memory = await _dbContext.UserMemories.FindAsync([memoryId], ct);
-        if (memory == null)
+        var memories = new List<UserMemoryDto>();
+
+        foreach (var citation in searchResult.Results)
         {
-            return null;
+            foreach (var partition in citation.Partitions)
+            {
+                var tags = partition.Tags;
+                
+                var memoryId = tags.ContainsKey("memoryId") && Guid.TryParse(tags["memoryId"].FirstOrDefault(), out var mid)
+                    ? mid
+                    : Guid.NewGuid();
+
+                var categoryValue = tags.ContainsKey("category") 
+                    ? tags["category"].FirstOrDefault() ?? "general" 
+                    : "general";
+
+                var tagsValue = tags.ContainsKey("tags") 
+                    ? tags["tags"].FirstOrDefault() 
+                    : null;
+
+                var createdAt = tags.ContainsKey("createdAt") && DateTime.TryParse(tags["createdAt"].FirstOrDefault(), out var dt)
+                    ? dt
+                    : DateTime.UtcNow;
+
+                memories.Add(new UserMemoryDto(
+                    Id: memoryId,
+                    UserId: userId,
+                    Content: partition.Text,
+                    Category: categoryValue,
+                    Tags: tagsValue,
+                    CreatedAt: createdAt,
+                    UpdatedAt: createdAt,
+                    LastAccessedAt: DateTime.UtcNow
+                ));
+            }
         }
 
-        memory.Content = content;
-        memory.Category = category;
-        memory.Tags = tags;
-        memory.IsActive = isActive;
-        memory.UpdatedAt = DateTime.UtcNow;
+        return memories;
+    }
 
-        await _dbContext.SaveChangesAsync(ct);
-        return memory;
+    public async Task<List<UserMemoryDto>> RetrieveMemoriesByFieldAsync(
+        Guid userId,
+        string fieldTag,
+        string? category = null,
+        CancellationToken ct = default)
+    {
+        var filter = new MemoryFilter();
+        filter.Add("userId", userId.ToString());
+        filter.Add("tags", fieldTag);
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            filter.Add("category", category);
+        }
+
+        var searchResult = await _kernelMemory.SearchAsync(
+            query: "*",
+            index: MEMORY_INDEX,
+            filters: new List<MemoryFilter> { filter },
+            limit: 10,
+            cancellationToken: ct);
+
+        var memories = ParseSearchResults(searchResult, userId);
+        return memories;
     }
 
     public async Task<bool> DeleteMemoryAsync(Guid memoryId, CancellationToken ct = default)
     {
-        var memory = await _dbContext.UserMemories.FindAsync([memoryId], ct);
-        if (memory == null)
+        var filters = new List<MemoryFilter>
         {
-            return false;
+            MemoryFilters.ByTag("memoryId", memoryId.ToString())
+        };
+
+        var searchResult = await _kernelMemory.SearchAsync(
+            query: "*",
+            index: MEMORY_INDEX,
+            filters: filters,
+            limit: 1,
+            cancellationToken: ct);
+
+        if (searchResult.Results.Count > 0)
+        {
+            var documentId = searchResult.Results[0].DocumentId;
+            await _kernelMemory.DeleteDocumentAsync(documentId, index: MEMORY_INDEX, cancellationToken: ct);
+            return true;
         }
 
-        _dbContext.UserMemories.Remove(memory);
-        await _dbContext.SaveChangesAsync(ct);
-        return true;
+        return false;
     }
 
-    public async Task<int> DeleteAllMemoriesAsync(Guid userId, CancellationToken ct = default)
-    {
-        var memories = await _dbContext.UserMemories
-            .Where(m => m.UserId == userId)
-            .ToListAsync(ct);
-
-        _dbContext.UserMemories.RemoveRange(memories);
-        await _dbContext.SaveChangesAsync(ct);
-        return memories.Count;
-    }
-
-    public async Task<UserMemory?> GetMemoryByIdAsync(Guid memoryId, CancellationToken ct = default)
-    {
-        return await _dbContext.UserMemories.FindAsync([memoryId], ct);
-    }
-
-    public string FormatMemoriesForPrompt(List<UserMemory> memories)
+    public string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
     {
         if (memories == null || memories.Count == 0)
         {

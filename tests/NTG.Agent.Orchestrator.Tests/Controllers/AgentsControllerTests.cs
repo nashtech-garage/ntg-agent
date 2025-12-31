@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Controllers;
@@ -40,7 +41,8 @@ public class AgentsControllerTests
             Mock.Of<IAgentFactory>(),
             _context,
             Mock.Of<IKnowledgeService>(),
-            Mock.Of<IUserMemoryService>()
+            Mock.Of<IUserMemoryService>(),
+            Mock.Of<ILogger<AgentService>>()
         );
 
         _controller = new AgentsController(_mockAgentService.Object, _context)

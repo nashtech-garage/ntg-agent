@@ -23,806 +23,753 @@ namespace NTG.Agent.Orchestrator.Migrations
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Description")
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Instructions")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Instructions")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsDefault")
+                    .HasColumnType("bit");
 
-                    b.Property<bool>("IsPublished")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsPublished")
+                    .HasColumnType("bit");
 
-                    b.Property<string>("McpServer")
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("McpServer")
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("OwnerUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                b.Property<string>("OwnerUserId")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("ProviderApiKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("ProviderApiKey")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProviderEndpoint")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("ProviderEndpoint")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProviderModelName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("ProviderModelName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProviderName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("ProviderName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("UpdatedByUserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                b.Property<string>("UpdatedByUserId")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(450)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("OwnerUserId");
+                b.HasIndex("OwnerUserId");
 
-                    b.HasIndex("UpdatedByUserId");
+                b.HasIndex("UpdatedByUserId");
 
-                    b.ToTable("Agents");
+                b.ToTable("Agents");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
-                            IsDefault = true,
-                            IsPublished = true,
-                            McpServer = "",
-                            Name = "Default Agent",
-                            OwnerUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
-                            ProviderApiKey = "",
-                            ProviderEndpoint = "",
-                            ProviderModelName = "",
-                            ProviderName = "",
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            UpdatedByUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"
-                        });
-                });
+                b.HasData(
+                    new
+                    {
+                        Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+                        CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
+                        IsDefault = true,
+                        IsPublished = true,
+                        McpServer = "",
+                        Name = "Default Agent",
+                        OwnerUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
+                        ProviderApiKey = "",
+                        ProviderEndpoint = "",
+                        ProviderModelName = "",
+                        ProviderName = "",
+                        UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        UpdatedByUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"
+                    });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("AgentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("AgentToolType")
-                        .HasColumnType("int");
+                b.Property<int>("AgentToolType")
+                    .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Description")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsEnabled")
+                    .HasColumnType("bit");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("AgentId");
+                b.HasIndex("AgentId");
 
-                    b.ToTable("AgentTools");
-                });
+                b.ToTable("AgentTools");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid?>("SessionId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("SessionId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("UserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.ToTable("Conversations");
-                });
+                b.ToTable("Conversations");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.PChatMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("AgentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("AgentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Content")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("ConversationId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("ConversationId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsSummary")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsSummary")
+                    .HasColumnType("bit");
 
-                    b.Property<int>("Reaction")
-                        .HasColumnType("int");
+                b.Property<int>("Reaction")
+                    .HasColumnType("int");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(50)");
+                b.Property<string>("Role")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(50)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("UserComment")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("UserComment")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("UserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("ConversationId");
+                b.HasIndex("ConversationId");
 
-                    b.ToTable("ChatMessages", (string)null);
-                });
+                b.ToTable("ChatMessages", (string)null);
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Content")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(50)");
+                b.Property<string>("Role")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(50)");
 
-                    b.Property<Guid>("SharedConversationId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("SharedConversationId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("SharedConversationId");
+                b.HasIndex("SharedConversationId");
 
-                    b.ToTable("SharedChatMessages");
-                });
+                b.ToTable("SharedChatMessages");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime?>("ExpiresAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsActive")
+                    .HasColumnType("bit");
 
-                    b.Property<string>("Name")
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Name")
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("OriginalConversationId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("OriginalConversationId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
+                b.Property<int>("Type")
+                    .HasColumnType("int");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("UserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.ToTable("SharedConversations");
-                });
+                b.ToTable("SharedConversations");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("AgentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("CreatedByUserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("FolderId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("FolderId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("KnowledgeDocId")
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("KnowledgeDocId")
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
+                b.Property<int>("Type")
+                    .HasColumnType("int");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UpdatedByUserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("UpdatedByUserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                b.Property<string>("Url")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("FolderId");
+                b.HasIndex("FolderId");
 
-                    b.ToTable("Documents");
-                });
+                b.ToTable("Documents");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("DocumentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("TagId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("TagId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("DocumentId");
+                b.HasIndex("DocumentId");
 
-                    b.HasIndex("TagId");
+                b.HasIndex("TagId");
 
-                    b.ToTable("DocumentTags");
-                });
+                b.ToTable("DocumentTags");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("AgentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("CreatedByUserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<bool>("IsDeletable")
-                        .HasColumnType("bit");
+                b.Property<bool>("IsDeletable")
+                    .HasColumnType("bit");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(255)
+                    .HasColumnType("nvarchar(255)");
 
-                    b.Property<Guid?>("ParentId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid?>("ParentId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<int?>("SortOrder")
-                        .HasColumnType("int");
+                b.Property<int?>("SortOrder")
+                    .HasColumnType("int");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UpdatedByUserId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("UpdatedByUserId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("ParentId");
+                b.HasIndex("ParentId");
 
-                    b.ToTable("Folders");
+                b.ToTable("Folders");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("d1f8c2b3-4e5f-4c6a-8b7c-9d0e1f2a3b4c"),
-                            AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            CreatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
-                            IsDeletable = false,
-                            Name = "All Folders",
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
-                        },
-                        new
-                        {
-                            Id = new Guid("a2b3c4d5-e6f7-8a9b-0c1d-2e3f4f5a6b7c"),
-                            AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            CreatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
-                            IsDeletable = false,
-                            Name = "Default Folder",
-                            ParentId = new Guid("d1f8c2b3-4e5f-4c6a-8b7c-9d0e1f2a3b4c"),
-                            SortOrder = 0,
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
-                        });
-                });
+                b.HasData(
+                    new
+                    {
+                        Id = new Guid("d1f8c2b3-4e5f-4c6a-8b7c-9d0e1f2a3b4c"),
+                        AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+                        CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        CreatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
+                        IsDeletable = false,
+                        Name = "All Folders",
+                        UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
+                    },
+                    new
+                    {
+                        Id = new Guid("a2b3c4d5-e6f7-8a9b-0c1d-2e3f4f5a6b7c"),
+                        AgentId = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+                        CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        CreatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
+                        IsDeletable = false,
+                        Name = "Default Folder",
+                        ParentId = new Guid("d1f8c2b3-4e5f-4c6a-8b7c-9d0e1f2a3b4c"),
+                        SortOrder = 0,
+                        UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
+                    });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Identity.Role", b =>
+            {
+                b.Property<string>("Id")
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.HasKey("Id");
+
+                b.ToTable("AspNetRoles", null, t =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("AspNetRoles", null, t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
+                    t.ExcludeFromMigrations();
                 });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Identity.User", b =>
+            {
+                b.Property<string>("Id")
+                    .HasColumnType("nvarchar(450)");
+
+                b.Property<string>("Email")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.Property<string>("UserName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.HasKey("Id");
+
+                b.ToTable("AspNetUsers", null, t =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("UserName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("AspNetUsers", null, t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
+                    t.ExcludeFromMigrations();
                 });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Identity.UserRole", b =>
+            {
+                b.Property<Guid>("UserId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("RoleId")
+                    .HasColumnType("nvarchar(450)");
+
+                b.HasKey("UserId", "RoleId");
+
+                b.ToTable("AspNetUserRoles", null, t =>
                 {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("RoleId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("UserId", "RoleId");
-
-                    b.ToTable("AspNetUserRoles", null, t =>
-                        {
-                            t.ExcludeFromMigrations();
-                        });
+                    t.ExcludeFromMigrations();
                 });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Memory.UserMemory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("AccessCount")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasMaxLength(5000)
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("EmbeddingId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("LastAccessedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Tags")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Category");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserMemories");
-                });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.Tag", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasMaxLength(256)
+                    .HasColumnType("nvarchar(256)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("Name")
-                        .IsUnique();
+                b.HasIndex("Name")
+                    .IsUnique();
 
-                    b.ToTable("Tags");
+                b.ToTable("Tags");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            Name = "Public",
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
-                });
+                b.HasData(
+                    new
+                    {
+                        Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
+                        CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        Name = "Public",
+                        UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                    });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.TagRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("RoleId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("TagId")
-                        .HasColumnType("uniqueidentifier");
+                b.Property<Guid>("TagId")
+                    .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
 
-                    b.HasKey("Id");
+                b.HasKey("Id");
 
-                    b.HasIndex("TagId", "RoleId")
-                        .IsUnique();
+                b.HasIndex("TagId", "RoleId")
+                    .IsUnique();
 
-                    b.ToTable("TagRoles");
+                b.ToTable("TagRoles");
 
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            RoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169"),
-                            TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
-                });
+                b.HasData(
+                    new
+                    {
+                        Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
+                        CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                        RoleId = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169"),
+                        TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
+                        UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                    });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.TokenUsage.TokenUsage", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("AgentId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid>("ConversationId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
+
+                b.Property<decimal?>("InputTokenCost")
+                    .HasColumnType("decimal(18,2)");
+
+                b.Property<long?>("InputTokens")
+                    .HasColumnType("bigint");
+
+                b.Property<Guid?>("MessageId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<string>("ModelName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.Property<string>("OperationType")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.Property<decimal?>("OutputTokenCost")
+                    .HasColumnType("decimal(18,2)");
+
+                b.Property<long?>("OutputTokens")
+                    .HasColumnType("bigint");
+
+                b.Property<string>("ProviderName")
+                    .IsRequired()
+                    .HasColumnType("nvarchar(max)");
+
+                b.Property<TimeSpan>("ResponseTime")
+                    .HasColumnType("time");
+
+                b.Property<Guid?>("SessionId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<decimal?>("TotalCost")
+                    .HasColumnType("decimal(18,2)");
+
+                b.Property<long?>("TotalTokens")
+                    .HasColumnType("bigint");
+
+                b.Property<Guid?>("UserId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.HasKey("Id");
+
+                b.ToTable("TokenUsages", t =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ConversationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("InputTokenCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<long?>("InputTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid?>("MessageId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ModelName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OperationType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal?>("OutputTokenCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<long?>("OutputTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ProviderName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<TimeSpan>("ResponseTime")
-                        .HasColumnType("time");
-
-                    b.Property<Guid?>("SessionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal?>("TotalCost")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<long?>("TotalTokens")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TokenUsages", t =>
-                        {
-                            t.HasCheckConstraint("CK_TokenUsage_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
-                        });
+                    t.HasCheckConstraint("CK_TokenUsage_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
                 });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.UserPreferences.UserPreference", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<DateTime>("CreatedAt")
+                    .HasColumnType("datetime2");
+
+                b.Property<Guid>("SelectedAgentId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<Guid?>("SessionId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.Property<DateTime>("UpdatedAt")
+                    .HasColumnType("datetime2");
+
+                b.Property<Guid?>("UserId")
+                    .HasColumnType("uniqueidentifier");
+
+                b.HasKey("Id");
+
+                b.HasIndex("SessionId")
+                    .IsUnique()
+                    .HasFilter("[SessionId] IS NOT NULL");
+
+                b.HasIndex("UserId")
+                    .IsUnique()
+                    .HasFilter("[UserId] IS NOT NULL");
+
+                b.ToTable("UserPreferences", t =>
                 {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("SelectedAgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("SessionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId")
-                        .IsUnique()
-                        .HasFilter("[SessionId] IS NOT NULL");
-
-                    b.HasIndex("UserId")
-                        .IsUnique()
-                        .HasFilter("[UserId] IS NOT NULL");
-
-                    b.ToTable("UserPreferences", t =>
-                        {
-                            t.HasCheckConstraint("CK_UserPreference_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
-                        });
+                    t.HasCheckConstraint("CK_UserPreference_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
                 });
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "OwnerUser")
-                        .WithMany()
-                        .HasForeignKey("OwnerUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "OwnerUser")
+                    .WithMany()
+                    .HasForeignKey("OwnerUserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "UpdatedByUser")
-                        .WithMany()
-                        .HasForeignKey("UpdatedByUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("NTG.Agent.Orchestrator.Models.Identity.User", "UpdatedByUser")
+                    .WithMany()
+                    .HasForeignKey("UpdatedByUserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("OwnerUser");
+                b.Navigation("OwnerUser");
 
-                    b.Navigation("UpdatedByUser");
-                });
+                b.Navigation("UpdatedByUser");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
-                        .WithMany("AgentTools")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
+                    .WithMany("AgentTools")
+                    .HasForeignKey("AgentId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Agent");
-                });
+                b.Navigation("Agent");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.PChatMessage", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Chat.Conversation", "Conversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("ConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Chat.Conversation", "Conversation")
+                    .WithMany("Messages")
+                    .HasForeignKey("ConversationId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Conversation");
-                });
+                b.Navigation("Conversation");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedChatMessage", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", "SharedConversation")
-                        .WithMany("Messages")
-                        .HasForeignKey("SharedConversationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", "SharedConversation")
+                    .WithMany("Messages")
+                    .HasForeignKey("SharedConversationId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("SharedConversation");
-                });
+                b.Navigation("SharedConversation");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", null)
-                        .WithMany("Documents")
-                        .HasForeignKey("FolderId");
-                });
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", null)
+                    .WithMany("Documents")
+                    .HasForeignKey("FolderId");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Document", "Document")
-                        .WithMany("DocumentTags")
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Document", "Document")
+                    .WithMany("DocumentTags")
+                    .HasForeignKey("DocumentId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
+                    .WithMany()
+                    .HasForeignKey("TagId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Document");
+                b.Navigation("Document");
 
-                    b.Navigation("Tag");
-                });
+                b.Navigation("Tag");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", "Parent")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentId");
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Documents.Folder", "Parent")
+                    .WithMany("Children")
+                    .HasForeignKey("ParentId");
 
-                    b.Navigation("Parent");
-                });
+                b.Navigation("Parent");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.TagRole", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
-                        .WithMany()
-                        .HasForeignKey("TagId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+            {
+                b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
+                    .WithMany()
+                    .HasForeignKey("TagId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
 
-                    b.Navigation("Tag");
-                });
+                b.Navigation("Tag");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
-                {
-                    b.Navigation("AgentTools");
-                });
+            {
+                b.Navigation("AgentTools");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
-                {
-                    b.Navigation("Messages");
-                });
+            {
+                b.Navigation("Messages");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
-                {
-                    b.Navigation("Messages");
-                });
+            {
+                b.Navigation("Messages");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
-                {
-                    b.Navigation("DocumentTags");
-                });
+            {
+                b.Navigation("DocumentTags");
+            });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
-                {
-                    b.Navigation("Children");
+            {
+                b.Navigation("Children");
 
-                    b.Navigation("Documents");
-                });
+                b.Navigation("Documents");
+            });
 #pragma warning restore 612, 618
         }
     }

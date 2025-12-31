@@ -23,18 +23,21 @@ public class AgentService
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
     private readonly IUserMemoryService _memoryService;
+    private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
-        IUserMemoryService memoryService)
+        IUserMemoryService memoryService,
+        ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _memoryService = memoryService;
+        _logger = logger;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -62,17 +65,39 @@ public class AgentService
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
         
-        // Store memory if needed
+        // Store or update memories if needed
         if (userId is Guid userGuid)
         {
-            var memoryResult = await _memoryService.ExtractMemoryAsync(promptRequest.Prompt, userGuid);
-            if (memoryResult.ShouldWriteMemory && memoryResult.Confidence.HasValue && memoryResult.Confidence.Value > 0.5f && !string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
+            var memoryResults = await _memoryService.ExtractMemoryAsync(promptRequest.Prompt, userGuid);
+            foreach (var memoryResult in memoryResults)
             {
-                await _memoryService.StoreMemoryAsync(
-                    userGuid,
-                    memoryResult.MemoryToWrite,
-                    memoryResult.Category ?? "general",
-                    memoryResult.Tags);
+                if (memoryResult.ShouldWriteMemory && 
+                    memoryResult.Confidence.HasValue && 
+                    memoryResult.Confidence.Value > 0.3f && 
+                    !string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
+                {
+                    // Check if this is an update/correction
+                    if (!string.IsNullOrWhiteSpace(memoryResult.SearchQuery))
+                    {
+                        var existingMemories = await _memoryService.RetrieveMemoriesByFieldAsync(
+                            userGuid,
+                            fieldTag: memoryResult.SearchQuery,
+                            category: memoryResult.Category);
+
+                        // Delete conflicting memories
+                        foreach (var oldMemory in existingMemories)
+                        {
+                            await _memoryService.DeleteMemoryAsync(oldMemory.Id);
+                        }
+                    }
+
+                    // Store the new/updated memory
+                    await _memoryService.StoreMemoryAsync(
+                        userGuid,
+                        memoryResult.MemoryToWrite,
+                        memoryResult.Category ?? "general",
+                        memoryResult.Tags);
+                }
             }
         }
     }
@@ -204,7 +229,12 @@ public class AgentService
             // Inject long-term memories at the beginning for authenticated users
             if (userId is Guid userIdGuid)
             {
-                var memories = await _memoryService.RetrieveMemoriesAsync(userIdGuid, topN: 20);
+                // Use the user's current prompt for semantic memory retrieval
+                var memories = await _memoryService.RetrieveMemoriesAsync(
+                    userIdGuid, 
+                    query: promptRequest.Prompt,
+                    topN: 10);
+                
                 if (memories.Count > 0)
                 {
                     var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
@@ -291,7 +321,12 @@ public class AgentService
         // Inject long-term memories for authenticated users
         if (userId is Guid userIdGuid)
         {
-            var memories = await _memoryService.RetrieveMemoriesAsync(userIdGuid);
+            // Use the user's current prompt for semantic memory retrieval
+            var memories = await _memoryService.RetrieveMemoriesAsync(
+                userIdGuid, 
+                query: promptRequest.Prompt,  // Semantic search based on current message
+                topN: 10);
+            
             if (memories.Count > 0)
             {
                 var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);

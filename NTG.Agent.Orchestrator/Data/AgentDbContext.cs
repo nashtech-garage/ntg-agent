@@ -4,7 +4,6 @@ using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
-using NTG.Agent.Orchestrator.Models.Memory;
 using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
@@ -42,8 +41,6 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<UserPreference> UserPreferences { get; set; } = null!;
 
     public DbSet<TokenUsage> TokenUsages { get; set; } = null!;
-
-    public DbSet<UserMemory> UserMemories { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,17 +200,17 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         modelBuilder.Entity<UserPreference>(e =>
         {
             e.HasKey(x => x.Id);
-            
+
             // Create unique index on UserId (for authenticated users)
             e.HasIndex(x => x.UserId)
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
-            
+
             // Create unique index on SessionId (for anonymous users)
             e.HasIndex(x => x.SessionId)
                 .IsUnique()
                 .HasFilter("[SessionId] IS NOT NULL");
-            
+
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_UserPreference_UserIdOrSessionId",
@@ -223,36 +220,11 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         modelBuilder.Entity<TokenUsage>(e =>
         {
             e.HasKey(x => x.Id);
-            
+
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_TokenUsage_UserIdOrSessionId",
                 "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)"));
-        });
-
-        // UserMemory configuration
-        modelBuilder.Entity<UserMemory>(e =>
-        {
-            e.HasKey(x => x.Id);
-            
-            e.Property(x => x.Content)
-                .IsRequired()
-                .HasMaxLength(5000);
-            
-            e.Property(x => x.Category)
-                .IsRequired()
-                .HasMaxLength(100);
-            
-            e.Property(x => x.Tags)
-                .HasMaxLength(1000);
-            
-            e.Property(x => x.EmbeddingId)
-                .HasMaxLength(100);
-            
-            // Create indexes for efficient querying
-            e.HasIndex(x => x.UserId);
-            e.HasIndex(x => x.Category);
-            e.HasIndex(x => x.CreatedAt);
         });
     }
 }
