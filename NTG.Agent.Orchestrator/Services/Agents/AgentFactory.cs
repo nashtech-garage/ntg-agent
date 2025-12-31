@@ -9,7 +9,7 @@ using OpenAI;
 using System.ClientModel;
 using OpenAI.Chat;
 
-namespace NTG.Agent.Orchestrator.Agents;
+namespace NTG.Agent.Orchestrator.Services.Agents;
 
 public class AgentFactory : IAgentFactory
 {
