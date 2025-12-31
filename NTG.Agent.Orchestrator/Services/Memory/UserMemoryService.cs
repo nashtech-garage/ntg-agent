@@ -39,14 +39,23 @@ public class UserMemoryService : IUserMemoryService
            - One-time questions
            - Temporary context
 
-        3. **Extraction Guidelines:**
-           - **CRITICAL:** If user provides MULTIPLE pieces of information in ONE message, extract ALL of them. Create one consolidated memory with all facts.
-           - **Third-Person Only:** Extract facts about the user. Do not use ""I"" or ""You"". Use ""User"".
-             - BAD: ""I like using C#""
-             - GOOD: ""User prefers using C#""
-           - **Standalone:** The extracted memory must make sense entirely on its own without the original conversation context.
-           - **Updates/Corrections:** If the user corrects or updates previous information (e.g., ""Actually my name is..."", ""Oops, I meant...""), use searchQuery to find and replace the old memory.
-           - **New Information:** If this is the FIRST time the user mentions something, set searchQuery to null (no need to search for conflicts).
+        ### EXTRACTION GUIDELINES
+        - **CRITICAL:** If user provides MULTIPLE pieces of information in ONE message, extract ALL of them. Create one consolidated memory with all facts.
+        - **Third-Person Only:** Extract facts about the user. Do not use ""I"" or ""You"". Use ""User"".
+          - BAD: ""I like using C#""
+          - GOOD: ""User prefers using C#""
+        - **Standalone:** The extracted memory must make sense entirely on its own without the original conversation context.
+        - **Updates/Corrections:** If the user corrects or updates previous information (e.g., ""Actually my name is..."", ""Oops, I meant...""), use searchQuery to find and replace the old memory.
+        - **New Information:** If this is the FIRST time the user mentions something, set searchQuery to null (no need to search for conflicts).
+
+        ### CRITICAL RULES FOR TAGS:
+        - **EACH MEMORY MUST HAVE ITS OWN UNIQUE TAGS** based on what it contains!
+        - Name memory → tags: ""name""
+        - Age memory → tags: ""age""
+        - Profession memory → tags: ""profession,job""
+        - Marital status → tags: ""married,marital_status""
+        - Children → tags: ""children,family""
+        - **DO NOT reuse the same tag for different facts!**
 
         ### EXAMPLES
         
@@ -78,15 +87,6 @@ public class UserMemoryService : IUserMemoryService
             ""searchQuery"": null
           }}
         ]
-        
-        ### CRITICAL RULES FOR TAGS:
-        - **EACH MEMORY MUST HAVE ITS OWN UNIQUE TAGS** based on what it contains!
-        - Name memory → tags: ""name""
-        - Age memory → tags: ""age""
-        - Profession memory → tags: ""profession,job""
-        - Marital status → tags: ""married,marital_status""
-        - Children → tags: ""children,family""
-        - **DO NOT reuse the same tag for different facts!**
 
         Example 2 - Family information (NEW facts):
         User: ""I got married in 2014 and have 2 kids (1 son, 1 daughter)""
