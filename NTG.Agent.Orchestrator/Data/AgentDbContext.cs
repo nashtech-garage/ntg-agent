@@ -200,17 +200,17 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         modelBuilder.Entity<UserPreference>(e =>
         {
             e.HasKey(x => x.Id);
-            
+
             // Create unique index on UserId (for authenticated users)
             e.HasIndex(x => x.UserId)
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
-            
+
             // Create unique index on SessionId (for anonymous users)
             e.HasIndex(x => x.SessionId)
                 .IsUnique()
                 .HasFilter("[SessionId] IS NOT NULL");
-            
+
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_UserPreference_UserIdOrSessionId",
