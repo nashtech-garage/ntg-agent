@@ -79,7 +79,7 @@ public class AgentService
                     {
                         var existingMemories = await _memoryService.RetrieveMemoriesByFieldAsync(
                             userGuid,
-                            fieldTag: memoryResult.SearchQuery,
+                            fieldTag: memoryResult.Tags ?? string.Empty,
                             category: memoryResult.Category);
 
                         // Delete conflicting memories
@@ -224,21 +224,8 @@ public class AgentService
 
             var chatHistory = new List<ChatMessage>();
 
-            // Inject long-term memories at the beginning for authenticated users
-            if (userId is Guid userIdGuid)
-            {
-                // Use the user's current prompt for semantic memory retrieval
-                var memories = await _memoryService.RetrieveMemoriesAsync(
-                    userIdGuid, 
-                    query: promptRequest.Prompt,
-                    topN: 10);
-                
-                if (memories.Count > 0)
-                {
-                    var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
-                    chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
-                }
-            }
+            // Inject long-term memories for authenticated users
+            await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
 
             foreach (var msg in history.OrderBy(m => m.CreatedAt))
             {
@@ -317,23 +304,27 @@ public class AgentService
             }
         }
         // Inject long-term memories for authenticated users
+        await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
+        // TODO: Extract token usage from workflow run if possible
+    }
+
+    private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)
+    {
         if (userId is Guid userIdGuid)
         {
             // Use the user's current prompt for semantic memory retrieval
             var memories = await _memoryService.RetrieveMemoriesAsync(
-                userIdGuid, 
-                query: promptRequest.Prompt,  // Semantic search based on current message
-                topN: 10);
-            
+                userIdGuid,
+                query: userPrompt,
+                topN: 20);
+
             if (memories.Count > 0)
             {
                 var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
                 chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
             }
         }
-        // TODO: Extract token usage from workflow run if possible
     }
-
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessage(ChatRole.User, prompt);

@@ -32,6 +32,7 @@ public class UserMemoryService : IUserMemoryService
            - Communication style preferences
 
         2. **Ignore:**
+           - Hypothetical/Roleplay statements starting with ""Imagine"", ""Let's roleplay"", ""Hypothetically"", ""Act as if"", or ""Pretend I am..."".
            - Transient requests (""write a function for this"", ""translate this"", ""fix my code"")
            - General knowledge questions (""who is the president?"")
            - Greetings or small talk (""hi"", ""how are you"")
@@ -50,11 +51,13 @@ public class UserMemoryService : IUserMemoryService
 
         ### CRITICAL RULES FOR TAGS:
         - **EACH MEMORY MUST HAVE ITS OWN UNIQUE TAGS** based on what it contains!
+        - **ALWAYS use lowercase tags with no extra spaces**
         - Name memory → tags: ""name""
         - Age memory → tags: ""age""
         - Profession memory → tags: ""profession,job""
         - Marital status → tags: ""married,marital_status""
         - Children → tags: ""children,family""
+        - Programming language preference → tags: ""java,programming"" (NOT ""Java, programming"")
         - **DO NOT reuse the same tag for different facts!**
 
         ### EXAMPLES
@@ -108,8 +111,33 @@ public class UserMemoryService : IUserMemoryService
             ""searchQuery"": null
           }}
         ]
+        
+        Example 3: Implicit Update
+        User previously said they are a Solution Architect. Now they say:
+        User: ""I have been promoted to Chief Technology Officer.""
+        Output: [
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User is now a Chief Technology Officer"",
+            ""category"": ""profile"",
+            ""tags"": ""profession,job"",
+            ""searchQuery"": ""current job title profession""
+          }}
+        ]
 
-        Example 3 - CORRECTION (searchQuery to find old value):
+        Example 4: Preference Change
+        User: ""You know what, I actually like Java now.""
+        Output: [
+          {{
+            ""shouldWriteMemory"": true,
+            ""memoryToWrite"": ""User enjoys using Java"",
+            ""category"": ""preference"",
+            ""tags"": ""java,programming"",
+            ""searchQuery"": ""Java preference like dislike""
+          }}
+        ]
+
+        Example 5 - CORRECTION (searchQuery to find old value):
         User: ""Actually, I am 38 years old"" (correcting previous age)
         Output: [
           {{
@@ -226,7 +254,11 @@ public class UserMemoryService : IUserMemoryService
 
         if (!string.IsNullOrWhiteSpace(tags))
         {
-            tagCollection.Add("tags", tags);
+            // Normalize tags: lowercase and remove spaces for consistent matching
+            var normalizedTags = string.Join(",", 
+                tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(t => t.ToLowerInvariant()));
+            tagCollection.Add("tags", normalizedTags);
         }
 
         await _kernelMemory.ImportTextAsync(
@@ -335,9 +367,12 @@ public class UserMemoryService : IUserMemoryService
         string? category = null,
         CancellationToken ct = default)
     {
+        // Normalize fieldTag to lowercase and trim for consistent matching
+        var normalizedFieldTag = fieldTag.Trim().ToLowerInvariant();
+        
         var filter = new MemoryFilter();
         filter.Add("userId", userId.ToString());
-        filter.Add("tags", fieldTag);
+        filter.Add("tags", normalizedFieldTag);
 
         if (!string.IsNullOrWhiteSpace(category))
         {
@@ -389,9 +424,10 @@ public class UserMemoryService : IUserMemoryService
         var formattedMemories = new System.Text.StringBuilder();
         formattedMemories.AppendLine("=== USER PROFILE AND MEMORIES ===");
         formattedMemories.AppendLine("The following information has been remembered from previous conversations:");
+        formattedMemories.AppendLine("(Most recent memories are listed first)");
         formattedMemories.AppendLine();
-
-        var groupedByCategory = memories.GroupBy(m => m.Category);
+        var sortedMemories = memories.OrderByDescending(m => m.CreatedAt);
+        var groupedByCategory = sortedMemories.GroupBy(m => m.Category);
         foreach (var group in groupedByCategory)
         {
             formattedMemories.AppendLine(CultureInfo.InvariantCulture, $"[{group.Key.ToUpperInvariant()}]");
