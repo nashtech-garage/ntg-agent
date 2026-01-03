@@ -1,7 +1,7 @@
 ﻿using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 
-namespace NTG.Agent.Orchestrator.Agents;
+namespace NTG.Agent.Orchestrator.Services.Agents;
 public interface IAgentFactory
 {
     string ToolContext { get; set; }
