@@ -36,7 +36,7 @@ public partial class TokenUsageController : ControllerBase
         [FromQuery] DateTime? from = null,
         [FromQuery] DateTime? to = null)
     {
-        var stats = await _tokenTrackingService.GetUsageStatsAsync(userId, sessionId, from, to);
+        var stats = await _tokenTrackingService.GetUsageStatsAsync(userId, sessionId, fromDate: from, toDate: to);
         return Ok(stats);
     }
 
@@ -61,7 +61,7 @@ public partial class TokenUsageController : ControllerBase
         if (pageSize < 1 || pageSize > 100)
             return BadRequest("Page size must be between 1 and 100");
 
-        var result = await _tokenTrackingService.GetUsageHistoryAsync(from, to, page, pageSize);
+        var result = await _tokenTrackingService.GetUsageHistoryAsync(fromDate: from, toDate: to, page, pageSize);
 
         return Ok(result);
     }
@@ -82,7 +82,7 @@ public partial class TokenUsageController : ControllerBase
         if (topN < 0)
             return BadRequest("TopN must be greater than or equal to 0");
 
-        var stats = await _tokenTrackingService.GetStatsByUserAsync(from, to, topN);
+        var stats = await _tokenTrackingService.GetStatsByUserAsync(fromDate: from, toDate: to, topN);
         return Ok(stats);
     }
 }
