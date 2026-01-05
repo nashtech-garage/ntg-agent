@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Chats;
-using NTG.Agent.Common.Dtos.Conversations;
-using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Common.Dtos.Conversations;using NTG.Agent.Common.Dtos.AnonymousSessions;using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Dtos;
+using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -15,10 +17,17 @@ namespace NTG.Agent.Orchestrator.Controllers;
 public class ConversationsController : ControllerBase
 {
     private readonly AgentDbContext _context;
+    private readonly IAnonymousSessionService _anonymousSessionService;
+    private readonly IIpAddressService _ipAddressService;
 
-    public ConversationsController(AgentDbContext context)
+    public ConversationsController(
+        AgentDbContext context,
+        IAnonymousSessionService anonymousSessionService,
+        IIpAddressService ipAddressService)
     {
         _context = context;
+        _anonymousSessionService = anonymousSessionService;
+        _ipAddressService = ipAddressService;
     }
     /// <summary>
     /// Retrieves a list of conversations for the current user.
@@ -128,6 +137,28 @@ public class ConversationsController : ControllerBase
             .ToListAsync();
 
         return chatMessages;
+    }
+
+    /// <summary>
+    /// Gets the rate limit status for an anonymous session.
+    /// </summary>
+    /// <remarks>This endpoint allows anonymous users to check their remaining message quota, current count, and reset time.
+    /// It's useful for displaying rate limit information in the UI before attempting to send messages.</remarks>
+    /// <param name="sessionId">The session ID of the anonymous user. Must be a valid GUID.</param>
+    /// <returns>A <see cref="RateLimitStatus"/> object containing details about the user's rate limit status,
+    /// including remaining messages and reset time.</returns>
+    [HttpGet("anonymous/rate-limit-status")]
+    public async Task<ActionResult<RateLimitStatus>> GetRateLimitStatus([FromQuery] string sessionId)
+    {
+        if (!Guid.TryParse(sessionId, out var parsedSessionId))
+        {
+            return BadRequest("Invalid session ID");
+        }
+
+        var ipAddress = _ipAddressService.GetClientIpAddress(HttpContext);
+        var status = await _anonymousSessionService.CheckRateLimitAsync(parsedSessionId, ipAddress);
+
+        return Ok(status);
     }
 
 

@@ -2,14 +2,17 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.AnonymousSessions;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
+using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
@@ -21,21 +24,55 @@ public class AgentService
     private readonly IAgentFactory _agentFactory;
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly IAnonymousSessionService _anonymousSessionService;
+    private readonly IIpAddressService _ipAddressService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
         IAgentFactory agentFactory,
         AgentDbContext agentDbContext,
-        IKnowledgeService knowledgeService)
+        IKnowledgeService knowledgeService,
+        IAnonymousSessionService anonymousSessionService,
+        IIpAddressService ipAddressService,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
+        _anonymousSessionService = anonymousSessionService;
+        _ipAddressService = ipAddressService;
+        _httpContextAccessor = httpContextAccessor;
+        _logger = logger;
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var startTime = DateTime.UtcNow;
+        
+        // Rate limit check for anonymous users
+        if (!userId.HasValue)
+        {
+            if (!Guid.TryParse(promptRequest.SessionId, out var sessionId))
+            {
+                throw new InvalidOperationException("A valid Session ID is required for unauthenticated requests.");
+            }
+
+            var httpContext = _httpContextAccessor.HttpContext;
+            var ipAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
+            
+            var rateLimitStatus = await _anonymousSessionService.CheckRateLimitAsync(sessionId, ipAddress);
+            
+            if (!rateLimitStatus.CanSendMessage)
+            {
+                throw new AnonymousRateLimitExceededException(
+                    "You've reached the message limit for anonymous users. Please sign in to continue.",
+                    rateLimitStatus);
+            }
+        }
+        
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, promptRequest.SessionId, promptRequest.AgentId, conversation);
         var tags = await GetUserTags(userId);
@@ -55,6 +92,15 @@ public class AgentService
 
         var responseTime = DateTime.UtcNow - startTime;
         var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
+
+        // Increment anonymous session counter after successful message
+        if (!userId.HasValue)
+        {
+            var sessionId = Guid.Parse(promptRequest.SessionId);
+            var httpContext = _httpContextAccessor.HttpContext;
+            var ipAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
+            await _anonymousSessionService.IncrementMessageCountAsync(sessionId, ipAddress);
+        }
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
     }

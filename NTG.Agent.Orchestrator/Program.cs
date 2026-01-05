@@ -13,6 +13,8 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using NTG.Agent.Orchestrator.Models.AnonymousSessions;
+using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 
 const string SourceName = "NTG.Agent.Orchestrator";
 const string ServiceName = "Orchestrator";
@@ -73,10 +75,16 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
 
+builder.Services.Configure<AnonymousUserSettings>(
+    builder.Configuration.GetSection("AnonymousUserSettings"));
+
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
+builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
+builder.Services.AddScoped<IIpAddressService, IpAddressService>();
+builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

@@ -1,0 +1,88 @@
+@using NTG.Agent.Common.Dtos.AnonymousSessions
+@inject NavigationManager Navigation
+
+@if (IsVisible && RateLimitStatus != null)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                        Message Limit Reached
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="OnClose"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-3">You've reached your limit of @RateLimitStatus.MaxMessages free messages.</p>
+
+                    @if (RateLimitStatus.ResetAt.HasValue)
+                    {
+                        var timeUntilReset = RateLimitStatus.ResetAt.Value - DateTime.UtcNow;
+                        if (timeUntilReset.TotalSeconds > 0)
+                        {
+                            <div class="alert alert-info">
+                                <i class="bi bi-clock me-2"></i>
+                                Your message limit will reset in <strong>@FormatTimeSpan(timeUntilReset)</strong>
+                            </div>
+                        }
+                    }
+
+                    <p class="mb-3">Sign in or create a free account to continue chatting with unlimited messages!</p>
+                    
+                    <div class="d-flex gap-2 justify-content-center">
+                        <button type="button" class="btn btn-primary" @onclick="NavigateToLogin">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>
+                            Sign In
+                        </button>
+                        <button type="button" class="btn btn-success" @onclick="NavigateToRegister">
+                            <i class="bi bi-person-plus me-2"></i>
+                            Create Account
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="OnClose">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public RateLimitStatus? RateLimitStatus { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private string FormatTimeSpan(TimeSpan timeSpan)
+    {
+        if (timeSpan.TotalHours >= 1)
+        {
+            return $"{(int)timeSpan.TotalHours} hour(s) {timeSpan.Minutes} minute(s)";
+        }
+        else if (timeSpan.TotalMinutes >= 1)
+        {
+            return $"{(int)timeSpan.TotalMinutes} minute(s)";
+        }
+        else
+        {
+            return $"{(int)timeSpan.TotalSeconds} second(s)";
+        }
+    }
+
+    private void NavigateToLogin()
+    {
+        Navigation.NavigateTo("/Account/Login", true);
+    }
+
+    private void NavigateToRegister()
+    {
+        Navigation.NavigateTo("/Account/Register", true);
+    }
+}
