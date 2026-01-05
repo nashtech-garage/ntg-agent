@@ -139,7 +139,7 @@ public class TokenUsageControllerTests
             .ReturnsAsync(expectedStats);
 
         // Act
-        var result = await _controller.GetStats(from: from, to: to);
+        var result = await _controller.GetStats(fromDate: from, toDate: to);
 
         // Assert
         Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
@@ -280,7 +280,7 @@ public class TokenUsageControllerTests
             .ReturnsAsync(expectedResult);
 
         // Act
-        var result = await _controller.GetHistory(from: from, to: to);
+        var result = await _controller.GetHistory(fromDate: from, toDate: to);
 
         // Assert
         Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
@@ -481,7 +481,7 @@ public class TokenUsageControllerTests
             .ReturnsAsync(expectedStats);
 
         // Act
-        var result = await _controller.GetStatsByUser(from: from, to: to);
+        var result = await _controller.GetStatsByUser(fromDate: from, toDate: to);
 
         // Assert
         Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
@@ -519,7 +519,7 @@ public class TokenUsageControllerTests
             .ReturnsAsync(expectedStats);
 
         // Act
-        var result = await _controller.GetStatsByUser(from: from, to: to, topN: 10);
+        var result = await _controller.GetStatsByUser(fromDate: from, toDate: to, topN: 10);
 
         // Assert
         Assert.That(result.Result, Is.InstanceOf<OkObjectResult>());
