@@ -18,8 +18,8 @@ public class TokenTrackingService : ITokenTrackingService
     public async Task<TokenUsageStatsDto> GetUsageStatsAsync(
         Guid? userId = null,
         Guid? sessionId = null,
-        DateTime? from = null,
-        DateTime? to = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         CancellationToken cancellationToken = default)
     {
         var query = _context.TokenUsages.AsNoTracking().AsQueryable();
@@ -30,10 +30,10 @@ public class TokenTrackingService : ITokenTrackingService
         if (sessionId is Guid sid)
             query = query.Where(t => t.SessionId == sid);
 
-        if (from is DateTime frm)
+        if (fromDate is DateTime frm)
             query = query.Where(t => t.CreatedAt >= frm);
 
-        if (to is DateTime tr)
+        if (toDate is DateTime tr)
             query = query.Where(t => t.CreatedAt <= tr);
 
         var stats = await query
@@ -80,19 +80,19 @@ public class TokenTrackingService : ITokenTrackingService
     }
 
     public async Task<PagedResult<TokenUsageDto>> GetUsageHistoryAsync(
-        DateTime? from = null,
-        DateTime? to = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         int page = 1,
         int pageSize = 50,
         CancellationToken cancellationToken = default)
     {
         // Base query for filtering and counting
         var baseQuery = _context.TokenUsages.AsNoTracking().AsQueryable();
-        if (from is DateTime frm)
+        if (fromDate is DateTime frm)
         {
             baseQuery = baseQuery.Where(t => t.CreatedAt >= frm);
         }
-        if (to is DateTime tr)
+        if (toDate is DateTime tr)
         {
             baseQuery = baseQuery.Where(t => t.CreatedAt <= tr);
         }
@@ -138,17 +138,17 @@ public class TokenTrackingService : ITokenTrackingService
     }
 
     public async Task<List<UserTokenStatsDto>> GetStatsByUserAsync(
-        DateTime? from = null,
-        DateTime? to = null,
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
         int topN = 0,
         CancellationToken cancellationToken = default)
     {
         var query = _context.TokenUsages.AsQueryable();
 
-        if (from is DateTime frm)
+        if (fromDate is DateTime frm)
             query = query.Where(t => t.CreatedAt >= frm);
 
-        if (to is DateTime tr)
+        if (toDate is DateTime tr)
             query = query.Where(t => t.CreatedAt <= tr);
 
         // Group by UserId (authenticated users)
