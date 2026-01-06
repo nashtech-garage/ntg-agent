@@ -1,4 +1,5 @@
 @using NTG.Agent.Common.Dtos.AnonymousSessions
+@using NTG.Agent.Common.Helpers
 
 @if (RateLimitStatus != null && RateLimitStatus.CanSendMessage && !RateLimitStatus.IsReadOnlyMode)
 {
@@ -17,7 +18,7 @@
             {
                 <span class="ms-2">
                     <i class="bi bi-clock me-1"></i>
-                    Resets in @FormatTimeSpan(timeUntilReset)
+                    Resets in @timeUntilReset.ToBeautify()
                 </span>
             }
         }
@@ -27,20 +28,4 @@
 @code {
     [Parameter]
     public RateLimitStatus? RateLimitStatus { get; set; }
-
-    private string FormatTimeSpan(TimeSpan timeSpan)
-    {
-        if (timeSpan.TotalHours >= 1)
-        {
-            return $"{(int)timeSpan.TotalHours}h {timeSpan.Minutes}m";
-        }
-        else if (timeSpan.TotalMinutes >= 1)
-        {
-            return $"{(int)timeSpan.TotalMinutes}m";
-        }
-        else
-        {
-            return $"{(int)timeSpan.TotalSeconds}s";
-        }
-    }
 }

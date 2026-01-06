@@ -1,4 +1,5 @@
 @using NTG.Agent.Common.Dtos.AnonymousSessions
+@using NTG.Agent.Common.Helpers
 @inject NavigationManager Navigation
 
 @if (IsVisible && RateLimitStatus != null)
@@ -10,37 +11,40 @@
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                        Message Limit Reached
+                        @GetModalTitle()
                     </h5>
                     <button type="button" class="btn-close" @onclick="OnClose"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="mb-3">You've reached your limit of @RateLimitStatus.MaxMessages free messages.</p>
+                    @GetModalMessage()
 
-                    @if (RateLimitStatus.ResetAt.HasValue)
+                    @if (RateLimitStatus.ResetAt.HasValue && RateLimitStatus.BlockReason != "blocked")
                     {
                         var timeUntilReset = RateLimitStatus.ResetAt.Value - DateTime.UtcNow;
                         if (timeUntilReset.TotalSeconds > 0)
                         {
                             <div class="alert alert-info">
                                 <i class="bi bi-clock me-2"></i>
-                                Your message limit will reset in <strong>@FormatTimeSpan(timeUntilReset)</strong>
+                                Your message limit will reset in <strong>@timeUntilReset.ToBeautify()</strong>
                             </div>
                         }
                     }
 
-                    <p class="mb-3">Sign in or create a free account to continue chatting with unlimited messages!</p>
-                    
-                    <div class="d-flex gap-2 justify-content-center">
-                        <button type="button" class="btn btn-primary" @onclick="NavigateToLogin">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>
-                            Sign In
-                        </button>
-                        <button type="button" class="btn btn-success" @onclick="NavigateToRegister">
-                            <i class="bi bi-person-plus me-2"></i>
-                            Create Account
-                        </button>
-                    </div>
+                    @if (RateLimitStatus.BlockReason != "blocked")
+                    {
+                        <p class="mb-3">Sign in or create a free account to continue chatting with unlimited messages!</p>
+                        
+                        <div class="d-flex gap-2 justify-content-center">
+                            <button type="button" class="btn btn-primary" @onclick="NavigateToLogin">
+                                <i class="bi bi-box-arrow-in-right me-2"></i>
+                                Sign In
+                            </button>
+                            <button type="button" class="btn btn-success" @onclick="NavigateToRegister">
+                                <i class="bi bi-person-plus me-2"></i>
+                                Create Account
+                            </button>
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="OnClose">Close</button>
@@ -60,20 +64,46 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private string FormatTimeSpan(TimeSpan timeSpan)
+    private string GetModalTitle()
     {
-        if (timeSpan.TotalHours >= 1)
+        return RateLimitStatus?.BlockReason switch
         {
-            return $"{(int)timeSpan.TotalHours} hour(s) {timeSpan.Minutes} minute(s)";
-        }
-        else if (timeSpan.TotalMinutes >= 1)
+            "session_limit" => "Session Message Limit Reached",
+            "ip_limit" => "Network Usage Limit Reached",
+            "blocked" => "Access Blocked",
+            _ => "Message Limit Reached"
+        };
+    }
+
+    private RenderFragment GetModalMessage()
+    {
+        return RateLimitStatus?.BlockReason switch
         {
-            return $"{(int)timeSpan.TotalMinutes} minute(s)";
-        }
-        else
-        {
-            return $"{(int)timeSpan.TotalSeconds} second(s)";
-        }
+            "session_limit" => @<div>
+                <p class="mb-3">You've reached your limit of <strong>@RateLimitStatus.MaxMessages free messages</strong> for this session.</p>
+                <p class="mb-3">Your limit will automatically reset after 24 hours, or you can sign in now for unlimited messaging.</p>
+            </div>,
+            
+            "ip_limit" => @<div>
+                <div class="alert alert-warning">
+                    <i class="bi bi-shield-exclamation me-2"></i>
+                    <strong>Too many requests from your network.</strong>
+                </div>
+                <p class="mb-3">To prevent abuse, we limit the number of messages per network location. Your network has reached the daily limit.</p>
+                <p class="mb-3">You can still chat by signing in - registered users have unlimited messages!</p>
+            </div>,
+            
+            "blocked" => @<div>
+                <div class="alert alert-danger">
+                    <i class="bi bi-ban me-2"></i>
+                    <strong>Your session has been blocked.</strong>
+                </div>
+                <p class="mb-3">This session has been restricted due to a violation of our terms of service or unusual activity.</p>
+                <p class="mb-3">If you believe this is an error, please contact our support team for assistance.</p>
+            </div>,
+            
+            _ => @<p class="mb-3">You've reached your message limit. Please sign in to continue.</p>
+        };
     }
 
     private void NavigateToLogin()
