@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
@@ -36,13 +38,22 @@ public class AgentsControllerTests
             new Claim(ClaimTypes.NameIdentifier, _testUserId.ToString()),
         ], "mock"));
 
+        // Mock LongTermMemorySettings
+        var memorySettings = Options.Create(new LongTermMemorySettings
+        {
+            Enabled = true,
+            MinimumConfidenceThreshold = 0.3f,
+            MaxMemoriesToRetrieve = 20
+        });
+
         // Mock AgentService (it has dependencies we don't need for GetAgents)
         _mockAgentService = new Mock<AgentService>(
             Mock.Of<IAgentFactory>(),
             _context,
             Mock.Of<IKnowledgeService>(),
             Mock.Of<IUserMemoryService>(),
-            Mock.Of<ILogger<AgentService>>()
+            Mock.Of<ILogger<AgentService>>(),
+            memorySettings
         );
 
         _controller = new AgentsController(_mockAgentService.Object, _context)

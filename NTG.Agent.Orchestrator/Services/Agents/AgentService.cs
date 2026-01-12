@@ -2,12 +2,14 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
+using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -24,6 +26,7 @@ public class AgentService
     private readonly IKnowledgeService _knowledgeService;
     private readonly IUserMemoryService _memoryService;
     private readonly ILogger<AgentService> _logger;
+    private readonly LongTermMemorySettings _memorySettings;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
@@ -31,13 +34,15 @@ public class AgentService
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
         IUserMemoryService memoryService,
-        ILogger<AgentService> logger)
+        ILogger<AgentService> logger,
+        IOptions<LongTermMemorySettings> memorySettings)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _memoryService = memoryService;
         _logger = logger;
+        _memorySettings = memorySettings?.Value ?? new LongTermMemorySettings();
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -63,15 +68,16 @@ public class AgentService
         var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
-        // Store or update memories if needed
-        if (userId is Guid userGuid)
+        
+        // Store or update memories if Long Term Memory feature is enabled
+        if (_memorySettings.Enabled && userId is Guid userGuid)
         {
             var memoryResults = await _memoryService.ExtractMemoryAsync(promptRequest.Prompt, userGuid);
             foreach (var memoryResult in memoryResults)
             {
                 if (memoryResult.ShouldWriteMemory && 
                     memoryResult.Confidence.HasValue && 
-                    memoryResult.Confidence.Value > 0.3f && 
+                    memoryResult.Confidence.Value > _memorySettings.MinimumConfidenceThreshold && 
                     !string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
                 {
                     // Check if this is an update/correction
@@ -310,13 +316,13 @@ public class AgentService
 
     private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)
     {
-        if (userId is Guid userIdGuid)
+        if (_memorySettings.Enabled && userId is Guid userIdGuid)
         {
             // Use the user's current prompt for semantic memory retrieval
             var memories = await _memoryService.RetrieveMemoriesAsync(
                 userIdGuid,
                 query: userPrompt,
-                topN: 20);
+                topN: _memorySettings.MaxMemoriesToRetrieve);
 
             if (memories.Count > 0)
             {

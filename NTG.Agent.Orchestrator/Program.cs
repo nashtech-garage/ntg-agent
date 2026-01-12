@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
+using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -67,6 +68,8 @@ builder.AddServiceDefaults();
 
 builder.Services.AddDbContext<AgentDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
 
 builder.Services.AddControllers();
 
