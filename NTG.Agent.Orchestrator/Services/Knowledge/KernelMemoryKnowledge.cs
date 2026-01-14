@@ -1,10 +1,13 @@
 ﻿using Microsoft.KernelMemory;
+using System.Globalization;
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
 {
     private readonly IKernelMemory _kernelMemory;
     private readonly ILogger<KernelMemoryKnowledge> _logger;
+    private const string TagNameAgentId = "agentId";
+    private const string TagNameTags = "tags";
 
     public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
     {
@@ -13,11 +16,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     }
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        var tagCollection = new TagCollection
-        {
-            { "agentId", agentId.ToString() },
-            { "tags", tags.Cast<string?>().ToList() }
-        };
+        var tagCollection = ComposeTags(agentId, tags);
         return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, cancellationToken: cancellationToken);
     }
 
@@ -28,16 +27,9 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         SearchResult result;
-        if (tags.Count != 0)
+        var filters = ComposeFilters(agentId, tags);
+        if (filters.Count > 0)
         {
-            var filters = tags
-                .Select(tag => {
-                    var memoryFilter = MemoryFilters.ByTag("tags", tag);
-                    memoryFilter.Add("agentId", agentId.ToString());
-                    return memoryFilter;
-                })
-                .ToList();
-
             result = await _kernelMemory.SearchAsync(
                 query: query,
                 filters: filters,
@@ -71,11 +63,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         {
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }
-        var tagCollection = new TagCollection
-        {
-            { "agentId", agentId.ToString() },
-            { "tags", tags.Cast<string?>().ToList() }
-        };
+        var tagCollection = ComposeTags(agentId, tags);
         var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
         return documentId;
     }
@@ -87,11 +75,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
             throw new ArgumentException("Content cannot be null or empty.", nameof(content));
         }
 
-        var tagCollection = new TagCollection
-        {
-            { "agentId", agentId.ToString() },
-            { "tags", tags.Cast<string?>().ToList() }
-        };
+        var tagCollection = ComposeTags(agentId, tags);
 
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
         return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
@@ -100,5 +84,50 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
         return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+    }
+
+    private static TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
+    {
+        if (tags == null || agentId == Guid.Empty)
+        {
+            return new TagCollection();
+        }
+
+        var formattedTags = tags
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim().ToLower(CultureInfo.InvariantCulture))
+            .Distinct()
+            .ToList();
+
+        if (formattedTags.Count == 0)
+        {
+            return new TagCollection();
+        }
+
+        return new TagCollection
+        {
+            { TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture) },
+            { TagNameTags, formattedTags.Cast<string?>().ToList() }
+        };
+    }
+    private static List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
+    {
+        if (tags == null || agentId == Guid.Empty)
+        {
+            return new List<MemoryFilter>();
+        }
+        var formattedTags = tags
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim().ToLower(CultureInfo.InvariantCulture))
+            .Distinct();
+
+        var filters = formattedTags
+               .Select(tag => {
+                   var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
+                   memoryFilter.Add(TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture));
+                   return memoryFilter;
+               })
+               .ToList();
+        return filters;
     }
 }
