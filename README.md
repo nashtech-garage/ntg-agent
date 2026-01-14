@@ -83,6 +83,24 @@ The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
 Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
 
+## Long Term Memory Configuration
+
+The Long Term Memory (LTM) feature allows the chatbot to remember user-specific information across conversations. This feature can be controlled via configuration to manage token consumption:
+
+```json
+{
+  "LongTermMemory": {
+    "Enabled": true,
+    "MinimumConfidenceThreshold": 0.3,
+    "MaxMemoriesToRetrieve": 20
+  }
+}
+```
+
+- Set `Enabled: false` to disable memory extraction and retrieval, saving tokens
+- Adjust `MinimumConfidenceThreshold` to control quality of stored memories
+- Modify `MaxMemoriesToRetrieve` to balance context vs. token usage
+
 ## Contributing
 
 - Give us a star

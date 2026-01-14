@@ -4,7 +4,9 @@ using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Memory;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
+using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -67,15 +69,18 @@ builder.AddServiceDefaults();
 builder.Services.AddDbContext<AgentDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
+
 builder.Services.AddControllers();
 
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
 
-builder.Services.AddScoped<IAgentFactory,AgentFactory>();
+builder.Services.AddScoped<IAgentFactory, AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
+builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
