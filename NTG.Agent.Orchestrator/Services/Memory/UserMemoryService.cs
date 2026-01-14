@@ -1,5 +1,8 @@
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory;
 using NTG.Agent.Common.Dtos.Memory;
+using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Services.Agents;
 using System.Globalization;
 using System.Text.Json;
@@ -11,6 +14,7 @@ public class UserMemoryService : IUserMemoryService
     private readonly IKernelMemory _kernelMemory;
     private readonly IAgentFactory _agentFactory;
     private readonly ILogger<UserMemoryService> _logger;
+    private readonly LongTermMemorySettings _settings;
     private const string MEMORY_INDEX = "user-memories";
     private static readonly JsonSerializerOptions _llmJsonOptions = new JsonSerializerOptions
     {
@@ -177,17 +181,127 @@ public class UserMemoryService : IUserMemoryService
     public UserMemoryService(
         IKernelMemory kernelMemory,
         IAgentFactory agentFactory,
-        ILogger<UserMemoryService> logger)
+        ILogger<UserMemoryService> logger,
+        IOptions<LongTermMemorySettings> settings)
     {
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _settings = settings?.Value ?? new LongTermMemorySettings();
     }
 
-    public async Task<List<MemoryExtractionResultDto>> ExtractMemoryAsync(
-    string userMessage,
-    Guid userId,
-    CancellationToken ct = default)
+    public async Task<int> ProcessAndStoreMemoriesAsync(
+        string userMessage,
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        // Early exit if feature is disabled
+        if (!_settings.Enabled)
+        {
+            return 0;
+        }
+
+        var memoriesStored = 0;
+
+        try
+        {
+            var memoryResults = await ExtractMemoryAsync(userMessage, userId, ct);
+
+            foreach (var memoryResult in memoryResults)
+            {
+                // Validate memory quality
+                if (!memoryResult.ShouldWriteMemory ||
+                    !memoryResult.Confidence.HasValue ||
+                    memoryResult.Confidence.Value <= _settings.MinimumConfidenceThreshold ||
+                    string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
+                {
+                    continue;
+                }
+
+                // Handle updates/corrections by removing conflicting memories
+                if (!string.IsNullOrWhiteSpace(memoryResult.SearchQuery) &&
+                    !string.IsNullOrWhiteSpace(memoryResult.Tags))
+                {
+                    var existingMemories = await RetrieveMemoriesByFieldAsync(
+                        userId,
+                        fieldTag: memoryResult.Tags,
+                        category: memoryResult.Category,
+                        ct);
+
+                    foreach (var oldMemory in existingMemories)
+                    {
+                        await DeleteMemoryAsync(oldMemory.Id, ct);
+                    }
+                }
+
+                // Store the new/updated memory
+                await StoreMemoryAsync(
+                    userId,
+                    memoryResult.MemoryToWrite,
+                    memoryResult.Category ?? "general",
+                    memoryResult.Tags,
+                    ct);
+
+                memoriesStored++;
+            }
+
+            if (memoriesStored > 0)
+            {
+                _logger.LogDebug(
+                    "Processed and stored {Count} memories for user {UserId} with confidence threshold {Threshold}",
+                    memoriesStored,
+                    userId,
+                    _settings.MinimumConfidenceThreshold);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing and storing memories for user {UserId}", userId);
+        }
+
+        return memoriesStored;
+    }
+
+    public async Task<ChatMessage?> RetrieveAndFormatMemoriesForChatAsync(
+        Guid userId,
+        string userPrompt,
+        CancellationToken ct = default)
+    {
+        // Early exit if feature is disabled
+        if (!_settings.Enabled)
+        {
+            return null;
+        }
+
+        try
+        {
+            // Use the user's current prompt for semantic memory retrieval
+            var memories = await RetrieveMemoriesAsync(
+                userId,
+                query: userPrompt,
+                topN: _settings.MaxMemoriesToRetrieve,
+                category: null,
+                ct);
+
+            if (memories.Count == 0)
+            {
+                return null;
+            }
+
+            var memoryContext = FormatMemoriesForPrompt(memories);
+            return new ChatMessage(ChatRole.System, memoryContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving and formatting memories for user {UserId}", userId);
+            return null;
+        }
+    }
+
+    private async Task<List<MemoryExtractionResultDto>> ExtractMemoryAsync(
+        string userMessage,
+        Guid userId,
+        CancellationToken ct = default)
     {
         try
         {
@@ -234,7 +348,7 @@ public class UserMemoryService : IUserMemoryService
         }
     }
 
-    public async Task<UserMemoryDto> StoreMemoryAsync(
+    private async Task<UserMemoryDto> StoreMemoryAsync(
         Guid userId,
         string content,
         string category,
@@ -279,7 +393,7 @@ public class UserMemoryService : IUserMemoryService
         );
     }
 
-    public async Task<List<UserMemoryDto>> RetrieveMemoriesAsync(
+    private async Task<List<UserMemoryDto>> RetrieveMemoriesAsync(
         Guid userId,
         string? query = null,
         int topN = 5,
@@ -361,7 +475,7 @@ public class UserMemoryService : IUserMemoryService
         return memories;
     }
 
-    public async Task<List<UserMemoryDto>> RetrieveMemoriesByFieldAsync(
+    private async Task<List<UserMemoryDto>> RetrieveMemoriesByFieldAsync(
         Guid userId,
         string fieldTag,
         string? category = null,
@@ -390,7 +504,7 @@ public class UserMemoryService : IUserMemoryService
         return memories;
     }
 
-    public async Task<bool> DeleteMemoryAsync(Guid memoryId, CancellationToken ct = default)
+    private async Task<bool> DeleteMemoryAsync(Guid memoryId, CancellationToken ct = default)
     {
         var filters = new List<MemoryFilter>
         {
@@ -414,7 +528,7 @@ public class UserMemoryService : IUserMemoryService
         return false;
     }
 
-    public string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
+    private string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
     {
         if (memories == null || memories.Count == 0)
         {

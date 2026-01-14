@@ -2,14 +2,12 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Chat;
-using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -26,7 +24,6 @@ public class AgentService
     private readonly IKnowledgeService _knowledgeService;
     private readonly IUserMemoryService _memoryService;
     private readonly ILogger<AgentService> _logger;
-    private readonly LongTermMemorySettings _memorySettings;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
     public AgentService(
@@ -34,15 +31,13 @@ public class AgentService
         AgentDbContext agentDbContext,
         IKnowledgeService knowledgeService,
         IUserMemoryService memoryService,
-        ILogger<AgentService> logger,
-        IOptions<LongTermMemorySettings> memorySettings)
+        ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
         _agentDbContext = agentDbContext;
         _knowledgeService = knowledgeService;
         _memoryService = memoryService;
         _logger = logger;
-        _memorySettings = memorySettings?.Value ?? new LongTermMemorySettings();
     }
 
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -69,40 +64,9 @@ public class AgentService
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
         
-        // Store or update memories if Long Term Memory feature is enabled
-        if (_memorySettings.Enabled && userId is Guid userGuid)
+        if (userId is Guid userGuid)
         {
-            var memoryResults = await _memoryService.ExtractMemoryAsync(promptRequest.Prompt, userGuid);
-            foreach (var memoryResult in memoryResults)
-            {
-                if (memoryResult.ShouldWriteMemory && 
-                    memoryResult.Confidence.HasValue && 
-                    memoryResult.Confidence.Value > _memorySettings.MinimumConfidenceThreshold && 
-                    !string.IsNullOrWhiteSpace(memoryResult.MemoryToWrite))
-                {
-                    // Check if this is an update/correction
-                    if (!string.IsNullOrWhiteSpace(memoryResult.SearchQuery))
-                    {
-                        var existingMemories = await _memoryService.RetrieveMemoriesByFieldAsync(
-                            userGuid,
-                            fieldTag: memoryResult.Tags ?? string.Empty,
-                            category: memoryResult.Category);
-
-                        // Delete conflicting memories
-                        foreach (var oldMemory in existingMemories)
-                        {
-                            await _memoryService.DeleteMemoryAsync(oldMemory.Id);
-                        }
-                    }
-
-                    // Store the new/updated memory
-                    await _memoryService.StoreMemoryAsync(
-                        userGuid,
-                        memoryResult.MemoryToWrite,
-                        memoryResult.Category ?? "general",
-                        memoryResult.Tags);
-                }
-            }
+            await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
         }
     }
 
@@ -316,18 +280,13 @@ public class AgentService
 
     private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)
     {
-        if (_memorySettings.Enabled && userId is Guid userIdGuid)
+        if (userId is Guid userIdGuid)
         {
-            // Use the user's current prompt for semantic memory retrieval
-            var memories = await _memoryService.RetrieveMemoriesAsync(
-                userIdGuid,
-                query: userPrompt,
-                topN: _memorySettings.MaxMemoriesToRetrieve);
+            var memoryMessage = await _memoryService.RetrieveAndFormatMemoriesForChatAsync(userIdGuid, userPrompt);
 
-            if (memories.Count > 0)
+            if (memoryMessage != null)
             {
-                var memoryContext = _memoryService.FormatMemoriesForPrompt(memories);
-                chatHistory.Add(new ChatMessage(ChatRole.System, memoryContext));
+                chatHistory.Add(memoryMessage);
             }
         }
     }

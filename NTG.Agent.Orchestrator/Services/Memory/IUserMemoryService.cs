@@ -1,37 +1,26 @@
-﻿using NTG.Agent.Common.Dtos.Memory;
+﻿using Microsoft.Extensions.AI;
 
 namespace NTG.Agent.Orchestrator.Services.Memory;
 
 public interface IUserMemoryService
 {
     /// <summary>
-    /// Analyzes a user message using LLM to determine if it contains memorable information.
-    /// Returns a list of memory items to store separately.
+    /// Processes a user message to extract, validate, and store memories automatically.
+    /// Handles conflict detection and memory updates based on configured settings.
     /// </summary>
-    Task<List<MemoryExtractionResultDto>> ExtractMemoryAsync(string userMessage, Guid userId, CancellationToken ct = default);
+    /// <param name="userMessage">The user's message to analyze</param>
+    /// <param name="userId">The user's ID</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Number of memories successfully stored</returns>
+    Task<int> ProcessAndStoreMemoriesAsync(string userMessage, Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Stores a new memory for a user.
+    /// Retrieves relevant memories and formats them as a chat message for context injection.
+    /// Returns null if no memories are found or feature is disabled.
     /// </summary>
-    Task<UserMemoryDto> StoreMemoryAsync(Guid userId, string content, string category, string? tags = null, CancellationToken ct = default);
-
-    /// <summary>
-    /// Retrieves relevant memories for a user, optionally filtered by query or category.
-    /// </summary>
-    Task<List<UserMemoryDto>> RetrieveMemoriesAsync(Guid userId, string? query = null, int topN = 5, string? category = null, CancellationToken ct = default);
-
-    /// <summary>
-    /// Retrieves memories for a user by specific field tag (for precise conflict detection).
-    /// </summary>
-    Task<List<UserMemoryDto>> RetrieveMemoriesByFieldAsync(Guid userId, string fieldTag, string? category = null, CancellationToken ct = default);
-
-    /// <summary>
-    /// Deletes a specific memory by ID.
-    /// </summary>
-    Task<bool> DeleteMemoryAsync(Guid memoryId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Formats memories into a string suitable for injection into system prompts.
-    /// </summary>
-    string FormatMemoriesForPrompt(List<UserMemoryDto> memories);
+    /// <param name="userId">The user's ID</param>
+    /// <param name="userPrompt">The current user prompt for semantic search</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Formatted chat message with memory context, or null if no memories</returns>
+    Task<ChatMessage?> RetrieveAndFormatMemoriesForChatAsync(Guid userId, string userPrompt, CancellationToken ct = default);
 }
