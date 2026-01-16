@@ -5,6 +5,7 @@ using NTG.Agent.Common.Dtos.Memory;
 using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Services.Agents;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 namespace NTG.Agent.Orchestrator.Services.Memory;
@@ -22,7 +23,7 @@ public class UserMemoryService : IUserMemoryService
         ReadCommentHandling = JsonCommentHandling.Skip,
         AllowTrailingCommas = true
     };
-
+    private static readonly CompositeFormat MemoryExtractionPromptFormat = CompositeFormat.Parse(MemoryExtractionPrompt);
     private const string MemoryExtractionPrompt = @"You are a memory extraction assistant. Your job is to analyze user messages and identify details that should be stored in the user's long-term profile.
 
         ### RULES
@@ -305,7 +306,7 @@ public class UserMemoryService : IUserMemoryService
     {
         try
         {
-            string prompt = string.Format(CultureInfo.InvariantCulture, MemoryExtractionPrompt, userMessage);
+            string prompt = string.Format(CultureInfo.InvariantCulture, MemoryExtractionPromptFormat, userMessage);
 
             var agent = await _agentFactory.CreateBasicAgent("You are a memory extraction assistant. Respond only with valid JSON array.");
             var runResults = await agent.RunAsync(prompt);
@@ -528,7 +529,7 @@ public class UserMemoryService : IUserMemoryService
         return false;
     }
 
-    private string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
+    private static string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
     {
         if (memories == null || memories.Count == 0)
         {
