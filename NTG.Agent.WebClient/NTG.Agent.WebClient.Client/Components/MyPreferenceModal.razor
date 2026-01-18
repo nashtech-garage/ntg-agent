@@ -1,0 +1,244 @@
+@using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Common.Dtos.UserPreferences
+@using NTG.Agent.WebClient.Client.Services
+@inject PreferenceClient PreferenceClient
+@inject ChatClient ChatClient
+@inject ILogger<MyPreferenceModal> Logger
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+<div class="modal-overlay" @onclick="@(() => OnClose.InvokeAsync())">
+    <div class="preference-modal" @onclick:stopPropagation>
+        <div class="modal-header">
+            <h3 class="modal-title">⚙️ My Preferences</h3>
+            <button class="close-button" @onclick="@(() => OnClose.InvokeAsync())">×</button>
+        </div>
+
+        <div class="modal-content-area">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> @errorMessage
+                </div>
+            }
+
+            @if (isLoading)
+            {
+                <div class="loading-section">
+                    <div class="spinner"></div>
+                    <p>Loading preferences...</p>
+                </div>
+            }
+            else
+            {
+                <!-- Agent Selection Section -->
+                <div class="settings-card">
+                    <h4>🤖 Agent Selection</h4>
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span class="label-text">Preferred Agent:</span>
+                        </label>
+                        <select class="agent-selector" @bind="selectedAgentId" @bind:after="OnAgentChanged">
+                            <option value="@Guid.Empty">-- Select an Agent --</option>
+                            @foreach (var agent in availableAgents)
+                            {
+                                <option value="@agent.Id">@agent.Name @(agent.IsDefault ? "(Default)" : "")</option>
+                            }
+                        </select>
+                        <p class="setting-description">
+                            Choose which AI agent you want to chat with. Each agent has different capabilities and personalities.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Memory Settings Section -->
+                <div class="settings-card">
+                    <h4>🧠 Memory Settings</h4>
+                    <div class="setting-item">
+                        <label class="toggle-label">
+                            <input type="checkbox" 
+                                   class="toggle-checkbox"
+                                   @bind="isMemoryEnabled" 
+                                   @bind:after="OnMemoryToggleChanged" />
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">Long-Term Memory: <strong>@(isMemoryEnabled ? "ON" : "OFF")</strong></span>
+                        </label>
+                        <p class="setting-description">
+                            @if (isMemoryEnabled)
+                            {
+                                <span>✅ The AI will learn from your conversations to provide personalized responses.</span>
+                            }
+                            else
+                            {
+                                <span>❌ Memory learning is disabled. The AI won't remember new information.</span>
+                            }
+                        </p>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <label class="toggle-label">
+                            <input type="checkbox" 
+                                   class="toggle-checkbox"
+                                   @bind="isMemorySearchEnabled" 
+                                   @bind:after="OnMemorySearchToggleChanged" />
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-text">Memory Search: <strong>@(isMemorySearchEnabled ? "ON" : "OFF")</strong></span>
+                        </label>
+                        <p class="setting-description">
+                            @if (isMemorySearchEnabled)
+                            {
+                                <span>✅ Saved memories will be used to provide context in conversations.</span>
+                            }
+                            else
+                            {
+                                <span>❌ Saved memories won't be retrieved. The AI will respond without memory context.</span>
+                            }
+                        </p>
+                    </div>
+                </div>
+
+                @if (isSaving)
+                {
+                    <div class="status-message">Saving preferences...</div>
+                }
+                else if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="status-message success">@statusMessage</div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string? errorMessage;
+    private string? statusMessage;
+
+    private List<AgentListItemDto> availableAgents = new();
+    private Guid selectedAgentId = Guid.Empty;
+    private bool isMemoryEnabled = true;
+    private bool isMemorySearchEnabled = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            // Load available agents
+            await LoadAgentsAsync();
+
+            // Load current preferences
+            await LoadPreferencesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading preferences");
+            errorMessage = "Failed to load preferences. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAgentsAsync()
+    {
+        try
+        {
+            availableAgents = await ChatClient.GetAgentsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading agents");
+            errorMessage = "Failed to load available agents.";
+        }
+    }
+
+    private async Task LoadPreferencesAsync()
+    {
+        try
+        {
+            var preference = await PreferenceClient.GetPreferenceAsync(null);
+            if (preference != null)
+            {
+                selectedAgentId = preference.SelectedAgentId;
+                // Default to true if null (for anonymous users)
+                isMemoryEnabled = preference.IsLongTermMemoryEnabled ?? true;
+                isMemorySearchEnabled = preference.IsMemorySearchEnabled ?? true;
+            }
+            else if (availableAgents.Count > 0)
+            {
+                // Select default agent if no preference exists
+                var defaultAgent = availableAgents.FirstOrDefault(a => a.IsDefault) ?? availableAgents.First();
+                selectedAgentId = defaultAgent.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading preferences");
+            // Don't show error for missing preferences, just use defaults
+        }
+    }
+
+    private async Task OnAgentChanged()
+    {
+        await SavePreferencesAsync();
+    }
+
+    private async Task OnMemoryToggleChanged()
+    {
+        await SavePreferencesAsync();
+    }
+
+    private async Task OnMemorySearchToggleChanged()
+    {
+        await SavePreferencesAsync();
+    }
+
+    private async Task SavePreferencesAsync()
+    {
+        try
+        {
+            isSaving = true;
+            statusMessage = null;
+            errorMessage = null;
+
+            var success = await PreferenceClient.SavePreferenceAsync(
+                selectedAgentId,
+                isMemoryEnabled,
+                isMemorySearchEnabled,
+                null
+            );
+
+            if (success)
+            {
+                statusMessage = "Preferences saved successfully!";
+                
+                // Clear success message after 3 seconds
+                _ = Task.Delay(3000).ContinueWith(_ => 
+                {
+                    statusMessage = null;
+                    StateHasChanged();
+                });
+            }
+            else
+            {
+                errorMessage = "Failed to save preferences. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving preferences");
+            errorMessage = "Failed to save preferences. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}
