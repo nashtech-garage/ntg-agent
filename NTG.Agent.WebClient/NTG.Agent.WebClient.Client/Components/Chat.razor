@@ -558,7 +558,7 @@ else
             }
             
             // Save preference to the server
-            var success = await PreferenceClient.SavePreferenceAsync(agentId, sessionId);
+            var success = await PreferenceClient.SavePreferenceAsync(agentId, null, null, sessionId);
             
             if (success)
             {

@@ -61,7 +61,11 @@ public class PreferencesController : ControllerBase
             return NotFound();
         }
 
-        return Ok(new UserPreferenceDto(preference.SelectedAgentId));
+        return Ok(new UserPreferenceDto(
+            preference.SelectedAgentId,
+            preference.IsLongTermMemoryEnabled,
+            preference.IsMemorySearchEnabled
+        ));
     }
 
     /// <summary>
@@ -97,12 +101,16 @@ public class PreferencesController : ControllerBase
 
             if (preference is null)
             {
-                // Create new preference
+                // Create new preference for authenticated user
+                // Leave memory preferences as NULL initially (default enabled behavior)
+                // They will only be set when user explicitly changes them in My Preferences
                 preference = new UserPreference
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId.Value,
-                    SelectedAgentId = request.SelectedAgentId
+                    SelectedAgentId = request.SelectedAgentId,
+                    IsLongTermMemoryEnabled = request.IsLongTermMemoryEnabled,
+                    IsMemorySearchEnabled = request.IsMemorySearchEnabled
                 };
                 _context.UserPreferences.Add(preference);
             }
@@ -110,6 +118,19 @@ public class PreferencesController : ControllerBase
             {
                 // Update existing preference
                 preference.SelectedAgentId = request.SelectedAgentId;
+                
+                // Update memory preference if provided
+                if (request.IsLongTermMemoryEnabled.HasValue)
+                {
+                    preference.IsLongTermMemoryEnabled = request.IsLongTermMemoryEnabled.Value;
+                }
+                
+                // Update memory search preference if provided
+                if (request.IsMemorySearchEnabled.HasValue)
+                {
+                    preference.IsMemorySearchEnabled = request.IsMemorySearchEnabled.Value;
+                }
+                
                 preference.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -126,7 +147,6 @@ public class PreferencesController : ControllerBase
 
             if (preference is null)
             {
-                // Create new preference
                 preference = new UserPreference
                 {
                     Id = Guid.NewGuid(),
@@ -137,7 +157,6 @@ public class PreferencesController : ControllerBase
             }
             else
             {
-                // Update existing preference
                 preference.SelectedAgentId = request.SelectedAgentId;
                 preference.UpdatedAt = DateTime.UtcNow;
             }
@@ -145,6 +164,10 @@ public class PreferencesController : ControllerBase
 
         await _context.SaveChangesAsync();
 
-        return Ok(new UserPreferenceDto(preference.SelectedAgentId));
+        return Ok(new UserPreferenceDto(
+            preference.SelectedAgentId,
+            preference.IsLongTermMemoryEnabled,
+            preference.IsMemorySearchEnabled
+        ));
     }
 }

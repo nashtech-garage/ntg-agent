@@ -32,15 +32,21 @@ public class PreferenceClient(HttpClient httpClient)
     /// Saves the user's preference settings to the server.
     /// </summary>
     /// <param name="selectedAgentId">The ID of the selected agent.</param>
+    /// <param name="isLongTermMemoryEnabled">Optional: Enable or disable long-term memory feature.</param>
+    /// <param name="isMemorySearchEnabled">Optional: Enable or disable memory search feature.</param>
     /// <param name="currentSessionId">The session ID for anonymous users. Can be null for authenticated users.</param>
     /// <returns>True if the preference was saved successfully, false otherwise.</returns>
-    public async Task<bool> SavePreferenceAsync(Guid selectedAgentId, string? currentSessionId)
+    public async Task<bool> SavePreferenceAsync(
+        Guid selectedAgentId, 
+        bool? isLongTermMemoryEnabled = null,
+        bool? isMemorySearchEnabled = null,
+        string? currentSessionId = null)
     {
         string url = string.IsNullOrWhiteSpace(currentSessionId)
             ? "/api/preferences"
             : $"/api/preferences?currentSessionId={Uri.EscapeDataString(currentSessionId)}";
 
-        var request = new SaveUserPreferenceRequest(selectedAgentId);
+        var request = new SaveUserPreferenceRequest(selectedAgentId, isLongTermMemoryEnabled, isMemorySearchEnabled);
         var response = await httpClient.PutAsJsonAsync(url, request);
 
         return response.IsSuccessStatusCode;

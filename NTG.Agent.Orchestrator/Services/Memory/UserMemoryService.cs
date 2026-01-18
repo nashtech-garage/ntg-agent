@@ -1,8 +1,11 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory;
 using NTG.Agent.Common.Dtos.Memory;
+using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Services.Agents;
 using System.Globalization;
 using System.Text;
@@ -16,13 +19,16 @@ public class UserMemoryService : IUserMemoryService
     private readonly IAgentFactory _agentFactory;
     private readonly ILogger<UserMemoryService> _logger;
     private readonly LongTermMemorySettings _settings;
+    private readonly AgentDbContext _context;
     private const string MEMORY_INDEX = "user-memories";
-    private static readonly JsonSerializerOptions _llmJsonOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions _JsonSerializerOptions = new JsonSerializerOptions
     {
         PropertyNameCaseInsensitive = true,
         ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
+        AllowTrailingCommas = true,
+        WriteIndented = true
     };
+
     private static readonly CompositeFormat MemoryExtractionPromptFormat = CompositeFormat.Parse(MemoryExtractionPrompt);
     private const string MemoryExtractionPrompt = @"You are a memory extraction assistant. Your job is to analyze user messages and identify details that should be stored in the user's long-term profile.
 
@@ -183,12 +189,14 @@ public class UserMemoryService : IUserMemoryService
         IKernelMemory kernelMemory,
         IAgentFactory agentFactory,
         ILogger<UserMemoryService> logger,
-        IOptions<LongTermMemorySettings> settings)
+        IOptions<LongTermMemorySettings> settings,
+        AgentDbContext context)
     {
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _settings = settings?.Value ?? new LongTermMemorySettings();
+        _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
     public async Task<int> ProcessAndStoreMemoriesAsync(
@@ -196,8 +204,7 @@ public class UserMemoryService : IUserMemoryService
         Guid userId,
         CancellationToken ct = default)
     {
-        // Early exit if feature is disabled
-        if (!_settings.Enabled)
+        if (!await EnableLongTermMemoryForUser(userId))
         {
             return 0;
         }
@@ -223,11 +230,7 @@ public class UserMemoryService : IUserMemoryService
                 if (!string.IsNullOrWhiteSpace(memoryResult.SearchQuery) &&
                     !string.IsNullOrWhiteSpace(memoryResult.Tags))
                 {
-                    var existingMemories = await RetrieveMemoriesByFieldAsync(
-                        userId,
-                        fieldTag: memoryResult.Tags,
-                        category: memoryResult.Category,
-                        ct);
+                    var existingMemories = await RetrieveMemoriesByFieldAsync(userId, fieldTag: memoryResult.Tags, category: memoryResult.Category, ct);
 
                     foreach (var oldMemory in existingMemories)
                     {
@@ -236,12 +239,7 @@ public class UserMemoryService : IUserMemoryService
                 }
 
                 // Store the new/updated memory
-                await StoreMemoryAsync(
-                    userId,
-                    memoryResult.MemoryToWrite,
-                    memoryResult.Category ?? "general",
-                    memoryResult.Tags,
-                    ct);
+                await StoreMemoryAsync(userId, memoryResult.MemoryToWrite, memoryResult.Category ?? "general", memoryResult.Tags, ct);
 
                 memoriesStored++;
             }
@@ -268,8 +266,7 @@ public class UserMemoryService : IUserMemoryService
         string userPrompt,
         CancellationToken ct = default)
     {
-        // Early exit if feature is disabled
-        if (!_settings.Enabled)
+        if (!await EnableMemorySearchForUser(userId))
         {
             return null;
         }
@@ -277,12 +274,7 @@ public class UserMemoryService : IUserMemoryService
         try
         {
             // Use the user's current prompt for semantic memory retrieval
-            var memories = await RetrieveMemoriesAsync(
-                userId,
-                query: userPrompt,
-                topN: _settings.MaxMemoriesToRetrieve,
-                category: null,
-                ct);
+            var memories = await RetrieveMemoriesAsync(userId, query: userPrompt, topN: _settings.MaxMemoriesToRetrieve, category: null, ct);
 
             if (memories.Count == 0)
             {
@@ -332,7 +324,7 @@ public class UserMemoryService : IUserMemoryService
                 }
             }
 
-            var results = JsonSerializer.Deserialize<List<MemoryExtractionResultDto>>(responseText, _llmJsonOptions);
+            var results = JsonSerializer.Deserialize<List<MemoryExtractionResultDto>>(responseText, _JsonSerializerOptions);
 
             if (results == null || results.Count == 0)
             {
@@ -376,12 +368,7 @@ public class UserMemoryService : IUserMemoryService
             tagCollection.Add("tags", normalizedTags);
         }
 
-        await _kernelMemory.ImportTextAsync(
-            content,
-            documentId: documentId,
-            index: MEMORY_INDEX,
-            tags: tagCollection,
-            cancellationToken: ct);
+        await _kernelMemory.ImportTextAsync(content, documentId: documentId, index: MEMORY_INDEX, tags: tagCollection, cancellationToken: ct);
 
         return new UserMemoryDto(
             Id: memoryId,
@@ -393,7 +380,6 @@ public class UserMemoryService : IUserMemoryService
             UpdatedAt: DateTime.UtcNow
         );
     }
-
     private async Task<List<UserMemoryDto>> RetrieveMemoriesAsync(
         Guid userId,
         string? query = null,
@@ -409,26 +395,11 @@ public class UserMemoryService : IUserMemoryService
             filter.Add("category", category);
         }
 
-        SearchResult searchResult;
+        var searchQuery = !string.IsNullOrWhiteSpace(query) 
+            ? query 
+            : "user information profile preferences goals";
 
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            searchResult = await _kernelMemory.SearchAsync(
-                query: query,
-                index: MEMORY_INDEX,
-                filters: new List<MemoryFilter> { filter },
-                limit: topN,
-                cancellationToken: ct);
-        }
-        else
-        {
-            searchResult = await _kernelMemory.SearchAsync(
-                query: "user information profile preferences goals",
-                index: MEMORY_INDEX,
-                filters: new List<MemoryFilter> { filter },
-                limit: topN,
-                cancellationToken: ct);
-        }
+        var searchResult = await SearchMemoryAsync(searchQuery, new List<MemoryFilter> { filter }, topN, ct);
 
         var memories = ParseSearchResults(searchResult, userId);
         return memories;
@@ -475,7 +446,50 @@ public class UserMemoryService : IUserMemoryService
 
         return memories;
     }
+    private async Task<SearchResult> SearchMemoryAsync(
+       string query,
+       List<MemoryFilter> filters,
+       int limit,
+       CancellationToken ct = default)
+    {
+        return await _kernelMemory.SearchAsync(query: query, index: MEMORY_INDEX, filters: filters, limit: limit, cancellationToken: ct);
+    }
 
+    private async Task<bool> EnableLongTermMemoryForUser(Guid userId)
+    {
+        // Early exit if feature is disabled globally
+        if (!_settings.Enabled)
+        {
+            return false;
+        }
+        // Check user-specific preference for memory storage/learning
+        // NULL is treated as enabled (default behavior for new users)
+        var userPreference = await _context.UserPreferences.FirstOrDefaultAsync(p => p.UserId == userId);
+
+        if (userPreference?.IsLongTermMemoryEnabled == false)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<bool> EnableMemorySearchForUser(Guid userId)
+    {
+        // Early exit if feature is disabled globally
+        if (!_settings.Enabled)
+        {
+            return false;
+        }
+        // Check user-specific preference for memory retrieval/search
+        // NULL is treated as enabled (default behavior for new users)
+        var userPreference = await _context.UserPreferences.FirstOrDefaultAsync(p => p.UserId == userId);
+
+        if (userPreference?.IsMemorySearchEnabled == false)
+        {
+            return false;
+        }
+        return true;
+    }
     private async Task<List<UserMemoryDto>> RetrieveMemoriesByFieldAsync(
         Guid userId,
         string fieldTag,
@@ -494,12 +508,7 @@ public class UserMemoryService : IUserMemoryService
             filter.Add("category", category);
         }
 
-        var searchResult = await _kernelMemory.SearchAsync(
-            query: "*",
-            index: MEMORY_INDEX,
-            filters: new List<MemoryFilter> { filter },
-            limit: 10,
-            cancellationToken: ct);
+        var searchResult = await SearchMemoryAsync("*", new List<MemoryFilter> { filter }, 10, ct);
 
         var memories = ParseSearchResults(searchResult, userId);
         return memories;
@@ -512,12 +521,7 @@ public class UserMemoryService : IUserMemoryService
             MemoryFilters.ByTag("memoryId", memoryId.ToString())
         };
 
-        var searchResult = await _kernelMemory.SearchAsync(
-            query: "*",
-            index: MEMORY_INDEX,
-            filters: filters,
-            limit: 1,
-            cancellationToken: ct);
+        var searchResult = await SearchMemoryAsync("*", filters, 1, ct);
 
         if (searchResult.Results.Count > 0)
         {
@@ -528,7 +532,6 @@ public class UserMemoryService : IUserMemoryService
 
         return false;
     }
-
     private static string FormatMemoriesForPrompt(List<UserMemoryDto> memories)
     {
         if (memories == null || memories.Count == 0)

@@ -107,6 +107,10 @@
             @if (showSettingsMenu)
             {
                 <div class="settings-dropdown" @onclick:stopPropagation>
+                    <button class="dropdown-item" @onclick="OpenMyPreferenceModal">
+                        <i class="bi bi-gear-fill"></i>
+                        <span>My Preferences</span>
+                    </button>
                     <button class="dropdown-item" @onclick="OpenManageSharedModal">
                         <i class="bi bi-share"></i>
                         <span>Manage Shared Conversations</span>
@@ -120,6 +124,11 @@
 @if (showManageSharedModal)
 {
     <SharedConversationManager OnClose="CloseManageSharedModal" OnSharedConversationChanged="HandleSharedConversationChanged" />
+}
+
+@if (showMyPreferenceModal)
+{
+    <MyPreferenceModal OnClose="CloseMyPreferenceModal" />
 }
 
 @if (showDeleteConfirmation)
@@ -168,6 +177,9 @@
     
     // Manage shared conversations modal
     private bool showManageSharedModal = false;
+    
+    // My preference modal
+    private bool showMyPreferenceModal = false;
     
     // Settings dropdown menu
     private bool showSettingsMenu = false;
@@ -457,6 +469,21 @@
     private async Task CloseManageSharedModal()
     {
         showManageSharedModal = false;
+        await JS.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task OpenMyPreferenceModal()
+    {
+        showSettingsMenu = false;
+        showMyPreferenceModal = true;
+        await JS.InvokeVoidAsync("hideInputChatContainer");
+        StateHasChanged();
+    }
+
+    private async Task CloseMyPreferenceModal()
+    {
+        showMyPreferenceModal = false;
         await JS.InvokeVoidAsync("showInputChatContainer");
         StateHasChanged();
     }
