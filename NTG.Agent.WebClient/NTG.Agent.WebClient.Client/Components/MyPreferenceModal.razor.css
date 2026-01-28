@@ -2,14 +2,15 @@
     position: fixed;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100vw;
+    height: 100vh;
     background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 9999;
     animation: fadeIn 0.2s ease-in-out;
 }
 
@@ -239,5 +240,40 @@
 @keyframes spin {
     to {
         transform: rotate(360deg);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .modal-overlay {
+        padding: 10px;
+    }
+
+    .preference-modal {
+        width: 98%;
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 12px;
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+    }
+
+    .modal-title {
+        font-size: 18px;
+    }
+
+    .modal-content-area {
+        padding: 16px 20px;
+    }
+
+    .settings-card {
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+
+    .settings-card h4 {
+        font-size: 15px;
     }
 }
