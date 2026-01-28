@@ -21,22 +21,51 @@ public class ConversationsController : ControllerBase
         _context = context;
     }
     /// <summary>
-    /// Retrieves a list of conversations for the current user.
+    /// Retrieves a paginated list of conversations for the current user.
     /// </summary>
     /// <remarks>The conversations are returned in descending order based on the last update time. This method
-    /// requires the user to be authenticated.</remarks>
+    /// requires the user to be authenticated. Supports pagination for lazy loading of conversation history.</remarks>
+    /// <param name="pageNumber">The page number to retrieve (1-based). Defaults to 1.</param>
+    /// <param name="pageSize">The number of items per page. Defaults to 15. Maximum is 100.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains an  <see cref="ActionResult{T}"/> of
-    /// <see cref="IEnumerable{T}"/> containing  <see cref="ConversationListItem"/> objects, each representing a
-    /// conversation.</returns>
+    /// <see cref="ConversationListResponse"/> containing paginated conversation items and metadata.</returns>
     [Authorize]
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ConversationListItem>>> GetConversations()
+    public async Task<ActionResult<ConversationListResponse>> GetConversations(
+        [FromQuery] int pageNumber = 1, 
+        [FromQuery] int pageSize = 15)
     {
-        return await _context.Conversations
-            .Where(c => c.UserId == User.GetUserId())
+        // Validate and normalize pagination parameters
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 15;
+
+        var userId = User.GetUserId();
+
+        // Get total count for pagination metadata
+        var totalCount = await _context.Conversations
+            .Where(c => c.UserId == userId)
+            .CountAsync();
+
+        // Get paginated conversations
+        var conversations = await _context.Conversations
+            .Where(c => c.UserId == userId)
             .OrderByDescending(c => c.UpdatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
             .Select(c => new ConversationListItem(c.Id, c.Name))
             .ToListAsync();
+
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        return new ConversationListResponse
+        {
+            Items = conversations,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages,
+            HasMore = pageNumber * pageSize < totalCount
+        };
     }
 
     /// <summary>
