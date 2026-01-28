@@ -1,5 +1,7 @@
 ﻿@attribute [Authorize]
 
+@using NTG.Agent.Common.Dtos
+@using NTG.Agent.Common.Dtos.Constants
 @using NTG.Agent.Common.Dtos.Chats
 @using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.WebClient.Client.Components.Shared
@@ -215,7 +217,7 @@
     
     // Pagination state for lazy loading
     private int currentPage = 1;
-    private int pageSize = 15;
+    private readonly int pageSize = PaginationConstants.DefaultPageSize;
     private bool hasMore = true;
     private bool isLoadingMore = false;
     private bool isInitialLoading = true;

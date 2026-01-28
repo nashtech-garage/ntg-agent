@@ -1,4 +1,5 @@
 using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.Conversations;
 using System.Net;
 using System.Net.Http.Json;
@@ -25,9 +26,9 @@ public class ConversationClient(HttpClient httpClient)
     /// Gets a paginated list of conversations with support for lazy loading.
     /// </summary>
     /// <param name="pageNumber">The page number to retrieve (1-based). Defaults to 1.</param>
-    /// <param name="pageSize">The number of items per page. Defaults to 20.</param>
+    /// <param name="pageSize">The number of items per page. Defaults to <see cref="PaginationConstants.DefaultPageSize"/>.</param>
     /// <returns>A paginated response containing conversation items and metadata.</returns>
-    public async Task<ConversationListResponse> GetConversationsPagedAsync(int pageNumber = 1, int pageSize = 15)
+    public async Task<ConversationListResponse> GetConversationsPagedAsync(int pageNumber = 1, int pageSize = PaginationConstants.DefaultPageSize)
     {
         var response = await httpClient.GetAsync($"/api/conversations?pageNumber={pageNumber}&pageSize={pageSize}");
         response.EnsureSuccessStatusCode();

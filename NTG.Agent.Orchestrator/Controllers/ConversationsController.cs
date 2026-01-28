@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.Conversations;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -26,18 +27,18 @@ public class ConversationsController : ControllerBase
     /// <remarks>The conversations are returned in descending order based on the last update time. This method
     /// requires the user to be authenticated. Supports pagination for lazy loading of conversation history.</remarks>
     /// <param name="pageNumber">The page number to retrieve (1-based). Defaults to 1.</param>
-    /// <param name="pageSize">The number of items per page. Defaults to 15. Maximum is 100.</param>
+    /// <param name="pageSize">The number of items per page. Defaults to <see cref="PaginationConstants.DefaultPageSize"/>. Maximum is <see cref="PaginationConstants.MaxPageSize"/>.</param>
     /// <returns>A task that represents the asynchronous operation. The task result contains an  <see cref="ActionResult{T}"/> of
     /// <see cref="ConversationListResponse"/> containing paginated conversation items and metadata.</returns>
     [Authorize]
     [HttpGet]
     public async Task<ActionResult<ConversationListResponse>> GetConversations(
         [FromQuery] int pageNumber = 1, 
-        [FromQuery] int pageSize = 15)
+        [FromQuery] int pageSize = PaginationConstants.DefaultPageSize)
     {
         // Validate and normalize pagination parameters
         if (pageNumber < 1) pageNumber = 1;
-        if (pageSize < 1 || pageSize > 100) pageSize = 15;
+        if (pageSize < 1 || pageSize > PaginationConstants.MaxPageSize) pageSize = PaginationConstants.DefaultPageSize;
 
         var userId = User.GetUserId();
 
