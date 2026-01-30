@@ -1,5 +1,7 @@
 ﻿@attribute [Authorize]
 
+@using NTG.Agent.Common.Dtos
+@using NTG.Agent.Common.Dtos.Constants
 @using NTG.Agent.Common.Dtos.Chats
 @using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.WebClient.Client.Components.Shared
@@ -88,6 +90,35 @@
 
                 }
             </ul>
+            
+            @if (hasMore)
+            {
+                <div class="load-more-container">
+                    <button class="load-more-button" @onclick="LoadMoreConversations" disabled="@isLoadingMore">
+                        @if (isLoadingMore)
+                        {
+                            <div class="spinner-border spinner-border-sm" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <span>Loading...</span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-down-circle"></i>
+                            <span>Load More</span>
+                        }
+                    </button>
+                </div>
+            }
+        }
+        else if (isInitialLoading)
+        {
+            <div class="loading-conversations">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2">Loading conversations...</div>
+            </div>
         }
         else
         {
@@ -183,6 +214,14 @@
     
     // Settings dropdown menu
     private bool showSettingsMenu = false;
+    
+    // Pagination state for lazy loading
+    private int currentPage = 1;
+    private readonly int pageSize = PaginationConstants.DefaultPageSize;
+    private bool hasMore = true;
+    private bool isLoadingMore = false;
+    private bool isInitialLoading = true;
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -201,6 +240,14 @@
 
         await base.OnAfterRenderAsync(firstRender);
     }
+    
+    private async Task LoadMoreConversations()
+    {
+        if (hasMore && !isLoadingMore)
+        {
+            await LoadAndActiveConversations(loadMore: true);
+        }
+    }
 
     private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
@@ -209,10 +256,59 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task LoadAndActiveConversations()
+    private async Task LoadAndActiveConversations(bool loadMore = false)
     {
         UpdateActiveConversationFromUrl();
-        conversations = await ConversationClient.GetConversationsAsync();
+        
+        if (loadMore && !hasMore) return;
+        if (isLoadingMore) return;
+        
+        try
+        {
+            if (loadMore)
+            {
+                isLoadingMore = true;
+            }
+            else
+            {
+                isInitialLoading = true;
+            }
+            StateHasChanged();
+            
+            var page = loadMore ? currentPage + 1 : 1;
+            var response = await ConversationClient.GetConversationsPagedAsync(page, pageSize);
+            
+            if (loadMore)
+            {
+                // Append to existing list
+                foreach (var item in response.Items)
+                {
+                    conversations.Add(item);
+                }
+                Logger.LogInformation("Loaded page {Page} with {Count} conversations. HasMore: {HasMore}", 
+                    response.PageNumber, response.Items.Count, response.HasMore);
+            }
+            else
+            {
+                // Initial load - replace list
+                conversations = response.Items;
+                Logger.LogInformation("Initial load: {Count} conversations. HasMore: {HasMore}", 
+                    response.Items.Count, response.HasMore);
+            }
+            
+            currentPage = response.PageNumber;
+            hasMore = response.HasMore;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading conversations");
+        }
+        finally
+        {
+            isLoadingMore = false;
+            isInitialLoading = false;
+            StateHasChanged();
+        }
     }
     private void UpdateActiveConversationFromUrl()
     {
