@@ -268,7 +268,7 @@ public class AgentService
         await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
         await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
         {
-            if (evt is AgentRunUpdateEvent e)
+            if (evt is WorkflowOutputEvent e)
             {
                 yield return e.Data?.ToString() ?? string.Empty;
             }

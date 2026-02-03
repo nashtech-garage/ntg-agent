@@ -61,7 +61,7 @@ public class AgentFactory : IAgentFactory
             Endpoint = new Uri(agentConfig.ProviderEndpoint)
         };
         var openAiClient = new OpenAIClient(new ApiKeyCredential(agentConfig.ProviderApiKey), clientOptions);
-        var agent = openAiClient.GetChatClient(agentConfig.ProviderModelName).CreateAIAgent(instructions: instructions);
+        var agent = openAiClient.GetChatClient(agentConfig.ProviderModelName).AsAIAgent(instructions: instructions);
         return agent;
     }
 
@@ -71,7 +71,7 @@ public class AgentFactory : IAgentFactory
              new Uri(agentConfig.ProviderEndpoint),
              new ApiKeyCredential(agentConfig.ProviderApiKey))
                .GetChatClient(agentConfig.ProviderModelName)
-               .CreateAIAgent(instructions: instructions);
+               .AsAIAgent(instructions: instructions);
         return agent;
     }
 
