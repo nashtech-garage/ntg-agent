@@ -63,7 +63,9 @@ public class ConversationsControllerTests
         var actionResult = await _controller.GetConversations();
         // Assert
         Assert.That(actionResult, Is.Not.Null);
-        var conversations = actionResult.Value as List<ConversationListItem>;
+        var response = actionResult.Value as ConversationListResponse;
+        Assert.That(response, Is.Not.Null);
+        var conversations = response.Items;
         Assert.That(conversations, Is.Not.Null.And.Count.EqualTo(3));
         using (Assert.EnterMultipleScope())
         {
@@ -79,7 +81,9 @@ public class ConversationsControllerTests
         // Act
         var actionResult = await _controller.GetConversations();
         // Assert
-        var conversations = actionResult.Value as List<ConversationListItem>;
+        var response = actionResult.Value as ConversationListResponse;
+        Assert.That(response, Is.Not.Null);
+        var conversations = response.Items;
         Assert.That(conversations, Is.Not.Null);
         Assert.That(conversations, Is.Empty, "The list of conversations should be empty.");
     }

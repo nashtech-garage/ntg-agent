@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260118071039_AddMemoryPreferencesToUserPreference")]
+    partial class AddMemoryPreferencesToUserPreference
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -140,49 +143,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("AgentId");
 
                     b.ToTable("AgentTools");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.AnonymousSessions.AnonymousSession", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("FirstMessageAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("IpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("nvarchar(45)");
-
-                    b.Property<bool>("IsBlocked")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("LastMessageAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("MessageCount")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("ResetAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IpAddress");
-
-                    b.HasIndex("LastMessageAt");
-
-                    b.HasIndex("SessionId")
-                        .IsUnique();
-
-                    b.ToTable("AnonymousSessions");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>

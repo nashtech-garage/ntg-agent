@@ -224,7 +224,7 @@
     #sidebarColumn.sidebarcolumn-collapsed,
     #sidebarColumn.col-2 {
         position: fixed !important;
-        width: 320px !important;
+        width: 255px !important;
         flex: none !important;
         max-width: none !important;
     }

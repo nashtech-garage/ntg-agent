@@ -9,6 +9,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Memory;
 using System.Security.Claims;
 
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
@@ -44,6 +45,7 @@ public class AgentsControllerTests
             Mock.Of<IAnonymousSessionService>(),
             Mock.Of<IIpAddressService>(),
             Mock.Of<IHttpContextAccessor>(),
+            Mock.Of<IUserMemoryService>(),
             Mock.Of<ILogger<AgentService>>()
         );
 
