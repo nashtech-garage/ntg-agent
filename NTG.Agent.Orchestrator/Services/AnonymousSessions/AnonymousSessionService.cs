@@ -28,7 +28,7 @@ public class AnonymousSessionService : IAnonymousSessionService
 
     public async Task<RateLimitStatus> CheckRateLimitAsync(Guid sessionId, string? ipAddress)
     {
-        // Opportunistic cleanup (probabilistic to avoid overhead) - Consider running in background job instead
+        // Opportunistic cleanup (probabilistic to avoid overhead) - TODO: Consider running in background job instead
         if (Random.Shared.NextDouble() < _settings.CleanupProbability)
         {
             _ = Task.Run(() => CleanupOldSessionsAsync());
