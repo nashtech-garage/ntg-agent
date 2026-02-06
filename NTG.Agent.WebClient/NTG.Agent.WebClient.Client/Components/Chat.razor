@@ -2,6 +2,7 @@
 @using NTG.Agent.Common.Dtos.Enums
 @using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Common.Dtos.AnonymousSessions
 @using NTG.Agent.WebClient.Client.Components.Shared
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
@@ -82,6 +83,10 @@ else if (ConversationId.HasValue)
     <div class="form-group row">
         <form method="post" @onsubmit="SendMessage" @formname="chat-form">
         <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            @if (!isAuthenticated && rateLimitStatus != null)
+            {
+                <RateLimitIndicator RateLimitStatus="rateLimitStatus" />
+            }
             @if (uploadItems.Any())
             {
                 <div class="mb-2">
@@ -127,6 +132,10 @@ else
         <div class="form-group w-100">
             <form method="post" @onsubmit="SendMessage" @formname="chat-form">
             <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
+                @if (!isAuthenticated && rateLimitStatus != null)
+                {
+                    <RateLimitIndicator RateLimitStatus="rateLimitStatus" />
+                }
                 @if (uploadItems.Any())
                 {
                     <div class="mb-2">
@@ -176,6 +185,10 @@ else
                         ChatId="shareChatId"
                         OnClose="CloseShareModal"
                         OnSharedConversationChanged="HandleSharedConversationChanged" />
+
+<RateLimitModal IsVisible="showRateLimitModal"
+                RateLimitStatus="rateLimitStatus"
+                OnClose="CloseRateLimitModal" />
 
 <!-- Agent Selector Modal -->
 @if (showAgentSelector)
@@ -240,6 +253,10 @@ else
     private List<AgentListItemDto> availableAgents = new();
     private Guid selectedAgentId;
     private bool showAgentSelector = false;
+    private RateLimitStatus? rateLimitStatus = null;
+    private bool showRateLimitModal = false;
+    private int messagesSinceLastCheck = 0;
+    private const int RATE_LIMIT_CHECK_INTERVAL = 5; // Check server every 5 messages
 
     protected override async Task OnInitializedAsync()
     {
@@ -252,13 +269,15 @@ else
         // Try to load saved agent selection from localStorage
         await LoadSavedAgentSelection();
 
+        // Load rate limit status for anonymous users
+        if (!isAuthenticated)
+        {
+            currentSessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId") ?? string.Empty;
+            await LoadRateLimitStatus();
+        }
+
         if (ConversationId.HasValue)
         {
-            if (!isAuthenticated)
-            {
-                currentSessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
-            }
-
             try
             {
                 var chatMessages = await ConversationClient.GetConversationMessagesAsync(
@@ -309,6 +328,14 @@ else
             return;
         }
 
+        // Check rate limit for anonymous users before sending
+        if (!isAuthenticated && rateLimitStatus != null && !rateLimitStatus.CanSendMessage)
+        {
+            showRateLimitModal = true;
+            StateHasChanged();
+            return;
+        }
+
         var newConversation = false;
         if (!ConversationId.HasValue)
         {
@@ -333,26 +360,75 @@ else
         userInput = string.Empty;
         StateHasChanged();
 
-        // 🚀 Send text + image to backend
-        var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
-            currentSessionId, uploadItems, selectedAgentId);
-
-        var result = await ChatClient.InvokeStreamAsync(request);
-        response.Message = string.Empty;
-        uploadItems.Clear();
-
-        await foreach (var item in result)
+        try
         {
-            response.Message += item.Content;
-            await Task.Delay(1);
+            // 🚀 Send text + image to backend
+            var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
+                currentSessionId, uploadItems, selectedAgentId);
 
-            await MarkdownSetValue!.SetValue(response.Message);
+            var result = await ChatClient.InvokeStreamAsync(request);
+            response.Message = string.Empty;
+            uploadItems.Clear();
+
+            await foreach (var item in result)
+            {
+                response.Message += item.Content;
+                await Task.Delay(1);
+
+                await MarkdownSetValue!.SetValue(response.Message);
+            }
+
+            // Update rate limit count client-side for better performance
+            if (!isAuthenticated && rateLimitStatus != null)
+            {
+                rateLimitStatus.CurrentCount++;
+                rateLimitStatus.RemainingMessages--;
+                messagesSinceLastCheck++;
+                
+                // Periodic server sync to detect manual blocks or policy changes
+                if (messagesSinceLastCheck >= RATE_LIMIT_CHECK_INTERVAL)
+                {
+                    await LoadRateLimitStatus(); // Sync with server
+                    messagesSinceLastCheck = 0;
+                    
+                    // If server indicates blocked, show modal
+                    if (rateLimitStatus != null && !rateLimitStatus.CanSendMessage)
+                    {
+                        showRateLimitModal = true;
+                    }
+                }
+                else
+                {
+                    // Check if we hit the limit locally
+                    if (rateLimitStatus.CurrentCount >= rateLimitStatus.MaxMessages)
+                    {
+                        rateLimitStatus.CanSendMessage = false;
+                        rateLimitStatus.IsReadOnlyMode = true;
+                    }
+                }
+                
+                StateHasChanged();
+            }
+
+            if (newConversation)
+            {
+                ConversationState.NotifyConversationAdded();
+                Navigation.NavigateTo($"/c/{ConversationId}", false);
+            }
         }
-
-        if (newConversation)
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
         {
-            ConversationState.NotifyConversationAdded();
-            Navigation.NavigateTo($"/c/{ConversationId}", false);
+            // Handle 429 rate limit response
+            response.Message = "You have reached your message limit. Please sign in to continue chatting.";
+            await LoadRateLimitStatus();
+            showRateLimitModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending message");
+            response.Message = "An error occurred while sending your message. Please try again.";
+            StateHasChanged();
         }
     }
 
@@ -574,5 +650,29 @@ else
             // Log the error but don't fail the UI operation
             Logger.LogError(ex, "Error saving agent preference");
         }
+    }
+
+    /// <summary>
+    /// Load the current rate limit status for anonymous users.
+    /// </summary>
+    private async Task LoadRateLimitStatus()
+    {
+        try
+        {
+            rateLimitStatus = await ConversationClient.GetAnonymousRateLimitStatusAsync(currentSessionId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading rate limit status");
+        }
+    }
+
+    /// <summary>
+    /// Close the rate limit modal.
+    /// </summary>
+    private void CloseRateLimitModal()
+    {
+        showRateLimitModal = false;
+        StateHasChanged();
     }
 }
