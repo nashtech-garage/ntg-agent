@@ -513,7 +513,7 @@ public class DocumentsControllerTests
         // we're just verifying the method executes without null reference exceptions
         Assert.That(result, Is.Not.Null);
     }
-    private static IFormFile CreateTestFile(string fileName, string content)
+    private static FormFile CreateTestFile(string fileName, string content)
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         var stream = new MemoryStream(bytes);

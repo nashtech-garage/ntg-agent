@@ -82,7 +82,7 @@ public class MetricsCollector(ILogger<MetricsCollector> logger, string meterName
         GC.SuppressFinalize(this);
     }
 
-    private class MetricsTimer(MetricsCollector collector, string name, (string Key, string Value)[] tags) : IDisposable
+    private sealed class MetricsTimer(MetricsCollector collector, string name, (string Key, string Value)[] tags) : IDisposable
     {
         private readonly MetricsCollector _collector = collector;
         private readonly string _name = name;
