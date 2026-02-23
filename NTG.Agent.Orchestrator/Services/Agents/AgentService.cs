@@ -55,19 +55,21 @@ public class AgentService
     public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var startTime = DateTime.UtcNow;
-        
+        var anonymousSessionId = Guid.Empty;
+        string? anonymousIpAddress = null;
+
         // Rate limit check for anonymous users
         if (!userId.HasValue)
         {
-            if (!Guid.TryParse(promptRequest.SessionId, out var sessionId))
+            if (!Guid.TryParse(promptRequest.SessionId, out anonymousSessionId))
             {
                 throw new InvalidOperationException("A valid Session ID is required for unauthenticated requests.");
             }
 
             var httpContext = _httpContextAccessor.HttpContext;
-            var ipAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
+            anonymousIpAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
             
-            var rateLimitStatus = await _anonymousSessionService.CheckRateLimitAsync(sessionId, ipAddress);
+            var rateLimitStatus = await _anonymousSessionService.CheckRateLimitAsync(anonymousSessionId, anonymousIpAddress);
             
             if (!rateLimitStatus.CanSendMessage)
             {
@@ -99,10 +101,7 @@ public class AgentService
         // Increment anonymous session counter after successful message
         if (!userId.HasValue)
         {
-            var sessionId = Guid.Parse(promptRequest.SessionId);
-            var httpContext = _httpContextAccessor.HttpContext;
-            var ipAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
-            await _anonymousSessionService.IncrementMessageCountAsync(sessionId, ipAddress);
+            await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
         }
 
         await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
@@ -307,7 +306,7 @@ public class AgentService
         var userMessage = BuildUserMessage(promptRequest, prompt);
 
         chatHistory.Add(userMessage);
-        StreamingRun run = await InProcessExecution.StreamAsync(workflow, chatHistory);
+        StreamingRun run = await InProcessExecution.RunStreamingAsync(workflow, chatHistory);
         await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
         await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
         {

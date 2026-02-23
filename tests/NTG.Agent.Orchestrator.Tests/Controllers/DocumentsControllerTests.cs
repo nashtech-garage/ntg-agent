@@ -374,7 +374,7 @@ public class DocumentsControllerTests
         // Arrange
         var request = new ImportWebPageRequest("https://example.com", null, new List<string>());
         _mockKnowledgeService.Setup(x => x.ImportWebPageAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Import failed"));
+            .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
         // Assert
@@ -452,7 +452,7 @@ public class DocumentsControllerTests
         // Arrange
         var request = new UploadTextContentRequest("Title", "Content", null, new List<string>());
         _mockKnowledgeService.Setup(x => x.ImportTextContentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new Exception("Import failed"));
+            .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
         // Assert

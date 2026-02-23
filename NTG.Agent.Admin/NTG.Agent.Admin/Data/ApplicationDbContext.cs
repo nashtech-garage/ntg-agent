@@ -6,11 +6,11 @@ namespace NTG.Agent.Admin.Data
 {
     public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
     {
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder builder)
         {
-            base.OnModelCreating(modelBuilder);
+            base.OnModelCreating(builder);
 
-            modelBuilder.Entity<IdentityRole>().HasData(new IdentityRole
+            builder.Entity<IdentityRole>().HasData(new IdentityRole
             {
                 Id = new Guid("d5147680-87f5-41dc-aff2-e041959c2fa1").ToString(),
                 Name = "Admin",
@@ -18,7 +18,7 @@ namespace NTG.Agent.Admin.Data
                 ConcurrencyStamp = "c3a91a6b-a975-4542-af12-321515222481"
             });
 
-            modelBuilder.Entity<ApplicationUser>().HasData(new ApplicationUser
+            builder.Entity<ApplicationUser>().HasData(new ApplicationUser
             {
                 Id = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71").ToString(),
                 UserName = "admin@ntgagent.com",
@@ -35,13 +35,13 @@ namespace NTG.Agent.Admin.Data
                 TwoFactorEnabled = false,
             });
 
-            modelBuilder.Entity<IdentityUserRole<string>>().HasData(new IdentityUserRole<string>
+            builder.Entity<IdentityUserRole<string>>().HasData(new IdentityUserRole<string>
             {
                 UserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
                 RoleId = "d5147680-87f5-41dc-aff2-e041959c2fa1"
             });
 
-            modelBuilder.Entity<IdentityRole>().HasData(new IdentityRole
+            builder.Entity<IdentityRole>().HasData(new IdentityRole
             {
                 Id = new Guid("3dc04c42-9b42-4920-b7f2-29dfc2c5d169").ToString(),
                 Name = "Anonymous",
