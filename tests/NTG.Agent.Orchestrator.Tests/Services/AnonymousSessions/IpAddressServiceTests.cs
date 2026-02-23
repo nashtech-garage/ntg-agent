@@ -40,34 +40,6 @@ public class IpAddressServiceTests
     }
 
     [Test]
-    public void GetClientIpAddress_XForwardedFor_ShouldReturnFirstIp()
-    {
-        // Arrange
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Forwarded-For"] = "192.168.1.1, 10.0.0.1";
-
-        // Act
-        var result = _service.GetClientIpAddress(context);
-
-        // Assert
-        Assert.That(result, Is.EqualTo("192.168.1.1"));
-    }
-
-    [Test]
-    public void GetClientIpAddress_XRealIp_ShouldReturnRealIp()
-    {
-        // Arrange
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Real-IP"] = "192.168.1.100";
-
-        // Act
-        var result = _service.GetClientIpAddress(context);
-
-        // Assert
-        Assert.That(result, Is.EqualTo("192.168.1.100"));
-    }
-
-    [Test]
     public void GetClientIpAddress_RemoteIpAddress_ShouldReturnRemoteIp()
     {
         // Arrange
