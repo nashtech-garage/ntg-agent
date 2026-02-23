@@ -1,3 +1,4 @@
+using NTG.Agent.Common.Dtos.AnonymousSessions;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.Conversations;
@@ -90,5 +91,19 @@ public class ConversationClient(HttpClient httpClient)
         var request = new UpdateCommentRequest { Comment = comment };
         var response = await httpClient.PutAsJsonAsync($"/api/conversations/{conversationId}/messages/{messageId}/comment", request);
         return response.IsSuccessStatusCode;
+    }
+
+    public async Task<RateLimitStatus?> GetAnonymousRateLimitStatusAsync(string currentSessionId)
+    {
+        string url = $"/api/conversations/anonymous/rate-limit-status?sessionId={Uri.EscapeDataString(currentSessionId)}";
+
+        var response = await httpClient.GetAsync(url);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            return null;
+        }
+
+        return await response.Content.ReadFromJsonAsync<RateLimitStatus>();
     }
 }

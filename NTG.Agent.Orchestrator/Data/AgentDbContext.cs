@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Common.Dtos.Constants;
+using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
@@ -41,6 +42,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<UserPreference> UserPreferences { get; set; } = null!;
 
     public DbSet<TokenUsage> TokenUsages { get; set; } = null!;
+
+    public DbSet<AnonymousSession> AnonymousSessions { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -225,6 +228,24 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             e.ToTable(t => t.HasCheckConstraint(
                 "CK_TokenUsage_UserIdOrSessionId",
                 "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)"));
+        });
+
+        // AnonymousSession configuration
+        modelBuilder.Entity<AnonymousSession>(e =>
+        {
+            e.HasKey(x => x.Id);
+            
+            // Create unique index on SessionId for fast lookups
+            e.HasIndex(x => x.SessionId).IsUnique();
+            
+            // Create index on IpAddress for IP-based queries
+            e.HasIndex(x => x.IpAddress);
+            
+            // Create index on LastMessageAt for cleanup queries
+            e.HasIndex(x => x.LastMessageAt);
+            
+            e.Property(x => x.IpAddress)
+                .HasMaxLength(45); // IPv6 max length
         });
     }
 }

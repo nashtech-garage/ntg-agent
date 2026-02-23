@@ -1,0 +1,31 @@
+@using NTG.Agent.Common.Dtos.AnonymousSessions
+@using NTG.Agent.Common.Helpers
+
+@if (RateLimitStatus != null && RateLimitStatus.CanSendMessage && !RateLimitStatus.IsReadOnlyMode)
+{
+    var percentUsed = (double)RateLimitStatus.CurrentCount / RateLimitStatus.MaxMessages * 100;
+    var shouldShowWarning = percentUsed >= 80;
+    var colorClass = percentUsed >= 90 ? "text-danger" : (shouldShowWarning ? "text-warning" : "text-muted");
+
+    <div class="rate-limit-indicator @colorClass small">
+        <i class="bi bi-chat-dots me-1"></i>
+        <span>@RateLimitStatus.RemainingMessages / @RateLimitStatus.MaxMessages messages remaining</span>
+        
+        @if (RateLimitStatus.ResetAt.HasValue && shouldShowWarning)
+        {
+            var timeUntilReset = RateLimitStatus.ResetAt.Value - DateTime.UtcNow;
+            if (timeUntilReset.TotalSeconds > 0)
+            {
+                <span class="ms-2">
+                    <i class="bi bi-clock me-1"></i>
+                    Resets in @timeUntilReset.ToBeautify()
+                </span>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter]
+    public RateLimitStatus? RateLimitStatus { get; set; }
+}
