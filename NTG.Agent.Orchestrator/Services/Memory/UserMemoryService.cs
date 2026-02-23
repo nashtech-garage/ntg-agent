@@ -301,7 +301,7 @@ public class UserMemoryService : IUserMemoryService
             string prompt = string.Format(CultureInfo.InvariantCulture, MemoryExtractionPromptFormat, userMessage);
 
             var agent = await _agentFactory.CreateBasicAgent("You are a memory extraction assistant. Respond only with valid JSON array.");
-            var runResults = await agent.RunAsync(prompt);
+            var runResults = await agent.RunAsync(prompt, cancellationToken: ct);
             var responseText = runResults.Text.Trim();
 
             // Even if the prompt forbids it, LLMs love Markdown. Keep this safety net.

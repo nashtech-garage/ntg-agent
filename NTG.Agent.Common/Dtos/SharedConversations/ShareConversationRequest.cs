@@ -1,4 +1,6 @@
-﻿public class ShareConversationRequest
+﻿namespace NTG.Agent.Common.Dtos.SharedConversations;
+
+public class ShareConversationRequest
 {
     public Guid ConversationId { get; set; }
     public DateTime? ExpiresAt { get; set; }

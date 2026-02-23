@@ -99,7 +99,7 @@ public class AgentService
         // Increment anonymous session counter after successful message
         if (!userId.HasValue)
         {
-            var sessionId = Guid.Parse(promptRequest.SessionId);
+            var sessionId = Guid.Parse(promptRequest.SessionId!);
             var httpContext = _httpContextAccessor.HttpContext;
             var ipAddress = httpContext != null ? _ipAddressService.GetClientIpAddress(httpContext) : null;
             await _anonymousSessionService.IncrementMessageCountAsync(sessionId, ipAddress);
@@ -307,7 +307,7 @@ public class AgentService
         var userMessage = BuildUserMessage(promptRequest, prompt);
 
         chatHistory.Add(userMessage);
-        StreamingRun run = await InProcessExecution.StreamAsync(workflow, chatHistory);
+        StreamingRun run = await InProcessExecution.RunStreamingAsync(workflow, chatHistory);
         await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
         await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
         {
