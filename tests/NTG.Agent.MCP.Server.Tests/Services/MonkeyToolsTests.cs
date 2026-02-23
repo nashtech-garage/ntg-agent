@@ -18,7 +18,7 @@ public class MonkeyToolsTests
 		_monkeyTools = new MonkeyTools(_testMonkeyService);
 	}
 
-	class TestMonkeyService : MonkeyService
+	sealed class TestMonkeyService : MonkeyService
 	{
 		public List<Monkey>? MonkeysToReturn { get; set; }
 		public Monkey? MonkeyToReturn { get; set; }
@@ -38,7 +38,7 @@ public class MonkeyToolsTests
 		}
 	}
 
-	class FakeHttpClientFactory : System.Net.Http.IHttpClientFactory
+	sealed class FakeHttpClientFactory : System.Net.Http.IHttpClientFactory
 	{
 		public System.Net.Http.HttpClient CreateClient(string name = null!) => new System.Net.Http.HttpClient();
 	}
