@@ -291,9 +291,13 @@ public class AgentService
         var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
         var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
         var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F")); // Azure OpenAI Agent ID
+        
+        // Suppress MAAIW001 as CreateHandoffBuilderWith is marked for evaluation purposes
+        #pragma warning disable MAAIW001
         var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(triageAgent)
             .WithHandoffs(triageAgent, [csharpAgent, javaAgent])
             .Build();
+        #pragma warning restore MAAIW001
 
         var chatHistory = new List<ChatMessage>();
         foreach (var msg in history.OrderBy(m => m.CreatedAt))
