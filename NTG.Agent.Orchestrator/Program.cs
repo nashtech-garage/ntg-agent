@@ -19,7 +19,6 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Net;
 
 const string SourceName = "NTG.Agent.Orchestrator";
 const string ServiceName = "Orchestrator";
@@ -90,7 +89,7 @@ builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
-builder.Services.AddScoped<IDocumentAnalysisService, NTG.Agent.Orchestrator.Knowledge.DocumentAnalysisService>();
+builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();

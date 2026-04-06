@@ -3,19 +3,20 @@ using Azure.AI.FormRecognizer.DocumentAnalysis;
 using Microsoft.Extensions.Options;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Models.Configuration;
-using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 
-namespace NTG.Agent.Orchestrator.Knowledge;
+namespace NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 
 public class DocumentAnalysisService : IDocumentAnalysisService
 {
     private readonly DocumentAnalysisClient? _documentAnalysisClient;
+    private readonly ILogger<DocumentAnalysisService> _logger;
 
     /// <inheritdoc />
     public bool IsEnabled { get; }
 
     public DocumentAnalysisService(IOptions<DocumentIntelligenceSettings> options, ILogger<DocumentAnalysisService> logger)
     {
+        _logger = logger;
         var settings = options.Value;
         IsEnabled = settings.IsEnabled;
 
@@ -23,7 +24,7 @@ public class DocumentAnalysisService : IDocumentAnalysisService
         {
             // Document Intelligence is disabled — the service is a no-op.
             // File upload buttons will be hidden on the client via the /api/features endpoint.
-            logger.LogInformation("Azure Document Intelligence is disabled. File upload in chat will not be available.");
+            _logger.LogInformation("Azure Document Intelligence is disabled. File upload in chat will not be available.");
             return;
         }
 
@@ -33,10 +34,7 @@ public class DocumentAnalysisService : IDocumentAnalysisService
         if (string.IsNullOrWhiteSpace(settings.ApiKey))
             throw new InvalidOperationException("Azure:DocumentIntelligence:ApiKey is required when IsEnabled is true.");
 
-        _documentAnalysisClient = new DocumentAnalysisClient(
-            new Uri(settings.Endpoint),
-            new AzureKeyCredential(settings.ApiKey)
-        );
+        _documentAnalysisClient = new DocumentAnalysisClient(new Uri(settings.Endpoint), new AzureKeyCredential(settings.ApiKey));
     }
 
     public async Task<List<string>> ExtractDocumentData(
@@ -55,10 +53,10 @@ public class DocumentAnalysisService : IDocumentAnalysisService
                 if (item.Content is IFormFile file)
                 {
                     var operation = await _documentAnalysisClient!.AnalyzeDocumentAsync(
-                WaitUntil.Completed,
-                "prebuilt-read",
-                 file.OpenReadStream()
-                );
+                            WaitUntil.Completed,
+                            "prebuilt-read",
+                             file.OpenReadStream()
+                            );
 
                     var result = operation.Value;
 
@@ -77,8 +75,9 @@ public class DocumentAnalysisService : IDocumentAnalysisService
                 }
 
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                _logger.LogError(ex, "Document analysis failed for an upload item.");
                 documentsData.Add($"[Document] Analysis failed: {ex.Message}");
             }
         }
