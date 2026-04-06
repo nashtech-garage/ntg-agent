@@ -2,12 +2,15 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
-using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Models.AnonymousSessions;
+using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Orchestrator.Services.AnonymousSessions;
+using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
-using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -17,8 +20,6 @@ using OpenTelemetry.Trace;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
-using NTG.Agent.Orchestrator.Models.AnonymousSessions;
-using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 
 const string SourceName = "NTG.Agent.Orchestrator";
 const string ServiceName = "Orchestrator";
@@ -74,6 +75,7 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
+builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.GetSection("Azure:DocumentIntelligence"));
 
 builder.Services.AddControllers();
 
@@ -88,6 +90,7 @@ builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
+builder.Services.AddScoped<IDocumentAnalysisService, NTG.Agent.Orchestrator.Knowledge.DocumentAnalysisService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
