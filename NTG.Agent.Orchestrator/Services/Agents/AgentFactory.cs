@@ -1,4 +1,6 @@
-﻿using Azure.AI.OpenAI;
+﻿using Anthropic;
+using Anthropic.Core;
+using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -33,7 +35,9 @@ public class AgentFactory : IAgentFactory
         {
             "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
             "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
+            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
             "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
+            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
@@ -49,20 +53,35 @@ public class AgentFactory : IAgentFactory
         {
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
+            "OpenAI" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
+            "Anthropic" => CreateBasicAnthropicAgent(agentConfig, instructions),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
 
     private static ChatClientAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
-        var clientOptions = new OpenAIClientOptions
+        // ProviderEndpoint is optional for standard OpenAI; GitHub Models and Google Gemini require a custom endpoint.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(agentConfig.ProviderEndpoint))
         {
-            Endpoint = new Uri(agentConfig.ProviderEndpoint)
-        };
+            clientOptions.Endpoint = new Uri(agentConfig.ProviderEndpoint);
+        }
+
         var openAiClient = new OpenAIClient(new ApiKeyCredential(agentConfig.ProviderApiKey), clientOptions);
         var agent = openAiClient.GetChatClient(agentConfig.ProviderModelName).AsAIAgent(instructions: instructions);
         return agent;
+    }
+
+    private static ChatClientAgent CreateBasicAnthropicAgent(Models.Agents.Agent agentConfig, string instructions)
+    {
+        // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
+        // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
+        var chatClient = new AnthropicClient(new ClientOptions { ApiKey = agentConfig.ProviderApiKey })
+            .AsIChatClient(defaultModelId: agentConfig.ProviderModelName);
+
+        return new ChatClientAgent(chatClient, instructions: instructions);
     }
 
     private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
@@ -77,15 +96,34 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
     {
-        var clientOptions = new OpenAIClientOptions
+        // ProviderEndpoint is optional for standard OpenAI; GitHub Models and Google Gemini require a custom endpoint.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(agent.ProviderEndpoint))
         {
-            Endpoint = new Uri(agent.ProviderEndpoint)
-        };
+            clientOptions.Endpoint = new Uri(agent.ProviderEndpoint);
+        }
 
         var openAiClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions);
 
         var chatClient = openAiClient.GetChatClient(agent.ProviderModelName)
             .AsIChatClient()
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .Build();
+
+        var tools = await GetAgentToolsByAgentId(agent);
+
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+    }
+
+    private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
+    {
+        // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
+        // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
+        // The same IChatClient pipeline (function invocation, telemetry) is applied for consistency.
+        var chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
+            .AsIChatClient(defaultModelId: agent.ProviderModelName)
             .AsBuilder()
             .UseFunctionInvocation()
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
