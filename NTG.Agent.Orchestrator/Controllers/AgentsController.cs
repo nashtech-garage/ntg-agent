@@ -35,7 +35,7 @@ public class AgentsController : ControllerBase
         Guid? userId = User.GetUserId();
         await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest))
         {
-            yield return new PromptResponse(response);
+            yield return response;
         }
     }
 
@@ -52,7 +52,7 @@ public class AgentsController : ControllerBase
     {
         var agents = await _agentDbContext.Agents
             .Where(a => a.IsPublished)
-            .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault))
+            .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);
     }

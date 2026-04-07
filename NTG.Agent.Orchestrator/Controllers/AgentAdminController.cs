@@ -76,7 +76,8 @@ public class AgentAdminController : ControllerBase
                 McpServer = x.McpServer,
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
                 IsDefault = x.IsDefault,
-                IsPublished = x.IsPublished
+                IsPublished = x.IsPublished,
+                Mode = x.Mode
             })
             .FirstOrDefaultAsync();
 
@@ -129,6 +130,7 @@ public class AgentAdminController : ControllerBase
         agent.ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty;
         agent.ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty;
         agent.McpServer = updatedAgent.McpServer;
+        agent.Mode = updatedAgent.Mode;
         agent.UpdatedAt = DateTime.UtcNow;
         agent.UpdatedByUserId = userId;
         await _agentDbContext.SaveChangesAsync();

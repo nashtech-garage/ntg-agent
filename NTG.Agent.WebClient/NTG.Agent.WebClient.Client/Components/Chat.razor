@@ -37,6 +37,21 @@ else if (ConversationId.HasValue)
             if (item.IsAssistant)
             {
                 <div class="p-2 w-100">
+                    @if (!string.IsNullOrEmpty(item.ThinkingContent) || (isThinking && item == chatHistory.LastOrDefault(m => m.IsAssistant)))
+                    {
+                        var isCurrentlyThinking = isThinking && item == chatHistory.LastOrDefault(m => m.IsAssistant);
+                        <details class="thinking-block mb-2">
+                            <summary class="thinking-summary">
+                                <span class="thinking-indicator @(isCurrentlyThinking ? "thinking-pulse" : "thinking-done")">
+                                    <i class="bi bi-cpu-fill"></i>
+                                    @(isCurrentlyThinking ? "Thinking\u2026" : "Thought process")
+                                </span>
+                            </summary>
+                            <div class="thinking-content">
+                                @(isCurrentlyThinking ? liveThinkingContent : item.ThinkingContent)
+                            </div>
+                        </details>
+                    }
                     <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
                                       CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
                     <div class="chat-actions mt-2 ms-2">
@@ -212,10 +227,24 @@ else
                         </div>
                         <div class="agent-card-content">
                             <div class="agent-card-name">@agent.Name</div>
-                            @if (agent.IsDefault)
-                            {
-                                <span class="badge bg-primary">Default</span>
-                            }
+                            <div class="d-flex gap-1 mt-1 flex-wrap">
+                                @if (agent.IsDefault)
+                                {
+                                    <span class="badge bg-primary">Default</span>
+                                }
+                                @if (agent.Mode == AgentMode.Thinking)
+                                {
+                                    <span class="badge" style="background:#0dcaf0;color:#000">
+                                        <i class="bi bi-cpu-fill me-1"></i>Thinking
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-lightning-charge-fill me-1"></i>Fast
+                                    </span>
+                                }
+                            </div>
                         </div>
                         @if (selectedAgentId == agent.Id)
                         {
@@ -257,6 +286,8 @@ else
     private bool showRateLimitModal = false;
     private int messagesSinceLastCheck = 0;
     private const int RATE_LIMIT_CHECK_INTERVAL = 5; // Check server every 5 messages
+    private string liveThinkingContent = string.Empty;
+    private bool isThinking = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -291,6 +322,7 @@ else
                             IsAssistant = item.Role == "assistant",
                             IsUser = item.Role == "user",
                             Message = item.Content,
+                            ThinkingContent = item.ThinkingContent,
                             Reaction = item.Reaction,
                             UserComment = item.UserComment
                         });
@@ -366,17 +398,36 @@ else
             var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
                 currentSessionId, uploadItems, selectedAgentId);
 
-            var result = await ChatClient.InvokeStreamAsync(request);
             response.Message = string.Empty;
             uploadItems.Clear();
 
-            await foreach (var item in result)
-            {
-                response.Message += item.Content;
-                await Task.Delay(1);
+            liveThinkingContent = string.Empty;
+            isThinking = false;
 
-                await MarkdownSetValue!.SetValue(response.Message);
+            await foreach (var item in ChatClient.InvokeStreamAsync(request))
+            {
+                if (item.ContentType == PromptContentType.Thinking)
+                {
+                    isThinking = true;
+                    liveThinkingContent += item.Content;
+                    StateHasChanged();
+                }
+                else
+                {
+                    isThinking = false;
+                    response.Message += item.Content;
+                    await Task.Delay(1);
+                    if (MarkdownSetValue is not null)
+                        await MarkdownSetValue.SetValue(response.Message);
+                }
             }
+
+            // Finalize thinking state before the final render
+            response.ThinkingContent = liveThinkingContent.Length > 0 ? liveThinkingContent : null;
+            liveThinkingContent = string.Empty;
+            isThinking = false;
+            // Ensure the UI reflects the final streamed state for all users/conversation types
+            StateHasChanged();
 
             // Update rate limit count client-side for better performance
             if (!isAuthenticated && rateLimitStatus != null)

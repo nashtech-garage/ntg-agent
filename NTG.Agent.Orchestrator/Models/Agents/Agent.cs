@@ -1,4 +1,5 @@
-﻿using NTG.Agent.Orchestrator.Models.Identity;
+﻿using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Orchestrator.Models.Identity;
 
 namespace NTG.Agent.Orchestrator.Models.Agents;
 
@@ -29,6 +30,9 @@ public class Agent
     public bool IsPublished { get; set; }
 
     public bool IsDefault { get; set; }
+
+    /// <summary>Whether this agent uses Fast or Thinking (reasoning) mode.</summary>
+    public AgentMode Mode { get; set; } = AgentMode.Fast;
 
     public string? McpServer { get; set; } = string.Empty;
 

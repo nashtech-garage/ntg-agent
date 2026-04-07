@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
 using OpenAI;
+using OpenAI.Responses;
 using System.ClientModel;
 using OpenAI.Chat;
 
@@ -31,6 +33,7 @@ public class AgentFactory : IAgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
+            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
             "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
             "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
             "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
@@ -47,6 +50,7 @@ public class AgentFactory : IAgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
+            "OpenAI" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
@@ -77,39 +81,92 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
     {
-        var clientOptions = new OpenAIClientOptions
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
         {
-            Endpoint = new Uri(agent.ProviderEndpoint)
-        };
-
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions);
-
-        var chatClient = openAiClient.GetChatClient(agent.ProviderModelName)
-            .AsIChatClient()
-            .AsBuilder()
-            .UseFunctionInvocation()
-            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-            .Build();
+            // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
+            // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
+            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
+#pragma warning disable OPENAI001
+            chatClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey))
+                .GetResponsesClient()
+                .AsIChatClient(agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Reasoning = new()
+                    {
+                        Effort = ReasoningEffort.Medium,
+                        Output = ReasoningOutput.Full,
+                    };
+                })
+                .Build();
+#pragma warning restore OPENAI001
+        }
+        else
+        {
+            // Standard models use Chat Completions API.
+            var clientOptions = new OpenAIClientOptions { Endpoint = new Uri(agent.ProviderEndpoint) };
+            chatClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions)
+                .GetChatClient(agent.ProviderModelName)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
+        }
 
         var tools = await GetAgentToolsByAgentId(agent);
-
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
     {
-        var chatClient = new AzureOpenAIClient(
-            new Uri(agent.ProviderEndpoint),
-            new ApiKeyCredential(agent.ProviderApiKey))
-             .GetChatClient(agent.ProviderModelName)
-             .AsIChatClient()
-             .AsBuilder()
-             .UseFunctionInvocation()
-             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-             .Build();
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+#pragma warning disable OPENAI001
+            chatClient = new AzureOpenAIClient(
+                    new Uri(agent.ProviderEndpoint),
+                    new ApiKeyCredential(agent.ProviderApiKey))
+                .GetResponsesClient()
+                .AsIChatClient(agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.RawRepresentationFactory = _ => new CreateResponseOptions
+                    {
+                        ReasoningOptions = new ResponseReasoningOptions
+                        {
+                            ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                        }
+                    };
+                })
+                .Build();
+#pragma warning restore OPENAI001
+        }
+        else
+        {
+            chatClient = new AzureOpenAIClient(
+                new Uri(agent.ProviderEndpoint),
+                new ApiKeyCredential(agent.ProviderApiKey))
+                .GetChatClient(agent.ProviderModelName)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
+        }
 
         var tools = await GetAgentToolsByAgentId(agent);
-
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 

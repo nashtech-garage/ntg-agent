@@ -232,3 +232,56 @@
         margin: 1rem;
     }
 }
+
+/* ── Thinking block ─────────────────────────────────────────────────────── */
+
+.thinking-block {
+    border-left: 3px solid #0dcaf0;
+    padding-left: 0.75rem;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.thinking-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 0.25rem 0;
+}
+
+.thinking-summary::-webkit-details-marker {
+    display: none;
+}
+
+.thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+}
+
+.thinking-pulse {
+    color: #0dcaf0;
+    animation: thinking-pulse-animation 1.2s ease-in-out infinite;
+}
+
+.thinking-done {
+    color: #198754;
+}
+
+.thinking-content {
+    margin-top: 0.5rem;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@keyframes thinking-pulse-animation {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}

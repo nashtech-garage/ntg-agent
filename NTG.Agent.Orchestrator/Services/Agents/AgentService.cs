@@ -16,6 +16,7 @@ using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using System.Text;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -52,7 +53,7 @@ public class AgentService
         _logger = logger;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
+    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var startTime = DateTime.UtcNow;
         var anonymousSessionId = Guid.Empty;
@@ -87,28 +88,58 @@ public class AgentService
         {
             //ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
+
+        if (conversation.Name == "New Conversation")
+        {
+            var nameTokenUsage = new TokenUsageInfo();
+            var nameStart = DateTime.UtcNow;
+            conversation.Name = await GenerateConversationName(promptRequest.Prompt, nameTokenUsage);
+            _agentDbContext.Conversations.Update(conversation);
+            await _agentDbContext.SaveChangesAsync();
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameTokenUsage, DateTime.UtcNow - nameStart);
+        }
+
+        // Track text and thinking content separately — thinking is persisted but excluded from AI history
         var agentMessageSb = new StringBuilder();
+        var thinkingMessageSb = new StringBuilder();
         var tokenUsageInfo = new TokenUsageInfo();
+
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
         {
-            agentMessageSb.Append(item);
+            if (item.ContentType == PromptContentType.Thinking)
+                thinkingMessageSb.Append(item.Content);
+            else
+                agentMessageSb.Append(item.Content);
+
             yield return item;
         }
 
         var responseTime = DateTime.UtcNow - startTime;
-        var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
 
-        // Increment anonymous session counter after successful message
-        if (!userId.HasValue)
+        try
         {
-            await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
+            var savedMessage = await SaveMessages(
+                userId, promptRequest, conversation,
+                agentMessageSb.ToString(),
+                thinkingMessageSb.Length > 0 ? thinkingMessageSb.ToString() : null,
+                ocrDocuments);
+
+            // Increment anonymous session counter after successful message
+            if (!userId.HasValue)
+            {
+                await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
+            }
+
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
+
+            if (userId is Guid userGuid)
+            {
+                await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
+            }
         }
-
-        await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
-        
-        if (userId is Guid userGuid)
+        catch (Exception ex)
         {
-            await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
+            _logger.LogError(ex, "Failed to save messages or post-process after streaming for conversation {ConversationId}", promptRequest.ConversationId);
         }
     }
 
@@ -190,23 +221,18 @@ public class AgentService
             .ToList();
     }
 
-    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, List<string> ocrDocuments)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, List<string> ocrDocuments)
     {
-        if (conversation.Name == "New Conversation")
-        {
-            var tokenUsageInfo = new TokenUsageInfo();
-            var startTime = DateTime.UtcNow;
-            conversation.Name = await GenerateConversationName(promptRequest.Prompt, tokenUsageInfo);
-            var responseTime = DateTime.UtcNow - startTime;
-
-            _agentDbContext.Conversations.Update(conversation);
-            await _agentDbContext.SaveChangesAsync();
-
-            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, tokenUsageInfo, responseTime);
-        }
-
+        // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
         var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
-        var assistantMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant };
+        var assistantMessage = new PChatMessage
+        {
+            UserId = userId,
+            Conversation = conversation,
+            Content = assistantReply,
+            ThinkingContent = thinkingContent,
+            Role = ChatRole.Assistant
+        };
 
         _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
 
@@ -215,7 +241,7 @@ public class AgentService
         return assistantMessage;
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
+    private async IAsyncEnumerable<PromptResponse> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
         List<string> tags,
@@ -227,8 +253,8 @@ public class AgentService
         {
             await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
             {
-                yield return response;
-             }
+                yield return new PromptResponse(response);
+            }
         }
         else
         {
@@ -257,13 +283,20 @@ public class AgentService
                 Tools = [memorySearch]
             };
 
-            await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
-                if (!string.IsNullOrEmpty(item.Text))
+                foreach (var item in update.Contents)
                 {
-                    yield return item.Text;
+                    if (item is TextReasoningContent reasoningContent)
+                    {
+                        yield return new PromptResponse(reasoningContent.Text, PromptContentType.Thinking);
+                    }
+                    else if (item is TextContent textContent)
+                    {
+                        yield return new PromptResponse(textContent.Text);
+                    }
                 }
-                ExtractTokenUsage(item.RawRepresentation, tokenUsageInfo);
+                ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
             }
         }
     }
