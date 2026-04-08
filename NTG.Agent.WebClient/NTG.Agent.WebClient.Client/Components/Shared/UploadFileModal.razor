@@ -98,6 +98,8 @@
     private bool isError = false;
     private List<UploadItemClient> uploadItems = new();
     private int MAX_FILE_UPLOAD = 10;
+    // Per-file size cap kept in sync with ChatClient.MAX_FILES_SIZE (50 MB)
+    private const long MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
 
     [Parameter] public bool IsVisible { get; set; }
 
@@ -128,7 +130,36 @@
 
             foreach (var file in files)
             {
-                var fileContent = new StreamContent(file.OpenReadStream(50 * 1024 * 1024));
+                // Reject individual files that exceed the per-file size limit.
+                if (file.Size > MAX_FILE_SIZE_BYTES)
+                {
+                    uploadItems.Add(new UploadItemClient
+                    {
+                        Name = file.Name,
+                        Size = file.Size,
+                        Status = UploadStatus.Error,
+                        Message = $"File exceeds the 50 MB limit ({file.Size / (1024d * 1024):F1} MB)."
+                    });
+                    StateHasChanged();
+                    continue;
+                }
+
+                // Reject if adding this file would push the total over the aggregate limit.
+                var currentTotal = uploadItems.Sum(i => i.Size);
+                if (currentTotal + file.Size > MAX_FILE_SIZE_BYTES)
+                {
+                    uploadItems.Add(new UploadItemClient
+                    {
+                        Name = file.Name,
+                        Size = file.Size,
+                        Status = UploadStatus.Error,
+                        Message = $"Skipped: adding this file would exceed the 50 MB total limit."
+                    });
+                    StateHasChanged();
+                    continue;
+                }
+
+                var fileContent = new StreamContent(file.OpenReadStream(MAX_FILE_SIZE_BYTES));
 
                 // Get content type from file or fallback to detection by extension
                 var contentType = !string.IsNullOrEmpty(file.ContentType)
@@ -139,6 +170,7 @@
                 var uploadItem = new UploadItemClient
                     {
                         Name = file.Name,
+                        Size = file.Size,
                         Status = UploadStatus.Uploading,
                         Message = "Uploading...",
                         Progress = 0,
@@ -169,9 +201,10 @@
                 StateHasChanged();
             }
 
-            // Clear upload items after a delay
+            // Only pass successfully uploaded items to the caller.
+            var successItems = uploadItems.Where(i => i.Status == UploadStatus.Success).ToList();
             await Task.Delay(3000);
-            await OnUploadCompleted.InvokeAsync(uploadItems);
+            await OnUploadCompleted.InvokeAsync(successItems);
             uploadItems.Clear();
         }
         catch (Exception ex)

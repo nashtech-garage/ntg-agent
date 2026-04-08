@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using NTG.Agent.WebClient.Client.Dtos;
 using System.Globalization;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos;
 
 namespace NTG.Agent.WebClient.Client.Services;
 
@@ -10,7 +11,7 @@ public class ChatClient(HttpClient httpClient)
 {
     private const string REQUEST_URI = "/api/agents/chat";
 
-    private const int maxFileSize = 50 * 1024 * 1024; // 50 MB
+    private const int MAX_FILES_SIZE = 50 * 1024 * 1024; // 50 MB
 
     // Returning IAsyncEnumerable (not Task<IAsyncEnumerable>) keeps `form` and `response` in scope
     // for the entire iteration, avoiding premature disposal of the response stream.
@@ -20,6 +21,17 @@ public class ChatClient(HttpClient httpClient)
         PromptRequest<UploadItemClient> request,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // Validate that the total size of all documents does not exceed the limit.
+        if (request.Documents != null)
+        {
+            var totalSize = request.Documents.Sum(d => d.Size);
+            if (totalSize > MAX_FILES_SIZE)
+            {
+                throw new InvalidOperationException(
+                    $"Total upload size ({totalSize / (1024 * 1024.0):F1} MB) exceeds the maximum allowed size of {MAX_FILES_SIZE / (1024 * 1024)} MB.");
+            }
+        }
+
         using var form = new MultipartFormDataContent();
 
         // --- 1️ Add Documents first ---
@@ -71,6 +83,18 @@ public class ChatClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         var agents = await response.Content.ReadFromJsonAsync<List<AgentListItemDto>>();
         return agents ?? new List<AgentListItemDto>();
+    }
+
+    /// <summary>
+    /// Retrieves server-side feature flags so the UI can conditionally show or hide features
+    /// such as the file upload button, which requires Azure Document Intelligence to be configured.
+    /// </summary>
+    public async Task<FeatureFlagsDto> GetFeaturesAsync()
+    {
+        var response = await httpClient.GetAsync("/api/features");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<FeatureFlagsDto>()
+               ?? new FeatureFlagsDto(DocumentIntelligenceEnabled: false);
     }
 
 }

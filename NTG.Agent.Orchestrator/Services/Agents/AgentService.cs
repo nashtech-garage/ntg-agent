@@ -2,7 +2,6 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using NTG.Agent.Common.Dtos.AnonymousSessions;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -13,10 +12,10 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
+using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using System.Text;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -30,6 +29,7 @@ public class AgentService
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserMemoryService _memoryService;
+    private readonly IDocumentAnalysisService _documentAnalysisService;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -41,6 +41,7 @@ public class AgentService
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
         IUserMemoryService memoryService,
+        IDocumentAnalysisService documentAnalysisService,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -51,6 +52,7 @@ public class AgentService
         _httpContextAccessor = httpContextAccessor;
         _memoryService = memoryService;
         _logger = logger;
+        _documentAnalysisService = documentAnalysisService;
     }
 
     public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -84,9 +86,9 @@ public class AgentService
         var history = await PrepareConversationHistory(userId, promptRequest.SessionId, promptRequest.AgentId, conversation);
         var tags = await GetUserTags(userId);
         var ocrDocuments = new List<string>();
-        if (promptRequest.Documents is not null && promptRequest.Documents.Any())
+        if (_documentAnalysisService.IsEnabled && promptRequest.Documents is not null && promptRequest.Documents.Any())
         {
-            //ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
+            ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
 
         if (conversation.Name == "New Conversation")
