@@ -3,6 +3,7 @@ namespace NTG.Agent.Common.Dtos.TokenUsage;
 public record TokenUsageStatsDto(
     long? TotalInputTokens,
     long? TotalOutputTokens,
+    long? TotalReasoningTokens,
     long? TotalTokens,
     decimal TotalCost,
     int TotalCalls,

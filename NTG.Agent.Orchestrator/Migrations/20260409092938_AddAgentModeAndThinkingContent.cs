@@ -11,6 +11,18 @@ namespace NTG.Agent.Orchestrator.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<decimal>(
+                name: "ReasoningTokenCost",
+                table: "TokenUsages",
+                type: "decimal(18,2)",
+                nullable: true);
+
+            migrationBuilder.AddColumn<long>(
+                name: "ReasoningTokens",
+                table: "TokenUsages",
+                type: "bigint",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "ThinkingContent",
                 table: "ChatMessages",
@@ -35,6 +47,14 @@ namespace NTG.Agent.Orchestrator.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "ReasoningTokenCost",
+                table: "TokenUsages");
+
+            migrationBuilder.DropColumn(
+                name: "ReasoningTokens",
+                table: "TokenUsages");
+
             migrationBuilder.DropColumn(
                 name: "ThinkingContent",
                 table: "ChatMessages");

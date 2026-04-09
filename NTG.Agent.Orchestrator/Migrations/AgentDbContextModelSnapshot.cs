@@ -87,7 +87,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("UpdatedByUserId");
 
-                    b.ToTable("Agents");
+                    b.ToTable("Agents", (string)null);
 
                     b.HasData(
                         new
@@ -143,7 +143,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("AgentId");
 
-                    b.ToTable("AgentTools");
+                    b.ToTable("AgentTools", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.AnonymousSessions.AnonymousSession", b =>
@@ -186,7 +186,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("SessionId")
                         .IsUnique();
 
-                    b.ToTable("AnonymousSessions");
+                    b.ToTable("AnonymousSessions", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
@@ -213,7 +213,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Conversations");
+                    b.ToTable("Conversations", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.PChatMessage", b =>
@@ -292,7 +292,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("SharedConversationId");
 
-                    b.ToTable("SharedChatMessages");
+                    b.ToTable("SharedChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.SharedConversation", b =>
@@ -327,7 +327,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SharedConversations");
+                    b.ToTable("SharedConversations", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Document", b =>
@@ -372,7 +372,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("FolderId");
 
-                    b.ToTable("Documents");
+                    b.ToTable("Documents", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.DocumentTag", b =>
@@ -399,7 +399,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("TagId");
 
-                    b.ToTable("DocumentTags");
+                    b.ToTable("DocumentTags", (string)null);
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Documents.Folder", b =>
@@ -441,7 +441,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasIndex("ParentId");
 
-                    b.ToTable("Folders");
+                    b.ToTable("Folders", (string)null);
 
                     b.HasData(
                         new
@@ -546,7 +546,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Tags");
+                    b.ToTable("Tags", (string)null);
 
                     b.HasData(
                         new
@@ -581,7 +581,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("TagId", "RoleId")
                         .IsUnique();
 
-                    b.ToTable("TagRoles");
+                    b.ToTable("TagRoles", (string)null);
 
                     b.HasData(
                         new
@@ -636,6 +636,12 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<decimal?>("ReasoningTokenCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("ReasoningTokens")
+                        .HasColumnType("bigint");
+
                     b.Property<TimeSpan>("ResponseTime")
                         .HasColumnType("time");
 
@@ -653,7 +659,7 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("TokenUsages", t =>
+                    b.ToTable("TokenUsages", null, t =>
                         {
                             t.HasCheckConstraint("CK_TokenUsage_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
                         });
@@ -696,7 +702,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("UserPreferences", t =>
+                    b.ToTable("UserPreferences", null, t =>
                         {
                             t.HasCheckConstraint("CK_UserPreference_UserIdOrSessionId", "([UserId] IS NOT NULL AND [SessionId] IS NULL) OR ([UserId] IS NULL AND [SessionId] IS NOT NULL)");
                         });

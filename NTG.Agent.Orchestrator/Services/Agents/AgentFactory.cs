@@ -33,7 +33,6 @@ public class AgentFactory : IAgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
-            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
             "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
             "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
             "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
@@ -50,7 +49,6 @@ public class AgentFactory : IAgentFactory
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {
-            "OpenAI" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),

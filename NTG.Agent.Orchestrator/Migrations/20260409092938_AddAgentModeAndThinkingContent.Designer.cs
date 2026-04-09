@@ -12,7 +12,7 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    [Migration("20260406101648_AddAgentModeAndThinkingContent")]
+    [Migration("20260409092938_AddAgentModeAndThinkingContent")]
     partial class AddAgentModeAndThinkingContent
     {
         /// <inheritdoc />
@@ -638,6 +638,12 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<string>("ProviderName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("ReasoningTokenCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("ReasoningTokens")
+                        .HasColumnType("bigint");
 
                     b.Property<TimeSpan>("ResponseTime")
                         .HasColumnType("time");

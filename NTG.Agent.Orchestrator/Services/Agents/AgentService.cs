@@ -314,6 +314,7 @@ public class AgentService
         if (usageDetails == null) return;
         tokenUsage.InputTokens = usageDetails.InputTokenCount;
         tokenUsage.OutputTokens = usageDetails.OutputTokenCount;
+        tokenUsage.ReasoningTokens = usageDetails.ReasoningTokenCount;
         tokenUsage.TotalTokens = usageDetails.TotalTokenCount;
     }
 
@@ -466,9 +467,11 @@ public class AgentService
             ProviderName = agentConfig.ProviderName,
             InputTokens = tokenUsageInfo.InputTokens,
             OutputTokens = tokenUsageInfo.OutputTokens,
+            ReasoningTokens = tokenUsageInfo.ReasoningTokens,
             TotalTokens = tokenUsageInfo.TotalTokens,
             InputTokenCost = null,
             OutputTokenCost = null,
+            ReasoningTokenCost = null,
             TotalCost = null,
             OperationType = operationType,
             ResponseTime = responseTime,
