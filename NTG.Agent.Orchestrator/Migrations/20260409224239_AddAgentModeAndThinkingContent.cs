@@ -30,6 +30,12 @@ namespace NTG.Agent.Orchestrator.Migrations
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(
+                name: "ThinkingDurationMs",
+                table: "ChatMessages",
+                type: "int",
+                nullable: true);
+
+            migrationBuilder.AddColumn<int>(
                 name: "Mode",
                 table: "Agents",
                 type: "int",
@@ -57,6 +63,10 @@ namespace NTG.Agent.Orchestrator.Migrations
 
             migrationBuilder.DropColumn(
                 name: "ThinkingContent",
+                table: "ChatMessages");
+
+            migrationBuilder.DropColumn(
+                name: "ThinkingDurationMs",
                 table: "ChatMessages");
 
             migrationBuilder.DropColumn(

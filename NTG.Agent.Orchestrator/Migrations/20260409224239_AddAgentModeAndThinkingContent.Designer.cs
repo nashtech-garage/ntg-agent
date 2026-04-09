@@ -12,7 +12,7 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    [Migration("20260409092938_AddAgentModeAndThinkingContent")]
+    [Migration("20260409224239_AddAgentModeAndThinkingContent")]
     partial class AddAgentModeAndThinkingContent
     {
         /// <inheritdoc />
@@ -250,6 +250,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<string>("ThinkingContent")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ThinkingDurationMs")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");

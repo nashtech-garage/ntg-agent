@@ -161,6 +161,7 @@ public class ConversationsController : ControllerBase
                 Id = x.Id,
                 Content = x.Content,
                 ThinkingContent = x.ThinkingContent,
+                ThinkingDurationMs = x.ThinkingDurationMs,
                 Role = x.Role.Value,
                 Reaction = x.Reaction,
                 UserComment = x.UserComment

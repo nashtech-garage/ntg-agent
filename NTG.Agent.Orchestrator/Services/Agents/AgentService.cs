@@ -105,18 +105,34 @@ public class AgentService
         var agentMessageSb = new StringBuilder();
         var thinkingMessageSb = new StringBuilder();
         var tokenUsageInfo = new TokenUsageInfo();
+        // Track when the thinking phase begins and ends so we can persist the duration
+        DateTime? thinkingStartedAt = null;
+        DateTime? thinkingEndedAt = null;
 
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
         {
             if (item.ContentType == PromptContentType.Thinking)
+            {
+                // Record the start timestamp on the first thinking chunk
+                thinkingStartedAt ??= DateTime.UtcNow;
                 thinkingMessageSb.Append(item.Content);
+            }
             else
+            {
+                // Record the end timestamp on the first non-thinking chunk after thinking started
+                if (thinkingStartedAt.HasValue && !thinkingEndedAt.HasValue)
+                    thinkingEndedAt = DateTime.UtcNow;
                 agentMessageSb.Append(item.Content);
+            }
 
             yield return item;
         }
 
         var responseTime = DateTime.UtcNow - startTime;
+        // Calculate thinking duration; falls back to end-of-stream if no non-thinking chunk followed
+        int? thinkingDurationMs = thinkingStartedAt.HasValue
+            ? (int)((thinkingEndedAt ?? DateTime.UtcNow) - thinkingStartedAt.Value).TotalMilliseconds
+            : null;
 
         try
         {
@@ -124,6 +140,7 @@ public class AgentService
                 userId, promptRequest, conversation,
                 agentMessageSb.ToString(),
                 thinkingMessageSb.Length > 0 ? thinkingMessageSb.ToString() : null,
+                thinkingDurationMs,
                 ocrDocuments);
 
             // Increment anonymous session counter after successful message
@@ -223,7 +240,7 @@ public class AgentService
             .ToList();
     }
 
-    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, List<string> ocrDocuments)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments)
     {
         // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
         var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
@@ -233,6 +250,7 @@ public class AgentService
             Conversation = conversation,
             Content = assistantReply,
             ThinkingContent = thinkingContent,
+            ThinkingDurationMs = thinkingDurationMs,
             Role = ChatRole.Assistant
         };
 

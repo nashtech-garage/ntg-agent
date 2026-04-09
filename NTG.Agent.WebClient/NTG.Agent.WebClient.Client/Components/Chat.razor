@@ -46,6 +46,10 @@ else if (ConversationId.HasValue)
                                 <span class="thinking-indicator @(isCurrentlyThinking ? "thinking-pulse" : "thinking-done")">
                                     <i class="bi bi-cpu-fill"></i>
                                     @(isCurrentlyThinking ? "Thinking\u2026" : "Thought process")
+                                    @if (!isCurrentlyThinking && item.ThinkingDurationMs.HasValue)
+                                    {
+                                        <span class="thinking-duration text-muted fst-italic">(@FormatThinkingDuration(item.ThinkingDurationMs.Value))</span>
+                                    }
                                 </span>
                             </summary>
                             <div class="thinking-content">
@@ -321,6 +325,7 @@ else
     private const int RATE_LIMIT_CHECK_INTERVAL = 5; // Check server every 5 messages
     private string liveThinkingContent = string.Empty;
     private bool isThinking = false;
+    private DateTime? thinkingStartedAt;
 
     protected override async Task OnInitializedAsync()
     {
@@ -361,6 +366,7 @@ else
                             IsUser = item.Role == "user",
                             Message = item.Content,
                             ThinkingContent = item.ThinkingContent,
+                            ThinkingDurationMs = item.ThinkingDurationMs,
                             Reaction = item.Reaction,
                             UserComment = item.UserComment
                         });
@@ -447,12 +453,16 @@ else
 
             liveThinkingContent = string.Empty;
             isThinking = false;
+            thinkingStartedAt = null;
             var liveThinkingBuilder = new StringBuilder();
+            DateTime? thinkingEndedAt = null;
 
             await foreach (var item in ChatClient.InvokeStreamAsync(request))
             {
                 if (item.ContentType == PromptContentType.Thinking)
                 {
+                    // Record start timestamp on the first thinking chunk
+                    thinkingStartedAt ??= DateTime.UtcNow;
                     isThinking = true;
                     liveThinkingBuilder.Append(item.Content);
                     liveThinkingContent = liveThinkingBuilder.ToString();
@@ -462,6 +472,8 @@ else
                 {
                     if (isThinking)
                     {
+                        // Record end timestamp at the thinking→answer transition
+                        thinkingEndedAt = DateTime.UtcNow;
                         // Transition: commit the "Thought process" render before streaming main content
                         isThinking = false;
                         StateHasChanged();
@@ -476,6 +488,11 @@ else
 
             // Finalize thinking state before the final render
             response.ThinkingContent = liveThinkingBuilder.Length > 0 ? liveThinkingBuilder.ToString() : null;
+            // Calculate duration from the tracked timestamps (server also stores this, but we set it here
+            // so the completed block shows the time immediately without a page reload)
+            response.ThinkingDurationMs = thinkingStartedAt.HasValue
+                ? (int)((thinkingEndedAt ?? DateTime.UtcNow) - thinkingStartedAt.Value).TotalMilliseconds
+                : null;
             liveThinkingContent = string.Empty;
             isThinking = false;
             // Ensure the UI reflects the final streamed state for all users/conversation types
@@ -798,4 +815,11 @@ else
         showRateLimitModal = false;
         StateHasChanged();
     }
+
+    /// <summary>
+    /// Formats a reasoning duration for display. Shows milliseconds below one second,
+    /// otherwise one decimal place in seconds (e.g. "1.4s").
+    /// </summary>
+    private static string FormatThinkingDuration(int ms) =>
+        ms >= 1000 ? $"{ms / 1000.0:F1}s" : $"{ms}ms";
 }
