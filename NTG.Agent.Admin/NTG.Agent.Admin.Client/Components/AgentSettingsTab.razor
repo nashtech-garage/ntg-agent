@@ -36,10 +36,17 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small">Provider API Key</label>
-                                <InputText id="providerAccessKey"
-                                           @bind-Value="AgentDetail.ProviderApiKey"
-                                           class="form-control"
-                                           placeholder="Enter the API Key..." />
+                                <div class="input-group">
+                                    <InputText id="providerAccessKey"
+                                               @bind-Value="AgentDetail.ProviderApiKey"
+                                               type="@(showApiKey ? "text" : "password")"
+                                               class="form-control"
+                                               placeholder="Enter the API Key..." />
+                                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showApiKey = !showApiKey"
+                                            title="@(showApiKey ? "Hide API key" : "Show API key")">
+                                        <i class="bi @(showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small">Provider Model Name</label>
@@ -207,6 +214,7 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     private string statusMessage = string.Empty;
     private bool isSaving = false;
     private bool isSuccess = false;
+    private bool showApiKey = false;
     
     // Advanced settings
     private double temperature = 0.7;

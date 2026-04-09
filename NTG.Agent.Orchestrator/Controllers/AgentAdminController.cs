@@ -345,6 +345,7 @@ public class AgentAdminController : ControllerBase
             ProviderEndpoint = updatedAgent.ProviderEndpoint ?? string.Empty,
             ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty,
             ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty,
+            Mode = updatedAgent.Mode,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
             IsDefault = false,
