@@ -4,6 +4,7 @@
 @using NTG.Agent.Common.Dtos.Agents
 @using NTG.Agent.Common.Dtos.AnonymousSessions
 @using NTG.Agent.WebClient.Client.Components.Shared
+@using System.Text
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
@@ -428,30 +429,44 @@ else
         chatHistory.Add(response);
         userInput = string.Empty;
         StateHasChanged();
+        // Yield so Blazor renders the "One moment..." placeholder before it is cleared below.
+        // Without this, subsequent messages skip the render because response.Message = string.Empty
+        // executes synchronously before the first await in the try block.
+        await Task.Delay(1);
 
         try
         {
             // 🚀 Send text + image to backend
+            // Snapshot uploads into a new list so that uploadItems.Clear() below
+            // does not mutate the collection that request.Documents references.
             var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
-                currentSessionId, uploadItems, selectedAgentId);
+                currentSessionId, uploadItems.ToList(), selectedAgentId);
 
             response.Message = string.Empty;
             uploadItems.Clear();
 
             liveThinkingContent = string.Empty;
             isThinking = false;
+            var liveThinkingBuilder = new StringBuilder();
 
             await foreach (var item in ChatClient.InvokeStreamAsync(request))
             {
                 if (item.ContentType == PromptContentType.Thinking)
                 {
                     isThinking = true;
-                    liveThinkingContent += item.Content;
+                    liveThinkingBuilder.Append(item.Content);
+                    liveThinkingContent = liveThinkingBuilder.ToString();
                     StateHasChanged();
                 }
                 else
                 {
-                    isThinking = false;
+                    if (isThinking)
+                    {
+                        // Transition: commit the "Thought process" render before streaming main content
+                        isThinking = false;
+                        StateHasChanged();
+                        await Task.Delay(1);
+                    }
                     response.Message += item.Content;
                     await Task.Delay(1);
                     if (MarkdownSetValue is not null)
@@ -460,7 +475,7 @@ else
             }
 
             // Finalize thinking state before the final render
-            response.ThinkingContent = liveThinkingContent.Length > 0 ? liveThinkingContent : null;
+            response.ThinkingContent = liveThinkingBuilder.Length > 0 ? liveThinkingBuilder.ToString() : null;
             liveThinkingContent = string.Empty;
             isThinking = false;
             // Ensure the UI reflects the final streamed state for all users/conversation types
