@@ -149,7 +149,13 @@ public class AgentService
                 await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
             }
 
-            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
+            // Use the Reasoning operation type when the model produced reasoning/thinking tokens.
+            // For OpenAI, ReasoningTokens is populated from UsageDetails.ReasoningTokenCount.
+            // For Anthropic, the SDK folds thinking tokens into OutputTokenCount and never sets
+            // ReasoningTokenCount, so we fall back to checking for thinking content in the stream.
+            var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || thinkingMessageSb.Length > 0;
+            var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
 
             if (userId is Guid userGuid)
             {

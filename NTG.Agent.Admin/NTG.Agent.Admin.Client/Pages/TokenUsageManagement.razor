@@ -266,7 +266,9 @@ else
                                             </td>
                                             <td>@item.AgentName</td>
                                             <td><span class="badge bg-info">@item.ModelName</span></td>
-                                            <td>@item.OperationType</td>
+                                            <td>
+                                                <span class="badge @GetOperationBadgeClass(item.OperationType)">@item.OperationType</span>
+                                            </td>
                                             <td class="text-end">@item.TotalTokens?.ToString("N0")</td>
                                             <td class="text-end">$@(item.TotalCost?.ToString("N4") ?? "0.00")</td>
                                         </tr>
@@ -314,7 +316,9 @@ else
                                             </div>
                                             <div class="col-6">
                                                 <small class="text-muted">Operation:</small>
-                                                <div>@item.OperationType</div>
+                                                <div>
+                                                    <span class="badge @GetOperationBadgeClass(item.OperationType)">@item.OperationType</span>
+                                                </div>
                                             </div>
                                             <div class="col-6">
                                                 <small class="text-muted">Tokens:</small>
@@ -471,4 +475,13 @@ else
         currentPage = page;
         await LoadUsageHistory();
     }
+
+    private static string GetOperationBadgeClass(string? operationType) => operationType switch
+    {
+        "Chat With Reasoning" => "bg-purple",
+        "Chat"      => "bg-primary",
+        "Generate Conversation Name" => "bg-secondary",
+        "Summarize Messages" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
 }
