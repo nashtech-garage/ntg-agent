@@ -164,7 +164,7 @@ public class AgentFactory : IAgentFactory
                 {
                     o.RawRepresentationFactory = _ => new MessageCreateParams
                     {
-                        Model = o.ModelId ?? agent.ProviderModelName,
+                        Model = agent.ProviderModelName,
                         MaxTokens = o.MaxOutputTokens ?? maxTokens,
                         Messages = [],
                         Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
