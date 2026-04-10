@@ -1,4 +1,7 @@
-﻿using Azure.AI.OpenAI;
+﻿using Anthropic;
+using Anthropic.Core;
+using Anthropic.Models.Messages;
+using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -35,7 +38,9 @@ public class AgentFactory : IAgentFactory
         {
             "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
             "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
+            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
             "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
+            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
@@ -51,20 +56,35 @@ public class AgentFactory : IAgentFactory
         {
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
+            "OpenAI" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
+            "Anthropic" => CreateBasicAnthropicAgent(agentConfig, instructions),
             _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
         };
     }
 
     private static ChatClientAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
-        var clientOptions = new OpenAIClientOptions
+        // ProviderEndpoint is optional for standard OpenAI; GitHub Models and Google Gemini require a custom endpoint.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(agentConfig.ProviderEndpoint))
         {
-            Endpoint = new Uri(agentConfig.ProviderEndpoint)
-        };
+            clientOptions.Endpoint = new Uri(agentConfig.ProviderEndpoint);
+        }
+
         var openAiClient = new OpenAIClient(new ApiKeyCredential(agentConfig.ProviderApiKey), clientOptions);
         var agent = openAiClient.GetChatClient(agentConfig.ProviderModelName).AsAIAgent(instructions: instructions);
         return agent;
+    }
+
+    private static ChatClientAgent CreateBasicAnthropicAgent(Models.Agents.Agent agentConfig, string instructions)
+    {
+        // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
+        // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
+        var chatClient = new AnthropicClient(new ClientOptions { ApiKey = agentConfig.ProviderApiKey })
+            .AsIChatClient(defaultModelId: agentConfig.ProviderModelName);
+
+        return new ChatClientAgent(chatClient, instructions: instructions);
     }
 
     private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
@@ -118,6 +138,52 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+    }
+
+    private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
+    {
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            // Extended thinking surfaces chain-of-thought as ThinkingContent items in the streaming response.
+            // Requires a compatible Claude model (e.g. claude-3-7-sonnet or later).
+            // The Anthropic MEA adapter reads RawRepresentationFactory to build the raw MessageCreateParams,
+            // which is the only supported way to pass the Thinking configuration.
+            // budgetTokens controls max reasoning tokens (must be ≥1024 and less than MaxTokens).
+            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
+            const int maxTokens = 4096;
+            const int thinkingTokens = 2048;
+            chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
+                .AsIChatClient(defaultModelId: agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.RawRepresentationFactory = _ => new MessageCreateParams
+                    {
+                        Model = o.ModelId ?? agent.ProviderModelName,
+                        MaxTokens = o.MaxOutputTokens ?? maxTokens,
+                        Messages = [],
+                        Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
+                    };
+                })
+                .Build();
+        }
+        else
+        {
+            chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
+                .AsIChatClient(defaultModelId: agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
+        }
+
+        var tools = await GetAgentToolsByAgentId(agent);
+
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 
