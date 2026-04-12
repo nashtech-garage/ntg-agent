@@ -2,7 +2,6 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using NTG.Agent.Common.Dtos.AnonymousSessions;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -56,7 +55,7 @@ public class AgentService
         _documentAnalysisService = documentAnalysisService;
     }
 
-    public async IAsyncEnumerable<string> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
+    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
     {
         var startTime = DateTime.UtcNow;
         var anonymousSessionId = Guid.Empty;
@@ -91,28 +90,81 @@ public class AgentService
         {
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
+
+        if (conversation.Name == "New Conversation")
+        {
+            var nameTokenUsage = new TokenUsageInfo();
+            var nameStart = DateTime.UtcNow;
+            conversation.Name = await GenerateConversationName(promptRequest.Prompt, nameTokenUsage);
+            _agentDbContext.Conversations.Update(conversation);
+            await _agentDbContext.SaveChangesAsync();
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameTokenUsage, DateTime.UtcNow - nameStart);
+        }
+
+        // Track text and thinking content separately — thinking is persisted but excluded from AI history
         var agentMessageSb = new StringBuilder();
+        var thinkingMessageSb = new StringBuilder();
         var tokenUsageInfo = new TokenUsageInfo();
+        // Track when the thinking phase begins and ends so we can persist the duration
+        DateTime? thinkingStartedAt = null;
+        DateTime? thinkingEndedAt = null;
+
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
         {
-            agentMessageSb.Append(item);
+            if (item.ContentType == PromptContentType.Thinking)
+            {
+                // Record the start timestamp on the first thinking chunk
+                thinkingStartedAt ??= DateTime.UtcNow;
+                thinkingMessageSb.Append(item.Content);
+            }
+            else
+            {
+                // Record the end timestamp on the first non-thinking chunk after thinking started
+                if (thinkingStartedAt.HasValue && !thinkingEndedAt.HasValue)
+                    thinkingEndedAt = DateTime.UtcNow;
+                agentMessageSb.Append(item.Content);
+            }
+
             yield return item;
         }
 
         var responseTime = DateTime.UtcNow - startTime;
-        var savedMessage = await SaveMessages(userId, promptRequest, conversation, agentMessageSb.ToString(), ocrDocuments);
+        // Calculate thinking duration; falls back to end-of-stream if no non-thinking chunk followed
+        int? thinkingDurationMs = thinkingStartedAt.HasValue
+            ? (int)((thinkingEndedAt ?? DateTime.UtcNow) - thinkingStartedAt.Value).TotalMilliseconds
+            : null;
 
-        // Increment anonymous session counter after successful message
-        if (!userId.HasValue)
+        try
         {
-            await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
+            var savedMessage = await SaveMessages(
+                userId, promptRequest, conversation,
+                agentMessageSb.ToString(),
+                thinkingMessageSb.Length > 0 ? thinkingMessageSb.ToString() : null,
+                thinkingDurationMs,
+                ocrDocuments);
+
+            // Increment anonymous session counter after successful message
+            if (!userId.HasValue)
+            {
+                await _anonymousSessionService.IncrementMessageCountAsync(anonymousSessionId, anonymousIpAddress);
+            }
+
+            // Use the Reasoning operation type when the model produced reasoning/thinking tokens.
+            // For OpenAI, ReasoningTokens is populated from UsageDetails.ReasoningTokenCount.
+            // For Anthropic, the SDK folds thinking tokens into OutputTokenCount and never sets
+            // ReasoningTokenCount, so we fall back to checking for thinking content in the stream.
+            var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || thinkingMessageSb.Length > 0;
+            var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
+            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
+
+            if (userId is Guid userGuid)
+            {
+                await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
+            }
         }
-
-        await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, OperationTypes.Chat, tokenUsageInfo, responseTime);
-        
-        if (userId is Guid userGuid)
+        catch (Exception ex)
         {
-            await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
+            _logger.LogError(ex, "Failed to save messages or post-process after streaming for conversation {ConversationId}", promptRequest.ConversationId);
         }
     }
 
@@ -194,23 +246,19 @@ public class AgentService
             .ToList();
     }
 
-    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, List<string> ocrDocuments)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments)
     {
-        if (conversation.Name == "New Conversation")
-        {
-            var tokenUsageInfo = new TokenUsageInfo();
-            var startTime = DateTime.UtcNow;
-            conversation.Name = await GenerateConversationName(promptRequest.Prompt, tokenUsageInfo);
-            var responseTime = DateTime.UtcNow - startTime;
-
-            _agentDbContext.Conversations.Update(conversation);
-            await _agentDbContext.SaveChangesAsync();
-
-            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, tokenUsageInfo, responseTime);
-        }
-
+        // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
         var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
-        var assistantMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = assistantReply, Role = ChatRole.Assistant };
+        var assistantMessage = new PChatMessage
+        {
+            UserId = userId,
+            Conversation = conversation,
+            Content = assistantReply,
+            ThinkingContent = thinkingContent,
+            ThinkingDurationMs = thinkingDurationMs,
+            Role = ChatRole.Assistant
+        };
 
         _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
 
@@ -219,7 +267,7 @@ public class AgentService
         return assistantMessage;
     }
 
-    private async IAsyncEnumerable<string> InvokePromptStreamingInternalAsync(
+    private async IAsyncEnumerable<PromptResponse> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
         List<string> tags,
@@ -231,8 +279,8 @@ public class AgentService
         {
             await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
             {
-                yield return response;
-             }
+                yield return new PromptResponse(response);
+            }
         }
         else
         {
@@ -261,13 +309,20 @@ public class AgentService
                 Tools = [memorySearch]
             };
 
-            await foreach (var item in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
-                if (!string.IsNullOrEmpty(item.Text))
+                foreach (var item in update.Contents)
                 {
-                    yield return item.Text;
+                    if (item is TextReasoningContent reasoningContent)
+                    {
+                        yield return new PromptResponse(reasoningContent.Text, PromptContentType.Thinking);
+                    }
+                    else if (item is TextContent textContent)
+                    {
+                        yield return new PromptResponse(textContent.Text);
+                    }
                 }
-                ExtractTokenUsage(item.RawRepresentation, tokenUsageInfo);
+                ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
             }
         }
     }
@@ -283,6 +338,7 @@ public class AgentService
         if (usageDetails == null) return;
         tokenUsage.InputTokens = usageDetails.InputTokenCount;
         tokenUsage.OutputTokens = usageDetails.OutputTokenCount;
+        tokenUsage.ReasoningTokens = usageDetails.ReasoningTokenCount;
         tokenUsage.TotalTokens = usageDetails.TotalTokenCount;
     }
 
@@ -435,9 +491,11 @@ public class AgentService
             ProviderName = agentConfig.ProviderName,
             InputTokens = tokenUsageInfo.InputTokens,
             OutputTokens = tokenUsageInfo.OutputTokens,
+            ReasoningTokens = tokenUsageInfo.ReasoningTokens,
             TotalTokens = tokenUsageInfo.TotalTokens,
             InputTokenCost = null,
             OutputTokenCost = null,
+            ReasoningTokenCost = null,
             TotalCost = null,
             OperationType = operationType,
             ResponseTime = responseTime,

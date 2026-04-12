@@ -1,0 +1,5 @@
+/* Purple badge for Reasoning operation type — Bootstrap 5 has no built-in bg-purple utility */
+::deep .badge.bg-purple {
+    background-color: #6f42c1 !important;
+    color: #fff;
+}

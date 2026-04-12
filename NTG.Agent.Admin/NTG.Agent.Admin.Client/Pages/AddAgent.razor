@@ -162,8 +162,14 @@
                             <label for="providerApiKey" class="form-label fw-semibold">
                                 API Key <span class="text-muted">(Optional)</span>
                             </label>
-                            <InputText id="providerApiKey" type="password" class="form-control" @bind-Value="agentDetail.ProviderApiKey" 
-                                       placeholder="Enter API key" disabled="@isSubmitting" />
+                            <div class="input-group">
+                                <InputText id="providerApiKey" type="@(showApiKey ? "text" : "password")" class="form-control" @bind-Value="agentDetail.ProviderApiKey"
+                                           placeholder="Enter API key" disabled="@isSubmitting" />
+                                <button class="btn btn-outline-secondary" type="button" @onclick="() => showApiKey = !showApiKey"
+                                        title="@(showApiKey ? "Hide API key" : "Show API key")" disabled="@isSubmitting">
+                                    <i class="bi @(showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+                                </button>
+                            </div>
                         </div>
 
                         <div class="mb-4">
@@ -175,6 +181,36 @@
                             <div class="form-text">
                                 <i class="bi bi-info-circle me-1"></i>
                                 Model Context Protocol server endpoint for additional capabilities.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-lightning-charge me-2 text-primary"></i>
+                                Agent Mode
+                            </label>
+                            <div class="form-text mb-2">Controls how the agent generates responses.</div>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="agentMode" id="modeFast"
+                                           checked="@(agentDetail.Mode == AgentMode.Fast)"
+                                           @onchange="() => agentDetail.Mode = AgentMode.Fast"
+                                           disabled="@isSubmitting" />
+                                    <label class="form-check-label" for="modeFast">
+                                        <i class="bi bi-lightning-charge-fill text-warning me-1"></i><strong>Fast</strong>
+                                        <div class="text-muted small">Returns the final answer immediately.</div>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="agentMode" id="modeThinking"
+                                           checked="@(agentDetail.Mode == AgentMode.Thinking)"
+                                           @onchange="() => agentDetail.Mode = AgentMode.Thinking"
+                                           disabled="@isSubmitting" />
+                                    <label class="form-check-label" for="modeThinking">
+                                        <i class="bi bi-cpu-fill text-info me-1"></i><strong>Thinking</strong>
+                                        <div class="text-muted small">Shows reasoning steps before the answer.</div>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -213,6 +249,7 @@
     private AgentDetail agentDetail = new AgentDetail();
     private bool isSubmitting = false;
     private bool isLoadingSource = false;
+    private bool showApiKey = false;
     private string? errorMessage;
     private bool isDuplicating => SourceAgentId.HasValue;
     private string sourceAgentName = string.Empty;
@@ -243,7 +280,8 @@
                     ProviderEndpoint = sourceAgent.ProviderEndpoint,
                     ProviderApiKey = sourceAgent.ProviderApiKey,
                     ProviderModelName = sourceAgent.ProviderModelName,
-                    McpServer = sourceAgent.McpServer
+                    McpServer = sourceAgent.McpServer,
+                    Mode = sourceAgent.Mode
                 };
                 sourceAgentName = sourceAgent.Name;
             }

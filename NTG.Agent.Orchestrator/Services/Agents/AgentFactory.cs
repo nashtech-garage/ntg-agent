@@ -1,13 +1,16 @@
 ﻿using Anthropic;
 using Anthropic.Core;
+using Anthropic.Models.Messages;
 using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
 using OpenAI;
+using OpenAI.Responses;
 using System.ClientModel;
 using OpenAI.Chat;
 
@@ -96,38 +99,88 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
     {
-        // ProviderEndpoint is optional for standard OpenAI; GitHub Models and Google Gemini require a custom endpoint.
-        var clientOptions = new OpenAIClientOptions();
-        if (!string.IsNullOrWhiteSpace(agent.ProviderEndpoint))
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
         {
-            clientOptions.Endpoint = new Uri(agent.ProviderEndpoint);
+            // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
+            // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
+            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
+#pragma warning disable OPENAI001
+            chatClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey))
+                .GetResponsesClient()
+                .AsIChatClient(agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Reasoning = new()
+                    {
+                        Effort = ReasoningEffort.Medium,
+                        Output = ReasoningOutput.Full,
+                    };
+                })
+                .Build();
+#pragma warning restore OPENAI001
+        }
+        else
+        {
+            // Standard models use Chat Completions API.
+            var clientOptions = new OpenAIClientOptions { Endpoint = new Uri(agent.ProviderEndpoint) };
+            chatClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions)
+                .GetChatClient(agent.ProviderModelName)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
         }
 
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), clientOptions);
-
-        var chatClient = openAiClient.GetChatClient(agent.ProviderModelName)
-            .AsIChatClient()
-            .AsBuilder()
-            .UseFunctionInvocation()
-            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-            .Build();
-
         var tools = await GetAgentToolsByAgentId(agent);
-
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 
     private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
     {
-        // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
-        // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
-        // The same IChatClient pipeline (function invocation, telemetry) is applied for consistency.
-        var chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
-            .AsIChatClient(defaultModelId: agent.ProviderModelName)
-            .AsBuilder()
-            .UseFunctionInvocation()
-            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-            .Build();
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            // Extended thinking surfaces chain-of-thought as ThinkingContent items in the streaming response.
+            // Requires a compatible Claude model (e.g. claude-3-7-sonnet or later).
+            // The Anthropic MEA adapter reads RawRepresentationFactory to build the raw MessageCreateParams,
+            // which is the only supported way to pass the Thinking configuration.
+            // budgetTokens controls max reasoning tokens (must be ≥1024 and less than MaxTokens).
+            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
+            const int maxTokens = 4096;
+            const int thinkingTokens = 2048;
+            chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
+                .AsIChatClient(defaultModelId: agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.RawRepresentationFactory = _ => new MessageCreateParams
+                    {
+                        Model = agent.ProviderModelName,
+                        MaxTokens = o.MaxOutputTokens ?? maxTokens,
+                        Messages = [],
+                        Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
+                    };
+                })
+                .Build();
+        }
+        else
+        {
+            chatClient = new AnthropicClient(new ClientOptions { ApiKey = agent.ProviderApiKey })
+                .AsIChatClient(defaultModelId: agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
+        }
 
         var tools = await GetAgentToolsByAgentId(agent);
 
@@ -136,18 +189,48 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
     {
-        var chatClient = new AzureOpenAIClient(
-            new Uri(agent.ProviderEndpoint),
-            new ApiKeyCredential(agent.ProviderApiKey))
-             .GetChatClient(agent.ProviderModelName)
-             .AsIChatClient()
-             .AsBuilder()
-             .UseFunctionInvocation()
-             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-             .Build();
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+#pragma warning disable OPENAI001
+            chatClient = new AzureOpenAIClient(
+                    new Uri(agent.ProviderEndpoint),
+                    new ApiKeyCredential(agent.ProviderApiKey))
+                .GetResponsesClient()
+                .AsIChatClient(agent.ProviderModelName)
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.RawRepresentationFactory = _ => new CreateResponseOptions
+                    {
+                        ReasoningOptions = new ResponseReasoningOptions
+                        {
+                            ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                        }
+                    };
+                })
+                .Build();
+#pragma warning restore OPENAI001
+        }
+        else
+        {
+            chatClient = new AzureOpenAIClient(
+                new Uri(agent.ProviderEndpoint),
+                new ApiKeyCredential(agent.ProviderApiKey))
+                .GetChatClient(agent.ProviderModelName)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .Build();
+        }
 
         var tools = await GetAgentToolsByAgentId(agent);
-
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
     }
 

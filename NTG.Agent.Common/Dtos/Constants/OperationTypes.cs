@@ -2,6 +2,7 @@
 public class OperationTypes
 {
     public const string Chat = "Chat";
-    public const string GenerateName = "GenerateName";
-    public const string SummarizeMessages = "SummarizeMessages";
+    public const string Reasoning = "Chat With Reasoning";
+    public const string GenerateName = "Generate Conversation Name";
+    public const string SummarizeMessages = "Summarize Messages";
 }

@@ -22,11 +22,13 @@ public class TokenUsage
     // Token metrics
     public long? InputTokens { get; set; }
     public long? OutputTokens { get; set; }
+    public long? ReasoningTokens { get; set; }
     public long? TotalTokens { get; set; }
 
     // Cost tracking (optional)
     public decimal? InputTokenCost { get; set; }
     public decimal? OutputTokenCost { get; set; }
+    public decimal? ReasoningTokenCost { get; set; }
     public decimal? TotalCost { get; set; }
 
     // Call metadata

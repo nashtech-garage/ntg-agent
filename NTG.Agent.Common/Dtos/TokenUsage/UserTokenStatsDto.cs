@@ -7,6 +7,7 @@ public record UserTokenStatsDto(
     bool IsAnonymous,
     long? TotalInputTokens,
     long? TotalOutputTokens,
+    long? TotalReasoningTokens,
     long? TotalTokens,
     decimal TotalCost,
     int ConversationCount,

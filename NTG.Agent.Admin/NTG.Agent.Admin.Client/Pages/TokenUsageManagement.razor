@@ -71,6 +71,14 @@ else
                 </div>
             </div>
             <div class="col-12 col-sm-6 col-md-4 col-xl-2">
+                <div class="card border-0 bg-purple bg-opacity-10 h-100" style="background-color: rgba(111,66,193,0.1);">
+                    <div class="card-body text-center py-3">
+                        <h5 class="mb-1" style="color: #6f42c1;">@stats?.TotalReasoningTokens?.ToString("N0")</h5>
+                        <small class="text-muted">Reasoning Tokens</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4 col-xl-2">
                 <div class="card border-0 bg-warning bg-opacity-10 h-100">
                     <div class="card-body text-center py-3">
                         <h5 class="text-warning mb-1">$@stats?.TotalCost.ToString("N2")</h5>
@@ -136,6 +144,7 @@ else
                                     <th class="text-end">Total Tokens</th>
                                     <th class="text-end">Input Tokens</th>
                                     <th class="text-end">Output Tokens</th>
+                                    <th class="text-end">Reasoning Tokens</th>
                                     <th class="text-end">Cost</th>
                                     <th class="text-center">Conversations</th>
                                     <th>Last Activity</th>
@@ -160,6 +169,7 @@ else
                                             <td class="text-end"><strong>@user.TotalTokens?.ToString("N0")</strong></td>
                                             <td class="text-end">@user.TotalInputTokens?.ToString("N0")</td>
                                             <td class="text-end">@user.TotalOutputTokens?.ToString("N0")</td>
+                                            <td class="text-end">@user.TotalReasoningTokens?.ToString("N0")</td>
                                             <td class="text-end">$@user.TotalCost.ToString("N2")</td>
                                             <td class="text-center">@user.ConversationCount</td>
                                             <td>@user.LastActivity.ToString("MMM dd, yyyy HH:mm")</td>
@@ -256,7 +266,9 @@ else
                                             </td>
                                             <td>@item.AgentName</td>
                                             <td><span class="badge bg-info">@item.ModelName</span></td>
-                                            <td>@item.OperationType</td>
+                                            <td>
+                                                <span class="badge @GetOperationBadgeClass(item.OperationType)">@item.OperationType</span>
+                                            </td>
                                             <td class="text-end">@item.TotalTokens?.ToString("N0")</td>
                                             <td class="text-end">$@(item.TotalCost?.ToString("N4") ?? "0.00")</td>
                                         </tr>
@@ -304,7 +316,9 @@ else
                                             </div>
                                             <div class="col-6">
                                                 <small class="text-muted">Operation:</small>
-                                                <div>@item.OperationType</div>
+                                                <div>
+                                                    <span class="badge @GetOperationBadgeClass(item.OperationType)">@item.OperationType</span>
+                                                </div>
                                             </div>
                                             <div class="col-6">
                                                 <small class="text-muted">Tokens:</small>
@@ -461,4 +475,13 @@ else
         currentPage = page;
         await LoadUsageHistory();
     }
+
+    private static string GetOperationBadgeClass(string? operationType) => operationType switch
+    {
+        "Chat With Reasoning" => "bg-purple",
+        "Chat"      => "bg-primary",
+        "Generate Conversation Name" => "bg-secondary",
+        "Summarize Messages" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
 }

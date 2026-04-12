@@ -994,4 +994,95 @@ public class AgentAdminControllerTests
         await _context.Agents.AddRangeAsync(agents);
         await _context.SaveChangesAsync();
     }
+
+    #region Agent Mode Tests
+
+    [Test]
+    public async Task UpdateAgent_WhenModeFast_PersistsFastMode()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        var updatedAgent = new AgentDetail(agentId, "Single Test Agent", null, null, null, null, null)
+        {
+            Mode = AgentMode.Fast
+        };
+
+        // Act
+        var result = await _controller.UpdateAgent(agentId, updatedAgent);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var savedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(savedAgent, Is.Not.Null);
+        Assert.That(savedAgent.Mode, Is.EqualTo(AgentMode.Fast));
+    }
+
+    [Test]
+    public async Task UpdateAgent_WhenModeThinking_PersistsThinkingMode()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+        var updatedAgent = new AgentDetail(agentId, "Single Test Agent", null, null, null, null, null)
+        {
+            Mode = AgentMode.Thinking
+        };
+
+        // Act
+        var result = await _controller.UpdateAgent(agentId, updatedAgent);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var savedAgent = await _context.Agents.FindAsync(agentId);
+        Assert.That(savedAgent, Is.Not.Null);
+        Assert.That(savedAgent.Mode, Is.EqualTo(AgentMode.Thinking));
+    }
+
+    [Test]
+    public async Task GetAgentById_ReturnsMode_InAgentDetail()
+    {
+        // Arrange
+        var ownerUser = new User { Id = _testUserId, UserName = "owner", Email = "owner@test.com" };
+        await _context.Users.AddAsync(ownerUser);
+        var agentId = Guid.NewGuid();
+        var agent = new AgentModel
+        {
+            Id = agentId,
+            Name = "Thinking Agent",
+            Instructions = "Think first",
+            Mode = AgentMode.Thinking,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.GetAgentById(agentId);
+
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var detail = okResult.Value as AgentDetail;
+        Assert.That(detail, Is.Not.Null);
+        Assert.That(detail.Mode, Is.EqualTo(AgentMode.Thinking));
+    }
+
+    [Test]
+    public async Task GetAgentById_DefaultMode_IsFast()
+    {
+        // Arrange
+        var agentId = await SeedSingleAgentData();
+
+        // Act
+        var result = await _controller.GetAgentById(agentId);
+
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var detail = okResult.Value as AgentDetail;
+        Assert.That(detail, Is.Not.Null);
+        Assert.That(detail.Mode, Is.EqualTo(AgentMode.Fast));
+    }
+
+    #endregion
 }
