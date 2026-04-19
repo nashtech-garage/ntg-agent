@@ -49,6 +49,13 @@
     border-radius: 0 !important;
     padding: 16px !important;
     overflow-x: auto;
+    /* Explicit background so transparent code background shows the correct colour */
+    background: #fefefe;
+}
+
+[data-bs-theme=dark] .enhanced-pre {
+    /* Match the a11y-dark Highlight.js theme background */
+    background: #2b2b2b;
 }
 
 .enhanced-pre code {
@@ -64,4 +71,21 @@
 code[class*=language-], pre[class*=language-] {
     text-shadow: none !important;
     font-size: 1.19em !important;
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .code-block-header {
+    background-color: #1e2530;
+    color: #9ca3af;
+    border-color: #374151;
+}
+
+[data-bs-theme=dark] .copy-button {
+    color: #6b7280;
+}
+
+[data-bs-theme=dark] .copy-button:hover {
+    color: #9ca3af;
+    background-color: rgba(255, 255, 255, 0.08);
 }

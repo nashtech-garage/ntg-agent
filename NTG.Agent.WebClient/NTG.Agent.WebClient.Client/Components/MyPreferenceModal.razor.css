@@ -69,7 +69,8 @@
 }
 
 .settings-card {
-    background: var(--bs-light, #f8f9fa);
+    /* --bs-light does not change in dark mode; --bs-tertiary-bg does */
+    background: var(--bs-tertiary-bg, #f8f9fa);
     border-radius: 12px;
     padding: 20px;
     margin-bottom: 20px;
@@ -148,7 +149,7 @@
 }
 
 .toggle-checkbox:checked {
-    background: var(--bs-success, #198754);
+    background: var(--bs-primary);
 }
 
 .toggle-checkbox:checked::before {
@@ -276,4 +277,105 @@
     .settings-card h4 {
         font-size: 15px;
     }
+
+    .appearance-options {
+        gap: 10px;
+    }
+
+    .color-swatches {
+        gap: 10px;
+    }
+}
+
+/* ─── Appearance (Light / Dark) ─────────────────────────────────────────── */
+
+.appearance-options {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.appearance-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    border: 2px solid var(--bs-border-color, #dee2e6);
+    border-radius: 10px;
+    background: var(--bs-body-bg, #ffffff);
+    color: var(--bs-body-color, #212529);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.appearance-option:hover {
+    border-color: var(--bs-primary, #0d6efd);
+}
+
+.appearance-option.active {
+    border-color: var(--bs-primary, #0d6efd);
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb, 13, 110, 253), 0.15);
+    background: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.05);
+}
+
+.appearance-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+
+.appearance-label {
+    font-size: 13px;
+}
+
+/* ─── Accent Color Swatches ─────────────────────────────────────────────── */
+
+.color-swatches {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+}
+
+.color-swatch {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+    padding: 0;
+}
+
+.color-swatch:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.15);
+}
+
+.color-swatch.selected {
+    border-color: var(--bs-body-color, #212529);
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
+}
+
+.swatch-check {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .toggle-checkbox {
+    /* Override hardcoded #ccc track colour in dark mode (unchecked state only) */
+    background: var(--bs-secondary-bg, #343a40);
+}
+
+[data-bs-theme=dark] .toggle-checkbox:checked {
+    background: var(--bs-primary);
 }
