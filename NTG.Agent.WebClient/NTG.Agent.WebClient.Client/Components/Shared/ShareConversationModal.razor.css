@@ -176,14 +176,15 @@
 
 .share-url-input:focus {
     outline: none;
-    border-color: #007acc;
-    box-shadow: 0 0 0 1px #007acc;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 1px var(--bs-primary);
 }
 
 .create-link-button, .copy-link-button {
     padding: 10px 20px;
-    background: #000;
-    color: white;
+    /* Use the active accent color so the button matches the user's theme */
+    background: var(--bs-primary);
+    color: #fff;
     border: none;
     border-radius: 6px;
     font-size: 14px;
@@ -194,7 +195,7 @@
 }
 
 .create-link-button:hover, .copy-link-button:hover {
-    background: #374151;
+    background: var(--bs-link-hover-color);
 }
 
 .copy-link-button.copied {
@@ -273,4 +274,69 @@
 
 .social-button i {
     font-size: 14px;
+}
+
+/* ─── Dark mode overrides ─────────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .share-modal {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-modal .modal-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .close-button {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .close-button:hover {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-bs-theme=dark] .share-warning div {
+    color: #fcd34d;
+}
+
+[data-bs-theme=dark] .share-description,
+[data-bs-theme=dark] .share-success-description {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .share-expiration-info {
+    background: var(--bs-secondary-bg);
+    color: #a78bfa;
+}
+
+[data-bs-theme=dark] .share-expiration-label {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-expiration-select {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-url-input {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .social-button {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .social-button:hover {
+    background: var(--bs-tertiary-bg);
 }

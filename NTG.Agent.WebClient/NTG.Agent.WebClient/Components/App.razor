@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="@Assets["css/codeblock-highlight.css"]" />
 
     <!-- Highligh theme https://cdnjs.com/libraries/highlight.js -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/a11y-light.min.css" />
+    <!-- id is used by theme-switcher JS to swap light/dark stylesheet -->
+    <link id="hljs-theme-link" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/a11y-light.min.css" />
 
     <!-- Boostrap icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.13.1/font/bootstrap-icons.min.css" />
@@ -22,6 +23,76 @@
 </head>
 
 <body>
+    <!-- Inline theme init: runs before Blazor boots to eliminate flash-of-wrong-theme.
+         The MutationObserver below also guards against Blazor's enhanced-navigation
+         DOM morphing which would otherwise strip data-bs-theme from <html> and
+         reset the hljs stylesheet href to the server default. -->
+    <script>
+        (function () {
+            function applyTheme() {
+                var theme = localStorage.getItem('ntg-theme') || 'light';
+                var accent = localStorage.getItem('ntg-accent') || 'default';
+                document.documentElement.setAttribute('data-bs-theme', theme);
+                if (accent !== 'default') {
+                    document.documentElement.setAttribute('data-accent', accent);
+                } else {
+                    document.documentElement.removeAttribute('data-accent');
+                }
+                fixHljsThemeLink(theme);
+            }
+
+            function fixHljsThemeLink(theme) {
+                var hljsLink = document.getElementById('hljs-theme-link');
+                if (!hljsLink) return;
+                var expected = theme === 'dark'
+                    ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/a11y-dark.min.css'
+                    : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/a11y-light.min.css';
+                // Only set if different to avoid triggering a stylesheet re-download
+                if (hljsLink.href !== expected) {
+                    hljsLink.href = expected;
+                }
+            }
+
+            // Apply on initial load
+            applyTheme();
+
+            // Guard against Blazor's enhanced-navigation DOM morphing removing the
+            // data-bs-theme / data-accent attributes from <html>.
+            var htmlObserver = new MutationObserver(function () {
+                var theme = localStorage.getItem('ntg-theme') || 'light';
+                var accent = localStorage.getItem('ntg-accent') || 'default';
+                if (document.documentElement.getAttribute('data-bs-theme') !== theme) {
+                    document.documentElement.setAttribute('data-bs-theme', theme);
+                }
+                if (accent === 'default') {
+                    if (document.documentElement.hasAttribute('data-accent')) {
+                        document.documentElement.removeAttribute('data-accent');
+                    }
+                } else {
+                    if (document.documentElement.getAttribute('data-accent') !== accent) {
+                        document.documentElement.setAttribute('data-accent', accent);
+                    }
+                }
+            });
+            htmlObserver.observe(document.documentElement, {
+                attributes: true,
+                attributeFilter: ['data-bs-theme', 'data-accent']
+            });
+
+            // Guard against enhanced-navigation morphing the hljs <link> href back
+            // to the server-default (a11y-light). We watch the <head> for attribute
+            // changes on any child element with id="hljs-theme-link".
+            var headObserver = new MutationObserver(function () {
+                var theme = localStorage.getItem('ntg-theme') || 'light';
+                fixHljsThemeLink(theme);
+            });
+            headObserver.observe(document.head, {
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['href']
+            });
+        })();
+    </script>
     <Routes />
     <script src="_framework/blazor.web.js"></script>
     <script src="_content/BootstrapBlazor/js/bootstrap.blazor.bundle.min.js"></script>

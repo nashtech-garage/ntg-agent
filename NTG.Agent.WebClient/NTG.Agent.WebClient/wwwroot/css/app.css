@@ -72,6 +72,72 @@ h1:focus {
     overflow-y: auto;
 }
 
+/* ─── Dark mode: BootstrapBlazor Markdown (toastui-editor-contents) ─────────
+   BootstrapBlazor renders chat messages WITHOUT Blazor's CSS isolation scope
+   attribute, so scoped .razor.css rules never reach these elements.
+   All dark-mode overrides for the chat response area must live here (global).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .chat-response {
+    background-color: var(--bs-tertiary-bg) !important;
+    border-color: var(--bs-border-color) !important;
+}
+
+[data-bs-theme=dark] .toastui-editor-contents {
+    color: var(--bs-body-color);
+    background-color: transparent;
+}
+
+[data-bs-theme=dark] .toastui-editor-contents p,
+[data-bs-theme=dark] .toastui-editor-contents li,
+[data-bs-theme=dark] .toastui-editor-contents ol,
+[data-bs-theme=dark] .toastui-editor-contents ul,
+[data-bs-theme=dark] .toastui-editor-contents strong,
+[data-bs-theme=dark] .toastui-editor-contents em {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .toastui-editor-contents h1,
+[data-bs-theme=dark] .toastui-editor-contents h2,
+[data-bs-theme=dark] .toastui-editor-contents h3,
+[data-bs-theme=dark] .toastui-editor-contents h4,
+[data-bs-theme=dark] .toastui-editor-contents h5,
+[data-bs-theme=dark] .toastui-editor-contents h6 {
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .toastui-editor-contents blockquote {
+    border-color: var(--bs-border-color);
+    color: var(--bs-secondary-color);
+    background-color: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .toastui-editor-contents hr {
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .toastui-editor-contents table th,
+[data-bs-theme=dark] .toastui-editor-contents table td {
+    border-color: var(--bs-border-color);
+    color: var(--bs-body-color);
+    background-color: transparent;
+}
+
+[data-bs-theme=dark] .toastui-editor-contents table th {
+    background-color: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .toastui-editor-contents table tr:nth-child(even) td {
+    background-color: var(--bs-tertiary-bg);
+}
+
+/* Inline code inside markdown prose */
+[data-bs-theme=dark] .toastui-editor-contents code:not(.hljs) {
+    background-color: var(--bs-secondary-bg);
+    color: #f472b6;
+}
+
 .input-group-append {
     margin-left: -140px !important;
     z-index: 100;
@@ -80,4 +146,52 @@ h1:focus {
 }
 .speech-btn{
     margin-right:10px;
+}
+
+/* ─── Accent Color Theming ──────────────────────────────────────────────────
+   Override Bootstrap's primary CSS custom properties per accent.
+   This cascades automatically to buttons, focus rings, toggles, links, etc.
+   Using `html[data-accent]` (specificity 0,1,1) so these rules beat both
+   Bootstrap's `:root` (0,0,0) and `[data-bs-theme=light]` (0,1,0) blocks,
+   even when BootstrapBlazor's bundled Bootstrap stylesheet loads after app.css.
+   Note: 'blue' uses sky-500 (#0ea5e9) — distinct from Bootstrap's default #0d6efd.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+html[data-accent="violet"] {
+    --bs-primary: #7c3aed;
+    --bs-primary-rgb: 124, 58, 237;
+    --bs-link-color: #7c3aed;
+    --bs-link-color-rgb: 124, 58, 237;
+    --bs-link-hover-color: #6d28d9;
+}
+
+html[data-accent="green"] {
+    --bs-primary: #16a34a;
+    --bs-primary-rgb: 22, 163, 74;
+    --bs-link-color: #16a34a;
+    --bs-link-color-rgb: 22, 163, 74;
+    --bs-link-hover-color: #15803d;
+}
+
+html[data-accent="yellow"] {
+    --bs-primary: #ca8a04;
+    --bs-primary-rgb: 202, 138, 4;
+    --bs-link-color: #ca8a04;
+    --bs-link-color-rgb: 202, 138, 4;
+    --bs-link-hover-color: #a16207;
+}
+
+html[data-accent="orange"] {
+    --bs-primary: #ea580c;
+    --bs-primary-rgb: 234, 88, 12;
+    --bs-link-color: #ea580c;
+    --bs-link-color-rgb: 234, 88, 12;
+    --bs-link-hover-color: #c2410c;
+}
+
+/* Apply accent color to native form controls (radio, checkbox, range, etc.) */
+input[type="radio"],
+input[type="checkbox"],
+input[type="range"] {
+    accent-color: var(--bs-primary);
 }
