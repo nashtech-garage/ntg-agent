@@ -1223,3 +1223,191 @@
         bottom: 0 !important;
     }
 }
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .conversation-sidebar {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .conversation-header {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .section-title {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .conversation-link {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .conversation-link:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+[data-bs-theme=dark] .conversation-link.active {
+    background: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .conversation-meta {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .conversation-name-input {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .sidebar-footer {
+    background-color: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .settings-dropdown {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .dropdown-item {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .dropdown-item:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+[data-bs-theme=dark] .context-menu {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .context-menu button {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .context-menu button:hover {
+    background-color: var(--bs-tertiary-bg);
+}
+
+[data-bs-theme=dark] .context-menu button.rename-conversation::after {
+    background-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .delete-confirmation-modal {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .modal-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .modal-message {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .modal-submessage {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .cancel-button {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .cancel-button:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-modal {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .share-modal .modal-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .close-button {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .close-button:hover {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-description,
+[data-bs-theme=dark] .share-success-description {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .share-expiration-label {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-expiration-select {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-url-input {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-expiration-info {
+    background: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .social-button {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .social-button:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+[data-bs-theme=dark] .empty-state-text {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .empty-state-subtext {
+    color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .mobile-close-btn {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .mobile-close-btn:hover {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .conversation-list::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .conversation-list::-webkit-scrollbar-thumb:hover {
+    background: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .app-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .toggle-btn {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .toggle-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}

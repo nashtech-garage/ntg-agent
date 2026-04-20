@@ -3,6 +3,7 @@
 @using NTG.Agent.WebClient.Client.Services
 @inject PreferenceClient PreferenceClient
 @inject ChatClient ChatClient
+@inject IJSRuntime JS
 @inject ILogger<MyPreferenceModal> Logger
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
@@ -30,6 +31,56 @@
             }
             else
             {
+                <!-- General Section -->
+                <div class="settings-card">
+                    <h4>🎨 General</h4>
+
+                    <!-- Appearance -->
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span class="label-text">Appearance:</span>
+                        </label>
+                        <div class="appearance-options">
+                            <button class="appearance-option @(selectedTheme == "light" ? "active" : "")"
+                                    @onclick="OnThemeLightChanged">
+                                <span class="appearance-icon">☀️</span>
+                                <span class="appearance-label">Light</span>
+                            </button>
+                            <button class="appearance-option @(selectedTheme == "dark" ? "active" : "")"
+                                    @onclick="OnThemeDarkChanged">
+                                <span class="appearance-icon">🌙</span>
+                                <span class="appearance-label">Dark</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Accent Color -->
+                    <div class="setting-item">
+                        <label class="setting-label">
+                            <span class="label-text">Accent Color:</span>
+                        </label>
+                        <div class="color-swatches">
+                            @foreach (var color in accentColors)
+                            {
+                                // Capture loop variable so the lambda closes over the correct key
+                                var colorKey = color.Key;
+                                <button class="color-swatch @(selectedAccent == color.Key ? "selected" : "")"
+                                        style="background-color: @color.Value;"
+                                        title="@color.Key"
+                                        @onclick="() => OnAccentChanged(colorKey)">
+                                    @if (selectedAccent == color.Key)
+                                    {
+                                        <svg class="swatch-check" viewBox="0 0 16 16" fill="white">
+                                            <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                                        </svg>
+                                    }
+                                </button>
+                            }
+                        </div>
+                        <p class="setting-description">Accent color affects buttons, links, and interactive highlights.</p>
+                    </div>
+                </div>
+
                 <!-- Agent Selection Section -->
                 <div class="settings-card">
                     <h4>🤖 Agent Selection</h4>
@@ -122,6 +173,20 @@
     private bool isMemoryEnabled = true;
     private bool isMemorySearchEnabled = true;
 
+    // General settings
+    private string selectedTheme = "light";
+    private string selectedAccent = "default";
+
+    // Accent color palette: key maps to the [data-accent] CSS attribute value
+    private static readonly Dictionary<string, string> accentColors = new()
+    {
+        ["default"] = "#6c757d",
+        ["violet"]  = "#7c3aed",
+        ["green"]   = "#16a34a",
+        ["yellow"]  = "#ca8a04",
+        ["orange"]  = "#ea580c"
+    };
+
     protected override async Task OnInitializedAsync()
     {
         try
@@ -163,6 +228,10 @@
     {
         try
         {
+            // Read cached theme/accent from localStorage first for instant UI consistency
+            selectedTheme  = await JS.InvokeAsync<string>("getTheme");
+            selectedAccent = await JS.InvokeAsync<string>("getAccentColor");
+
             var preference = await PreferenceClient.GetPreferenceAsync(null);
             if (preference != null)
             {
@@ -170,6 +239,22 @@
                 // Default to true if null (for anonymous users)
                 isMemoryEnabled = preference.IsLongTermMemoryEnabled ?? true;
                 isMemorySearchEnabled = preference.IsMemorySearchEnabled ?? true;
+
+                // DB is source of truth — apply and sync to localStorage if different
+                var dbTheme  = preference.AppearanceTheme ?? "light";
+                var dbAccent = preference.AccentColor ?? "default";
+
+                if (dbTheme != selectedTheme)
+                {
+                    selectedTheme = dbTheme;
+                    await JS.InvokeVoidAsync("setTheme", dbTheme);
+                }
+
+                if (dbAccent != selectedAccent)
+                {
+                    selectedAccent = dbAccent;
+                    await JS.InvokeVoidAsync("setAccentColor", dbAccent);
+                }
             }
             else if (availableAgents.Count > 0)
             {
@@ -200,6 +285,25 @@
         await SavePreferencesAsync();
     }
 
+    private Task OnThemeLightChanged() => OnThemeChanged("light");
+    private Task OnThemeDarkChanged() => OnThemeChanged("dark");
+
+    private async Task OnThemeChanged(string theme)
+    {
+        selectedTheme = theme;
+        // Apply immediately and cache in localStorage
+        await JS.InvokeVoidAsync("setTheme", theme);
+        await SavePreferencesAsync();
+    }
+
+    private async Task OnAccentChanged(string accent)
+    {
+        selectedAccent = accent;
+        // Apply immediately and cache in localStorage
+        await JS.InvokeVoidAsync("setAccentColor", accent);
+        await SavePreferencesAsync();
+    }
+
     private async Task SavePreferencesAsync()
     {
         try
@@ -212,7 +316,9 @@
                 selectedAgentId,
                 isMemoryEnabled,
                 isMemorySearchEnabled,
-                null
+                null,
+                selectedTheme,
+                selectedAccent
             );
 
             if (success)

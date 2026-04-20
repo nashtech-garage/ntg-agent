@@ -1,0 +1,46 @@
+@using NTG.Agent.Common.Dtos.UserPreferences
+@inject PreferenceClient PreferenceClient
+@inject IJSRuntime JS
+@inject ILogger<ThemeInitializer> Logger
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@* Renders nothing — only applies the user's saved theme and accent from the DB
+   to localStorage and the <html> element on every authenticated page load.
+   This ensures a new browser/device picks up the correct theme without the user
+   having to open My Preferences first. *@
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            var preference = await PreferenceClient.GetPreferenceAsync(null);
+            if (preference == null) return;
+
+            var dbTheme  = preference.AppearanceTheme ?? "light";
+            var dbAccent = preference.AccentColor ?? "default";
+
+            // Read what localStorage currently has (set by the inline script in App.razor)
+            var localTheme  = await JS.InvokeAsync<string>("getTheme");
+            var localAccent = await JS.InvokeAsync<string>("getAccentColor");
+
+            // DB is source of truth — sync to localStorage and DOM if different
+            if (dbTheme != localTheme)
+            {
+                await JS.InvokeVoidAsync("setTheme", dbTheme);
+            }
+
+            if (dbAccent != localAccent)
+            {
+                await JS.InvokeVoidAsync("setAccentColor", dbAccent);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: swallow silently so it never breaks page load
+            Logger.LogWarning(ex, "ThemeInitializer: could not load user preferences.");
+        }
+    }
+}

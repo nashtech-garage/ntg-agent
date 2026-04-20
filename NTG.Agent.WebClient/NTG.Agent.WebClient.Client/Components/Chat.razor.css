@@ -93,7 +93,7 @@
 }
 
 .agent-selector-content {
-    background: white;
+    background: var(--bs-body-bg);
     border-radius: 12px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
     width: 100%;
@@ -117,7 +117,7 @@
 
 .agent-selector-header {
     padding: 1.5rem;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid var(--bs-border-color, #e9ecef);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -125,7 +125,7 @@
 
 .agent-selector-header h5 {
     font-weight: 600;
-    color: #212529;
+    color: var(--bs-body-color, #212529);
     display: flex;
     align-items: center;
 }
@@ -141,23 +141,23 @@
     align-items: center;
     padding: 1rem;
     margin-bottom: 0.75rem;
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--bs-border-color, #e9ecef);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
-    background: white;
+    background: var(--bs-body-bg);
 }
 
 .agent-card:hover {
-    border-color: #0d6efd;
-    background: #f8f9fa;
+    border-color: var(--bs-primary);
+    background: var(--bs-secondary-bg, #f8f9fa);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.15);
 }
 
 .agent-card.selected {
-    border-color: #0d6efd;
-    background: #e7f1ff;
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.1);
 }
 
 .agent-card-icon {
@@ -188,7 +188,7 @@
 }
 
 .agent-card-check {
-    color: #0d6efd;
+    color: var(--bs-primary);
     font-size: 1.5rem;
     margin-left: 1rem;
 }
@@ -358,6 +358,67 @@
     min-width: 0;
 }
 
+/* Text selection follows the active accent color */
+.chat-input-field::selection {
+    background-color: rgba(var(--bs-primary-rgb), 0.3);
+    color: var(--bs-body-color);
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .share-button {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-button i {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-button:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .chat-response {
+    background-color: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-selector-content {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .agent-selector-header {
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-selector-header h5 {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .agent-card {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-card:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-primary);
+}
+
+[data-bs-theme=dark] .agent-card.selected {
+    background: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .agent-card-name {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .thinking-content {
+    background: var(--bs-tertiary-bg);
+}
+
 .chat-input-field::placeholder {
     color: var(--bs-secondary-color);
 }
@@ -385,6 +446,22 @@
     color: var(--bs-body-color);
 }
 
+/* Send button (#4): accent-colored icon so it reads as the primary CTA */
+.chat-input-icon-btn[type="submit"] {
+    color: var(--bs-primary);
+}
+
+.chat-input-icon-btn[type="submit"]:hover {
+    background-color: var(--bs-primary);
+    color: #fff;
+}
+
+/* Plus button (#2): tint to accent on hover */
+.chat-input-icon-btn[type="button"]:hover {
+    background-color: rgba(var(--bs-primary-rgb), .1);
+    color: var(--bs-primary);
+}
+
 /* SpeechToText renders its button inside a child component, so ::deep is required
    to pierce the Blazor CSS isolation boundary. */
 .chat-input-box ::deep .speech-btn {
@@ -402,7 +479,8 @@
     text-decoration: none;
 }
 
+/* Mic button (#3): tint to accent on hover */
 .chat-input-box ::deep .speech-btn:hover {
-    background-color: var(--bs-secondary-bg);
-    color: var(--bs-body-color);
+    background-color: rgba(var(--bs-primary-rgb), .1);
+    color: var(--bs-primary);
 }

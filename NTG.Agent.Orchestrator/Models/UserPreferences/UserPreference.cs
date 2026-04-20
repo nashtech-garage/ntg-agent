@@ -45,7 +45,19 @@ public class UserPreference
     /// Default: null
     /// </summary>
     public bool? IsMemorySearchEnabled { get; set; }
-    
+
+    /// <summary>
+    /// The preferred UI appearance theme ("light" or "dark").
+    /// Null means the app default (light) is used.
+    /// </summary>
+    public string? AppearanceTheme { get; set; }
+
+    /// <summary>
+    /// The preferred accent color key ("default", "violet", "green", "yellow", "orange").
+    /// Null means the app default is used.
+    /// </summary>
+    public string? AccentColor { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
