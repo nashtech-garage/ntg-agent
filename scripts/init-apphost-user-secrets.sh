@@ -25,8 +25,27 @@ if [[ ! -f "$APPHOST_PROJ" ]]; then
   exit 1
 fi
 
-if ! command -v dotnet >/dev/null 2>&1; then
-  echo "error: dotnet is not on PATH" >&2
+check_command() {
+  local cmd="$1"
+  local install_hint="$2"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "error: $cmd is not on PATH. $install_hint" >&2
+    exit 1
+  fi
+}
+
+check_command "dotnet" "Install the .NET SDK and retry."
+check_command "docker" "Install Docker and ensure the CLI is available."
+
+if ! dotnet ef --version >/dev/null 2>&1; then
+  echo "error: dotnet-ef is not available." >&2
+  echo "Install it with: dotnet tool install --global dotnet-ef" >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "error: cannot access Docker daemon (permission denied or daemon not running)." >&2
+  echo "Ensure Docker is running and your user has permission (for Linux/WSL: add user to docker group, then re-login)." >&2
   exit 1
 fi
 
@@ -38,8 +57,8 @@ Sets NTG.Agent.AppHost user secrets. Per value:
   exported env var → prompt (TTY only) → $REPO_ROOT/.env → default.
 Kernel Memory: if still empty after that, openssl generates a key.
 
-Env/.env keys: SA_PASSWORD (or SQL_SA_PASSWORD), GITHUB_TOKEN,
-KERNEL_MEMORY_API_KEY, GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID.
+Env/.env keys: GITHUB_TOKEN, KERNEL_MEMORY_API_KEY,
+GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID.
 EOF
 }
 
@@ -156,13 +175,6 @@ set_secret() {
   echo "set $key"
 }
 
-resolve_field SQL_SA_PASSWORD \
-  "SQL SA password [Enter for .env or default Admin123_Strong!]: " \
-  0 \
-  "SA_PASSWORD SQL_SA_PASSWORD" \
-  "SQL_SA_PASSWORD" \
-  "Admin123_Strong!"
-
 resolve_field GITHUB_TOKEN \
   "GitHub PAT (models:read) [Enter for .env]: " \
   1 \
@@ -211,7 +223,6 @@ resolve_field GOOGLE_SEARCH_ENGINE_ID \
   "GOOGLE_SEARCH_ENGINE_ID" \
   "placeholder"
 
-set_secret "Parameters:sql-sa-password" "$SQL_SA_PASSWORD"
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:kernel-memory-api-key" "$KERNEL_MEMORY_API_KEY"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
