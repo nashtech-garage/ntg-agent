@@ -6,6 +6,9 @@
 /key/
 ntgfilestore/
 
+# Local environment file (often contains secrets)
+.env
+
 # User-specific files
 *.rsuser
 *.suo
