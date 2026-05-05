@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var saPassword         = builder.AddParameter("sql-sa-password",         secret: true);
@@ -7,7 +9,13 @@ var googleApiKey       = builder.AddParameter("google-api-key",          secret:
 var googleSearchId     = builder.AddParameter("google-search-engine-id", secret: true);
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
-                 .WithDataVolume("ntg-agent-local-dev-sqlserver-data");
+                 .WithDataVolume("ntg-agent-local-dev-sqlserver-data")
+				 .WithHostPort(1433);;
+
+if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
+    sql.WithContainerRuntimeArgs("--platform", "linux/amd64");
+
+
 var db  = sql.AddDatabase("NTGAgent");
 
 var elasticsearch = builder.AddElasticsearch("elasticsearch")

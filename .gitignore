@@ -6,6 +6,9 @@
 /key/
 ntgfilestore/
 
+# .md for AIs
+CLAUDE.md
+
 # Local environment file (often contains secrets)
 .env
 
