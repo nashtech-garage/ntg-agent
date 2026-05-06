@@ -26,23 +26,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
     }
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        SearchResult result;
         var filters = ComposeFilters(agentId, tags);
-        if (filters.Count > 0)
-        {
-            result = await _kernelMemory.SearchAsync(
-                query: query,
-                filters: filters,
-                limit: 3,
-                cancellationToken: cancellationToken);
-        }
-        else
-        {
-            result = await _kernelMemory.SearchAsync(
-                query: query,
-                limit: 3,
-                cancellationToken: cancellationToken);
-        }
+        var result = await _kernelMemory.SearchAsync(
+            query: query,
+            filters: filters,
+            limit: 3,
+            cancellationToken: cancellationToken);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -88,10 +77,18 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     private TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
     {
-        if (tags == null || agentId == Guid.Empty)
+        if (agentId == Guid.Empty)
         {
-            _logger.LogWarning("ComposeTags: null tags or empty agentId — document stored with no agentId tag in Elasticsearch.");
+            _logger.LogWarning("ComposeTags: empty agentId — document stored with no agentId tag in Elasticsearch.");
             return new TagCollection();
+        }
+
+        var agentIdValue = agentId.ToString().ToLower(CultureInfo.InvariantCulture);
+
+        if (tags == null)
+        {
+            _logger.LogWarning("ComposeTags: null tags — document stored with agentId only.");
+            return new TagCollection { { TagNameAgentId, agentIdValue } };
         }
 
         var formattedTags = tags
@@ -102,24 +99,34 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
         if (formattedTags.Count == 0)
         {
-            _logger.LogWarning("ComposeTags: tags resolved to empty list — document stored with no agentId tag in Elasticsearch.");
-            return new TagCollection();
+            _logger.LogWarning("ComposeTags: tags resolved to empty list — document stored with agentId only.");
+            return new TagCollection { { TagNameAgentId, agentIdValue } };
         }
 
         _logger.LogInformation("ComposeTags: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
         return new TagCollection
         {
-            { TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture) },
+            { TagNameAgentId, agentIdValue },
             { TagNameTags, formattedTags.Cast<string?>().ToList() }
         };
     }
 
     private List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
     {
-        if (tags == null || agentId == Guid.Empty)
+        if (agentId == Guid.Empty)
         {
-            _logger.LogWarning("ComposeFilters: null tags or empty agentId — search will run UNFILTERED across all documents.");
+            _logger.LogWarning("ComposeFilters: empty agentId — search will run UNFILTERED across all documents.");
             return new List<MemoryFilter>();
+        }
+
+        var agentIdValue = agentId.ToString().ToLower(CultureInfo.InvariantCulture);
+        var agentOnlyFilter = new MemoryFilter();
+        agentOnlyFilter.Add(TagNameAgentId, agentIdValue);
+
+        if (tags == null)
+        {
+            _logger.LogWarning("ComposeFilters: null tags — filtering by agentId only.");
+            return [agentOnlyFilter];
         }
 
         var formattedTags = tags
@@ -130,18 +137,17 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
         if (formattedTags.Count == 0)
         {
-            _logger.LogWarning("ComposeFilters: tags resolved to empty list — search will run UNFILTERED across all documents.");
-            return new List<MemoryFilter>();
+            _logger.LogWarning("ComposeFilters: tags resolved to empty list — filtering by agentId only.");
+            return [agentOnlyFilter];
         }
 
         _logger.LogInformation("ComposeFilters: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
-        var filters = formattedTags
-               .Select(tag => {
-                   var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
-                   memoryFilter.Add(TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture));
-                   return memoryFilter;
-               })
-               .ToList();
-        return filters;
+        return formattedTags
+            .Select(tag => {
+                var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
+                memoryFilter.Add(TagNameAgentId, agentIdValue);
+                return memoryFilter;
+            })
+            .ToList();
     }
 }
