@@ -9,7 +9,7 @@ var googleApiKey       = builder.AddParameter("google-api-key",          secret:
 var googleSearchId     = builder.AddParameter("google-search-engine-id", secret: true);
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
-                 .WithImageTag("2025-latest")
+                 .WithImageTag("2022-latest")
                  .WithEndpoint("tcp", endpoint =>
                  {
                      endpoint.Port = 1433;
