@@ -2,15 +2,20 @@ using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var saPassword         = builder.AddParameter("sql-sa-password",         secret: true);
+var saPassword         = builder.AddParameter("sql-sa-password", "Admin123_Strong!", secret: true);
 var githubToken        = builder.AddParameter("github-token",            secret: true);
 var kernelMemoryApiKey = builder.AddParameter("kernel-memory-api-key",   secret: true);
 var googleApiKey       = builder.AddParameter("google-api-key",          secret: true);
 var googleSearchId     = builder.AddParameter("google-search-engine-id", secret: true);
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
-                 .WithDataVolume("ntg-agent-local-dev-sqlserver-data")
-				 .WithHostPort(1433);;
+                 .WithImageTag("2025-latest")
+                 .WithEndpoint("tcp", endpoint =>
+                 {
+                     endpoint.Port = 1433;
+                     endpoint.TargetPort = 1433;
+                 })
+                 .WithDataVolume("ntg-agent-local-dev-sqlserver-data");
 
 if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
     sql.WithContainerRuntimeArgs("--platform", "linux/amd64");
@@ -20,6 +25,11 @@ var db  = sql.AddDatabase("NTGAgent");
 
 var elasticsearch = builder.AddElasticsearch("elasticsearch")
                            .WithImageTag("8.15.0")
+                           .WithEndpoint("http", endpoint =>
+                           {
+                               endpoint.Port = 9200;
+                               endpoint.TargetPort = 9200;
+                           })
                            .WithDataVolume("ntg-agent-local-dev-elasticsearch-data");
 
 var migrateAdmin = builder.AddExecutable(

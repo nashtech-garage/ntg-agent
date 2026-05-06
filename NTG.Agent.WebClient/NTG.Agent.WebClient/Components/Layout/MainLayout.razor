@@ -9,6 +9,9 @@
     </div>
     <AuthorizeView>
         <Authorized>
+            @* Silently syncs DB theme/accent to localStorage on every authenticated page load.
+               Ensures a new browser or device picks up the correct theme immediately. *@
+            <ThemeInitializer />
             <div class="mobile-header" id="mobileHeader">
                 <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16">

@@ -64,7 +64,9 @@ public class PreferencesController : ControllerBase
         return Ok(new UserPreferenceDto(
             preference.SelectedAgentId,
             preference.IsLongTermMemoryEnabled,
-            preference.IsMemorySearchEnabled
+            preference.IsMemorySearchEnabled,
+            preference.AppearanceTheme,
+            preference.AccentColor
         ));
     }
 
@@ -110,7 +112,9 @@ public class PreferencesController : ControllerBase
                     UserId = userId.Value,
                     SelectedAgentId = request.SelectedAgentId,
                     IsLongTermMemoryEnabled = request.IsLongTermMemoryEnabled,
-                    IsMemorySearchEnabled = request.IsMemorySearchEnabled
+                    IsMemorySearchEnabled = request.IsMemorySearchEnabled,
+                    AppearanceTheme = request.AppearanceTheme,
+                    AccentColor = request.AccentColor
                 };
                 _context.UserPreferences.Add(preference);
             }
@@ -130,7 +134,18 @@ public class PreferencesController : ControllerBase
                 {
                     preference.IsMemorySearchEnabled = request.IsMemorySearchEnabled.Value;
                 }
-                
+
+                // Update appearance/accent settings if provided
+                if (request.AppearanceTheme is not null)
+                {
+                    preference.AppearanceTheme = request.AppearanceTheme;
+                }
+
+                if (request.AccentColor is not null)
+                {
+                    preference.AccentColor = request.AccentColor;
+                }
+
                 preference.UpdatedAt = DateTime.UtcNow;
             }
         }
@@ -167,7 +182,9 @@ public class PreferencesController : ControllerBase
         return Ok(new UserPreferenceDto(
             preference.SelectedAgentId,
             preference.IsLongTermMemoryEnabled,
-            preference.IsMemorySearchEnabled
+            preference.IsMemorySearchEnabled,
+            preference.AppearanceTheme,
+            preference.AccentColor
         ));
     }
 }

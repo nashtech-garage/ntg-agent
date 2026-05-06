@@ -167,7 +167,8 @@
 }
 
 .search-input:focus {
-    border-color: #007acc;
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), .15);
 }
 
 .clear-search-button {
@@ -280,4 +281,82 @@
 
 .search-results::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
+}
+
+/* ─── Dark mode overrides ─────────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .cta-chat-section {
+    border-bottom-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .sidebar-button {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .sidebar-button:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .new-chat-button {
+    background-color: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .new-chat-button-collapsed,
+[data-bs-theme=dark] .search-chats-button-collapsed {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .new-chat-button-collapsed:hover,
+[data-bs-theme=dark] .search-chats-button-collapsed:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .search-modal-container {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .search-header {
+    border-bottom-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .search-input {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .search-icon,
+[data-bs-theme=dark] .clear-search-button,
+[data-bs-theme=dark] .close-search-button {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .new-chat-option:hover,
+[data-bs-theme=dark] .search-results .conversation-item:hover {
+    background-color: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .new-chat-icon {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .search-results .conversation-icon {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .search-results .conversation-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .no-results {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .search-results::-webkit-scrollbar-thumb {
+    background: var(--bs-border-color);
 }

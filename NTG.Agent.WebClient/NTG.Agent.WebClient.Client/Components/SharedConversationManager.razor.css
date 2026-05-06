@@ -353,11 +353,17 @@
 
 .expiration-option:hover {
     background: #f9fafb;
-    border-color: #d1d5db;
+    border-color: var(--bs-primary);
+}
+
+.expiration-option:has(input[type="radio"]:checked) {
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.06);
 }
 
 .expiration-option input[type="radio"] {
     margin: 0;
+    accent-color: var(--bs-primary);
 }
 
 .expiration-option span {
@@ -431,14 +437,14 @@
 }
 
 .save-button {
-    background: #007acc;
+    background: var(--bs-primary);
     color: white;
-    border-color: #007acc;
+    border-color: var(--bs-primary);
 }
 
 .save-button:hover {
-    background: #0056b3;
-    border-color: #0056b3;
+    background: var(--bs-link-hover-color);
+    border-color: var(--bs-link-hover-color);
 }
 
 .save-button:disabled {
@@ -459,14 +465,14 @@
 }
 
 .unshare-button {
-    background: #f59e0b;
+    background: var(--bs-primary);
     color: white;
-    border-color: #f59e0b;
+    border-color: var(--bs-primary);
 }
 
 .unshare-button:hover {
-    background: #d97706;
-    border-color: #d97706;
+    background: var(--bs-link-hover-color);
+    border-color: var(--bs-link-hover-color);
 }
 
 /* Responsive Design */
@@ -535,4 +541,121 @@
     .action-buttons {
         justify-content: flex-start;
     }
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .manage-shared-modal {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .modal-header {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .modal-title {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .close-button {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .close-button:hover {
+    background: var(--bs-tertiary-bg);
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .header-cell {
+    color: var(--bs-secondary-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .cell {
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .conversation-name {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .date-column,
+[data-bs-theme=dark] .type-column {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .action-btn {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .status-badge.inactive {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .spinner {
+    border-color: var(--bs-secondary-bg);
+    border-top-color: var(--bs-primary);
+}
+
+[data-bs-theme=dark] .loading-state,
+[data-bs-theme=dark] .empty-state {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .empty-state h4 {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .edit-expiration-modal,
+[data-bs-theme=dark] .confirm-modal {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .edit-expiration-modal h4,
+[data-bs-theme=dark] .confirm-modal h4 {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .edit-expiration-modal p,
+[data-bs-theme=dark] .confirm-modal p {
+    color: var(--bs-secondary-color);
+}
+
+[data-bs-theme=dark] .expiration-option {
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .expiration-option:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-primary);
+}
+
+[data-bs-theme=dark] .expiration-option:has(input[type="radio"]:checked) {
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.12);
+}
+
+[data-bs-theme=dark] .expiration-option span {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .cancel-button {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .cancel-button:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .table-row {
+    /* Mobile card view */
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
 }
