@@ -86,10 +86,11 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
     }
 
-    private static TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
+    private TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
     {
         if (tags == null || agentId == Guid.Empty)
         {
+            _logger.LogWarning("ComposeTags: null tags or empty agentId — document stored with no agentId tag in Elasticsearch.");
             return new TagCollection();
         }
 
@@ -101,26 +102,39 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
         if (formattedTags.Count == 0)
         {
+            _logger.LogWarning("ComposeTags: tags resolved to empty list — document stored with no agentId tag in Elasticsearch.");
             return new TagCollection();
         }
 
+        _logger.LogInformation("ComposeTags: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
         return new TagCollection
         {
             { TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture) },
             { TagNameTags, formattedTags.Cast<string?>().ToList() }
         };
     }
-    private static List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
+
+    private List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
     {
         if (tags == null || agentId == Guid.Empty)
         {
+            _logger.LogWarning("ComposeFilters: null tags or empty agentId — search will run UNFILTERED across all documents.");
             return new List<MemoryFilter>();
         }
+
         var formattedTags = tags
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Select(t => t.Trim().ToLower(CultureInfo.InvariantCulture))
-            .Distinct();
+            .Distinct()
+            .ToList();
 
+        if (formattedTags.Count == 0)
+        {
+            _logger.LogWarning("ComposeFilters: tags resolved to empty list — search will run UNFILTERED across all documents.");
+            return new List<MemoryFilter>();
+        }
+
+        _logger.LogInformation("ComposeFilters: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
         var filters = formattedTags
                .Select(tag => {
                    var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
