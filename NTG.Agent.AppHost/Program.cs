@@ -1,4 +1,8 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Runtime.InteropServices;
+using System.Text;
+using Aspire.Hosting.ApplicationModel;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -31,6 +35,41 @@ var elasticsearch = builder.AddElasticsearch("elasticsearch")
                                endpoint.TargetPort = 9200;
                            })
                            .WithDataVolume("ntg-agent-local-dev-elasticsearch-data");
+
+builder.Eventing.Subscribe<ResourceReadyEvent>(elasticsearch.Resource, async (evt, ct) =>
+{
+    var password = await elasticsearch.Resource.PasswordParameter.GetValueAsync(ct);
+    var endpoint = elasticsearch.GetEndpoint("http").Url;
+
+    using var http = new HttpClient { BaseAddress = new Uri(endpoint) };
+    http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+        "Basic",
+        Convert.ToBase64String(Encoding.UTF8.GetBytes($"elastic:{password}")));
+
+    for (var attempt = 0; attempt < 90; attempt++)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync(
+                "/_security/user/kibana_system/_password",
+                new { password },
+                ct);
+            if (response.IsSuccessStatusCode) return;
+        }
+        catch (HttpRequestException) { }
+        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+    }
+
+    throw new InvalidOperationException(
+        "Failed to set the kibana_system password on Elasticsearch after 180s.");
+});
+
+var kibana = builder.AddContainer("kibana", "docker.elastic.co/kibana/kibana", "8.15.0")
+    .WithHttpEndpoint(port: 5601, targetPort: 5601, name: "http")
+    .WithEnvironment("ELASTICSEARCH_HOSTS",     "http://elasticsearch:9200")
+    .WithEnvironment("ELASTICSEARCH_USERNAME",  "kibana_system")
+    .WithEnvironment("ELASTICSEARCH_PASSWORD",  elasticsearch.Resource.PasswordParameter)
+    .WaitFor(elasticsearch);
 
 var migrateAdmin = builder.AddExecutable(
         "db-migrate-admin",
