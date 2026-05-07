@@ -322,6 +322,30 @@ public class DocumentsControllerTests
         _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
     [Test]
+    public void DeleteDocument_WhenKnowledgeServiceThrows_DoesNotRemoveSqlRow()
+    {
+        // Arrange
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "Test Document",
+            AgentId = _testAgentId,
+            KnowledgeDocId = "knowledge-doc-id"
+        };
+        _context.Documents.Add(document);
+        _context.SaveChanges();
+
+        _mockKnowledgeService
+            .Setup(x => x.RemoveDocumentAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("KM unavailable"));
+
+        // Act & Assert — exception bubbles up; SQL row must remain so the user can retry
+        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.DeleteDocument(document.Id, _testAgentId));
+
+        var stillThere = _context.Documents.AsNoTracking().FirstOrDefault(d => d.Id == document.Id);
+        Assert.That(stillThere, Is.Not.Null);
+    }
+    [Test]
     public async Task ImportWebPage_WhenUrlIsEmpty_ReturnsBadRequest()
     {
         // Arrange

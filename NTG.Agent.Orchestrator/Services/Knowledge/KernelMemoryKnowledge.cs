@@ -8,6 +8,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     private readonly ILogger<KernelMemoryKnowledge> _logger;
     private const string TagNameAgentId = "agentId";
     private const string TagNameTags = "tags";
+    private const string AgentIndex = "default";
 
     public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
     {
@@ -17,18 +18,28 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var tagCollection = ComposeTags(agentId, tags);
-        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
     public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
     {
-        await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
+        _logger.LogInformation("KernelMemoryKnowledge.RemoveDocumentAsync: agentId={AgentId} documentId={DocumentId} index={Index}", agentId, documentId, AgentIndex);
+        try
+        {
+            await _kernelMemory.DeleteDocumentAsync(documentId, index: AgentIndex, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "KernelMemoryKnowledge.RemoveDocumentAsync failed: agentId={AgentId} documentId={DocumentId}", agentId, documentId);
+            throw;
+        }
     }
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var filters = ComposeFilters(agentId, tags);
         var result = await _kernelMemory.SearchAsync(
             query: query,
+            index: AgentIndex,
             filters: filters,
             limit: 3,
             cancellationToken: cancellationToken);
@@ -42,7 +53,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var result = await _kernelMemory.SearchAsync(query, cancellationToken: cancellationToken);
+        var result = await _kernelMemory.SearchAsync(query, index: AgentIndex, cancellationToken: cancellationToken);
         return result;
     }
 
@@ -53,7 +64,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }
         var tagCollection = ComposeTags(agentId, tags);
-        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
+        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
         return documentId;
     }
 
@@ -67,12 +78,12 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var tagCollection = ComposeTags(agentId, tags);
 
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+        return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+        return await _kernelMemory.ExportFileAsync(documentId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
     private TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
