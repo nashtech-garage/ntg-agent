@@ -8,6 +8,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
     private readonly ILogger<KernelMemoryKnowledge> _logger;
     private const string TagNameAgentId = "agentId";
     private const string TagNameTags = "tags";
+    private const string AgentIndex = "default";
 
     public KernelMemoryKnowledge(IKernelMemory kernelMemory, ILogger<KernelMemoryKnowledge> logger)
     {
@@ -17,32 +18,31 @@ public class KernelMemoryKnowledge : IKnowledgeService
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var tagCollection = ComposeTags(agentId, tags);
-        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+        return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
     public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
     {
-        await _kernelMemory.DeleteDocumentAsync(documentId, cancellationToken: cancellationToken);
+        _logger.LogInformation("KernelMemoryKnowledge.RemoveDocumentAsync: agentId={AgentId} documentId={DocumentId} index={Index}", agentId, documentId, AgentIndex);
+        try
+        {
+            await _kernelMemory.DeleteDocumentAsync(documentId, index: AgentIndex, cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "KernelMemoryKnowledge.RemoveDocumentAsync failed: agentId={AgentId} documentId={DocumentId}", agentId, documentId);
+            throw;
+        }
     }
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        SearchResult result;
         var filters = ComposeFilters(agentId, tags);
-        if (filters.Count > 0)
-        {
-            result = await _kernelMemory.SearchAsync(
-                query: query,
-                filters: filters,
-                limit: 3,
-                cancellationToken: cancellationToken);
-        }
-        else
-        {
-            result = await _kernelMemory.SearchAsync(
-                query: query,
-                limit: 3,
-                cancellationToken: cancellationToken);
-        }
+        var result = await _kernelMemory.SearchAsync(
+            query: query,
+            index: AgentIndex,
+            filters: filters,
+            limit: 3,
+            cancellationToken: cancellationToken);
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -53,7 +53,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
     public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
-        var result = await _kernelMemory.SearchAsync(query, cancellationToken: cancellationToken);
+        var result = await _kernelMemory.SearchAsync(query, index: AgentIndex, cancellationToken: cancellationToken);
         return result;
     }
 
@@ -64,7 +64,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }
         var tagCollection = ComposeTags(agentId, tags);
-        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, cancellationToken: cancellationToken);
+        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
         return documentId;
     }
 
@@ -78,19 +78,28 @@ public class KernelMemoryKnowledge : IKnowledgeService
         var tagCollection = ComposeTags(agentId, tags);
 
         using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content));
-        return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, cancellationToken: cancellationToken);
+        return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
     public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        return await _kernelMemory.ExportFileAsync(documentId, fileName, cancellationToken: cancellationToken);
+        return await _kernelMemory.ExportFileAsync(documentId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
-    private static TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
+    private TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
     {
-        if (tags == null || agentId == Guid.Empty)
+        if (agentId == Guid.Empty)
         {
+            _logger.LogWarning("ComposeTags: empty agentId — document stored with no agentId tag in Elasticsearch.");
             return new TagCollection();
+        }
+
+        var agentIdValue = agentId.ToString().ToLower(CultureInfo.InvariantCulture);
+
+        if (tags == null)
+        {
+            _logger.LogWarning("ComposeTags: null tags — document stored with agentId only.");
+            return new TagCollection { { TagNameAgentId, agentIdValue } };
         }
 
         var formattedTags = tags
@@ -101,33 +110,55 @@ public class KernelMemoryKnowledge : IKnowledgeService
 
         if (formattedTags.Count == 0)
         {
-            return new TagCollection();
+            _logger.LogWarning("ComposeTags: tags resolved to empty list — document stored with agentId only.");
+            return new TagCollection { { TagNameAgentId, agentIdValue } };
         }
 
+        _logger.LogInformation("ComposeTags: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
         return new TagCollection
         {
-            { TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture) },
+            { TagNameAgentId, agentIdValue },
             { TagNameTags, formattedTags.Cast<string?>().ToList() }
         };
     }
-    private static List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
+
+    private List<MemoryFilter> ComposeFilters(Guid agentId, IEnumerable<string> tags)
     {
-        if (tags == null || agentId == Guid.Empty)
+        if (agentId == Guid.Empty)
         {
+            _logger.LogWarning("ComposeFilters: empty agentId — search will run UNFILTERED across all documents.");
             return new List<MemoryFilter>();
         }
+
+        var agentIdValue = agentId.ToString().ToLower(CultureInfo.InvariantCulture);
+        var agentOnlyFilter = new MemoryFilter();
+        agentOnlyFilter.Add(TagNameAgentId, agentIdValue);
+
+        if (tags == null)
+        {
+            _logger.LogWarning("ComposeFilters: null tags — filtering by agentId only.");
+            return [agentOnlyFilter];
+        }
+
         var formattedTags = tags
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Select(t => t.Trim().ToLower(CultureInfo.InvariantCulture))
-            .Distinct();
+            .Distinct()
+            .ToList();
 
-        var filters = formattedTags
-               .Select(tag => {
-                   var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
-                   memoryFilter.Add(TagNameAgentId, agentId.ToString().ToLower(CultureInfo.InvariantCulture));
-                   return memoryFilter;
-               })
-               .ToList();
-        return filters;
+        if (formattedTags.Count == 0)
+        {
+            _logger.LogWarning("ComposeFilters: tags resolved to empty list — filtering by agentId only.");
+            return [agentOnlyFilter];
+        }
+
+        _logger.LogInformation("ComposeFilters: agentId={AgentId}, tags=[{Tags}]", agentId, string.Join(", ", formattedTags));
+        return formattedTags
+            .Select(tag => {
+                var memoryFilter = MemoryFilters.ByTag(TagNameTags, tag);
+                memoryFilter.Add(TagNameAgentId, agentIdValue);
+                return memoryFilter;
+            })
+            .ToList();
     }
 }

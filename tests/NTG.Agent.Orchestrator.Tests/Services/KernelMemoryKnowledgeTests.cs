@@ -330,11 +330,11 @@ public class KernelMemoryKnowledgeTests
     #region RemoveDocumentAsync Tests
 
     [Test]
-    public async Task RemoveDocumentAsync_WithValidDocumentId_CallsDeleteDocument()
+    public async Task RemoveDocumentAsync_WithValidDocumentId_CallsDeleteDocumentWithDefaultIndex()
     {
         // Arrange
         var documentId = "test-doc-id";
-        
+
         _mockKernelMemory.Setup(m => m.DeleteDocumentAsync(
             It.IsAny<string>(),
             It.IsAny<string?>(),
@@ -347,17 +347,17 @@ public class KernelMemoryKnowledgeTests
         // Assert
         _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(
             documentId,
-            It.IsAny<string?>(),
+            "default",
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
-    public async Task RemoveDocumentAsync_WithCancellationToken_PassesCancellationToken()
+    public async Task RemoveDocumentAsync_WithCancellationToken_PassesCancellationTokenAndDefaultIndex()
     {
         // Arrange
         var documentId = "test-doc-id";
         var cancellationToken = new CancellationToken();
-        
+
         _mockKernelMemory.Setup(m => m.DeleteDocumentAsync(
             It.IsAny<string>(),
             It.IsAny<string?>(),
@@ -370,8 +370,27 @@ public class KernelMemoryKnowledgeTests
         // Assert
         _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(
             documentId,
-            It.IsAny<string?>(),
+            "default",
             cancellationToken), Times.Once);
+    }
+
+    [Test]
+    public void RemoveDocumentAsync_WhenKernelMemoryThrows_PropagatesException()
+    {
+        // Arrange
+        var documentId = "test-doc-id";
+        var inner = new InvalidOperationException("KM unavailable");
+
+        _mockKernelMemory.Setup(m => m.DeleteDocumentAsync(
+            It.IsAny<string>(),
+            It.IsAny<string?>(),
+            It.IsAny<CancellationToken>()))
+            .ThrowsAsync(inner);
+
+        // Act & Assert
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.RemoveDocumentAsync(documentId, _testAgentId));
+        Assert.That(ex, Is.SameAs(inner));
     }
 
     #endregion
