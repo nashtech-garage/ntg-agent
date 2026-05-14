@@ -10,7 +10,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
 
 builder.Services.AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport(options => options.Stateless = true)
     .WithToolsFromAssembly()
     .AddAiTool();
 

@@ -29,12 +29,14 @@ if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 var db = sql.AddDatabase("NTGAgent");
 
 var lightragPostgres = builder.AddPostgres("lightrag-postgres", password: pgPassword)
-								.WithImage("pgvector/pgvector", "0.8.2-pg17-trixie")
+								.WithDockerfile("../scripts/lightrag-postgres")
 								.WithDataVolume("ntg-agent-local-dev-lightrag-postgres-data")
 								.WithBindMount("../scripts/lightrag-pg-init", "/docker-entrypoint-initdb.d");
 
-// data volume: "ntg-agent-local-dev-lightrag-postgres-data"
-// docker pull pgvector/pgvector:0.8.2-pg17-trixie
+// Custom image at scripts/lightrag-postgres layers Apache AGE on top of
+// pgvector/pgvector:0.8.2-pg17-trixie so the same instance can serve vector
+// and graph RAG.
+// Data volume: "ntg-agent-local-dev-lightrag-postgres-data"
 
 if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 	lightragPostgres.WithContainerRuntimeArgs("--platform", "linux/amd64");
