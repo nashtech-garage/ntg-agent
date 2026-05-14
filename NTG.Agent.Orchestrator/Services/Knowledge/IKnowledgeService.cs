@@ -1,12 +1,12 @@
-using Microsoft.KernelMemory;
+using NTG.Agent.Common.Dtos.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public interface IKnowledgeService
 {
-    public Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
+    public Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
-    public Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default);
+    public Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default);
 
     public Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
@@ -16,5 +16,5 @@ public interface IKnowledgeService
 
     public Task<string> ImportTextContentAsync(string content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default);
 
-    public Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default);
+    public Task<KnowledgeFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default);
 }

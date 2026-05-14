@@ -58,7 +58,8 @@ Sets NTG.Agent.AppHost user secrets. Per value:
 Kernel Memory: if still empty after that, openssl generates a key.
 
 Env/.env keys: GITHUB_TOKEN, KERNEL_MEMORY_API_KEY,
-GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID.
+GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
+LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY.
 EOF
 }
 
@@ -223,10 +224,46 @@ resolve_field GOOGLE_SEARCH_ENGINE_ID \
   "GOOGLE_SEARCH_ENGINE_ID" \
   "placeholder"
 
+resolve_field LIGHTRAG_PG_PASSWORD \
+  "LightRAG PostgreSQL password [Enter for .env or auto-generate]: " \
+  1 \
+  "LIGHTRAG_PG_PASSWORD" \
+  "LIGHTRAG_PG_PASSWORD" \
+  "__EMPTY__"
+
+if [[ -z "$LIGHTRAG_PG_PASSWORD" ]]; then
+  if command -v openssl >/dev/null 2>&1; then
+    LIGHTRAG_PG_PASSWORD="$(openssl rand -base64 32 | tr -d '\n\r')"
+    echo "Generated LIGHTRAG_PG_PASSWORD (${#LIGHTRAG_PG_PASSWORD} characters)."
+  else
+    echo "error: LIGHTRAG_PG_PASSWORD missing; install openssl for auto-generation or set in .env" >&2
+    exit 1
+  fi
+fi
+
+resolve_field LIGHTRAG_API_KEY \
+  "LightRAG API key (32+ chars) [Enter for .env or auto-generate]: " \
+  1 \
+  "LIGHTRAG_API_KEY" \
+  "LIGHTRAG_API_KEY" \
+  "__EMPTY__"
+
+if [[ -z "$LIGHTRAG_API_KEY" ]]; then
+  if command -v openssl >/dev/null 2>&1; then
+    LIGHTRAG_API_KEY="$(openssl rand -base64 48 | tr -d '\n\r')"
+    echo "Generated LIGHTRAG_API_KEY (${#LIGHTRAG_API_KEY} characters)."
+  else
+    echo "error: LIGHTRAG_API_KEY missing; install openssl for auto-generation or set in .env" >&2
+    exit 1
+  fi
+fi
+
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:kernel-memory-api-key" "$KERNEL_MEMORY_API_KEY"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
+set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
+set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Dry run finished; no secrets were written."

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
@@ -75,6 +76,7 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
 
 builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
 builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.GetSection("Azure:DocumentIntelligence"));
+builder.Services.Configure<LightRagSettings>(builder.Configuration.GetSection("LightRag"));
 
 builder.Services.AddControllers();
 
@@ -87,13 +89,29 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
-builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
+builder.Services.AddScoped<IKnowledgeService, LightRagKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddSingleton<LightRagFileStore>(sp =>
+{
+    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
+    var log = sp.GetRequiredService<ILogger<LightRagFileStore>>();
+    return new LightRagFileStore(cfg.FileStorePath, log);
+});
+
+builder.Services.AddHttpClient<LightRagClient>((sp, c) =>
+{
+    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
+    c.BaseAddress = new Uri(cfg.Endpoint);
+    if (!string.IsNullOrEmpty(cfg.ApiKey))
+        c.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cfg.ApiKey);
+});
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

@@ -364,14 +364,15 @@ public class DocumentsController : ControllerBase
         if (document.KnowledgeDocId is null) return NotFound("No knowledge document id.");
         var fileName = FileTypeService.SanitizeFileName(document.Name);
 
-        var contentType = FileTypeService.GetContentType(fileName);
-
-        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId, ct);
-
-        if (content is null) return NotFound();
-
-        var stream = await content.GetStreamAsync();
-        return File(stream, contentType, fileName);
+        try
+        {
+            var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId, ct);
+            return File(content.Content, content.ContentType, content.FileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     private async Task<IActionResult> HandleWebPageDownloadAsync(Document document, CancellationToken ct)

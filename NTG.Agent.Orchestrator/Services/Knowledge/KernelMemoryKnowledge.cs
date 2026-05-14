@@ -1,5 +1,8 @@
-﻿using Microsoft.KernelMemory;
+using Microsoft.KernelMemory;
+using NTG.Agent.Common.Dtos.Knowledge;
+using NTG.Agent.Common.Dtos.Services;
 using System.Globalization;
+
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 public class KernelMemoryKnowledge : IKnowledgeService
@@ -15,6 +18,7 @@ public class KernelMemoryKnowledge : IKnowledgeService
         _kernelMemory = kernelMemory ?? throw new ArgumentNullException(nameof(kernelMemory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
     public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var tagCollection = ComposeTags(agentId, tags);
@@ -34,7 +38,8 @@ public class KernelMemoryKnowledge : IKnowledgeService
             throw;
         }
     }
-    public async Task<SearchResult> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+
+    public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var filters = ComposeFilters(agentId, tags);
         var result = await _kernelMemory.SearchAsync(
@@ -48,13 +53,14 @@ public class KernelMemoryKnowledge : IKnowledgeService
         {
             _logger.LogDebug("KernelMemoryKnowledge.SearchAsync: {Query}, tags:{Tags} => {Result}", query, string.Join(", ", tags), result.ToJson());
         }
-        return result;
+
+        return MapToResponse(result);
     }
 
-    public async Task<SearchResult> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
     {
         var result = await _kernelMemory.SearchAsync(query, index: AgentIndex, cancellationToken: cancellationToken);
-        return result;
+        return MapToResponse(result);
     }
 
     public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
@@ -81,9 +87,22 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
-    public async Task<StreamableFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
+    public async Task<KnowledgeFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
     {
-        return await _kernelMemory.ExportFileAsync(documentId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
+        var streamable = await _kernelMemory.ExportFileAsync(documentId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
+        var stream = await streamable.GetStreamAsync();
+        var contentType = FileTypeService.GetContentType(fileName);
+        return new KnowledgeFileContent(stream, contentType, fileName);
+    }
+
+    private static KnowledgeSearchResponse MapToResponse(SearchResult? result)
+    {
+        if (result is null) return new KnowledgeSearchResponse(true, string.Empty, []);
+        var matches = (result.Results ?? [])
+            .SelectMany(c => c.Partitions.Select(p =>
+                new KnowledgeSearchMatch(c.SourceName, p.Text, (double)p.Relevance)))
+            .ToList();
+        return new KnowledgeSearchResponse(matches.Count == 0, result.Query, matches);
     }
 
     private TagCollection ComposeTags(Guid agentId, IEnumerable<string> tags)
