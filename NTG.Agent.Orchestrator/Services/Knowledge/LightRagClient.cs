@@ -14,14 +14,14 @@ public class LightRagClient
         _logger = logger;
     }
 
-    public async Task<string> InsertTextAsync(string text, string? description = null, CancellationToken ct = default)
+    public async Task<string> InsertTextAsync(string text, string? fileSource = null, CancellationToken ct = default)
     {
-        var body = new InsertTextRequest(text, description);
-        var response = await _http.PostAsJsonAsync("/v1/documents/text", body, ct);
+        var body = new InsertTextRequest(text, fileSource);
+        var response = await _http.PostAsJsonAsync("/documents/text", body, ct);
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<InsertDocumentResponse>(ct);
-        _logger.LogInformation("LightRagClient.InsertTextAsync: docId={DocId}", result!.Id);
-        return result.Id;
+        var result = await response.Content.ReadFromJsonAsync<InsertResponse>(ct);
+        _logger.LogInformation("LightRagClient.InsertTextAsync: trackId={TrackId} status={Status}", result!.TrackId, result.Status);
+        return result.TrackId;
     }
 
     public async Task<string> InsertFileAsync(Stream content, string fileName, CancellationToken ct = default)
@@ -29,18 +29,18 @@ public class LightRagClient
         using var form = new MultipartFormDataContent();
         var streamContent = new StreamContent(content);
         form.Add(streamContent, "file", fileName);
-        var response = await _http.PostAsync("/v1/documents/file", form, ct);
+        var response = await _http.PostAsync("/documents/upload", form, ct);
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<InsertDocumentResponse>(ct);
-        _logger.LogInformation("LightRagClient.InsertFileAsync: file={FileName} docId={DocId}", fileName, result!.Id);
-        return result.Id;
+        var result = await response.Content.ReadFromJsonAsync<InsertResponse>(ct);
+        _logger.LogInformation("LightRagClient.InsertFileAsync: file={FileName} trackId={TrackId} status={Status}", fileName, result!.TrackId, result.Status);
+        return result.TrackId;
     }
 
     public async Task DeleteDocumentAsync(string docId, CancellationToken ct = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/v1/documents")
+        var request = new HttpRequestMessage(HttpMethod.Delete, "/documents/delete_document")
         {
-            Content = JsonContent.Create(new DeleteDocumentRequest(docId))
+            Content = JsonContent.Create(new DeleteDocumentRequest([docId]))
         };
         var response = await _http.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
@@ -50,7 +50,7 @@ public class LightRagClient
     public async Task<string> QueryAsync(string query, int topK = 60, string mode = "hybrid", bool onlyNeedContext = true, CancellationToken ct = default)
     {
         var body = new QueryRequest(query, mode, onlyNeedContext, topK, 4000, 4000, 4000);
-        var response = await _http.PostAsJsonAsync("/v1/query", body, ct);
+        var response = await _http.PostAsJsonAsync("/query", body, ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<QueryResponse>(ct);
         return result!.Response;
@@ -58,14 +58,15 @@ public class LightRagClient
 
     private sealed record InsertTextRequest(
         [property: JsonPropertyName("text")] string Text,
-        [property: JsonPropertyName("description")] string? Description);
+        [property: JsonPropertyName("file_source")] string? FileSource);
 
-    private sealed record InsertDocumentResponse(
-        [property: JsonPropertyName("id")] string Id,
-        [property: JsonPropertyName("status")] string Status);
+    private sealed record InsertResponse(
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("message")] string Message,
+        [property: JsonPropertyName("track_id")] string TrackId);
 
     private sealed record DeleteDocumentRequest(
-        [property: JsonPropertyName("doc_id")] string DocId);
+        [property: JsonPropertyName("doc_ids")] IReadOnlyList<string> DocIds);
 
     private sealed record QueryRequest(
         [property: JsonPropertyName("query")] string Query,

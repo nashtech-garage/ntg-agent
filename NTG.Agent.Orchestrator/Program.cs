@@ -104,13 +104,27 @@ builder.Services.AddSingleton<LightRagFileStore>(sp =>
     return new LightRagFileStore(cfg.FileStorePath, log);
 });
 
+// LightRAG /query invokes an LLM and routinely takes >10s, exceeding the
+// standard resilience handler's 10s per-attempt timeout. Override the named
+// options for this client so the global ServiceDefaults pipeline is reused
+// with longer timeouts and no retries (retrying slow LLM calls is wasteful).
+builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>(
+    nameof(LightRagClient),
+    o =>
+    {
+        o.AttemptTimeout.Timeout = TimeSpan.FromMinutes(2);
+        o.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
+        o.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
+        o.Retry.MaxRetryAttempts = 0;
+    });
+
 builder.Services.AddHttpClient<LightRagClient>((sp, c) =>
 {
     var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
     c.BaseAddress = new Uri(cfg.Endpoint);
+    c.Timeout = TimeSpan.FromMinutes(5);
     if (!string.IsNullOrEmpty(cfg.ApiKey))
-        c.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", cfg.ApiKey);
+        c.DefaultRequestHeaders.Add("X-API-Key", cfg.ApiKey);
 });
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
