@@ -66,8 +66,8 @@ Wait for `lightrag-postgres`, `lightrag`, and `ntg-agent-orchestrator` to reach 
 
 1. Open the admin URL from the Aspire dashboard (`ntg-agent-admin`). Login with `admin@ntgagent.com` / `Ntg@123`.
 2. **Agents → Default Agent → Knowledge Base tab → Add Knowledge**. Pick a PDF/docx/xlsx/txt and submit.
-3. Under the hood: `POST /api/Documents/upload/{agentId}` (Orchestrator) → `LightRagClient.InsertFileAsync` → LightRAG `/documents/upload` (async queue). The Orchestrator also writes the original file to `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{trackId}_{fileName}`.
-4. Watch the LightRAG WebUI Documents tab. The status transitions `Pending → Processing → Completed` (or `Failed`). Large docs may take a minute or two.
+3. Under the hood: `POST /api/Documents/upload/{agentId}` (Orchestrator) → `LightRagClient.InsertFileAsync` → LightRAG `/documents/upload` (async queue) → `LightRagKnowledge.WaitForDocumentReadyAsync` polls `/documents/track_status/{track_id}` every `LightRag:PollIntervalSeconds` (default 3s) up to `LightRag:UploadTimeoutSeconds` (default 180s) for the real `doc-XXX` ID. Only after `PROCESSED` does the orchestrator save the file to `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{docId}_{fileName}` and commit a `Document` row. `FAILED` throws `LightRagExtractionException` and the API returns a per-file failure entry — no row is committed.
+4. The HTTP upload call therefore blocks until extraction finishes. Large docs can take 1–2 min; the admin UI shows a spinner. Watch the LightRAG WebUI Documents tab if you want a live view of the pipeline stages (`Pending → Processing → Completed/Failed`).
 
 ### Via curl (when you want to bypass auth/UI for testing)
 
@@ -132,10 +132,10 @@ Once at least one document is `Completed` in LightRAG:
   docker volume rm ntg-agent-local-dev-elasticsearch-data       # for KM
   ```
 
-### Docs marked `Failed` in LightRAG WebUI but show as successful in Admin UI
+### Upload appears to hang for 1–2 min
 
-- **Known bug**, not yet fixed. The Orchestrator commits the `Document` row at upload time using LightRAG's `track_id`, before extraction completes. If extraction fails later, the Admin UI still lists the doc as if successful.
-- **Workaround**: cross-reference LightRAG WebUI Documents tab for true ingestion state.
+- **Cause**: the upload endpoint is now synchronous — it polls LightRAG until extraction completes (`PROCESSED`) or fails. This is intentional: it ensures the Admin UI Knowledge Base list only shows successfully-extracted docs, and that `Document.KnowledgeDocId` stores the real `doc-XXX` (so delete works).
+- **Tuning**: see `LightRag:UploadTimeoutSeconds` (default 180) and `LightRag:PollIntervalSeconds` (default 3) in `LightRagSettings`. A timeout throws `LightRagExtractionException` and returns a per-file failure to the UI — the doc may still finish in LightRAG, but no `Document` row is committed.
 
 ### `database "uploaded-documents" does not exist` or `extension "age" is not available`
 
@@ -178,6 +178,5 @@ LightRAG settings on the Orchestrator side (in `appsettings.json`, section `Ligh
 
 ## Known limitations
 
-- **No per-agent namespace isolation in LightRAG v1.4.x**: all agents share the same knowledge graph. `agentId` is included in document descriptions as a metadata hint only (`LightRagKnowledge.cs:53,65`). Multi-tenant scenarios require an upstream LightRAG upgrade or one-container-per-agent topology.
-- **Upload-status sync gap**: see "Docs marked Failed in LightRAG WebUI but show as successful in Admin UI" above. Tracked separately.
-- **`Document.KnowledgeDocId` stores `track_id`, not `doc-id`**: LightRAG `/documents/upload` returns a `track_id` (e.g. `upload_20260518_120000_<hash>_<filename>`), not the eventually-assigned `doc-XXX`. The Orchestrator currently persists the `track_id` as `Document.KnowledgeDocId`. Consequence: `DELETE /documents/delete_document` is called with a `track_id` LightRAG can't match against any real doc, leaving orphans on the LightRAG side. Planned fix not yet implemented.
+- **No per-agent namespace isolation in LightRAG v1.4.x**: all agents share the same knowledge graph. `agentId` is included in document descriptions as a metadata hint only (`LightRagKnowledge.cs`). Multi-tenant scenarios require an upstream LightRAG upgrade or one-container-per-agent topology.
+- **Synchronous upload model**: the upload HTTP call now blocks until LightRAG's async pipeline finishes — see "Upload appears to hang for 1–2 min" above. Fine for dev-phase admin uploads; for a public-facing ingestion API consider switching to a Pending-row + background-reconciler model so the HTTP call returns immediately.

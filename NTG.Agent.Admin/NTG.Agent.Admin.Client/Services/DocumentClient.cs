@@ -50,6 +50,17 @@ public class DocumentClient(HttpClient httpClient)
         var queryString = queryParams.Count != 0 ? "?" + string.Join("&", queryParams) : "";
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
+
+        // Upload is now status-aware: the orchestrator polls LightRAG until each doc is
+        // PROCESSED or FAILED. A FAILED file shows up here as Success=false with the
+        // LightRAG error message — surface it as an exception so the existing UI catch
+        // path (in AddKnowledgeForm) shows the message to the user.
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<UploadDocumentResult>>();
+        var failed = results?.FirstOrDefault(r => !r.Success);
+        if (failed != null)
+        {
+            throw new InvalidOperationException(failed.ErrorMessage ?? $"Upload failed for {failed.FileName}");
+        }
     }
 
     public async Task DeleteDocumentByIdAsync(Guid agentId, Guid documentId)

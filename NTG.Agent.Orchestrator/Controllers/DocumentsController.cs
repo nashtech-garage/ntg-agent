@@ -112,11 +112,19 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        // Process each file synchronously: LightRagKnowledge.ImportDocumentAsync polls LightRAG
+        // until extraction completes (PROCESSED) or fails (throws LightRagExtractionException).
+        // Per-file try/catch ensures a single failure doesn't roll back successful siblings,
+        // and Failed files never get a Document row written — matching the user-visible promise
+        // that the Admin UI's Knowledge Base list only shows successfully-extracted documents.
         var documents = new List<Document>();
         var documentTags = new List<DocumentTag>();
+        var results = new List<UploadDocumentResult>();
         foreach (var file in files)
         {
-            if (file.Length > 0)
+            if (file.Length <= 0) continue;
+
+            try
             {
                 var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, tags);
                 var document = new Document
@@ -142,6 +150,12 @@ public class DocumentsController : ControllerBase
                     };
                     documentTags.Add(documentTag);
                 }
+                results.Add(new UploadDocumentResult(file.FileName, Success: true, ErrorMessage: null, DocumentId: document.Id));
+            }
+            catch (LightRagExtractionException ex)
+            {
+                _logger.LogWarning(ex, "LightRAG extraction failed for {FileName} (agentId={AgentId})", file.FileName, agentId);
+                results.Add(new UploadDocumentResult(file.FileName, Success: false, ErrorMessage: ex.Message, DocumentId: null));
             }
         }
 
@@ -152,7 +166,7 @@ public class DocumentsController : ControllerBase
             await _agentDbContext.SaveChangesAsync();
         }
 
-        return Ok(new { message = "Files uploaded successfully." });
+        return Ok(results);
     }
     /// <summary>
     /// Deletes a document with the specified identifier.

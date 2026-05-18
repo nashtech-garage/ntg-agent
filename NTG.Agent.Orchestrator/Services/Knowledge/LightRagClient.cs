@@ -56,6 +56,17 @@ public class LightRagClient
         return result!.Response;
     }
 
+    // LightRAG's /documents/upload is asynchronous: it returns a track_id immediately and
+    // assigns the real doc-id later during the extraction pipeline. Poll this endpoint to
+    // resolve the doc-id and final status (PROCESSED / FAILED / PENDING / PROCESSING / PREPROCESSED).
+    public async Task<TrackStatusResponse> GetTrackStatusAsync(string trackId, CancellationToken ct = default)
+    {
+        var response = await _http.GetAsync($"/documents/track_status/{trackId}", ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<TrackStatusResponse>(ct);
+        return result ?? new TrackStatusResponse(trackId, Array.Empty<TrackDocStatus>(), 0, new Dictionary<string, int>());
+    }
+
     private sealed record InsertTextRequest(
         [property: JsonPropertyName("text")] string Text,
         [property: JsonPropertyName("file_source")] string? FileSource);
@@ -80,3 +91,16 @@ public class LightRagClient
     private sealed record QueryResponse(
         [property: JsonPropertyName("response")] string Response);
 }
+
+public sealed record TrackStatusResponse(
+    [property: JsonPropertyName("track_id")] string TrackId,
+    [property: JsonPropertyName("documents")] IReadOnlyList<TrackDocStatus> Documents,
+    [property: JsonPropertyName("total_count")] int TotalCount,
+    [property: JsonPropertyName("status_summary")] IReadOnlyDictionary<string, int> StatusSummary);
+
+public sealed record TrackDocStatus(
+    [property: JsonPropertyName("id")] string Id,
+    [property: JsonPropertyName("track_id")] string TrackId,
+    [property: JsonPropertyName("status")] string Status,
+    [property: JsonPropertyName("chunks_count")] int? ChunksCount,
+    [property: JsonPropertyName("error_msg")] string? ErrorMsg);
