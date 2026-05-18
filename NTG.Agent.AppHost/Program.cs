@@ -153,7 +153,16 @@ var knowledge = builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-know
 	.WaitFor(db)
 	.WaitFor(elasticsearch)
 	.WithEnvironment("KernelMemory__Services__SqlServer__ConnectionString", db)
-	.WithEnvironment("KernelMemory__Services__OpenAI__APIKey", githubToken)
+	// KM long-term memory now runs on Azure OpenAI to avoid the GitHub Models 8k/RPM
+	// caps that were causing /search to time out via MemoryWebClient. Embeddings use
+	// text-embedding-3-large (3072-dim) on the dedicated embedding endpoint; text gen
+	// uses gpt-5.4-mini on the shared chat endpoint. Switching embedding dim requires
+	// wiping the Elasticsearch data volume so the index can be recreated. The OpenAI
+	// section in appsettings.Development.json is left as a dormant fallback (no key).
+	.WithEnvironment("KernelMemory__Services__AzureOpenAIEmbedding__Endpoint", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("KernelMemory__Services__AzureOpenAIEmbedding__APIKey", azureEmbeddingApiKey)
+	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__Endpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__APIKey", azureOpenAiApiKey)
 	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey1", kernelMemoryApiKey)
 	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey2", kernelMemoryApiKey)
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__Endpoint", elasticsearch.GetEndpoint("http"))
