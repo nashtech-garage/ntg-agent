@@ -9,6 +9,9 @@ ntgfilestore/
 # .md for AIs
 CLAUDE.md
 
+# file-store in development phase
+**/lightrag-filestore/
+
 # Local environment file (often contains secrets)
 .env
 
