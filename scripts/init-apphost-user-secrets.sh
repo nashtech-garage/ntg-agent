@@ -59,7 +59,8 @@ Kernel Memory: if still empty after that, openssl generates a key.
 
 Env/.env keys: GITHUB_TOKEN, KERNEL_MEMORY_API_KEY,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
-LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY.
+LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
+AZURE_OPENAI_API_KEY, AZURE_EMBEDDING_API_KEY.
 EOF
 }
 
@@ -258,12 +259,38 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
   fi
 fi
 
+resolve_field AZURE_OPENAI_API_KEY \
+  "Azure OpenAI API key (LightRAG LLM, gpt-5.4-mini deployment) [Enter for .env]: " \
+  1 \
+  "AZURE_OPENAI_API_KEY" \
+  "AZURE_OPENAI_API_KEY" \
+  "__EMPTY__"
+
+if [[ -z "$AZURE_OPENAI_API_KEY" ]]; then
+  echo "error: AZURE_OPENAI_API_KEY is required (prompt, .env AZURE_OPENAI_API_KEY, or export AZURE_OPENAI_API_KEY)" >&2
+  exit 1
+fi
+
+resolve_field AZURE_EMBEDDING_API_KEY \
+  "Azure OpenAI API key (LightRAG embeddings, text-embedding-3-large) [Enter for .env]: " \
+  1 \
+  "AZURE_EMBEDDING_API_KEY" \
+  "AZURE_EMBEDDING_API_KEY" \
+  "__EMPTY__"
+
+if [[ -z "$AZURE_EMBEDDING_API_KEY" ]]; then
+  echo "error: AZURE_EMBEDDING_API_KEY is required (prompt, .env AZURE_EMBEDDING_API_KEY, or export AZURE_EMBEDDING_API_KEY)" >&2
+  exit 1
+fi
+
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:kernel-memory-api-key" "$KERNEL_MEMORY_API_KEY"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+set_secret "Parameters:azure-openai-api-key" "$AZURE_OPENAI_API_KEY"
+set_secret "Parameters:azure-embedding-api-key" "$AZURE_EMBEDDING_API_KEY"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Dry run finished; no secrets were written."

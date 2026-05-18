@@ -13,6 +13,8 @@ var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
+var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
+var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest") 
@@ -52,14 +54,30 @@ var lightrag = builder.AddContainer("lightrag", "ghcr.io/hkuds/lightrag", "v1.4.
 	.WithEnvironment("POSTGRES_USER", "postgres")
 	.WithEnvironment("POSTGRES_PASSWORD", pgPassword)
 	.WithEnvironment("POSTGRES_DATABASE", "uploaded-documents")
-	.WithEnvironment("LLM_BINDING", "openai")
-	.WithEnvironment("LLM_MODEL", "openai/gpt-4.1")
-	.WithEnvironment("LLM_BINDING_HOST", "https://models.github.ai/inference")
-	.WithEnvironment("LLM_BINDING_API_KEY", githubToken)
-	.WithEnvironment("EMBEDDING_BINDING", "openai")
-	.WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-small")
-	.WithEnvironment("EMBEDDING_BINDING_HOST", "https://models.github.ai/inference")
-	.WithEnvironment("EMBEDDING_BINDING_API_KEY", githubToken)
+	// Azure OpenAI: no 8000-token request cap and ~1M TPM / 10K RPM on standard tier.
+	// gpt-5.4-mini is the deployment used for entity extraction and merge-summary
+	// (high volume, low reasoning cost); save full gpt-5.4 for chat agents.
+	.WithEnvironment("LLM_BINDING", "azure_openai")
+	.WithEnvironment("LLM_MODEL", "gpt-5.4-mini")
+	.WithEnvironment("LLM_BINDING_HOST", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("LLM_BINDING_API_KEY", azureOpenAiApiKey)
+	.WithEnvironment("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
+	// text-embedding-3-large is 3072-dim (vs text-embedding-3-small's 1536); the
+	// pgvector schema is created on first ingestion against EMBEDDING_DIM, so any
+	// future dim change requires wiping ntg-agent-local-dev-lightrag-postgres-data.
+	.WithEnvironment("EMBEDDING_BINDING", "azure_openai")
+	.WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-large")
+	.WithEnvironment("EMBEDDING_BINDING_HOST", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("EMBEDDING_BINDING_API_KEY", azureEmbeddingApiKey)
+	.WithEnvironment("EMBEDDING_DIM", "3072")
+	.WithEnvironment("AZURE_EMBEDDING_API_VERSION", "2024-08-01-preview")
+	// Larger chunks (recommended top-of-range is 1500) and full default extraction
+	// budget — Azure OpenAI has no per-request token cap to worry about here.
+	.WithEnvironment("CHUNK_SIZE", "1500")
+	.WithEnvironment("CHUNK_OVERLAP_SIZE", "100")
+	.WithEnvironment("MAX_ASYNC", "8")
+	.WithEnvironment("MAX_PARALLEL_INSERT", "2")
+	.WithEnvironment("EMBEDDING_FUNC_MAX_ASYNC", "8")
 	.WithEnvironment("LIGHTRAG_API_KEY", lightragApiKey)
 	.WaitFor(lightragPostgres);
 
