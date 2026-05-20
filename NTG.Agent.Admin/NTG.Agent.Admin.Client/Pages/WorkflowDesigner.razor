@@ -15,9 +15,23 @@
             <h4 class="mb-0">
                 <i class="bi bi-diagram-3-fill text-primary me-2"></i>Workflow Designer
             </h4>
-            <small class="text-muted">Click an agent node to start a connection, then click another to complete it. Drag nodes to rearrange.</small>
+            <small class="text-muted">Click an agent node to start a connection, then click another to complete it. Use the <strong>✎</strong> button to edit instructions. Drag nodes to rearrange.</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center">
+            <!-- Zoom controls -->
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ZoomOut" title="Zoom Out"
+                    disabled="@(zoomLevel <= ZoomMin)">
+                <i class="bi bi-dash-lg"></i>
+            </button>
+            <span class="small text-muted" style="min-width:38px;text-align:center;">@((int)(zoomLevel * 100))%</span>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ZoomIn" title="Zoom In"
+                    disabled="@(zoomLevel >= ZoomMax)">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ResetZoom" title="Reset Zoom (100%)">
+                <i class="bi bi-aspect-ratio me-1"></i>100%
+            </button>
+            <div class="vr mx-1"></div>
             <button class="btn btn-outline-secondary btn-sm" @onclick="ResetLayout">
                 <i class="bi bi-arrow-clockwise me-1"></i>Reset Layout
             </button>
@@ -87,14 +101,23 @@
                 </div>
             </div>
 
-            <!-- Canvas -->
+            <!-- Canvas: min-width:0 prevents the flex item from expanding beyond its container (classic flex overflow fix) -->
             <div class="flex-grow-1 card border-0 shadow-sm overflow-auto p-0"
-                 style="background: #f8f9fa;">
-                <svg width="@canvasWidth" height="@canvasHeight"
+                 style="background: #f8f9fa; min-width: 0;">
+                @{
+                    // Physical pixel size scales with zoom; viewBox keeps the logical coordinate space fixed.
+                    // This lets all node positions stay in the 0..canvasWidth × 0..canvasHeight range at every zoom level.
+                    var physW = (int)(canvasWidth * zoomLevel);
+                    var physH = (int)(canvasHeight * zoomLevel);
+                }
+                <svg width="@physW" height="@physH"
+                     viewBox="0 0 @canvasWidth @canvasHeight"
                      @onpointermove="HandlePointerMove"
                      @onpointerup="HandlePointerUp"
                      @onclick="HandleCanvasClick"
-                     style="display: block; min-width: 100%; min-height: 100%;">
+                     @onwheel="HandleWheel"
+                     @onwheel:preventDefault="true"
+                     style="display: block;">
 
                     <defs>
                         <marker id="ah" markerWidth="12" markerHeight="8" refX="11" refY="4"
@@ -201,14 +224,23 @@
                                 </g>
                             }
 
-                            <!-- Remove button (top-right) -->
+                            <!-- Remove button (top-right) — triggers confirmation modal instead of immediate delete -->
                             <g transform="translate(@(hw - 4), @(-hh + 4))" style="cursor: pointer;"
-                               @onclick="() => RemoveNode(node)"
+                               @onclick="() => ShowDeleteConfirmation(node)"
                                @onclick:stopPropagation="true"
                                @onpointerdown:stopPropagation="true">
                                 <circle r="8" fill="#e53935" opacity="0.85" />
                                 <line x1="-3" y1="-3" x2="3" y2="3" stroke="white" stroke-width="1.5" />
                                 <line x1="3" y1="-3" x2="-3" y2="3" stroke="white" stroke-width="1.5" />
+                            </g>
+
+                            <!-- Edit instructions button (top-left) -->
+                            <g transform="translate(@(-hw + 4), @(-hh + 4))" style="cursor: pointer;"
+                               @onclick="() => OpenInstructionsEditor(node)"
+                               @onclick:stopPropagation="true"
+                               @onpointerdown:stopPropagation="true">
+                                <circle r="8" fill="#1976d2" opacity="0.85" />
+                                @SvgText(0, 3.5, "✎", "11", "400", "white")
                             </g>
 
                             <!-- Connection port (right edge) -->
@@ -256,11 +288,126 @@
     }
 </div>
 
+<!-- Instructions Editor Modal — position:fixed keeps it outside the document flow so it never causes layout shifts or scrollbars -->
+@if (editingAgent != null)
+{
+    <!-- Backdrop: clicking it closes the modal -->
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1050;"
+         @onclick="CloseEditor"></div>
+
+    <!-- Dialog: stopPropagation prevents backdrop click from bubbling through the card -->
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                width:580px;max-width:92vw;max-height:88vh;z-index:1051;
+                display:flex;flex-direction:column;border-radius:10px;
+                box-shadow:0 24px 64px rgba(0,0,0,0.28);"
+         class="card border-0"
+         @onclick:stopPropagation="true">
+
+        <!-- Header -->
+        <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between"
+             style="border-radius:10px 10px 0 0;">
+            <div>
+                <h6 class="mb-0">
+                    <i class="bi bi-pencil-square me-2 text-primary"></i>Edit Agent Instructions
+                </h6>
+                <small class="text-muted fw-semibold">
+                    @editingAgent.Name
+                    @if (editingAgent.IsSelectable)
+                    {
+                        <span class="badge bg-primary-subtle text-primary ms-2" style="font-size:0.6rem;">TRIAGE</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary-subtle text-secondary ms-2" style="font-size:0.6rem;">EXECUTOR</span>
+                    }
+                </small>
+            </div>
+            <button class="btn-close" @onclick="CloseEditor" aria-label="Close" disabled="@isSavingInstructions"></button>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body p-4 d-flex flex-column" style="overflow-y:auto;">
+            <label class="form-label fw-semibold mb-2">System Prompt</label>
+            <textarea class="form-control"
+                      rows="14"
+                      style="resize:vertical;font-family:monospace;font-size:0.85rem;"
+                      @bind="editingInstructions"
+                      placeholder="Enter agent system prompt / instructions..."
+                      disabled="@isSavingInstructions"></textarea>
+        </div>
+
+        <!-- Footer -->
+        <div class="card-footer bg-white border-top d-flex justify-content-end gap-2 py-3"
+             style="border-radius:0 0 10px 10px;">
+            <button class="btn btn-outline-secondary" @onclick="CloseEditor" disabled="@isSavingInstructions">Cancel</button>
+            <button class="btn btn-primary" @onclick="SaveInstructions" disabled="@isSavingInstructions">
+                @if (isSavingInstructions)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                    <span>Saving…</span>
+                }
+                else
+                {
+                    <i class="bi bi-check-circle me-2"></i>
+                    <span>Save</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+<!-- Delete Confirmation Modal — shown when user clicks the red × on an agent node -->
+@if (pendingDeleteNode != null)
+{
+    <!-- Backdrop: clicking it cancels the delete -->
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1050;"
+         @onclick="CancelDeleteNode"></div>
+
+    <!-- Dialog -->
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                width:420px;max-width:92vw;z-index:1051;
+                border-radius:10px;box-shadow:0 24px 64px rgba(0,0,0,0.28);"
+         class="card border-0"
+         @onclick:stopPropagation="true">
+
+        <!-- Header -->
+        <div class="card-header border-bottom py-3 d-flex align-items-center gap-2"
+             style="border-radius:10px 10px 0 0; background:#fff5f5;">
+            <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+            <h6 class="mb-0 text-danger">Remove Agent from Graph</h6>
+        </div>
+
+        <!-- Body -->
+        <div class="card-body px-4 py-3">
+            <p class="mb-1">
+                Are you sure you want to remove
+                <strong>@pendingDeleteNode.Name</strong> from this workflow?
+            </p>
+            <p class="mb-0 text-muted small">
+                All connections (edges) to and from this agent will also be removed.
+                The agent itself will not be deleted.
+            </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="card-footer bg-white border-top d-flex justify-content-end gap-2 py-3"
+             style="border-radius:0 0 10px 10px;">
+            <button class="btn btn-outline-secondary" @onclick="CancelDeleteNode">Cancel</button>
+            <button class="btn btn-danger" @onclick="ConfirmDeleteNode">
+                <i class="bi bi-trash me-2"></i>Remove
+            </button>
+        </div>
+    </div>
+}
+
 @code {
     // ── Constants ──
     private const int NW = 180; // node width
     private const int NH = 54;  // node height
     private const double DragThreshold = 5;
+    private const double ZoomMin = 0.4;
+    private const double ZoomMax = 2.5;
+    private const double ZoomStep = 0.15;
 
     // ── State ──
     private List<AgentParticipantDto> allAgents = [];
@@ -278,6 +425,17 @@
     private bool dragging;
     private bool wasDrag;
     private Guid? hoveredEdgeId;
+
+    // Zoom: viewBox keeps logical coordinates fixed; physical SVG size scales with zoomLevel
+    private double zoomLevel = 1.0;
+
+    // Delete confirmation
+    private GNode? pendingDeleteNode;
+
+    // Instructions editor
+    private AgentDetail? editingAgent;
+    private string editingInstructions = string.Empty;
+    private bool isSavingInstructions;
 
     // Canvas
     private int canvasWidth = 1400;
@@ -480,8 +638,10 @@
             dragging = true;
         if (dragging)
         {
-            ptrDownNode.X = dragNodeX0 + dx;
-            ptrDownNode.Y = dragNodeY0 + dy;
+            // Divide physical pixel delta by zoomLevel to convert to SVG logical units.
+            // At zoom 2× a 1px mouse movement = 0.5 SVG units; at 0.5× it = 2 SVG units.
+            ptrDownNode.X = dragNodeX0 + dx / zoomLevel;
+            ptrDownNode.Y = dragNodeY0 + dy / zoomLevel;
         }
     }
 
@@ -497,6 +657,9 @@
     // ── Click handling ──
     private async Task HandleNodeClick(GNode node)
     {
+        // Close the instructions editor whenever the user clicks a node for connection purposes
+        CloseEditor();
+
         if (connectingFromNode == null)
         {
             connectingFromNode = node;
@@ -524,9 +687,105 @@
         if (wasDrag) { wasDrag = false; return; }
         if (connectingFromNode != null)
             connectingFromNode = null;
+        // Dismiss the editor when clicking the canvas background
+        CloseEditor();
     }
 
     private void CancelConnection() => connectingFromNode = null;
+
+    // ── Zoom ──
+    /// <summary>Clamps and applies a new zoom level then triggers a re-render.</summary>
+    private void ApplyZoom(double newLevel)
+    {
+        zoomLevel = Math.Clamp(Math.Round(newLevel, 2), ZoomMin, ZoomMax);
+    }
+
+    private void ZoomIn() => ApplyZoom(zoomLevel + ZoomStep);
+    private void ZoomOut() => ApplyZoom(zoomLevel - ZoomStep);
+    private void ResetZoom() => ApplyZoom(1.0);
+
+    /// <summary>Mouse-wheel handler. Ctrl+wheel zooms; plain wheel scrolls (let browser handle).</summary>
+    private void HandleWheel(WheelEventArgs e)
+    {
+        // Only intercept when the user explicitly uses Ctrl+Wheel for zoom intent.
+        // Plain scroll falls through to the container's overflow-auto scrollbars.
+        if (!e.CtrlKey) return;
+        if (e.DeltaY < 0)
+            ZoomIn();
+        else
+            ZoomOut();
+    }
+
+    // ── Delete confirmation ──
+    private void ShowDeleteConfirmation(GNode node)
+    {
+        // Cancel any pending connection mode to avoid ghost state
+        connectingFromNode = null;
+        pendingDeleteNode = node;
+    }
+
+    private void CancelDeleteNode() => pendingDeleteNode = null;
+
+    private async Task ConfirmDeleteNode()
+    {
+        if (pendingDeleteNode == null) return;
+        var node = pendingDeleteNode;
+        pendingDeleteNode = null;
+        await RemoveNode(node);
+    }
+
+    // ── Instructions Editor ──
+    private async Task OpenInstructionsEditor(GNode node)
+    {
+        try
+        {
+            // Cancel any pending connection to avoid confusion
+            connectingFromNode = null;
+            var details = await AgentClient.GetAgentDetails(node.AgentId);
+            if (details != null)
+            {
+                editingAgent = details;
+                editingInstructions = details.Instructions ?? string.Empty;
+            }
+            else
+            {
+                ShowStatus("Failed to load agent details.", false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading agent details for {AgentId}", node.AgentId);
+            ShowStatus("Failed to load agent details.", false);
+        }
+    }
+
+    private void CloseEditor()
+    {
+        editingAgent = null;
+        editingInstructions = string.Empty;
+    }
+
+    private async Task SaveInstructions()
+    {
+        if (editingAgent == null) return;
+        try
+        {
+            isSavingInstructions = true;
+            editingAgent.Instructions = editingInstructions;
+            await AgentClient.UpdateAgent(editingAgent);
+            ShowStatus($"Instructions saved: {editingAgent.Name}", true);
+            CloseEditor();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving instructions for agent {AgentId}", editingAgent.Id);
+            ShowStatus("Failed to save instructions.", false);
+        }
+        finally
+        {
+            isSavingInstructions = false;
+        }
+    }
 
     // ── Graph operations ──
     private void AddAgentToGraph(AgentParticipantDto agent)

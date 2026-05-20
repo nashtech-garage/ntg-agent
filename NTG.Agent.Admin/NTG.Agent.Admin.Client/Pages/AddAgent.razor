@@ -186,6 +186,21 @@
 
                         <div class="mb-4">
                             <label class="form-label fw-semibold">
+                                <i class="bi bi-person-check me-2 text-primary"></i>
+                                User Selectable
+                            </label>
+                            <div class="form-text mb-2">When enabled, users can choose this agent directly (typically a Triage agent). Disable for handoff-only Executor agents.</div>
+                            <div class="form-check form-switch">
+                                <InputCheckbox class="form-check-input" id="isSelectable" @bind-Value="agentDetail.IsSelectable"
+                                               disabled="@isSubmitting" />
+                                <label class="form-check-label" for="isSelectable">
+                                    @(agentDetail.IsSelectable ? "Selectable by users (Triage)" : "Not selectable by users (Executor only)")
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
                                 <i class="bi bi-lightning-charge me-2 text-primary"></i>
                                 Agent Mode
                             </label>
@@ -281,6 +296,7 @@
                     ProviderApiKey = sourceAgent.ProviderApiKey,
                     ProviderModelName = sourceAgent.ProviderModelName,
                     McpServer = sourceAgent.McpServer,
+                    IsSelectable = sourceAgent.IsSelectable,
                     Mode = sourceAgent.Mode
                 };
                 sourceAgentName = sourceAgent.Name;
