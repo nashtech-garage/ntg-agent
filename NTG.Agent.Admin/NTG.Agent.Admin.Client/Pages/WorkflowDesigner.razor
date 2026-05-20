@@ -1,0 +1,661 @@
+@page "/workflow-designer"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+@inject ILogger<WorkflowDesigner> Logger
+
+<PageTitle>Workflow Designer</PageTitle>
+
+<div class="container-fluid px-3">
+    <!-- Header -->
+    <div class="d-flex align-items-center justify-content-between mb-2 mt-3">
+        <div>
+            <h4 class="mb-0">
+                <i class="bi bi-diagram-3-fill text-primary me-2"></i>Workflow Designer
+            </h4>
+            <small class="text-muted">Click an agent node to start a connection, then click another to complete it. Drag nodes to rearrange.</small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary btn-sm" @onclick="ResetLayout">
+                <i class="bi bi-arrow-clockwise me-1"></i>Reset Layout
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="Reload">
+                <i class="bi bi-arrow-repeat me-1"></i>Reload
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Status bar -->
+        @if (connectingFromNode != null)
+        {
+            <div class="alert alert-info py-2 px-3 d-flex align-items-center mb-2">
+                <i class="bi bi-link-45deg me-2"></i>
+                <span>Creating connection from <strong>@connectingFromNode.Name</strong> — click another agent, or </span>
+                <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="CancelConnection">Cancel</button>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <div class="alert @(isSuccess ? "alert-success" : "alert-danger") py-2 px-3 mb-2 d-flex align-items-center">
+                <i class="bi @(isSuccess ? "bi-check-circle" : "bi-exclamation-triangle") me-2"></i>
+                @statusMessage
+            </div>
+        }
+
+        <div class="d-flex gap-3" style="height: calc(100vh - 210px);">
+            <!-- Sidebar -->
+            <div class="card border-0 shadow-sm" style="width: 230px; min-width: 230px; overflow-y: auto;">
+                <div class="card-header bg-white border-0 py-2">
+                    <h6 class="mb-0"><i class="bi bi-plus-circle me-2 text-primary"></i>Add to Graph</h6>
+                </div>
+                <div class="card-body p-2">
+                    @foreach (var agent in SidebarAgents)
+                    {
+                        <div class="d-flex align-items-center p-2 mb-1 rounded border bg-white"
+                             style="cursor: pointer; transition: background 0.15s;"
+                             @onclick="() => AddAgentToGraph(agent)">
+                            <i class="bi bi-plus-lg text-primary me-2"></i>
+                            <div class="flex-grow-1 overflow-hidden">
+                                <div class="small fw-semibold text-truncate">@agent.Name</div>
+                                @if (agent.IsSelectable)
+                                {
+                                    <span class="badge bg-primary-subtle text-primary" style="font-size:0.55rem;">Triage</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size:0.55rem;">Executor</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (!SidebarAgents.Any())
+                    {
+                        <p class="text-muted small text-center py-3 mb-0">All agents are on the graph.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Canvas -->
+            <div class="flex-grow-1 card border-0 shadow-sm overflow-auto p-0"
+                 style="background: #f8f9fa;">
+                <svg width="@canvasWidth" height="@canvasHeight"
+                     @onpointermove="HandlePointerMove"
+                     @onpointerup="HandlePointerUp"
+                     @onclick="HandleCanvasClick"
+                     style="display: block; min-width: 100%; min-height: 100%;">
+
+                    <defs>
+                        <marker id="ah" markerWidth="12" markerHeight="8" refX="11" refY="4"
+                                orient="auto" markerUnits="userSpaceOnUse">
+                            <polygon points="0 1, 12 4, 0 7" fill="#6c757d" />
+                        </marker>
+                        <marker id="ah-hover" markerWidth="12" markerHeight="8" refX="11" refY="4"
+                                orient="auto" markerUnits="userSpaceOnUse">
+                            <polygon points="0 1, 12 4, 0 7" fill="#dc3545" />
+                        </marker>
+                    </defs>
+
+                    <!-- Grid dots -->
+                    <defs>
+                        <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                            <circle cx="15" cy="15" r="0.8" fill="#d5d8dc" />
+                        </pattern>
+                    </defs>
+                    <rect width="@canvasWidth" height="@canvasHeight" fill="url(#grid)" rx="8" />
+
+                    <!-- Edges -->
+                    @foreach (var edge in graphEdges)
+                    {
+                        var ep = CalcEdge(edge);
+                        if (ep == null) continue;
+                        var v = ep.Value;
+                        var hovered = hoveredEdgeId == edge.Id;
+                        var path = v.IsCurved
+                            ? $"M {S(v.X1)} {S(v.Y1)} Q {S(v.Cx)} {S(v.Cy)} {S(v.X2)} {S(v.Y2)}"
+                            : $"M {S(v.X1)} {S(v.Y1)} L {S(v.X2)} {S(v.Y2)}";
+                        var capturedEdge = edge;
+                        var capturedId = edge.Id;
+
+                        <!-- Wrap entire edge in a group for hover detection -->
+                        <g @onmouseenter="() => hoveredEdgeId = capturedId"
+                           @onmouseleave="() => { if (hoveredEdgeId == capturedId) hoveredEdgeId = null; }">
+
+                            <!-- Hit area (wide invisible stroke) -->
+                            <path d="@path" fill="none" stroke="transparent" stroke-width="20"
+                                  style="cursor: pointer;" />
+
+                            <!-- Visible line -->
+                            <path d="@path" fill="none"
+                                  stroke="@(hovered ? "#dc3545" : "#868e96")"
+                                  stroke-width="@(hovered ? 3 : 2)"
+                                  marker-end="url(#@(hovered ? "ah-hover" : "ah"))"
+                                  style="pointer-events: none;" />
+
+                            <!-- Delete button at midpoint (always rendered, visibility toggled) -->
+                            <g transform="translate(@S(v.Mx), @S(v.My))"
+                               style="cursor: pointer; opacity: @(hovered ? "1" : "0"); pointer-events: @(hovered ? "all" : "none");"
+                               @onclick="() => DeleteEdge(capturedEdge)"
+                               @onclick:stopPropagation="true"
+                               @onpointerdown:stopPropagation="true">
+                                <circle r="12" fill="#dc3545" />
+                                <line x1="-3.5" y1="-3.5" x2="3.5" y2="3.5" stroke="white" stroke-width="2" />
+                                <line x1="3.5" y1="-3.5" x2="-3.5" y2="3.5" stroke="white" stroke-width="2" />
+                            </g>
+                        </g>
+                    }
+
+                    <!-- Nodes -->
+                    @foreach (var node in graphNodes)
+                    {
+                        var isSource = connectingFromNode?.AgentId == node.AgentId;
+                        var isTarget = connectingFromNode != null && connectingFromNode.AgentId != node.AgentId;
+                        var hw = NW / 2;
+                        var hh = NH / 2;
+
+                        <g transform="translate(@((int)node.X), @((int)node.Y))"
+                           @onpointerdown="e => NodePointerDown(e, node)"
+                           @onpointerdown:stopPropagation="true"
+                           @onclick:stopPropagation="true"
+                           style="cursor: @(connectingFromNode != null ? (isSource ? "default" : "crosshair") : "grab"); user-select: none;">
+
+                            <!-- Shadow -->
+                            <rect x="@(-hw + 2)" y="@(-hh + 3)" width="@NW" height="@NH" rx="10"
+                                  fill="rgba(0,0,0,0.07)" />
+
+                            <!-- Background -->
+                            <rect x="@(-hw)" y="@(-hh)" width="@NW" height="@NH" rx="10"
+                                  fill="@(isSource ? "#fff8e1" : node.IsSelectable ? "#e3f2fd" : "#ffffff")"
+                                  stroke="@(isSource ? "#f57c00" : isTarget ? "#43a047" : node.IsSelectable ? "#1565c0" : "#bdbdbd")"
+                                  stroke-width="@(isSource || isTarget ? 3 : 2)" />
+
+                            <!-- Agent name -->
+                            <g style="pointer-events: none;">
+                                @SvgText(0, -4, Trunc(node.Name, 20), "12.5", "600", "#212529")
+                            </g>
+
+                            <!-- Role badge -->
+                            @if (node.IsSelectable)
+                            {
+                                <rect x="-26" y="3" width="52" height="15" rx="4" fill="#1565c0" opacity="0.12" />
+                                <g style="pointer-events: none;">
+                                    @SvgText(0, 14, "TRIAGE", "9", "600", "#1565c0")
+                                </g>
+                            }
+                            else
+                            {
+                                <rect x="-32" y="3" width="64" height="15" rx="4" fill="#757575" opacity="0.12" />
+                                <g style="pointer-events: none;">
+                                    @SvgText(0, 14, "EXECUTOR", "9", "600", "#757575")
+                                </g>
+                            }
+
+                            <!-- Remove button (top-right) -->
+                            <g transform="translate(@(hw - 4), @(-hh + 4))" style="cursor: pointer;"
+                               @onclick="() => RemoveNode(node)"
+                               @onclick:stopPropagation="true"
+                               @onpointerdown:stopPropagation="true">
+                                <circle r="8" fill="#e53935" opacity="0.85" />
+                                <line x1="-3" y1="-3" x2="3" y2="3" stroke="white" stroke-width="1.5" />
+                                <line x1="3" y1="-3" x2="-3" y2="3" stroke="white" stroke-width="1.5" />
+                            </g>
+
+                            <!-- Connection port (right edge) -->
+                            @if (!isSource)
+                            {
+                                <circle cx="@hw" cy="0" r="6" fill="#1976d2" opacity="0.5"
+                                        style="pointer-events: none;" />
+                                <line x1="@(hw - 3)" y1="0" x2="@(hw + 3)" y2="0" stroke="white" stroke-width="1.5"
+                                      style="pointer-events: none;" />
+                            }
+                        </g>
+                    }
+
+                    <!-- Empty state -->
+                    @if (graphNodes.Count == 0)
+                    {
+                        <g>
+                            @SvgText(canvasWidth / 2, canvasHeight / 2 - 15, "No agents on the graph yet", "17", "500", "#9e9e9e")
+                            @SvgText(canvasWidth / 2, canvasHeight / 2 + 15, "Add agents from the sidebar to build your workflow", "13", "400", "#bdbdbd")
+                        </g>
+                    }
+                </svg>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="d-flex gap-4 mt-2 px-1">
+            <small class="text-muted">
+                <span style="display:inline-block;width:12px;height:12px;background:#e3f2fd;border:2px solid #1565c0;border-radius:3px;vertical-align:middle;"></span>
+                Triage Agent
+            </small>
+            <small class="text-muted">
+                <span style="display:inline-block;width:12px;height:12px;background:#fff;border:2px solid #bdbdbd;border-radius:3px;vertical-align:middle;"></span>
+                Executor Agent
+            </small>
+            <small class="text-muted">
+                <span style="display:inline-block;width:12px;height:12px;background:#fff8e1;border:2px solid #f57c00;border-radius:3px;vertical-align:middle;"></span>
+                Selected (source)
+            </small>
+            <small class="text-muted">
+                <span style="display:inline-block;width:30px;height:2px;background:#868e96;vertical-align:middle;"></span>
+                → Handoff Edge
+            </small>
+        </div>
+    }
+</div>
+
+@code {
+    // ── Constants ──
+    private const int NW = 180; // node width
+    private const int NH = 54;  // node height
+    private const double DragThreshold = 5;
+
+    // ── State ──
+    private List<AgentParticipantDto> allAgents = [];
+    private List<GNode> graphNodes = [];
+    private List<GEdge> graphEdges = [];
+    private HashSet<Guid> onGraph = [];
+    private bool isLoading = true;
+    private string? statusMessage;
+    private bool isSuccess;
+
+    // Interaction
+    private GNode? connectingFromNode;
+    private GNode? ptrDownNode;
+    private double ptrDownCX, ptrDownCY, dragNodeX0, dragNodeY0;
+    private bool dragging;
+    private bool wasDrag;
+    private Guid? hoveredEdgeId;
+
+    // Canvas
+    private int canvasWidth = 1400;
+    private int canvasHeight = 750;
+
+    // ── Computed ──
+    private IEnumerable<AgentParticipantDto> SidebarAgents =>
+        allAgents.Where(a => !onGraph.Contains(a.Id));
+
+    // ── Models ──
+    private class GNode
+    {
+        public Guid AgentId { get; set; }
+        public string Name { get; set; } = "";
+        public bool IsSelectable { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+
+    private class GEdge
+    {
+        public Guid Id { get; set; }
+        public Guid SourceAgentId { get; set; }
+        public Guid TargetAgentId { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private record struct EP(double X1, double Y1, double X2, double Y2,
+                             double Mx, double My, double Cx, double Cy, bool IsCurved);
+
+    // ── Lifecycle ──
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        try
+        {
+            isLoading = true;
+            var graph = await AgentClient.GetWorkflowGraphAsync();
+            if (graph == null) return;
+
+            allAgents = graph.Agents;
+
+            graphEdges = graph.Edges.Select(e => new GEdge
+            {
+                Id = e.Id,
+                SourceAgentId = e.SourceAgentId,
+                TargetAgentId = e.TargetAgentId,
+                Description = e.Description
+            }).ToList();
+
+            onGraph = graphEdges
+                .SelectMany(e => new[] { e.SourceAgentId, e.TargetAgentId })
+                .ToHashSet();
+
+            graphNodes = allAgents
+                .Where(a => onGraph.Contains(a.Id))
+                .Select(a => new GNode
+                {
+                    AgentId = a.Id,
+                    Name = a.Name,
+                    IsSelectable = a.IsSelectable
+                })
+                .ToList();
+
+            CalculateLayout();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading workflow graph");
+            ShowStatus("Failed to load workflow data.", false);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // ── Layout ──
+    private void CalculateLayout()
+    {
+        if (graphNodes.Count == 0) return;
+
+        var cx = canvasWidth / 2.0;
+        var cy = canvasHeight / 2.0;
+
+        if (graphNodes.Count == 1)
+        {
+            graphNodes[0].X = cx;
+            graphNodes[0].Y = cy;
+            return;
+        }
+
+        // Place the primary triage agent in the center
+        var center = graphNodes
+            .Where(n => n.IsSelectable)
+            .OrderByDescending(n => graphEdges.Count(e => e.SourceAgentId == n.AgentId))
+            .FirstOrDefault();
+
+        if (center != null)
+        {
+            center.X = cx;
+            center.Y = cy;
+            var rest = graphNodes.Where(n => n != center).ToList();
+            var r = Math.Min(cx - NW, cy - NH) * 0.7;
+            for (int i = 0; i < rest.Count; i++)
+            {
+                var a = 2 * Math.PI * i / rest.Count - Math.PI / 2;
+                rest[i].X = cx + r * Math.Cos(a);
+                rest[i].Y = cy + r * Math.Sin(a);
+            }
+        }
+        else
+        {
+            var r = Math.Min(cx - NW, cy - NH) * 0.6;
+            for (int i = 0; i < graphNodes.Count; i++)
+            {
+                var a = 2 * Math.PI * i / graphNodes.Count - Math.PI / 2;
+                graphNodes[i].X = cx + r * Math.Cos(a);
+                graphNodes[i].Y = cy + r * Math.Sin(a);
+            }
+        }
+    }
+
+    // ── Edge Geometry ──
+    private EP? CalcEdge(GEdge edge)
+    {
+        var src = graphNodes.FirstOrDefault(n => n.AgentId == edge.SourceAgentId);
+        var tgt = graphNodes.FirstOrDefault(n => n.AgentId == edge.TargetAgentId);
+        if (src == null || tgt == null) return null;
+
+        var dx = tgt.X - src.X;
+        var dy = tgt.Y - src.Y;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist < 1) return null;
+
+        var ndx = dx / dist;
+        var ndy = dy / dist;
+        double hw = NW / 2.0 + 3, hh = NH / 2.0 + 3;
+
+        var st = BorderT(ndx, ndy, hw, hh);
+        var tt = BorderT(-ndx, -ndy, hw, hh);
+
+        var x1 = src.X + ndx * st;
+        var y1 = src.Y + ndy * st;
+        var x2 = tgt.X - ndx * tt;
+        var y2 = tgt.Y - ndy * tt;
+
+        var bidi = graphEdges.Any(e =>
+            e.SourceAgentId == edge.TargetAgentId && e.TargetAgentId == edge.SourceAgentId);
+
+        var mx = (x1 + x2) / 2;
+        var my = (y1 + y2) / 2;
+        var cx2 = mx;
+        var cy2 = my;
+        var curved = false;
+
+        if (bidi)
+        {
+            curved = true;
+            var perpX = -ndy;
+            var perpY = ndx;
+            var dir = edge.SourceAgentId.CompareTo(edge.TargetAgentId) > 0 ? 1 : -1;
+            var off = Math.Max(35, dist * 0.15);
+            cx2 = mx + perpX * off * dir;
+            cy2 = my + perpY * off * dir;
+            // Quadratic bezier midpoint at t=0.5: (1-t)²P0 + 2(1-t)tP1 + t²P2
+            mx = 0.25 * x1 + 0.5 * cx2 + 0.25 * x2;
+            my = 0.25 * y1 + 0.5 * cy2 + 0.25 * y2;
+        }
+
+        return new EP(x1, y1, x2, y2, mx, my, cx2, cy2, curved);
+    }
+
+    private static double BorderT(double ndx, double ndy, double hw, double hh)
+    {
+        var tx = ndx != 0 ? hw / Math.Abs(ndx) : double.MaxValue;
+        var ty = ndy != 0 ? hh / Math.Abs(ndy) : double.MaxValue;
+        return Math.Min(tx, ty);
+    }
+
+    // ── Pointer events (drag) ──
+    private void NodePointerDown(PointerEventArgs e, GNode node)
+    {
+        ptrDownNode = node;
+        ptrDownCX = e.ClientX;
+        ptrDownCY = e.ClientY;
+        dragNodeX0 = node.X;
+        dragNodeY0 = node.Y;
+        dragging = false;
+        wasDrag = false;
+    }
+
+    private void HandlePointerMove(PointerEventArgs e)
+    {
+        if (ptrDownNode == null) return;
+        var dx = e.ClientX - ptrDownCX;
+        var dy = e.ClientY - ptrDownCY;
+        if (!dragging && Math.Sqrt(dx * dx + dy * dy) > DragThreshold)
+            dragging = true;
+        if (dragging)
+        {
+            ptrDownNode.X = dragNodeX0 + dx;
+            ptrDownNode.Y = dragNodeY0 + dy;
+        }
+    }
+
+    private async Task HandlePointerUp(PointerEventArgs e)
+    {
+        wasDrag = dragging;
+        if (ptrDownNode != null && !dragging)
+            await HandleNodeClick(ptrDownNode);
+        ptrDownNode = null;
+        dragging = false;
+    }
+
+    // ── Click handling ──
+    private async Task HandleNodeClick(GNode node)
+    {
+        if (connectingFromNode == null)
+        {
+            connectingFromNode = node;
+        }
+        else if (connectingFromNode.AgentId == node.AgentId)
+        {
+            connectingFromNode = null;
+        }
+        else
+        {
+            if (graphEdges.Any(e => e.SourceAgentId == connectingFromNode.AgentId
+                                 && e.TargetAgentId == node.AgentId))
+            {
+                ShowStatus($"Connection already exists: {connectingFromNode.Name} → {node.Name}", false);
+                connectingFromNode = null;
+                return;
+            }
+            await CreateEdge(connectingFromNode, node);
+            connectingFromNode = null;
+        }
+    }
+
+    private void HandleCanvasClick()
+    {
+        if (wasDrag) { wasDrag = false; return; }
+        if (connectingFromNode != null)
+            connectingFromNode = null;
+    }
+
+    private void CancelConnection() => connectingFromNode = null;
+
+    // ── Graph operations ──
+    private void AddAgentToGraph(AgentParticipantDto agent)
+    {
+        if (onGraph.Contains(agent.Id)) return;
+        onGraph.Add(agent.Id);
+
+        // Place at an open position
+        var cx = canvasWidth / 2.0;
+        var cy = canvasHeight / 2.0;
+        var angle = 2 * Math.PI * (graphNodes.Count % 12) / 12.0 + 0.3;
+        var r = 220 + (graphNodes.Count / 12) * 100;
+        var x = Math.Clamp(cx + r * Math.Cos(angle), NW, canvasWidth - NW);
+        var y = Math.Clamp(cy + r * Math.Sin(angle), NH, canvasHeight - NH);
+
+        graphNodes.Add(new GNode
+        {
+            AgentId = agent.Id,
+            Name = agent.Name,
+            IsSelectable = agent.IsSelectable,
+            X = x,
+            Y = y
+        });
+    }
+
+    private async Task RemoveNode(GNode node)
+    {
+        var edgesToRemove = graphEdges
+            .Where(e => e.SourceAgentId == node.AgentId || e.TargetAgentId == node.AgentId)
+            .ToList();
+
+        foreach (var edge in edgesToRemove)
+        {
+            try
+            {
+                await AgentClient.RemoveHandoffAsync(edge.Id);
+                graphEdges.Remove(edge);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Error removing edge {EdgeId}", edge.Id);
+            }
+        }
+
+        graphNodes.Remove(node);
+        onGraph.Remove(node.AgentId);
+        connectingFromNode = null;
+        hoveredEdgeId = null;
+    }
+
+    private async Task CreateEdge(GNode source, GNode target)
+    {
+        try
+        {
+            var result = await AgentClient.CreateHandoffEdgeAsync(new CreateHandoffEdgeRequest
+            {
+                SourceAgentId = source.AgentId,
+                TargetAgentId = target.AgentId
+            });
+
+            if (result != null)
+            {
+                graphEdges.Add(new GEdge
+                {
+                    Id = result.Id,
+                    SourceAgentId = result.SourceAgentId,
+                    TargetAgentId = result.TargetAgentId,
+                    Description = result.Description
+                });
+                ShowStatus($"Connected: {source.Name} → {target.Name}", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating edge");
+            ShowStatus("Failed to create connection.", false);
+        }
+    }
+
+    private async Task DeleteEdge(GEdge edge)
+    {
+        try
+        {
+            await AgentClient.RemoveHandoffAsync(edge.Id);
+            graphEdges.Remove(edge);
+            hoveredEdgeId = null;
+            ShowStatus($"Removed: {GetNodeName(edge.SourceAgentId)} → {GetNodeName(edge.TargetAgentId)}", true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting edge");
+            ShowStatus("Failed to remove connection.", false);
+        }
+    }
+
+    // ── Helpers ──
+    private async Task Reload()
+    {
+        connectingFromNode = null;
+        hoveredEdgeId = null;
+        statusMessage = null;
+        await LoadData();
+    }
+
+    private void ResetLayout() => CalculateLayout();
+
+    private void ShowStatus(string msg, bool ok)
+    {
+        statusMessage = msg;
+        isSuccess = ok;
+        _ = ClearStatusAsync();
+    }
+
+    private async Task ClearStatusAsync()
+    {
+        await Task.Delay(3000);
+        statusMessage = null;
+        StateHasChanged();
+    }
+
+    private string GetNodeName(Guid id) =>
+        graphNodes.FirstOrDefault(n => n.AgentId == id)?.Name ?? "?";
+
+    private static string Trunc(string s, int max) =>
+        s.Length > max ? string.Concat(s.AsSpan(0, max - 1), "…") : s;
+
+    private static string S(double v) => ((int)Math.Round(v)).ToString();
+
+    /// <summary>Renders an SVG text element as raw markup to avoid Razor's text directive conflict.</summary>
+    private static MarkupString SvgText(double x, double y, string content, string fontSize, string fontWeight, string fill) =>
+        new($"<text x=\"{S(x)}\" y=\"{S(y)}\" text-anchor=\"middle\" font-size=\"{fontSize}\" font-weight=\"{fontWeight}\" fill=\"{fill}\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+}

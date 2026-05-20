@@ -79,4 +79,39 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
         response.EnsureSuccessStatusCode();
     }
+
+    // Handoff workflow methods
+
+    public async Task<AgentHandoffWorkflowDto?> GetHandoffWorkflowAsync(Guid agentId)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/handoffs");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AgentHandoffWorkflowDto>();
+    }
+
+    public async Task SaveHandoffsAsync(UpdateAgentHandoffsRequest request)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{request.SourceAgentId}/handoffs", request);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RemoveHandoffAsync(Guid handoffId)
+    {
+        var response = await httpClient.DeleteAsync($"api/agentadmin/handoffs/{handoffId}");
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<WorkflowGraphDto?> GetWorkflowGraphAsync()
+    {
+        var response = await httpClient.GetAsync("api/agentadmin/workflow-graph");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<WorkflowGraphDto>();
+    }
+
+    public async Task<AgentHandoffDto?> CreateHandoffEdgeAsync(CreateHandoffEdgeRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/agentadmin/workflow-graph/edges", request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AgentHandoffDto>();
+    }
 }

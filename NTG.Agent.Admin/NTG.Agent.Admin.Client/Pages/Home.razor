@@ -106,6 +106,10 @@
                                                     {
                                                         <span class="badge bg-secondary-subtle text-secondary">Draft</span>
                                                     }
+                                                    @if (!agent.IsSelectable)
+                                                    {
+                                                        <span class="badge bg-info-subtle text-info ms-1" title="This agent is only reachable via handoff workflows">Handoff Only</span>
+                                                    }
                                                 </span>
                                             </div>
                                         </div>

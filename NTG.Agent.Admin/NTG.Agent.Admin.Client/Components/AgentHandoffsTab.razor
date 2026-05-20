@@ -1,0 +1,362 @@
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+@inject ILogger<AgentHandoffsTab> Logger
+
+<div class="tab-pane fade show active">
+    @if (isLoading)
+    {
+        <div class="d-flex justify-content-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (workflow == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Could not load handoff configuration.
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="mb-4">
+                    <h5 class="mb-1">Handoff Connections</h5>
+                    <p class="text-muted mb-0">
+                        Configure which agents this agent can hand off conversations to.
+                        Drag agents from the available list and drop them into the targets area.
+                    </p>
+                </div>
+
+                <!-- Outgoing Handoffs (Targets) -->
+                <div class="card border-0 bg-light mb-4">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0">
+                            <i class="bi bi-box-arrow-right text-primary me-2"></i>
+                            Hands off to
+                            <span class="badge bg-primary ms-2">@outgoingTargets.Count</span>
+                        </h6>
+                    </div>
+                    <div class="card-body"
+                         @ondragover="HandleDragOver"
+                         @ondragover:preventDefault="true"
+                         @ondrop="HandleDropOnOutgoing"
+                         @ondragleave="HandleDragLeave"
+                         style="min-height: 120px; border: 2px dashed @(isDragOverOutgoing ? "#0d6efd" : "transparent"); border-radius: 8px; transition: border-color 0.2s;">
+                        @if (outgoingTargets.Count == 0)
+                        {
+                            <div class="text-center py-4 text-muted">
+                                <i class="bi bi-arrow-down-circle" style="font-size: 2rem;"></i>
+                                <p class="mt-2 mb-0">Drop agents here to create handoff connections</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var target in outgoingTargets)
+                                {
+                                    var agent = workflow.AllAgents.FirstOrDefault(a => a.Id == target.TargetAgentId);
+                                    <div class="card border shadow-sm" style="min-width: 220px;">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-robot text-primary me-2"></i>
+                                                    <strong class="small">@(agent?.Name ?? "Unknown Agent")</strong>
+                                                </div>
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        @onclick="() => RemoveOutgoingTarget(target.TargetAgentId)"
+                                                        title="Remove handoff">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                            </div>
+                                            <div class="mt-1">
+                                                <input type="text" class="form-control form-control-sm" 
+                                                       placeholder="Description (optional)"
+                                                       value="@target.Description"
+                                                       @onchange="e => UpdateTargetDescription(target.TargetAgentId, e.Value?.ToString())" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Incoming Handoffs (Read-only) -->
+                <div class="card border-0 bg-light mb-4">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0">
+                            <i class="bi bi-box-arrow-in-left text-success me-2"></i>
+                            Receives handoffs from
+                            <span class="badge bg-success ms-2">@workflow.IncomingHandoffs.Count</span>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        @if (workflow.IncomingHandoffs.Count == 0)
+                        {
+                            <p class="text-muted mb-0 small">No agents are configured to hand off to this agent.</p>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-wrap gap-2">
+                                @foreach (var incoming in workflow.IncomingHandoffs)
+                                {
+                                    var sourceAgent = workflow.AllAgents.FirstOrDefault(a => a.Id == incoming.SourceAgentId);
+                                    <span class="badge bg-success-subtle text-success px-3 py-2">
+                                        <i class="bi bi-robot me-1"></i>@(sourceAgent?.Name ?? "Unknown")
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Auto-return toggle -->
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="autoReturnToggle"
+                           @bind="autoReturn" />
+                    <label class="form-check-label" for="autoReturnToggle">
+                        <i class="bi bi-arrow-left-right me-1"></i>
+                        Auto-create return connections (bidirectional handoffs)
+                    </label>
+                    <div class="form-text">
+                        When enabled, saving will also create handoff connections from target agents back to this agent.
+                    </div>
+                </div>
+
+                <!-- Save/Reset buttons -->
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="SaveHandoffs" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-check-circle me-2"></i>
+                        }
+                        Save Handoff Configuration
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="LoadWorkflow">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Reset
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="alert @(isSuccess ? "alert-success" : "alert-danger") d-flex align-items-center mt-3" role="alert">
+                        <i class="@(isSuccess ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+                        <div>@statusMessage</div>
+                    </div>
+                }
+            </div>
+
+            <!-- Available Agents Panel -->
+            <div class="col-lg-4">
+                <div class="card border-0 bg-light">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0">
+                            <i class="bi bi-collection me-2"></i>Available Agents
+                        </h6>
+                    </div>
+                    <div class="card-body p-2">
+                        @foreach (var agent in workflow.AllAgents.Where(a => a.Id != AgentId && !outgoingTargets.Any(t => t.TargetAgentId == a.Id)))
+                        {
+                            <div class="card mb-2 border shadow-sm" style="cursor: grab;"
+                                 draggable="true"
+                                 @ondragstart="() => HandleDragStart(agent.Id)">
+                                <div class="card-body p-2 d-flex align-items-center">
+                                    <i class="bi bi-grip-vertical text-muted me-2"></i>
+                                    <i class="bi bi-robot text-primary me-2"></i>
+                                    <div>
+                                        <strong class="small">@agent.Name</strong>
+                                        @if (!agent.IsSelectable)
+                                        {
+                                            <span class="badge bg-info-subtle text-info ms-1" style="font-size:0.6rem;">Handoff Only</span>
+                                        }
+                                        @if (!string.IsNullOrEmpty(agent.Description))
+                                        {
+                                            <div class="text-muted" style="font-size: 0.7rem;">@(agent.Description.Length > 60 ? agent.Description[..60] + "..." : agent.Description)</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (!workflow.AllAgents.Any(a => a.Id != AgentId && !outgoingTargets.Any(t => t.TargetAgentId == a.Id)))
+                        {
+                            <p class="text-muted small text-center py-3 mb-0">All available agents have been added.</p>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid AgentId { get; set; }
+
+    private AgentHandoffWorkflowDto? workflow;
+    private List<HandoffTargetRequest> outgoingTargets = [];
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isSuccess = false;
+    private bool autoReturn = false;
+    private string? statusMessage;
+    private Guid? draggedAgentId;
+    private bool isDragOverOutgoing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadWorkflow();
+    }
+
+    private async Task LoadWorkflow()
+    {
+        try
+        {
+            isLoading = true;
+            statusMessage = null;
+            workflow = await AgentClient.GetHandoffWorkflowAsync(AgentId);
+
+            if (workflow != null)
+            {
+                outgoingTargets = workflow.OutgoingHandoffs
+                    .Select(h => new HandoffTargetRequest { TargetAgentId = h.TargetAgentId, Description = h.Description })
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading handoff workflow");
+            statusMessage = "Error loading handoff configuration.";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void HandleDragStart(Guid agentId)
+    {
+        draggedAgentId = agentId;
+    }
+
+    private void HandleDragOver()
+    {
+        isDragOverOutgoing = true;
+    }
+
+    private void HandleDragLeave()
+    {
+        isDragOverOutgoing = false;
+    }
+
+    private void HandleDropOnOutgoing()
+    {
+        isDragOverOutgoing = false;
+        if (draggedAgentId.HasValue && draggedAgentId.Value != AgentId 
+            && !outgoingTargets.Any(t => t.TargetAgentId == draggedAgentId.Value))
+        {
+            outgoingTargets.Add(new HandoffTargetRequest 
+            { 
+                TargetAgentId = draggedAgentId.Value 
+            });
+        }
+        draggedAgentId = null;
+    }
+
+    private void RemoveOutgoingTarget(Guid targetAgentId)
+    {
+        outgoingTargets.RemoveAll(t => t.TargetAgentId == targetAgentId);
+    }
+
+    private void UpdateTargetDescription(Guid targetAgentId, string? description)
+    {
+        var target = outgoingTargets.FirstOrDefault(t => t.TargetAgentId == targetAgentId);
+        if (target != null)
+        {
+            target.Description = description;
+        }
+    }
+
+    private async Task SaveHandoffs()
+    {
+        try
+        {
+            isSaving = true;
+            statusMessage = null;
+
+            // Save outgoing handoffs for this agent
+            var request = new UpdateAgentHandoffsRequest
+            {
+                SourceAgentId = AgentId,
+                Targets = outgoingTargets
+            };
+            await AgentClient.SaveHandoffsAsync(request);
+
+            // Auto-return: create reverse connections from each target back to this agent
+            if (autoReturn)
+            {
+                foreach (var target in outgoingTargets)
+                {
+                    try
+                    {
+                        // Get existing handoffs for the target agent
+                        var targetWorkflow = await AgentClient.GetHandoffWorkflowAsync(target.TargetAgentId);
+                        if (targetWorkflow != null)
+                        {
+                            var existingTargets = targetWorkflow.OutgoingHandoffs
+                                .Select(h => new HandoffTargetRequest { TargetAgentId = h.TargetAgentId, Description = h.Description })
+                                .ToList();
+
+                            // Add return connection if not already present
+                            if (!existingTargets.Any(t => t.TargetAgentId == AgentId))
+                            {
+                                existingTargets.Add(new HandoffTargetRequest
+                                {
+                                    TargetAgentId = AgentId,
+                                    Description = $"Return handoff to {workflow?.AgentName}"
+                                });
+
+                                await AgentClient.SaveHandoffsAsync(new UpdateAgentHandoffsRequest
+                                {
+                                    SourceAgentId = target.TargetAgentId,
+                                    Targets = existingTargets
+                                });
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning(ex, "Failed to create return handoff for agent {AgentId}", target.TargetAgentId);
+                    }
+                }
+            }
+
+            // Reload to reflect saved state
+            await LoadWorkflow();
+
+            statusMessage = "Handoff configuration saved successfully!";
+            isSuccess = true;
+
+            await Task.Delay(3000);
+            statusMessage = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving handoff configuration");
+            statusMessage = $"Error saving handoff configuration: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

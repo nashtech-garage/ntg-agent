@@ -23,6 +23,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
 
+    public DbSet<Models.Agents.AgentHandoff> AgentHandoffs { get; set; } = null!;
+
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
@@ -110,7 +112,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Name = "Default Agent",
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
-            IsPublished = true
+            IsPublished = true,
+            IsSelectable = true
         });
 
         modelBuilder.Entity<Folder>().HasData(
@@ -198,6 +201,24 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .WithOne(t => t.Agent)
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
+
+        // AgentHandoff configuration — directed graph edges
+        modelBuilder.Entity<Models.Agents.AgentHandoff>(e =>
+        {
+            e.HasKey(x => x.Id);
+
+            e.HasOne(x => x.SourceAgent)
+                .WithMany(a => a.OutgoingHandoffs)
+                .HasForeignKey(x => x.SourceAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.TargetAgent)
+                .WithMany(a => a.IncomingHandoffs)
+                .HasForeignKey(x => x.TargetAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(x => new { x.SourceAgentId, x.TargetAgentId }).IsUnique();
+        });
 
         // UserPreference configuration
         modelBuilder.Entity<UserPreference>(e =>

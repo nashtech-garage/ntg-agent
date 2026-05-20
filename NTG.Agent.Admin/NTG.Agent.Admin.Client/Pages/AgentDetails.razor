@@ -137,6 +137,14 @@
                                     <span class="badge bg-secondary ms-2">@documentCount</span>
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == handoffsTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(handoffsTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-diagram-3 me-2"></i>
+                                    Handoffs
+                                </button>
+                            </li>
                         </ul>
                     </div>
 
@@ -163,6 +171,11 @@
                                         <span>Knowledge Base</span>
                                         <span class="badge bg-secondary ms-2">@documentCount</span>
                                     }
+                                    else if (activeTab == handoffsTab)
+                                    {
+                                        <i class="bi bi-diagram-3 me-2"></i>
+                                        <span>Handoffs</span>
+                                    }
                                 </span>
                             </button>
                             <ul class="dropdown-menu w-100">
@@ -187,6 +200,13 @@
                                         <i class="bi bi-book me-2"></i>
                                         Knowledge Base
                                         <span class="badge bg-secondary ms-2">@documentCount</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == handoffsTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(handoffsTab)" type="button">
+                                        <i class="bi bi-diagram-3 me-2"></i>
+                                        Handoffs
                                     </button>
                                 </li>
                             </ul>
@@ -238,6 +258,12 @@
                             {
                                 <div class="tab-pane fade show active p-2 p-md-4">
                                     <ToolManagementTab AgentDetail="agentDetail" />
+                                </div>
+                            }
+                            else if (activeTab == handoffsTab)
+                            {
+                                <div class="tab-pane fade show active p-2 p-md-4">
+                                    <AgentHandoffsTab AgentId="Id" />
                                 </div>
                             }
                         </div>
@@ -310,6 +336,7 @@
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private const string toolsTab = "tools";
+    private const string handoffsTab = "handoffs";
     private string activeTab = settingsTab;
     private int documentCount = 0;
     private Guid? selectedFolderId;

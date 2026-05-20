@@ -43,7 +43,7 @@ public class AgentAdminController : ControllerBase
     public async Task<IActionResult> GetAgents()
     {
         var agents = await _agentDbContext.Agents
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.IsSelectable))
             .ToListAsync();
         return Ok(agents);
     }
@@ -77,6 +77,7 @@ public class AgentAdminController : ControllerBase
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
                 IsDefault = x.IsDefault,
                 IsPublished = x.IsPublished,
+                IsSelectable = x.IsSelectable,
                 Mode = x.Mode
             })
             .FirstOrDefaultAsync();
@@ -131,6 +132,7 @@ public class AgentAdminController : ControllerBase
         agent.ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty;
         agent.McpServer = updatedAgent.McpServer;
         agent.Mode = updatedAgent.Mode;
+        agent.IsSelectable = updatedAgent.IsSelectable;
         agent.UpdatedAt = DateTime.UtcNow;
         agent.UpdatedByUserId = userId;
         await _agentDbContext.SaveChangesAsync();
@@ -346,6 +348,7 @@ public class AgentAdminController : ControllerBase
             ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty,
             ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty,
             Mode = updatedAgent.Mode,
+            IsSelectable = updatedAgent.IsSelectable,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
             IsDefault = false,
@@ -436,5 +439,149 @@ public class AgentAdminController : ControllerBase
         await _agentDbContext.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Retrieves the handoff workflow configuration for a specific agent.
+    /// Returns outgoing/incoming connections and all available agents for building workflows.
+    /// </summary>
+    [HttpGet("{id}/handoffs")]
+    public async Task<IActionResult> GetAgentHandoffs(Guid id)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(id);
+        if (agent == null)
+            return NotFound($"Agent with ID '{id}' not found.");
+
+        var outgoing = await _agentDbContext.AgentHandoffs
+            .Where(h => h.SourceAgentId == id)
+            .Select(h => new AgentHandoffDto(h.Id, h.SourceAgentId, h.TargetAgentId, h.Description))
+            .ToListAsync();
+
+        var incoming = await _agentDbContext.AgentHandoffs
+            .Where(h => h.TargetAgentId == id)
+            .Select(h => new AgentHandoffDto(h.Id, h.SourceAgentId, h.TargetAgentId, h.Description))
+            .ToListAsync();
+
+        var allAgents = await _agentDbContext.Agents
+            .Where(a => a.IsPublished)
+            .Select(a => new AgentParticipantDto(a.Id, a.Name, a.Description, a.IsSelectable))
+            .ToListAsync();
+
+        var workflow = new AgentHandoffWorkflowDto
+        {
+            AgentId = id,
+            AgentName = agent.Name,
+            OutgoingHandoffs = outgoing,
+            IncomingHandoffs = incoming,
+            AllAgents = allAgents
+        };
+
+        return Ok(workflow);
+    }
+
+    /// <summary>
+    /// Replaces all outgoing handoff connections for a specific source agent.
+    /// </summary>
+    [HttpPut("{id}/handoffs")]
+    public async Task<IActionResult> UpdateAgentHandoffs(Guid id, [FromBody] UpdateAgentHandoffsRequest request)
+    {
+        if (id != request.SourceAgentId)
+            return BadRequest("ID in URL does not match SourceAgentId in body.");
+
+        var agent = await _agentDbContext.Agents.FindAsync(id);
+        if (agent == null)
+            return NotFound($"Agent with ID '{id}' not found.");
+
+        // Remove existing outgoing handoffs for this source
+        var existing = await _agentDbContext.AgentHandoffs
+            .Where(h => h.SourceAgentId == id)
+            .ToListAsync();
+        _agentDbContext.AgentHandoffs.RemoveRange(existing);
+
+        // Add new handoffs
+        foreach (var target in request.Targets)
+        {
+            if (target.TargetAgentId == id)
+                continue; // skip self-handoff
+
+            _agentDbContext.AgentHandoffs.Add(new Models.Agents.AgentHandoff
+            {
+                Id = Guid.NewGuid(),
+                SourceAgentId = id,
+                TargetAgentId = target.TargetAgentId,
+                Description = target.Description,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _agentDbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Removes a specific handoff connection by its ID.
+    /// </summary>
+    [HttpDelete("handoffs/{handoffId}")]
+    public async Task<IActionResult> RemoveHandoff(Guid handoffId)
+    {
+        var handoff = await _agentDbContext.AgentHandoffs.FindAsync(handoffId);
+        if (handoff == null)
+            return NotFound($"Handoff with ID '{handoffId}' not found.");
+
+        _agentDbContext.AgentHandoffs.Remove(handoff);
+        await _agentDbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Returns the full workflow graph — all published agents and all handoff edges.
+    /// </summary>
+    [HttpGet("workflow-graph")]
+    public async Task<IActionResult> GetWorkflowGraph()
+    {
+        var agents = await _agentDbContext.Agents
+            .Where(a => a.IsPublished)
+            .Select(a => new AgentParticipantDto(a.Id, a.Name, a.Description, a.IsSelectable))
+            .ToListAsync();
+
+        var edges = await _agentDbContext.AgentHandoffs
+            .Select(h => new AgentHandoffDto(h.Id, h.SourceAgentId, h.TargetAgentId, h.Description))
+            .ToListAsync();
+
+        return Ok(new WorkflowGraphDto { Agents = agents, Edges = edges });
+    }
+
+    /// <summary>
+    /// Creates a single directed handoff edge between two agents.
+    /// </summary>
+    [HttpPost("workflow-graph/edges")]
+    public async Task<IActionResult> CreateHandoffEdge([FromBody] CreateHandoffEdgeRequest request)
+    {
+        if (request.SourceAgentId == request.TargetAgentId)
+            return BadRequest("Cannot create a handoff to the same agent.");
+
+        var source = await _agentDbContext.Agents.FindAsync(request.SourceAgentId);
+        var target = await _agentDbContext.Agents.FindAsync(request.TargetAgentId);
+        if (source == null || target == null)
+            return NotFound("One or both agents not found.");
+
+        var exists = await _agentDbContext.AgentHandoffs
+            .AnyAsync(h => h.SourceAgentId == request.SourceAgentId && h.TargetAgentId == request.TargetAgentId);
+        if (exists)
+            return Conflict("This handoff connection already exists.");
+
+        var handoff = new Models.Agents.AgentHandoff
+        {
+            Id = Guid.NewGuid(),
+            SourceAgentId = request.SourceAgentId,
+            TargetAgentId = request.TargetAgentId,
+            Description = request.Description,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _agentDbContext.AgentHandoffs.Add(handoff);
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok(new AgentHandoffDto(handoff.Id, handoff.SourceAgentId, handoff.TargetAgentId, handoff.Description));
     }
 }

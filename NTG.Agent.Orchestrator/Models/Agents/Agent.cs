@@ -29,6 +29,9 @@ public class Agent
 
     public bool IsPublished { get; set; }
 
+    /// <summary>Whether this agent is visible to end-users in the agent selector. Agents that only participate in handoff workflows should be set to false.</summary>
+    public bool IsSelectable { get; set; } = true;
+
     public bool IsDefault { get; set; }
 
     /// <summary>Whether this agent uses Fast or Thinking (reasoning) mode.</summary>
@@ -50,4 +53,9 @@ public class Agent
 
     public ICollection<AgentTools> AgentTools { get; set; } = new List<AgentTools>();
 
+    /// <summary>Handoff connections where this agent is the source (can hand off TO other agents).</summary>
+    public ICollection<AgentHandoff> OutgoingHandoffs { get; set; } = new List<AgentHandoff>();
+
+    /// <summary>Handoff connections where this agent is the target (can receive handoffs FROM other agents).</summary>
+    public ICollection<AgentHandoff> IncomingHandoffs { get; set; } = new List<AgentHandoff>();
 }

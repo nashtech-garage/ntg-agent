@@ -30,6 +30,7 @@ public class AgentService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserMemoryService _memoryService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
+    private readonly IHandoffWorkflowService _handoffWorkflowService;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -42,6 +43,7 @@ public class AgentService
         IHttpContextAccessor httpContextAccessor,
         IUserMemoryService memoryService,
         IDocumentAnalysisService documentAnalysisService,
+        IHandoffWorkflowService handoffWorkflowService,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -53,6 +55,7 @@ public class AgentService
         _memoryService = memoryService;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
+        _handoffWorkflowService = handoffWorkflowService;
     }
 
     public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
@@ -275,15 +278,20 @@ public class AgentService
         TokenUsageInfo tokenUsageInfo,
         Guid? userId)
     {
-        if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
+        // Check if this agent has handoff connections configured
+        var workflow = await _handoffWorkflowService.BuildWorkflowAsync(promptRequest.AgentId);
+
+        if (workflow != null)
         {
-            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
+            // Handoff workflow path — multiple agents collaborating
+            await foreach (var response in InvokeHandoffWorkflowStreamingAsync(workflow, promptRequest, history, userId, tokenUsageInfo))
             {
-                yield return new PromptResponse(response);
+                yield return response;
             }
         }
         else
         {
+            // Single-agent path — existing behavior
             var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
 
             var chatHistory = new List<ChatMessage>();
@@ -327,6 +335,70 @@ public class AgentService
         }
     }
 
+    /// <summary>
+    /// Executes a handoff workflow where multiple agents collaborate via the Agent Framework.
+    /// Streams text from AgentResponseUpdateEvent and uses WorkflowOutputEvent as the termination signal.
+    /// Token usage is accumulated across all agents that participate in the handoff chain.
+    /// </summary>
+    private async IAsyncEnumerable<PromptResponse> InvokeHandoffWorkflowStreamingAsync(
+        Workflow workflow,
+        PromptRequestForm promptRequest,
+        List<PChatMessage> history,
+        Guid? userId,
+        TokenUsageInfo tokenUsageInfo)
+    {
+        var chatHistory = new List<ChatMessage>();
+
+        // Inject long-term memories for authenticated users
+        await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
+
+        foreach (var msg in history.OrderBy(m => m.CreatedAt))
+        {
+            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
+        }
+
+        var prompt = BuildPromptAsync(promptRequest, []);
+        var userMessage = BuildUserMessage(promptRequest, prompt);
+        chatHistory.Add(userMessage);
+
+        StreamingRun run = await InProcessExecution.RunStreamingAsync(workflow, chatHistory);
+        await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
+
+        await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
+        {
+            // AgentResponseUpdateEvent contains streaming text chunks from agents.
+            // Must be checked BEFORE WorkflowOutputEvent since it inherits from it.
+            if (evt is AgentResponseUpdateEvent updateEvt)
+            {
+                var update = updateEvt.Update;
+                if (update != null)
+                {
+                    foreach (var content in update.Contents)
+                    {
+                        if (content is TextReasoningContent reasoningContent)
+                        {
+                            yield return new PromptResponse(reasoningContent.Text, PromptContentType.Thinking);
+                        }
+                        else if (content is TextContent textContent && !string.IsNullOrEmpty(textContent.Text))
+                        {
+                            yield return new PromptResponse(textContent.Text);
+                        }
+                        // FunctionCallContent, UsageContent, etc. are silently skipped
+                    }
+
+                    // Accumulate token usage from each agent in the chain (each agent contributes its own usage).
+                    AccumulateTokenUsage(update.RawRepresentation, tokenUsageInfo);
+                }
+            }
+            else if (evt is WorkflowOutputEvent)
+            {
+                // Final output event contains the full List<ChatMessage> conversation history.
+                // This signals workflow completion — do not display it.
+                break;
+            }
+        }
+    }
+
     private static void ExtractTokenUsage(object? rawRepresentation, TokenUsageInfo tokenUsage)
     {
         if (rawRepresentation is not ChatResponseUpdate update) return;
@@ -342,46 +414,19 @@ public class AgentService
         tokenUsage.TotalTokens = usageDetails.TotalTokenCount;
     }
 
-    private async IAsyncEnumerable<string> TestOrchestratorInvokePromptStreamingInternalAsync(
-        PromptRequestForm promptRequest,
-        List<PChatMessage> history,
-        List<string> tags,
-        Guid? userId)
+    /// <summary>
+    /// Adds token usage from one agent's streaming update to an accumulator.
+    /// Used in the handoff workflow path where multiple agents each contribute tokens.
+    /// </summary>
+    private static void AccumulateTokenUsage(object? rawRepresentation, TokenUsageInfo tokenUsage)
     {
-        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
-        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
-        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F")); // Azure OpenAI Agent ID
-        
-        // Suppress MAAIW001 as CreateHandoffBuilderWith is marked for evaluation purposes
-        #pragma warning disable MAAIW001
-        var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(triageAgent)
-            .WithHandoffs(triageAgent, [csharpAgent, javaAgent])
-            .Build();
-        #pragma warning restore MAAIW001
-
-        var chatHistory = new List<ChatMessage>();
-        foreach (var msg in history.OrderBy(m => m.CreatedAt))
-        {
-            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
-        }
-
-        var prompt = BuildPromptAsync(promptRequest, []);
-
-        var userMessage = BuildUserMessage(promptRequest, prompt);
-
-        chatHistory.Add(userMessage);
-        StreamingRun run = await InProcessExecution.RunStreamingAsync(workflow, chatHistory);
-        await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
-        await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
-        {
-            if (evt is WorkflowOutputEvent e)
-            {
-                yield return e.Data?.ToString() ?? string.Empty;
-            }
-        }
-        // Inject long-term memories for authenticated users
-        await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
-        // TODO: Extract token usage from workflow run if possible
+        if (rawRepresentation is not ChatResponseUpdate update) return;
+        var usageContent = update.Contents?.OfType<UsageContent>().FirstOrDefault();
+        if (usageContent?.Details is not UsageDetails details) return;
+        tokenUsage.InputTokens = (tokenUsage.InputTokens ?? 0) + (details.InputTokenCount ?? 0);
+        tokenUsage.OutputTokens = (tokenUsage.OutputTokens ?? 0) + (details.OutputTokenCount ?? 0);
+        tokenUsage.ReasoningTokens = (tokenUsage.ReasoningTokens ?? 0) + (details.ReasoningTokenCount ?? 0);
+        tokenUsage.TotalTokens = (tokenUsage.TotalTokens ?? 0) + (details.TotalTokenCount ?? 0);
     }
 
     private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)

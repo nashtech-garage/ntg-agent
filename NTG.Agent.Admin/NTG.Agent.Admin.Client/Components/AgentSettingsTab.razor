@@ -198,6 +198,28 @@ You are a helpful AI assistant specialized in customer support. Always be polite
                             </div>
                         </div>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small">User Selectable</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="isSelectableToggle"
+                                   checked="@AgentDetail.IsSelectable"
+                                   @onchange="e => AgentDetail.IsSelectable = (bool)(e.Value ?? false)" />
+                            <label class="form-check-label small" for="isSelectableToggle">
+                                @if (AgentDetail.IsSelectable)
+                                {
+                                    <span class="text-success"><i class="bi bi-eye me-1"></i>Visible to users in agent selector</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted"><i class="bi bi-eye-slash me-1"></i>Handoff only — hidden from user selection</span>
+                                }
+                            </label>
+                        </div>
+                        <div class="form-text" style="font-size:0.75rem;">
+                            When disabled, this agent can only be reached through handoff workflows and won't appear in the user's agent selector.
+                        </div>
+                    </div>
                     
                     <button class="btn btn-outline-primary btn-sm w-100" @onclick="SaveAdvancedSettings">
                         <i class="bi bi-gear me-1"></i>Save Settings

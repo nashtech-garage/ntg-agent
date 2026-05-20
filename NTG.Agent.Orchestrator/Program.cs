@@ -86,6 +86,7 @@ builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
+builder.Services.AddScoped<IHandoffWorkflowService, HandoffWorkflowService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();

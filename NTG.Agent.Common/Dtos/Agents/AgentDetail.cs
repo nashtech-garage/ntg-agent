@@ -20,6 +20,10 @@ public class AgentDetail
     public string? ProviderModelName { get; set; }
     public bool IsDefault { get; set; }
     public bool IsPublished { get; set; }
+
+    /// <summary>Whether this agent is visible to end-users in the agent selector.</summary>
+    public bool IsSelectable { get; set; } = true;
+
     public string? McpServer { get; set; }
 
     /// <summary>Determines whether this agent uses Fast or Thinking (reasoning) mode.</summary>
