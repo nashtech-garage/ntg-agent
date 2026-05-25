@@ -8,7 +8,7 @@
 # Pinned to linux/amd64 to match the existing AArch64-on-Mac convention used
 # for the other lightrag containers in the AppHost.
 
-FROM --platform=linux/amd64 pgvector/pgvector:0.8.2-pg17-trixie
+FROM --platform=linux/amd64 docker.io/pgvector/pgvector:0.8.2-pg17-trixie
 
 ARG AGE_REF=release/PG17/1.7.0
 

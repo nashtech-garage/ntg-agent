@@ -58,7 +58,7 @@ var lightrag = builder.AddContainer("lightrag", "ghcr.io/hkuds/lightrag", "v1.4.
 	// gpt-5.4-mini is the deployment used for entity extraction and merge-summary
 	// (high volume, low reasoning cost); save full gpt-5.4 for chat agents.
 	.WithEnvironment("LLM_BINDING", "azure_openai")
-	.WithEnvironment("LLM_MODEL", "gpt-5.4-mini")
+	.WithEnvironment("LLM_MODEL", "gpt-5.4")
 	.WithEnvironment("LLM_BINDING_HOST", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
 	.WithEnvironment("LLM_BINDING_API_KEY", azureOpenAiApiKey)
 	.WithEnvironment("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
