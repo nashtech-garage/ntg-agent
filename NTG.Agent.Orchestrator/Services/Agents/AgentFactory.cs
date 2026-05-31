@@ -32,17 +32,11 @@ public class AgentFactory : IAgentFactory
 
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
-        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
-        string agentProvider = agentConfig.ProviderName;
-        return agentProvider switch
-        {
-            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
-            "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
-            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
-            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
-            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
-            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
-        };
+        var agentConfig = await _agentDbContext.Agents
+            .FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished && a.AgentKind == AgentKind.Outer)
+            ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+
+        return await CreateAgentFromConfigAsync(agentConfig);
     }
 
     // This agent is used for simple tasks, like summarization, naming the conversation, etc.
@@ -138,7 +132,7 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
     private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
@@ -184,7 +178,7 @@ public class AgentFactory : IAgentFactory
 
         var tools = await GetAgentToolsByAgentId(agent);
 
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
@@ -231,7 +225,7 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
     private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent)
@@ -253,6 +247,12 @@ public class AgentFactory : IAgentFactory
             tools = allTools
                 .Where(t => enabledToolNames.Contains(t.Name))
                 .ToList();
+
+            if (agent.AgentKind == AgentKind.Outer)
+            {
+                var innerAgentTools = await GetInnerAgentToolsAsync(agent);
+                tools.AddRange(innerAgentTools);
+            }
         }
 
         return tools;
@@ -276,6 +276,56 @@ public class AgentFactory : IAgentFactory
         }
 
         return allTools;
+    }
+
+    private async Task<AIAgent> CreateAgentFromConfigAsync(Models.Agents.Agent agent)
+    {
+        string agentProvider = agent.ProviderName;
+        return agentProvider switch
+        {
+            "GitHubModel" => await CreateOpenAIAgentAsync(agent),
+            "GoogleGemini" => await CreateOpenAIAgentAsync(agent),
+            "OpenAI" => await CreateOpenAIAgentAsync(agent),
+            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agent),
+            "Anthropic" => await CreateAnthropicAgentAsync(agent),
+            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+        };
+    }
+
+    private static string? GetAgentDescription(Models.Agents.Agent agent)
+    {
+        if (!string.IsNullOrWhiteSpace(agent.Description))
+        {
+            return agent.Description;
+        }
+
+        return string.IsNullOrWhiteSpace(agent.Instructions) ? null : agent.Instructions;
+    }
+
+    private async Task<List<AITool>> GetInnerAgentToolsAsync(Models.Agents.Agent outerAgent)
+    {
+        var bindings = await _agentDbContext.AgentInnerAgents
+            .Where(b => b.OuterAgentId == outerAgent.Id && b.IsEnabled)
+            .Select(b => b.InnerAgentId)
+            .ToListAsync();
+
+        if (bindings.Count == 0)
+        {
+            return [];
+        }
+
+        var innerAgents = await _agentDbContext.Agents
+            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.Inner)
+            .ToListAsync();
+
+        var tools = new List<AITool>();
+        foreach (var innerAgent in innerAgents)
+        {
+            var agent = await CreateAgentFromConfigAsync(innerAgent);
+            tools.Add(agent.AsAIFunction());
+        }
+
+        return tools;
     }
 
 
