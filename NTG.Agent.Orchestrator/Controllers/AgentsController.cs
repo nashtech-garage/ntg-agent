@@ -51,7 +51,7 @@ public class AgentsController : ControllerBase
     public async Task<IActionResult> GetAgents()
     {
         var agents = await _agentDbContext.Agents
-            .Where(a => a.IsPublished)
+            .Where(a => a.IsPublished && a.AgentKind == AgentKind.Outer)
             .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);
