@@ -8,6 +8,7 @@ builder.AddServiceDefaults();
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
+builder.Services.AddSingleton<WeatherService>();
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()
