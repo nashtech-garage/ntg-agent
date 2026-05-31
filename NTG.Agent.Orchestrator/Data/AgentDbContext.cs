@@ -23,6 +23,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
 
+    public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
+
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
@@ -110,7 +112,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Name = "Default Agent",
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
-            IsPublished = true
+            IsPublished = true,
+            AgentKind = Common.Dtos.Agents.AgentKind.Outer
         });
 
         modelBuilder.Entity<Folder>().HasData(
@@ -198,6 +201,21 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .WithOne(t => t.Agent)
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Models.Agents.AgentInnerAgent>(entity =>
+        {
+            entity.HasKey(x => new { x.OuterAgentId, x.InnerAgentId });
+
+            entity.HasOne(x => x.OuterAgent)
+                .WithMany(a => a.InnerAgentBindings)
+                .HasForeignKey(x => x.OuterAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.InnerAgent)
+                .WithMany(a => a.OuterAgentBindings)
+                .HasForeignKey(x => x.InnerAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         // UserPreference configuration
         modelBuilder.Entity<UserPreference>(e =>
