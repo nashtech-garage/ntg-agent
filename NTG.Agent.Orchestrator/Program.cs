@@ -118,14 +118,20 @@ builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResi
         o.Retry.MaxRetryAttempts = 0;
     });
 
-builder.Services.AddHttpClient<LightRagClient>((sp, c) =>
+// Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
+// LightRagClientFactory (each agent has its own container endpoint), so we only
+// configure the timeout here. The resilience override above is keyed on this name.
+builder.Services.AddHttpClient(nameof(LightRagClient), c =>
 {
-    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-    c.BaseAddress = new Uri(cfg.Endpoint);
     c.Timeout = TimeSpan.FromMinutes(5);
-    if (!string.IsNullOrEmpty(cfg.ApiKey))
-        c.DefaultRequestHeaders.Add("X-API-Key", cfg.ApiKey);
 });
+
+// One LightRAG container per agent: the manager owns the Docker lifecycle, the
+// factory resolves a per-agent client, and the reconciler ensures containers exist
+// for every agent on startup.
+builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
+builder.Services.AddScoped<LightRagClientFactory>();
+builder.Services.AddHostedService<LightRagReconcilerHostedService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {
