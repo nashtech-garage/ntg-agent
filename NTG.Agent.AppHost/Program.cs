@@ -43,43 +43,13 @@ var lightragPostgres = builder.AddPostgres("lightrag-postgres", password: pgPass
 if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 	lightragPostgres.WithContainerRuntimeArgs("--platform", "linux/amd64");
 
-var lightrag = builder.AddContainer("lightrag", "ghcr.io/hkuds/lightrag", "v1.4.16")
-	.WithHttpEndpoint(port: 9621, targetPort: 9621, name: "http")
-	.WithEnvironment("LIGHTRAG_KV_STORAGE", "PGKVStorage")
-	.WithEnvironment("LIGHTRAG_VECTOR_STORAGE", "PGVectorStorage")
-	.WithEnvironment("LIGHTRAG_GRAPH_STORAGE", "PGGraphStorage")
-	.WithEnvironment("LIGHTRAG_DOC_STATUS_STORAGE", "PGDocStatusStorage")
-	.WithEnvironment("POSTGRES_HOST", "lightrag-postgres")
-	.WithEnvironment("POSTGRES_PORT", "5432")
-	.WithEnvironment("POSTGRES_USER", "postgres")
-	.WithEnvironment("POSTGRES_PASSWORD", pgPassword)
-	.WithEnvironment("POSTGRES_DATABASE", "uploaded-documents")
-	// Azure OpenAI: no 8000-token request cap and ~1M TPM / 10K RPM on standard tier.
-	// gpt-5.4-mini is the deployment used for entity extraction and merge-summary
-	// (high volume, low reasoning cost); save full gpt-5.4 for chat agents.
-	.WithEnvironment("LLM_BINDING", "azure_openai")
-	.WithEnvironment("LLM_MODEL", "gpt-5.4")
-	.WithEnvironment("LLM_BINDING_HOST", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("LLM_BINDING_API_KEY", azureOpenAiApiKey)
-	.WithEnvironment("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
-	// text-embedding-3-large is 3072-dim (vs text-embedding-3-small's 1536); the
-	// pgvector schema is created on first ingestion against EMBEDDING_DIM, so any
-	// future dim change requires wiping ntg-agent-local-dev-lightrag-postgres-data.
-	.WithEnvironment("EMBEDDING_BINDING", "azure_openai")
-	.WithEnvironment("EMBEDDING_MODEL", "text-embedding-3-large")
-	.WithEnvironment("EMBEDDING_BINDING_HOST", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("EMBEDDING_BINDING_API_KEY", azureEmbeddingApiKey)
-	.WithEnvironment("EMBEDDING_DIM", "3072")
-	.WithEnvironment("AZURE_EMBEDDING_API_VERSION", "2024-08-01-preview")
-	// Larger chunks (recommended top-of-range is 1500) and full default extraction
-	// budget — Azure OpenAI has no per-request token cap to worry about here.
-	.WithEnvironment("CHUNK_SIZE", "1500")
-	.WithEnvironment("CHUNK_OVERLAP_SIZE", "100")
-	.WithEnvironment("MAX_ASYNC", "8")
-	.WithEnvironment("MAX_PARALLEL_INSERT", "2")
-	.WithEnvironment("EMBEDDING_FUNC_MAX_ASYNC", "8")
-	.WithEnvironment("LIGHTRAG_API_KEY", lightragApiKey)
-	.WaitFor(lightragPostgres);
+// NOTE: There is no longer a singleton "lightrag" container here. Each agent now
+// gets its own dedicated lightrag-agent-{agentId} app container, spun up on demand
+// by the Orchestrator (LightRagContainerManager / LightRagReconcilerHostedService)
+// via the host Docker daemon. They all point at the single shared lightrag-postgres
+// above and are isolated by LightRAG's WORKSPACE env var. The Azure OpenAI bindings,
+// chunk knobs, Postgres password and API key that used to live here are passed to the
+// Orchestrator below as LightRag__* env vars and re-applied per spawned container.
 
 var elasticsearch = builder.AddElasticsearch("elasticsearch")
 						   .WithImageTag("8.15.0")
@@ -174,11 +144,34 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithReference(mcpServer)
 	.WithReference(knowledge)
 	.WaitForCompletion(migrateOrchestrator)
+	// The Orchestrator spawns per-agent LightRAG containers against the shared
+	// Postgres, so it must wait for Postgres to be ready before its reconciler runs.
+	.WaitFor(lightragPostgres)
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
 	.WithEnvironment("KernelMemory__ApiKey", kernelMemoryApiKey)
 	.WithEnvironment("GitHub__Models__GitHubToken", githubToken)
-	.WithEnvironment("LightRag__Endpoint", lightrag.GetEndpoint("http"))
-	.WithEnvironment("LightRag__ApiKey", lightragApiKey);
+	// LightRAG per-agent container provisioning config (see LightRagSettings /
+	// LightRagContainerManager). These replace the old singleton "lightrag" container
+	// env — the Orchestrator now applies them to each spawned lightrag-agent-{id}.
+	.WithEnvironment("LightRag__ApiKey", lightragApiKey)
+	.WithEnvironment("LightRag__ImageRef", "ghcr.io/hkuds/lightrag")
+	.WithEnvironment("LightRag__ImageTag", "v1.4.16")
+	.WithEnvironment("LightRag__PostgresHostAlias", "lightrag-postgres")
+	.WithEnvironment("LightRag__PostgresPassword", pgPassword)
+	.WithEnvironment("LightRag__PostgresDatabase", "uploaded-documents")
+	.WithEnvironment("LightRag__LlmModel", "gpt-5.4")
+	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("LightRag__LlmApiKey", azureOpenAiApiKey)
+	.WithEnvironment("LightRag__EmbeddingModel", "text-embedding-3-large")
+	.WithEnvironment("LightRag__EmbeddingEndpoint", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
+	.WithEnvironment("LightRag__EmbeddingApiKey", azureEmbeddingApiKey)
+	.WithEnvironment("LightRag__AzureApiVersion", "2024-08-01-preview")
+	.WithEnvironment("LightRag__EmbeddingDim", "3072")
+	.WithEnvironment("LightRag__ChunkSize", "1500")
+	.WithEnvironment("LightRag__ChunkOverlap", "100")
+	.WithEnvironment("LightRag__MaxAsync", "8")
+	.WithEnvironment("LightRag__MaxParallelInsert", "2")
+	.WithEnvironment("LightRag__EmbeddingFuncMaxAsync", "8");
 
 builder.AddProject<Projects.NTG_Agent_WebClient>("ntg-agent-webclient")
 	.WithExternalHttpEndpoints()
