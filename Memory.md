@@ -5,12 +5,19 @@ A practical walkthrough for running and testing the LightRAG-backed knowledge ba
 ## What LightRAG does here
 
 - Acts as the **document RAG backend** (replaced Kernel Memory for document RAG; KM still owns long-term user memory).
-- Runs as two containers started by the AppHost:
-  - `lightrag-postgres` — custom PG17 image with `pgvector` + Apache AGE (`scripts/lightrag-postgres/Dockerfile`). Hosts the `uploaded-documents` database.
-  - `lightrag` — upstream `ghcr.io/hkuds/lightrag:v1.4.16` server. Talks to Azure OpenAI for entity extraction and embeddings.
+- **One LightRAG container per agent.** The AppHost starts only the shared storage:
+  - `lightrag-postgres` — custom PG17 image with `pgvector` + Apache AGE (`scripts/lightrag-postgres/Dockerfile`). Hosts the `uploaded-documents` database. This is the single durable backend for **all** agents.
+  - There is **no** singleton `lightrag` container anymore. Instead the Orchestrator spins up one lightweight app container per agent — `lightrag-agent-{agentId}` (upstream `ghcr.io/hkuds/lightrag:v1.4.16`) — on the host Docker daemon via `Docker.DotNet`. Each joins the same Docker network as `lightrag-postgres`, talks to Azure OpenAI for extraction/embeddings, and is isolated by LightRAG's `WORKSPACE={agentId}` env var so two agents never see each other's data even though they share one Postgres.
+- **Isolation model:** a `lightrag` container is a stateless app server; all state (KV/vector/doc-status/AGE graph) lives in Postgres, where every row is namespaced by `WORKSPACE`. Distinct workspaces ⇒ disjoint rows ⇒ full per-agent isolation without a Postgres-per-agent.
+- **Container lifecycle is orchestrator-owned** (`Services/Knowledge/`):
+  - `LightRagContainerManager` — pull image, find a free host port, create/start/stop/remove `lightrag-agent-{id}`.
+  - `LightRagClientFactory` — resolves a `LightRagClient` pointed at the agent's own container (`http://localhost:{Agent.LightRagPort}`); this is how chat/upload stay scoped to one agent.
+  - `LightRagReconcilerHostedService` — on startup, pulls the image and ensures every agent has a running container, back-filling/repairing `Agent.LightRagPort`.
+  - Create-agent spawns the container and persists its port; delete-agent cascade-deletes the agent's documents (LightRAG → filestore → SQL) then tears the container down (`AgentAdminController`).
+- The dynamically-allocated host port for each agent's container is persisted on the `Agents.LightRagPort` column in SQL Server (the only per-agent metadata we store).
 - Persists chunks/embeddings/graph in the `ntg-agent-local-dev-lightrag-postgres-data` Docker volume.
-- Stores original uploaded files locally at `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{trackId}_{fileName}` (slated to move to Azure Blob in prod).
-- Exposes a built-in WebUI at <http://localhost:9621/webui/> — invaluable for debugging ingestion state.
+- Stores original uploaded files locally at `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{docId}_{fileName}` (slated to move to Azure Blob in prod).
+- Each agent container exposes the built-in WebUI at <http://localhost:{Agent.LightRagPort}/webui/> — invaluable for debugging ingestion state per agent.
 
 ## Prerequisites
 
@@ -146,19 +153,22 @@ Once at least one document is `Completed` in LightRAG:
 
 | Path | Purpose |
 | --- | --- |
-| `NTG.Agent.AppHost/Program.cs:44-78` | LightRAG container env wiring (Azure OpenAI binding, chunk sizing, concurrency knobs) |
+| `NTG.Agent.AppHost/Program.cs` | Shared `lightrag-postgres` + the `LightRag__*` env vars passed to the Orchestrator (Azure binding, chunk knobs, pg password) for per-agent containers |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagContainerManager.cs` | Docker.DotNet lifecycle for `lightrag-agent-{id}` (pull/create/start/stop/remove, free-port + network discovery) |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagClientFactory.cs` | Resolves a `LightRagClient` for an agent's own container (`http://localhost:{LightRagPort}`) |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagReconcilerHostedService.cs` | Startup: pull image, ensure a container per agent, back-fill `LightRagPort` |
 | `NTG.Agent.Orchestrator/Services/Knowledge/LightRagClient.cs` | Thin HTTP client. `InsertFileAsync` posts `/documents/upload`; `QueryAsync` posts `/query` |
-| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagKnowledge.cs` | `IKnowledgeService` impl — bridges chat-side calls into `LightRagClient` + local file store |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagKnowledge.cs` | `IKnowledgeService` impl — routes each call through `LightRagClientFactory` (per-agent) + local file store |
 | `NTG.Agent.Orchestrator/Services/Knowledge/LightRagFileStore.cs` | Saves/retrieves the original uploaded file on disk |
 | `NTG.Agent.Orchestrator/Controllers/DocumentsController.cs` | `/api/Documents/*` endpoints — upload/list/delete/export |
-| `NTG.Agent.Orchestrator/Models/Configuration/LightRagSettings.cs` | `Endpoint`, `ApiKey`, `FileStorePath`, `TopK` (default 60) |
+| `NTG.Agent.Orchestrator/Models/Configuration/LightRagSettings.cs` | `ApiKey`, `FileStorePath`, `TopK`, plus per-agent container provisioning config (image, Postgres, Azure bindings, chunk knobs) |
 | `scripts/lightrag-postgres/Dockerfile` | Custom Postgres image: `pgvector` + Apache AGE compiled from source |
 | `scripts/lightrag-pg-init/01-create-db.sql` | Creates the `uploaded-documents` DB on first boot |
 | `scripts/lightrag-pg-init/02-init-extensions.sql` | Pre-creates `vector` and `age` extensions |
 
 ## Tunable knobs (current values)
 
-Configured in `NTG.Agent.AppHost/Program.cs:62-78`:
+Set as `LightRag__*` env vars on the Orchestrator in `NTG.Agent.AppHost/Program.cs` (bound to `LightRagSettings`) and applied by `LightRagContainerManager` to every per-agent container:
 
 | Env var | Current | LightRAG default | What it controls |
 | --- | --- | --- | --- |
@@ -178,5 +188,6 @@ LightRAG settings on the Orchestrator side (in `appsettings.json`, section `Ligh
 
 ## Known limitations
 
-- **No per-agent namespace isolation in LightRAG v1.4.x**: all agents share the same knowledge graph. `agentId` is included in document descriptions as a metadata hint only (`LightRagKnowledge.cs`). Multi-tenant scenarios require an upstream LightRAG upgrade or one-container-per-agent topology.
+- **One container per agent costs RAM**: each agent runs its own LightRAG app container. Fine for a handful of agents in dev; a large fleet would want a pooled/multi-tenant topology or on-demand container start/stop. Containers use `RestartPolicy=unless-stopped` and are reconciled on Orchestrator startup.
+- **Local filestore**: original uploads still live on the Orchestrator's disk (`lightrag-filestore/{agentId}/`) — move to Azure Blob for production.
 - **Synchronous upload model**: the upload HTTP call now blocks until LightRAG's async pipeline finishes — see "Upload appears to hang for 1–2 min" above. Fine for dev-phase admin uploads; for a public-facing ingestion API consider switching to a Pending-row + background-reconciler model so the HTTP call returns immediately.
