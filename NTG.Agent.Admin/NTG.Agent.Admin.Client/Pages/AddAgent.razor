@@ -1,5 +1,6 @@
 ﻿@page "/agents/new"
 @page "/agents/duplicate/{sourceAgentId:guid}"
+@page "/inner-agents/new"
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
@@ -24,7 +25,7 @@
                     }
                     else
                     {
-                        <li class="breadcrumb-item active" aria-current="page">Create New Agent</li>
+                        <li class="breadcrumb-item active" aria-current="page">@(isInner ? "Create Inner Agent" : "Create New Agent")</li>
                     }
                 </ol>
             </nav>
@@ -35,10 +36,14 @@
                     <i class="bi @(isDuplicating ? "bi-copy" : "bi-plus-circle") text-white" style="font-size: 1.2rem;"></i>
                 </div>
                 <div>
-                    <h1 class="h3 mb-0">@(isDuplicating ? "Duplicate Agent" : "Create New Agent")</h1>
+                    <h1 class="h3 mb-0">@(isDuplicating ? "Duplicate Agent" : (isInner ? "Create Inner Agent" : "Create New Agent"))</h1>
                     @if (isDuplicating && !string.IsNullOrEmpty(sourceAgentName))
                     {
                         <small class="text-muted">Creating a copy of "@sourceAgentName"</small>
+                    }
+                    else if (isInner)
+                    {
+                        <small class="text-muted">Define a focused agent that can be called as a tool by other agents.</small>
                     }
                 </div>
             </div>
@@ -82,6 +87,41 @@
                         <EditForm Model="@agentDetail" OnValidSubmit="HandleValidSubmit">
                         <DataAnnotationsValidator />
                         
+                        @if (!isDuplicating)
+                        {
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-diagram-3 me-2 text-primary"></i>
+                                    Agent Kind <span class="text-danger">*</span>
+                                </label>
+                                <div class="form-text mb-2">Choose whether this agent faces users directly or serves as a tool for other agents.</div>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="agentKind" id="kindOuter"
+                                               checked="@(agentDetail.AgentKind == AgentKind.Outer)"
+                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Outer; }"
+                                               disabled="@isSubmitting" />
+                                        <label class="form-check-label" for="kindOuter">
+                                            <i class="bi bi-people-fill text-primary me-1"></i><strong>Outer Agent</strong>
+                                            <div class="text-muted small">User-facing agent that conversations are routed to.</div>
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="agentKind" id="kindInner"
+                                               checked="@(agentDetail.AgentKind == AgentKind.Inner)"
+                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Inner; agentDetail.Mode = AgentMode.Fast; }"
+                                               disabled="@isSubmitting" />
+                                        <label class="form-check-label" for="kindInner">
+                                            <i class="bi bi-tools text-success me-1"></i><strong>Inner Agent</strong>
+                                            <div class="text-muted small">Specialized sub-agent callable as a tool by outer agents.</div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <hr class="my-4" />
+                        }
+
                         <div class="mb-4">
                             <label for="name" class="form-label fw-semibold">
                                 <i class="bi bi-robot me-2 text-primary"></i>
@@ -109,7 +149,7 @@
                         <div class="mb-4">
                             <label for="instructions" class="form-label fw-semibold">
                                 <i class="bi bi-card-text me-2 text-primary"></i>
-                                Instructions <span class="text-muted">(Optional)</span>
+                                @(isInner ? "System Prompt / Role" : "Instructions") <span class="text-muted">(Optional)</span>
                             </label>
                             <InputTextArea id="instructions" class="form-control" rows="6" @bind-Value="agentDetail.Instructions" 
                                            placeholder="Enter detailed instructions for the agent..." disabled="@isSubmitting" />
@@ -146,7 +186,7 @@
                                     Model Name <span class="text-muted">(Optional)</span>
                                 </label>
                                 <InputText id="providerModelName" class="form-control" @bind-Value="agentDetail.ProviderModelName" 
-                                           placeholder="e.g., gpt-4, gpt-3.5-turbo" disabled="@isSubmitting" />
+                                           placeholder="@(isInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" disabled="@isSubmitting" />
                             </div>
                         </div>
 
@@ -184,35 +224,38 @@
                             </div>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-lightning-charge me-2 text-primary"></i>
-                                Agent Mode
-                            </label>
-                            <div class="form-text mb-2">Controls how the agent generates responses.</div>
-                            <div class="d-flex gap-4">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="agentMode" id="modeFast"
-                                           checked="@(agentDetail.Mode == AgentMode.Fast)"
-                                           @onchange="() => agentDetail.Mode = AgentMode.Fast"
-                                           disabled="@isSubmitting" />
-                                    <label class="form-check-label" for="modeFast">
-                                        <i class="bi bi-lightning-charge-fill text-warning me-1"></i><strong>Fast</strong>
-                                        <div class="text-muted small">Returns the final answer immediately.</div>
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="agentMode" id="modeThinking"
-                                           checked="@(agentDetail.Mode == AgentMode.Thinking)"
-                                           @onchange="() => agentDetail.Mode = AgentMode.Thinking"
-                                           disabled="@isSubmitting" />
-                                    <label class="form-check-label" for="modeThinking">
-                                        <i class="bi bi-cpu-fill text-info me-1"></i><strong>Thinking</strong>
-                                        <div class="text-muted small">Shows reasoning steps before the answer.</div>
-                                    </label>
+                        @if (!isInner)
+                        {
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-lightning-charge me-2 text-primary"></i>
+                                    Agent Mode
+                                </label>
+                                <div class="form-text mb-2">Controls how the agent generates responses.</div>
+                                <div class="d-flex gap-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="agentMode" id="modeFast"
+                                               checked="@(agentDetail.Mode == AgentMode.Fast)"
+                                               @onchange="() => agentDetail.Mode = AgentMode.Fast"
+                                               disabled="@isSubmitting" />
+                                        <label class="form-check-label" for="modeFast">
+                                            <i class="bi bi-lightning-charge-fill text-warning me-1"></i><strong>Fast</strong>
+                                            <div class="text-muted small">Returns the final answer immediately.</div>
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="agentMode" id="modeThinking"
+                                               checked="@(agentDetail.Mode == AgentMode.Thinking)"
+                                               @onchange="() => agentDetail.Mode = AgentMode.Thinking"
+                                               disabled="@isSubmitting" />
+                                        <label class="form-check-label" for="modeThinking">
+                                            <i class="bi bi-cpu-fill text-info me-1"></i><strong>Thinking</strong>
+                                            <div class="text-muted small">Shows reasoning steps before the answer.</div>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        }
 
                         <hr class="my-4" />
 
@@ -230,7 +273,7 @@
                                 else
                                 {
                                     <i class="bi bi-check-circle me-2"></i>
-                                    <span>Create Agent</span>
+                                    <span>@(isInner ? "Create Inner Agent" : "Create Agent")</span>
                                 }
                             </button>
                         </div>
@@ -252,6 +295,7 @@
     private bool showApiKey = false;
     private string? errorMessage;
     private bool isDuplicating => SourceAgentId.HasValue;
+    private bool isInner => agentDetail.AgentKind == AgentKind.Inner;
     private string sourceAgentName = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -281,7 +325,8 @@
                     ProviderApiKey = sourceAgent.ProviderApiKey,
                     ProviderModelName = sourceAgent.ProviderModelName,
                     McpServer = sourceAgent.McpServer,
-                    Mode = sourceAgent.Mode
+                    Mode = sourceAgent.Mode,
+                    AgentKind = sourceAgent.AgentKind
                 };
                 sourceAgentName = sourceAgent.Name;
             }
@@ -309,10 +354,8 @@
             isSubmitting = true;
             errorMessage = null;
 
-            // Create the agent
             var newAgentId = await AgentClient.CreateAgent(agentDetail);
 
-            // Create default folder for the new agent
             if (newAgentId != Guid.Empty)
             {
                 try
@@ -321,13 +364,18 @@
                 }
                 catch (Exception ex)
                 {
-                    // Log the error but don't fail the agent creation
                     Logger.LogWarning(ex, "Failed to create default folder for agent {AgentId}", newAgentId);
                 }
             }
 
-            // Navigate back to home page on success
-            Navigation.NavigateTo("/");
+            if (agentDetail.AgentKind == AgentKind.Inner)
+            {
+                Navigation.NavigateTo($"/agents/{newAgentId}");
+            }
+            else
+            {
+                Navigation.NavigateTo("/");
+            }
         }
         catch (Exception ex)
         {

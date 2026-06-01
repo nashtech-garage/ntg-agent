@@ -5,9 +5,15 @@ namespace NTG.Agent.Admin.Client.Services;
 
 public class AgentClient(HttpClient httpClient)
 {
-    public async Task<IList<AgentListItem>> GetListAsync()
+    public async Task<IList<AgentListItem>> GetListAsync(AgentKind? agentKind = null)
     {
-        var response = await httpClient.GetAsync("api/agentadmin");
+        string url = "api/agentadmin";
+        if (agentKind.HasValue)
+        {
+            url += $"?agentKind={agentKind.Value}";
+        }
+
+        var response = await httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<IList<AgentListItem>>();
@@ -78,68 +84,6 @@ public class AgentClient(HttpClient httpClient)
     {
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
         response.EnsureSuccessStatusCode();
-    }
-
-    public async Task<IList<InnerAgentListItem>> GetInnerAgentsAsync()
-    {
-        var response = await httpClient.GetAsync("api/agentadmin/inner");
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<IList<InnerAgentListItem>>();
-        return result ?? [];
-    }
-
-    public async Task<InnerAgentDetail?> GetInnerAgentAsync(Guid id)
-    {
-        var response = await httpClient.GetAsync($"api/agentadmin/inner/{id}");
-        response.EnsureSuccessStatusCode();
-
-        return await response.Content.ReadFromJsonAsync<InnerAgentDetail>();
-    }
-
-    public async Task<Guid> CreateInnerAgentAsync(InnerAgentDetail agentDetail)
-    {
-        var response = await httpClient.PostAsJsonAsync("api/agentadmin/inner", agentDetail);
-        response.EnsureSuccessStatusCode();
-
-        var createdAgentId = await response.Content.ReadFromJsonAsync<Guid>();
-        return createdAgentId;
-    }
-
-    public async Task UpdateInnerAgentAsync(InnerAgentDetail agentDetail)
-    {
-        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/inner/{agentDetail.Id}", agentDetail);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task DeleteInnerAgentAsync(Guid id)
-    {
-        var response = await httpClient.DeleteAsync($"api/agentadmin/inner/{id}");
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task<IList<AgentToolDto>> GetInnerAgentToolsAsync(Guid id)
-    {
-        var response = await httpClient.GetAsync($"api/agentadmin/inner/{id}/tools");
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<IList<AgentToolDto>>();
-        return result ?? [];
-    }
-
-    public async Task UpdateInnerAgentToolsAsync(Guid agentId, IList<AgentToolDto> tools)
-    {
-        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/inner/{agentId}/tools", tools);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task<IList<AgentToolDto>> ConnectInnerAgentToMcpServerAsync(Guid id, string endpoint)
-    {
-        var response = await httpClient.PostAsJsonAsync($"api/agentadmin/inner/{id}/connect", endpoint);
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<IList<AgentToolDto>>();
-        return result ?? [];
     }
 
     public async Task<IList<InnerAgentBindingDto>> GetInnerAgentBindingsAsync(Guid agentId)

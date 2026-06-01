@@ -22,6 +22,9 @@ public class AgentDetail
     public bool IsPublished { get; set; }
     public string? McpServer { get; set; }
 
+    /// <summary>Determines whether this agent is an Outer (user-facing) or Inner (tool) agent.</summary>
+    public AgentKind AgentKind { get; set; } = AgentKind.Outer;
+
     /// <summary>Determines whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
 

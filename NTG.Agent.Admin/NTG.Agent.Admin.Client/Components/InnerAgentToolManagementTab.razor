@@ -80,7 +80,7 @@
 
 @code {
     [Parameter]
-    public InnerAgentDetail InnerAgent { get; set; } = null!;
+    public AgentDetail InnerAgent { get; set; } = null!;
 
     private string mcpEndpoint = "http://localhost:5136";
     private bool isConnecting = false;
@@ -92,7 +92,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var tools = await AgentClient.GetInnerAgentToolsAsync(InnerAgent.Id);
+        var tools = await AgentClient.GetAgentToolsByAgentId(InnerAgent.Id);
         mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
 
         if (!string.IsNullOrEmpty(InnerAgent.McpServer))
@@ -129,7 +129,7 @@
             statusMessage = string.Empty;
             isConnected = false;
 
-            mcpTools = (await AgentClient.ConnectInnerAgentToMcpServerAsync(InnerAgent.Id, mcpEndpoint)).ToList();
+            mcpTools = (await AgentClient.ConnectToMcpServerAsync(InnerAgent.Id, mcpEndpoint)).ToList();
 
             isConnected = true;
             hasEndpointChanged = false;
@@ -166,11 +166,11 @@
         }
 
         InnerAgent.McpServer = mcpEndpoint;
-        await AgentClient.UpdateInnerAgentAsync(InnerAgent);
+        await AgentClient.UpdateAgent(InnerAgent);
 
         if (mcpTools != null)
         {
-            await AgentClient.UpdateInnerAgentToolsAsync(InnerAgent.Id, mcpTools);
+            await AgentClient.UpdateAgentToolsAsync(InnerAgent.Id, mcpTools);
             statusMessage = $"Saved {mcpTools.Count(t => t.IsEnabled)} MCP tools as enabled.";
         }
 
