@@ -135,9 +135,17 @@
             hasEndpointChanged = false;
             statusMessage = $"Connected successfully! {mcpTools.Count} tools found.";
         }
-        catch (Exception ex)
+        catch (System.Net.Http.HttpRequestException ex)
         {
             statusMessage = $"Failed to connect: {ex.Message}";
+        }
+        catch (TaskCanceledException ex)
+        {
+            statusMessage = $"Connection timed out or was canceled: {ex.Message}";
+        }
+        catch
+        {
+            throw;
         }
         finally
         {

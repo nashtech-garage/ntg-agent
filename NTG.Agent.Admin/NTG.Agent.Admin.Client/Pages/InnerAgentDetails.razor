@@ -5,6 +5,7 @@
 
 @using NTG.Agent.Common.Dtos.Agents
 @using NTG.Agent.Admin.Client.Components
+@using System.Net.Http
 @inject AgentClient AgentClient
 @inject NavigationManager Navigation
 @inject ILogger<InnerAgentDetails> Logger
@@ -229,7 +230,7 @@
                     errorMessage = "Inner agent not found.";
                 }
             }
-            catch (Exception ex)
+            catch (HttpRequestException ex)
             {
                 Logger.LogError(ex, "Failed to load inner agent.");
                 errorMessage = "Failed to load inner agent.";

@@ -64,14 +64,5 @@ public sealed class WeatherTools
                 message = ex.Message
             }, JsonOptions);
         }
-        catch (Exception ex)
-        {
-            return JsonSerializer.Serialize(new
-            {
-                success = false,
-                error = ex.GetType().Name,
-                message = ex.Message
-            }, JsonOptions);
-        }
     }
 }
