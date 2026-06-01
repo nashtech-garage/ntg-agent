@@ -259,7 +259,16 @@
                 await AgentClient.UpdateInnerAgentAsync(innerAgentDetail);
             }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Failed to save inner agent.");
+            errorMessage = "Failed to save inner agent.";
+        }
+        catch (InvalidOperationException ex)
         {
             Logger.LogError(ex, "Failed to save inner agent.");
             errorMessage = "Failed to save inner agent.";
