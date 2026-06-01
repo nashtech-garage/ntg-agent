@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 
@@ -16,13 +17,22 @@ public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
+    private readonly ILightRagContainerManager _containerManager;
+    private readonly IKnowledgeService _knowledgeService;
+    private readonly ILogger<AgentAdminController> _logger;
 
     public AgentAdminController(AgentDbContext agentDbContext,
-        IAgentFactory agentFactory
+        IAgentFactory agentFactory,
+        ILightRagContainerManager containerManager,
+        IKnowledgeService knowledgeService,
+        ILogger<AgentAdminController> logger
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
+        _containerManager = containerManager ?? throw new ArgumentNullException(nameof(containerManager));
+        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -326,7 +336,7 @@ public class AgentAdminController : ControllerBase
     /// <response code="403">If the user does not have Admin role</response>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost]
-    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent)
+    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent, CancellationToken cancellationToken)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
         if (updatedAgent == null)
@@ -355,7 +365,25 @@ public class AgentAdminController : ControllerBase
         };
 
         _agentDbContext.Agents.Add(agent);
-        await _agentDbContext.SaveChangesAsync();
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
+
+        // Provision this agent's dedicated LightRAG container and persist its port.
+        // If provisioning fails, roll back the agent row so we never leave an agent
+        // without a knowledge backend.
+        try
+        {
+            var port = await _containerManager.EnsureContainerAsync(agent.Id, null, cancellationToken);
+            agent.LightRagPort = port;
+            await _agentDbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to provision LightRAG container for agent {AgentId}; rolling back.", agent.Id);
+            _agentDbContext.Agents.Remove(agent);
+            await _agentDbContext.SaveChangesAsync(cancellationToken);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                $"Failed to provision the agent's LightRAG container: {ex.Message}");
+        }
 
         return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
     }
@@ -412,9 +440,9 @@ public class AgentAdminController : ControllerBase
     /// or is associated with documents.</description></item> <item><description><see cref="NoContentResult"/> if the
     /// agent is successfully deleted.</description></item> </list></returns>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteAgent(Guid id)
+    public async Task<IActionResult> DeleteAgent(Guid id, CancellationToken cancellationToken)
     {
-        var agent = await _agentDbContext.Agents.FindAsync(id);
+        var agent = await _agentDbContext.Agents.FindAsync([id], cancellationToken);
         if (agent == null)
         {
             return NotFound();
@@ -425,15 +453,30 @@ public class AgentAdminController : ControllerBase
             return BadRequest("Default agent cannot be deleted.");
         }
 
-        var associatedDocs = await _agentDbContext.Documents.AnyAsync(d => d.AgentId == id);
-
-        if (associatedDocs)
+        // Cascade-delete the agent's knowledge: remove each document from its LightRAG
+        // container (and the on-disk filestore) while the container is still alive, then
+        // drop the SQL rows, then tear the container down. Document removal is best-effort
+        // so a single LightRAG hiccup can't block deleting the agent.
+        var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
+        foreach (var doc in documents)
         {
-            return BadRequest("Agent cannot be deleted because it is associated with documents.");
+            if (string.IsNullOrEmpty(doc.KnowledgeDocId))
+                continue;
+            try
+            {
+                await _knowledgeService.RemoveDocumentAsync(doc.KnowledgeDocId, id, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove document {DocId} from LightRAG while deleting agent {AgentId}; continuing.", doc.KnowledgeDocId, id);
+            }
         }
+        _agentDbContext.Documents.RemoveRange(documents);
+
+        await _containerManager.StopAndRemoveContainerAsync(id, cancellationToken);
 
         _agentDbContext.Agents.Remove(agent);
-        await _agentDbContext.SaveChangesAsync();
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
 
         return NoContent();
     }
