@@ -68,6 +68,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         try
         {
             await EnsureImagePulledAsync(cancellationToken);
+            var network = await EnsureSharedNetworkAsync(cancellationToken);
 
             var name = ContainerName(agentId);
             var existing = await FindContainerAsync(name, cancellationToken);
@@ -75,23 +76,23 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
             if (existing is not null)
             {
                 var inspect = await _docker.Containers.InspectContainerAsync(existing.ID, cancellationToken);
-                if (inspect.State?.Running == true)
+                var onNetwork = inspect.NetworkSettings?.Networks?.ContainsKey(network) == true;
+                var runningPort = inspect.State?.Running == true ? ReadPublishedPort(inspect) : null;
+
+                // Healthy only if it is actually attached to the shared network AND has a
+                // live host port mapping. A detached/crash-looping container (e.g. after an
+                // AppHost restart that recreated Postgres) fails this and is recreated.
+                if (onNetwork && runningPort is not null)
                 {
-                    var runningPort = ReadPublishedPort(inspect);
-                    if (runningPort is not null)
-                    {
-                        _logger.LogInformation("LightRagContainerManager: {Name} already running on :{Port}.", name, runningPort);
-                        return runningPort.Value;
-                    }
+                    _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, runningPort);
+                    return runningPort.Value;
                 }
 
-                // Exists but stopped or port unreadable — remove and recreate cleanly.
-                _logger.LogInformation("LightRagContainerManager: removing stale container {Name} before recreate.", name);
+                _logger.LogInformation("LightRagContainerManager: recreating {Name} (onNetwork={OnNetwork}, livePort={Port}).", name, onNetwork, runningPort);
                 await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
             }
 
             var port = desiredPort is > 0 && IsPortFree(desiredPort.Value) ? desiredPort.Value : FindFreePort();
-            var networkName = await ResolvePostgresNetworkAsync(cancellationToken);
 
             var create = await _docker.Containers.CreateContainerAsync(new CreateContainerParameters
             {
@@ -101,18 +102,24 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 ExposedPorts = new Dictionary<string, EmptyStruct> { [ContainerPort] = default },
                 HostConfig = new HostConfig
                 {
-                    NetworkMode = networkName,
+                    NetworkMode = network,
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
                         [ContainerPort] = new List<PortBinding> { new() { HostIP = "127.0.0.1", HostPort = port.ToString() } }
                     },
                     RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
+                },
+                // Explicitly attach to the shared network at creation. Relying on NetworkMode
+                // alone does not reliably connect the container to a user-defined network.
+                NetworkingConfig = new NetworkingConfig
+                {
+                    EndpointsConfig = new Dictionary<string, EndpointSettings> { [network] = new EndpointSettings() }
                 }
             }, cancellationToken);
 
             await _docker.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), cancellationToken);
             _logger.LogInformation("LightRagContainerManager: created {Name} on :{Port} (network {Network}, workspace {Workspace}).",
-                name, port, networkName, Workspace(agentId));
+                name, port, network, Workspace(agentId));
             return port;
         }
         finally
@@ -159,20 +166,52 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         return all.FirstOrDefault(c => c.Names.Any(n => n.TrimStart('/') == name));
     }
 
-    private async Task<string> ResolvePostgresNetworkAsync(CancellationToken ct)
+    // A stable, manager-owned bridge network that survives AppHost restarts — unlike
+    // Aspire's per-session network, which is recreated (new name) every `dotnet run` and
+    // would orphan our persistent agent containers. Agent containers live here permanently;
+    // the shared Postgres (recreated each session) is reconnected to it on every startup
+    // with the alias agents resolve by.
+    private const string SharedNetwork = "ntg-agent-lightrag";
+
+    private async Task<string> EnsureSharedNetworkAsync(CancellationToken ct)
     {
+        var networks = await _docker.Networks.ListNetworksAsync(new NetworksListParameters
+        {
+            Filters = new Dictionary<string, IDictionary<string, bool>>
+            {
+                ["name"] = new Dictionary<string, bool> { [SharedNetwork] = true }
+            }
+        }, ct);
+
+        if (!networks.Any(n => n.Name == SharedNetwork))
+        {
+            await _docker.Networks.CreateNetworkAsync(new NetworksCreateParameters { Name = SharedNetwork, Driver = "bridge" }, ct);
+            _logger.LogInformation("LightRagContainerManager: created shared network {Network}.", SharedNetwork);
+        }
+
+        // (Re)connect the shared Postgres to the stable network with the alias agents use.
         var all = await _docker.Containers.ListContainersAsync(new ContainersListParameters { All = true }, ct);
         var pg = all.FirstOrDefault(c => c.Names.Any(n => n.Contains(_settings.PostgresHostAlias)));
         if (pg is null)
             throw new InvalidOperationException(
                 $"Could not find the shared '{_settings.PostgresHostAlias}' container — is the AppHost running?");
 
-        var inspect = await _docker.Containers.InspectContainerAsync(pg.ID, ct);
-        var network = inspect.NetworkSettings?.Networks?.Keys.FirstOrDefault();
-        if (string.IsNullOrEmpty(network))
-            throw new InvalidOperationException($"'{_settings.PostgresHostAlias}' is not attached to any Docker network.");
+        try
+        {
+            await _docker.Networks.ConnectNetworkAsync(SharedNetwork, new NetworkConnectParameters
+            {
+                Container = pg.ID,
+                EndpointConfig = new EndpointSettings { Aliases = [_settings.PostgresHostAlias] }
+            }, ct);
+            _logger.LogInformation("LightRagContainerManager: connected {Pg} to {Network} as '{Alias}'.",
+                pg.Names.FirstOrDefault(), SharedNetwork, _settings.PostgresHostAlias);
+        }
+        catch (DockerApiException ex) when (ex.Message.Contains("already", StringComparison.OrdinalIgnoreCase))
+        {
+            // Postgres is already attached to the shared network — nothing to do.
+        }
 
-        return network;
+        return SharedNetwork;
     }
 
     private List<string> BuildEnv(Guid agentId) =>
@@ -207,16 +246,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         $"LIGHTRAG_API_KEY={_settings.ApiKey}",
     ];
 
+    // Reads the *live* host port from runtime network state. A detached container has an
+    // empty NetworkSettings.Ports even if HostConfig.PortBindings still names a port, so we
+    // deliberately trust the runtime mapping only — that is what makes the health check catch
+    // orphaned containers.
     private static int? ReadPublishedPort(ContainerInspectResponse inspect)
     {
-        if (inspect.HostConfig?.PortBindings != null
-            && inspect.HostConfig.PortBindings.TryGetValue(ContainerPort, out var bindings)
-            && bindings.Count > 0
-            && int.TryParse(bindings[0].HostPort, out var port))
-        {
-            return port;
-        }
-
         if (inspect.NetworkSettings?.Ports != null
             && inspect.NetworkSettings.Ports.TryGetValue(ContainerPort, out var mapped)
             && mapped is { Count: > 0 }
