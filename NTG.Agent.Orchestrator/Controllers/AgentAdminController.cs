@@ -336,7 +336,7 @@ public class AgentAdminController : ControllerBase
     /// <response code="403">If the user does not have Admin role</response>
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost]
-    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent, CancellationToken cancellationToken)
+    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent, CancellationToken cancellationToken = default)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
         if (updatedAgent == null)
@@ -440,7 +440,7 @@ public class AgentAdminController : ControllerBase
     /// or is associated with documents.</description></item> <item><description><see cref="NoContentResult"/> if the
     /// agent is successfully deleted.</description></item> </list></returns>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteAgent(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteAgent(Guid id, CancellationToken cancellationToken = default)
     {
         var agent = await _agentDbContext.Agents.FindAsync([id], cancellationToken);
         if (agent == null)

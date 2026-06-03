@@ -125,7 +125,7 @@ var knowledge = builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-know
 	.WithEnvironment("KernelMemory__Services__SqlServer__ConnectionString", db)
 	// KM long-term memory now runs on Azure OpenAI to avoid the GitHub Models 8k/RPM
 	// caps that were causing /search to time out via MemoryWebClient. Embeddings use
-	// text-embedding-3-large (3072-dim) on the dedicated embedding endpoint; text gen
+	// text-embedding-3-large (1536-dim, truncated via MRL) on the dedicated embedding endpoint; text gen
 	// uses gpt-5.4-mini on the shared chat endpoint. Switching embedding dim requires
 	// wiping the Elasticsearch data volume so the index can be recreated. The OpenAI
 	// section in appsettings.Development.json is left as a dormant fallback (no key).
@@ -166,7 +166,7 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__EmbeddingEndpoint", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
 	.WithEnvironment("LightRag__EmbeddingApiKey", azureEmbeddingApiKey)
 	.WithEnvironment("LightRag__AzureApiVersion", "2024-08-01-preview")
-	.WithEnvironment("LightRag__EmbeddingDim", "3072")
+	.WithEnvironment("LightRag__EmbeddingDim", "1536")
 	.WithEnvironment("LightRag__ChunkSize", "1500")
 	.WithEnvironment("LightRag__ChunkOverlap", "100")
 	.WithEnvironment("LightRag__MaxAsync", "8")

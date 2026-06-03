@@ -35,7 +35,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 
     // LightRAG WORKSPACE scopes every row it writes in the shared Postgres tables.
     // Use the dash-less GUID so it is a safe identifier in any backend.
-    private static string Workspace(Guid agentId) => agentId.ToString("N");
+    private static string Workspace(Guid agentId) => $"w{agentId:N}";
 
     public async Task EnsureImagePulledAsync(CancellationToken cancellationToken = default)
     {

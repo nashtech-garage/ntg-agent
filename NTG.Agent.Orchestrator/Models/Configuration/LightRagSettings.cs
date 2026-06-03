@@ -45,7 +45,7 @@ public class LightRagSettings
     public string AzureApiVersion { get; set; } = "2024-08-01-preview";
 
     // Ingestion tuning knobs (mirror the old AppHost env wiring).
-    public int EmbeddingDim { get; set; } = 3072;
+    public int EmbeddingDim { get; set; } = 1536;
     public int ChunkSize { get; set; } = 1500;
     public int ChunkOverlap { get; set; } = 100;
     public int MaxAsync { get; set; } = 8;
