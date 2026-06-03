@@ -61,7 +61,7 @@ public class LightRagClient
     // resolve the doc-id and final status (PROCESSED / FAILED / PENDING / PROCESSING / PREPROCESSED).
     public async Task<TrackStatusResponse> GetTrackStatusAsync(string trackId, CancellationToken ct = default)
     {
-        var response = await _http.GetAsync($"/documents/track_status/{trackId}", ct);
+        using var response = await _http.GetAsync($"/documents/track_status/{trackId}", ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<TrackStatusResponse>(ct);
         return result ?? new TrackStatusResponse(trackId, Array.Empty<TrackDocStatus>(), 0, new Dictionary<string, int>());

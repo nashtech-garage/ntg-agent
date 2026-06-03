@@ -46,6 +46,11 @@ public class LightRagSettings
 
     // Ingestion tuning knobs (mirror the old AppHost env wiring).
     public int EmbeddingDim { get; set; } = 1536;
+    // Instructs LightRAG to pass 'dimensions' to the Azure OpenAI embedding API so it truncates
+    // to EmbeddingDim via MRL. Required when EmbeddingDim < the model's native dimension (3072
+    // for text-embedding-3-large). Without this, LightRAG skips 'dimensions', Azure returns full
+    // 3072-dim vectors, and the count mismatch (expected N, got 2×N) occurs.
+    public bool EmbeddingSendDim { get; set; } = true;
     public int ChunkSize { get; set; } = 1500;
     public int ChunkOverlap { get; set; } = 100;
     public int MaxAsync { get; set; } = 8;

@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using NTG.Agent.Orchestrator.Models.Configuration;
 
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
@@ -84,11 +85,30 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 // AppHost restart that recreated Postgres) fails this and is recreated.
                 if (onNetwork && runningPort is not null)
                 {
-                    _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, runningPort);
-                    return runningPort.Value;
+                    var desiredEnv = BuildEnv(agentId);
+                    var currentEnv = inspect.Config?.Env ?? [];
+                    var driftedKeys = FindEnvDrift(currentEnv, desiredEnv);
+
+                    if (driftedKeys.Count == 0)
+                    {
+                        _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, runningPort);
+                        return runningPort.Value;
+                    }
+
+                    _logger.LogInformation("LightRagContainerManager: env drift on {Name} (keys: {Keys}), recreating.", name, string.Join(", ", driftedKeys));
+
+                    // EMBEDDING_DIM change means the PGVector columns are wrong dimension — wipe
+                    // the workspace vector data so LightRAG rebuilds the index at correct size.
+                    if (driftedKeys.Contains("EMBEDDING_DIM"))
+                    {
+                        await ResetVectorSchemaAsync(agentId, cancellationToken);
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("LightRagContainerManager: recreating {Name} (onNetwork={OnNetwork}, livePort={Port}).", name, onNetwork, runningPort);
                 }
 
-                _logger.LogInformation("LightRagContainerManager: recreating {Name} (onNetwork={OnNetwork}, livePort={Port}).", name, onNetwork, runningPort);
                 await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
             }
 
@@ -237,6 +257,11 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         $"EMBEDDING_BINDING_HOST={_settings.EmbeddingEndpoint}",
         $"EMBEDDING_BINDING_API_KEY={_settings.EmbeddingApiKey}",
         $"EMBEDDING_DIM={_settings.EmbeddingDim}",
+        // Must be true when EMBEDDING_DIM < the model's native output dimension (e.g. 1536 < 3072
+        // for text-embedding-3-large). Without this, LightRAG skips the 'dimensions' parameter in
+        // the Azure OpenAI call, gets full 3072-dim vectors back, and the count/reshape mismatch
+        // (expected N vectors, got 2×N) is triggered.
+        $"EMBEDDING_SEND_DIM={_settings.EmbeddingSendDim.ToString().ToLowerInvariant()}",
         $"AZURE_EMBEDDING_API_VERSION={_settings.AzureApiVersion}",
         $"CHUNK_SIZE={_settings.ChunkSize}",
         $"CHUNK_OVERLAP_SIZE={_settings.ChunkOverlap}",
@@ -250,10 +275,10 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     // empty NetworkSettings.Ports even if HostConfig.PortBindings still names a port, so we
     // deliberately trust the runtime mapping only — that is what makes the health check catch
     // orphaned containers.
-    private static int? ReadPublishedPort(ContainerInspectResponse inspect)
+    private static int? ReadPublishedPort(ContainerInspectResponse inspect, string portKey = ContainerPort)
     {
         if (inspect.NetworkSettings?.Ports != null
-            && inspect.NetworkSettings.Ports.TryGetValue(ContainerPort, out var mapped)
+            && inspect.NetworkSettings.Ports.TryGetValue(portKey, out var mapped)
             && mapped is { Count: > 0 }
             && int.TryParse(mapped[0].HostPort, out var mappedPort))
         {
@@ -290,6 +315,105 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         {
             return false;
         }
+    }
+
+    // The env keys we control and that affect container behaviour. Internal Docker env vars
+    // (PATH, HOME, etc.) are excluded — we only compare what we set in BuildEnv.
+    private static readonly HashSet<string> TrackedEnvKeys =
+    [
+        "EMBEDDING_DIM", "EMBEDDING_SEND_DIM", "EMBEDDING_MODEL", "EMBEDDING_BINDING_HOST",
+        "CHUNK_SIZE", "CHUNK_OVERLAP_SIZE", "MAX_ASYNC", "MAX_PARALLEL_INSERT",
+        "LLM_MODEL", "LLM_BINDING_HOST",
+    ];
+
+    // Returns the set of env key names where current and desired values differ.
+    private static HashSet<string> FindEnvDrift(IList<string> current, IList<string> desired)
+    {
+        static Dictionary<string, string> Parse(IEnumerable<string> envList) =>
+            envList
+                .Where(e => e.Contains('='))
+                .Select(e => (e[..e.IndexOf('=')], e[(e.IndexOf('=') + 1)..]))
+                .Where(kv => TrackedEnvKeys.Contains(kv.Item1))
+                .ToDictionary(kv => kv.Item1, kv => kv.Item2);
+
+        var cur = Parse(current);
+        var des = Parse(desired);
+        var drifted = new HashSet<string>();
+        foreach (var (key, desiredVal) in des)
+        {
+            if (!cur.TryGetValue(key, out var currentVal) || currentVal != desiredVal)
+                drifted.Add(key);
+        }
+        return drifted;
+    }
+
+    private async Task ResetVectorSchemaAsync(Guid agentId, CancellationToken ct)
+    {
+        var workspace = Workspace(agentId);
+        var pgPort = await FindPostgresHostPortAsync(ct);
+        if (pgPort is null)
+        {
+            _logger.LogError(
+                "LightRagContainerManager: cannot find {Alias} container — skipping vector schema reset for agent {AgentId}.",
+                _settings.PostgresHostAlias, agentId);
+            return;
+        }
+
+        var connStr = $"Host=localhost;Port={pgPort};Username=postgres;" +
+                      $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase}";
+        try
+        {
+            await using var conn = new NpgsqlConnection(connStr);
+            await conn.OpenAsync(ct);
+
+            // LightRAG v1.4+ names tables as lightrag_vdb_{type}_{model}_{dim}d, e.g.
+            // lightrag_vdb_chunks_text_embedding_3_large_1536d. Use LIKE to match all
+            // variants so a dimension change correctly clears the previous model's tables.
+            foreach (var prefix in new[] { "lightrag_vdb_chunks", "lightrag_vdb_entity", "lightrag_vdb_relation" })
+            {
+                await using var cmd = conn.CreateCommand();
+                // Parameterised workspace; table name comes from pg_tables (not user input).
+                cmd.CommandText = $@"
+                    DO $do$
+                    DECLARE t text;
+                    BEGIN
+                        FOR t IN
+                            SELECT tablename FROM pg_tables
+                            WHERE schemaname = 'public' AND tablename LIKE '{prefix}%'
+                        LOOP
+                            EXECUTE format('DELETE FROM %%I WHERE workspace = $1', t)
+                            USING $1;
+                        END LOOP;
+                    END $do$;";
+                cmd.Parameters.AddWithValue("$1", workspace);
+                await cmd.ExecuteNonQueryAsync(ct);
+                _logger.LogInformation(
+                    "LightRagContainerManager: cleared {Prefix}* rows for workspace {W} (port={Port}).",
+                    prefix, workspace, pgPort);
+            }
+
+            _logger.LogWarning(
+                "LightRagContainerManager: wiped vector rows for agent {AgentId} (workspace={W}). " +
+                "Documents must be re-uploaded to be queryable.", agentId, workspace);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "LightRagContainerManager: failed to reset vector schema for agent {AgentId} (port={Port}). " +
+                "Container will still be recreated but first upload may fail until schema is manually reset.",
+                agentId, pgPort);
+        }
+    }
+
+    private async Task<int?> FindPostgresHostPortAsync(CancellationToken ct)
+    {
+        var containers = await _docker.Containers.ListContainersAsync(
+            new ContainersListParameters { All = false }, ct);
+        var pg = containers.FirstOrDefault(c =>
+            c.Names.Any(n => n.TrimStart('/').Contains(_settings.PostgresHostAlias)));
+        if (pg is null) return null;
+        var inspect = await _docker.Containers.InspectContainerAsync(pg.ID, ct);
+        return ReadPublishedPort(inspect, "5432/tcp");
     }
 
     public void Dispose() => _docker.Dispose();
