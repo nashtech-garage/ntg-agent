@@ -63,6 +63,11 @@ dotnet tool install --global dotnet-ef
    ```bash
    dotnet run --project NTG.Agent.AppHost
    ```
+   Or use the dev shortcut, which also opens the Aspire dashboard in your browser
+   automatically (see [Dev shortcuts](#dev-shortcuts-ntg) below):
+   ```bash
+   ./ntg run
+   ```
 
 4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
    - `sqlserver` — SQL Server 2022 container with a persistent volume
@@ -76,6 +81,30 @@ dotnet tool install --global dotnet-ef
    - Provider Endpoint: `https://models.github.ai/inference`
    - Provider API Key: your GitHub token
    - Model Name: `openai/gpt-4.1` (or another model your token supports)
+
+## Dev shortcuts (`ntg`)
+
+`./ntg` is a small launcher for the commands you run all the time, so you don't have to
+memorize or retype them. No installation required (pure bash).
+
+```bash
+./ntg            # interactive menu of available commands
+./ntg help       # list commands with descriptions
+./ntg run        # dotnet run the AppHost AND auto-open the Aspire dashboard
+./ntg ports      # show which project ports are in use
+```
+
+**Adding your own shortcut** is meant to be trivial:
+
+```bash
+./ntg new <name>           # creates scripts/dev-commands/<name>.sh from a template
+# edit that file: update the "# desc:" line and add your commands
+./ntg <name>               # run it — it also shows up in `./ntg` and `./ntg help` automatically
+```
+
+Each command is a standalone bash file in `scripts/dev-commands/`; the filename is the
+command name and its `# desc:` header is the menu description. Files starting with `_` are
+hidden helpers.
 
 ## Using other LLM models
 NTG Agent supports multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
