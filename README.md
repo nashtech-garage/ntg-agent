@@ -92,6 +92,7 @@ memorize or retype them. No installation required (pure bash).
 ./ntg help       # list commands with descriptions
 ./ntg run        # dotnet run the AppHost AND auto-open the Aspire dashboard
 ./ntg ports      # show which project ports are in use
+./ntg lightrag-dashboard # pick a running agent and open its LightRAG WebUI in the browser
 ```
 
 **Adding your own shortcut** is meant to be trivial:
