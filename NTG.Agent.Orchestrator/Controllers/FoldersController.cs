@@ -231,13 +231,10 @@ public class FoldersController : ControllerBase
         if (folder.Documents.Count != 0)
         {
             _agentDbContext.Documents.RemoveRange(folder.Documents);
-            // Remove associated documents from knowledge base if they exist
+            // Remove associated documents from knowledge base (file store + any LightRAG doc).
             foreach (var document in folder.Documents)
             {
-                if (document.KnowledgeDocId != null)
-                {
-                    await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, document.AgentId);
-                }
+                await _knowledgeService.RemoveDocumentAsync(document.AgentId, document.Id, document.KnowledgeDocId, document.TrackId);
             }
         }
 
