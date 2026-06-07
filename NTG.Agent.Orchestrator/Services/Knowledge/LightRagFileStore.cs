@@ -58,6 +58,12 @@ public class LightRagFileStore
         }
     }
 
-    private string BuildFilePath(Guid agentId, Guid documentId, string fileName)
-        => Path.Combine(_basePath, agentId.ToString(), $"{documentId}_{fileName}");
+private string BuildFilePath(Guid agentId, Guid documentId, string fileName)
+    {
+        // Sanitize to prevent path traversal — strip any directory components from fileName.
+        var safeFileName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeFileName))
+            throw new ArgumentException("File name must not be empty or whitespace.", nameof(fileName));
+        return Path.Combine(_basePath, agentId.ToString(), $"{documentId}_{safeFileName}");
+    }
 }

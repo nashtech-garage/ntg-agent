@@ -56,4 +56,12 @@ public class LightRagSettings
     public int MaxAsync { get; set; } = 8;
     public int MaxParallelInsert { get; set; } = 2;
     public int EmbeddingFuncMaxAsync { get; set; } = 8;
+
+    // ---- Idle container shutdown ------------------------------------------------
+    // When a per-agent LightRAG container has not received a request for this many
+    // minutes, it is stopped to reclaim RAM. Set to 0 or negative to disable.
+    public int IdleTimeoutMinutes { get; set; } = 30;
+
+    // How often the idle-shutdown background service checks for stale containers.
+    public int IdleCheckIntervalMinutes { get; set; } = 5;
 }

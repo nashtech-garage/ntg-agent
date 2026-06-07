@@ -143,6 +143,16 @@ public class LightRagKnowledge : IKnowledgeService
     {
         // Each agent has its own container/workspace, so this query only sees this
         // agent's documents. Hybrid mode enables local + global graph search with re-ranking.
+        //
+        // NOTE: LightRAG's /query endpoint does not support tag-based filtering. Tags are
+        // accepted for interface compatibility but are not applied. Per-agent workspace
+        // isolation already scopes results to a single agent's documents.
+        if (tags is { Count: > 0 })
+        {
+            _logger.LogWarning("LightRagKnowledge.SearchAsync: tag-based filtering is not supported by LightRAG; " +
+                "tags were provided but will be ignored for agentId={AgentId}.", agentId);
+        }
+
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
         var contextText = await client.QueryAsync(query, _settings.TopK, "hybrid", true, cancellationToken);
         return new KnowledgeSearchResponse(
