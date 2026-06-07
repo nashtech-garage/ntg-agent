@@ -226,8 +226,8 @@ public class DocumentsControllerTests
         var tag1Id = Guid.NewGuid();
         var tag2Id = Guid.NewGuid();
         var tags = new List<string> { tag1Id.ToString(), tag2Id.ToString() };
-        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("track-id");
+        _mockKnowledgeService.Setup(x => x.ImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("knowledge-doc-id");
         // Act
         var result = await _controller.UploadDocuments(_testAgentId, files, null, tags);
         // Assert
@@ -237,10 +237,7 @@ public class DocumentsControllerTests
         Assert.That(savedDocument, Is.Not.Null);
         Assert.That(savedDocument.Name, Is.EqualTo("test.txt"));
         Assert.That(savedDocument.AgentId, Is.EqualTo(_testAgentId));
-        // Ingestion is async: the row starts as Processing with the track-id and no KnowledgeDocId.
-        Assert.That(savedDocument.Status, Is.EqualTo(DocumentStatus.Processing));
-        Assert.That(savedDocument.TrackId, Is.EqualTo("track-id"));
-        Assert.That(savedDocument.KnowledgeDocId, Is.Null);
+        Assert.That(savedDocument.KnowledgeDocId, Is.EqualTo("knowledge-doc-id"));
         var documentTags = await _context.DocumentTags.Where(dt => dt.DocumentId == savedDocument.Id).ToListAsync();
         Assert.That(documentTags, Has.Count.EqualTo(2));
     }
@@ -253,8 +250,8 @@ public class DocumentsControllerTests
             CreateTestFile("empty.txt", ""),
             CreateTestFile("valid.txt", "valid content")
         };
-        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("track-id");
+        _mockKnowledgeService.Setup(x => x.ImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("knowledge-doc-id");
         // Act
         var result = await _controller.UploadDocuments(_testAgentId, files, null, new List<string>());
         // Assert
@@ -301,10 +298,10 @@ public class DocumentsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var deletedDocument = await _context.Documents.FindAsync(document.Id);
         Assert.That(deletedDocument, Is.Null);
-        _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(_testAgentId, document.Id, "knowledge-doc-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+        _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync("knowledge-doc-id", _testAgentId, It.IsAny<CancellationToken>()), Times.Once);
     }
     [Test]
-    public async Task DeleteDocument_WhenNoKnowledgeDocId_StillCallsKnowledgeServiceForCleanup()
+    public async Task DeleteDocument_WhenNoKnowledgeDocId_DeletesWithoutKnowledgeService()
     {
         // Arrange
         var document = new Document
@@ -322,9 +319,7 @@ public class DocumentsControllerTests
         Assert.That(result, Is.TypeOf<NoContentResult>());
         var deletedDocument = await _context.Documents.FindAsync(document.Id);
         Assert.That(deletedDocument, Is.Null);
-        // Even without a KnowledgeDocId we call through so the file store (and any resolvable
-        // LightRAG doc) is cleaned up; the service decides whether to hit LightRAG.
-        _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(_testAgentId, document.Id, null, It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+        _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
     [Test]
     public void DeleteDocument_WhenKnowledgeServiceThrows_DoesNotRemoveSqlRow()
@@ -341,7 +336,7 @@ public class DocumentsControllerTests
         _context.SaveChanges();
 
         _mockKnowledgeService
-            .Setup(x => x.RemoveDocumentAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Setup(x => x.RemoveDocumentAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("KM unavailable"));
 
         // Act & Assert — exception bubbles up; SQL row must remain so the user can retry
@@ -382,30 +377,27 @@ public class DocumentsControllerTests
         var folderId = Guid.NewGuid();
         var tags = new List<string> { Guid.NewGuid().ToString() };
         var request = new ImportWebPageRequest(url, folderId, tags);
-        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(url, _testAgentId, It.IsAny<Guid>(), tags, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("track-id");
+        _mockKnowledgeService.Setup(x => x.ImportWebPageAsync(url, _testAgentId, tags, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("document-id");
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
         // Assert
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
+        Assert.That(okResult.Value, Is.EqualTo("document-id"));
         var savedDocument = await _context.Documents.FirstOrDefaultAsync();
         Assert.That(savedDocument, Is.Not.Null);
-        // The endpoint now returns the local document id (the row is created before ingestion finishes).
-        Assert.That(okResult.Value, Is.EqualTo(savedDocument.Id.ToString()));
         Assert.That(savedDocument.Name, Is.EqualTo(url));
         Assert.That(savedDocument.Url, Is.EqualTo(url));
         Assert.That(savedDocument.Type, Is.EqualTo(DocumentType.WebPage));
         Assert.That(savedDocument.FolderId, Is.EqualTo(folderId));
-        Assert.That(savedDocument.Status, Is.EqualTo(DocumentStatus.Processing));
-        Assert.That(savedDocument.TrackId, Is.EqualTo("track-id"));
     }
     [Test]
     public async Task ImportWebPage_WhenKnowledgeServiceThrows_ReturnsBadRequest()
     {
         // Arrange
         var request = new ImportWebPageRequest("https://example.com", null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        _mockKnowledgeService.Setup(x => x.ImportWebPageAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
@@ -447,8 +439,8 @@ public class DocumentsControllerTests
         var folderId = Guid.NewGuid();
         var tags = new List<string> { Guid.NewGuid().ToString() };
         var request = new UploadTextContentRequest(title, content, folderId, tags);
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, $"{title}.txt", _testAgentId, It.IsAny<Guid>(), tags, It.IsAny<CancellationToken>()))
-            .ReturnsAsync("track-id");
+        _mockKnowledgeService.Setup(x => x.ImportTextContentAsync(content, $"{title}.txt", _testAgentId, tags, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("knowledge-doc-id");
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
         // Assert
@@ -459,8 +451,7 @@ public class DocumentsControllerTests
         Assert.That(savedDocument.Name, Is.EqualTo($"{title}.txt"));
         Assert.That(savedDocument.Type, Is.EqualTo(DocumentType.Text));
         Assert.That(savedDocument.FolderId, Is.EqualTo(folderId));
-        Assert.That(savedDocument.Status, Is.EqualTo(DocumentStatus.Processing));
-        Assert.That(savedDocument.TrackId, Is.EqualTo("track-id"));
+        Assert.That(savedDocument.KnowledgeDocId, Is.EqualTo("knowledge-doc-id"));
     }
     [Test]
     public async Task UploadTextContent_WhenNoTitle_UsesDefaultTitle()
@@ -468,8 +459,8 @@ public class DocumentsControllerTests
         // Arrange
         var content = "This is test content";
         var request = new UploadTextContentRequest("", content, null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, "Text Content.txt", _testAgentId, It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("track-id");
+        _mockKnowledgeService.Setup(x => x.ImportTextContentAsync(content, "Text Content.txt", _testAgentId, It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("knowledge-doc-id");
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
         // Assert
@@ -484,7 +475,7 @@ public class DocumentsControllerTests
     {
         // Arrange
         var request = new UploadTextContentRequest("Title", "Content", null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        _mockKnowledgeService.Setup(x => x.ImportTextContentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
@@ -502,26 +493,25 @@ public class DocumentsControllerTests
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
     [Test]
-    public async Task GetDocumentById_WhenFileNotInStore_ReturnsNotFound()
+    public async Task GetDocumentById_WhenFileDocumentWithoutKnowledgeDocId_ReturnsNotFound()
     {
-        // Arrange — a file document whose bytes are missing from the store (e.g. still processing).
+        // Arrange
         var document = new Document
         {
             Id = Guid.NewGuid(),
             Name = "test.txt",
             AgentId = _testAgentId,
             Type = DocumentType.File,
-            KnowledgeDocId = null
+            KnowledgeDocId = null // No knowledge document ID
         };
         _context.Documents.Add(document);
         await _context.SaveChangesAsync();
-        _mockKnowledgeService
-            .Setup(x => x.ExportDocumentAsync(_testAgentId, document.Id, It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new FileNotFoundException());
         // Act
         var result = await _controller.GetDocumentById(document.Id, _testAgentId, CancellationToken.None);
         // Assert
-        Assert.That(result, Is.TypeOf<NotFoundResult>());
+        Assert.That(result, Is.TypeOf<NotFoundObjectResult>());
+        var notFoundResult = result as NotFoundObjectResult;
+        Assert.That(notFoundResult!.Value, Is.EqualTo("No knowledge document id."));
     }
     [Test]
     public async Task GetDocumentById_WhenWebPageDocument_HandlesDownload()
