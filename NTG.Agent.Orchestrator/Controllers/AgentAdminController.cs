@@ -460,15 +460,13 @@ public class AgentAdminController : ControllerBase
         var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
         foreach (var doc in documents)
         {
-            if (string.IsNullOrEmpty(doc.KnowledgeDocId))
-                continue;
             try
             {
-                await _knowledgeService.RemoveDocumentAsync(doc.KnowledgeDocId, id, cancellationToken);
+                await _knowledgeService.RemoveDocumentAsync(id, doc.Id, doc.KnowledgeDocId, doc.TrackId, cancellationToken);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to remove document {DocId} from LightRAG while deleting agent {AgentId}; continuing.", doc.KnowledgeDocId, id);
+                _logger.LogWarning(ex, "Failed to remove document {DocId} from LightRAG while deleting agent {AgentId}; continuing.", doc.Id, id);
             }
         }
         _agentDbContext.Documents.RemoveRange(documents);

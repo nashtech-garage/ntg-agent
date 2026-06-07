@@ -65,7 +65,9 @@ public class DocumentsController : ControllerBase
                     x.Name,
                     x.CreatedAt,
                     x.UpdatedAt,
-                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
+                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
+                    x.Status,
+                    x.ErrorMessage))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
@@ -78,7 +80,9 @@ public class DocumentsController : ControllerBase
             x.Name,
             x.CreatedAt,
             x.UpdatedAt,
-            x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
+            x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
+            x.Status,
+            x.ErrorMessage))
         .ToListAsync();
 
         _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
@@ -112,11 +116,11 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        // Process each file synchronously: LightRagKnowledge.ImportDocumentAsync polls LightRAG
-        // until extraction completes (PROCESSED) or fails (throws LightRagExtractionException).
-        // Per-file try/catch ensures a single failure doesn't roll back successful siblings,
-        // and Failed files never get a Document row written — matching the user-visible promise
-        // that the Admin UI's Knowledge Base list only shows successfully-extracted documents.
+        // Ingestion is non-blocking: BeginImportDocumentAsync hands the file to LightRAG, persists
+        // the original bytes, and returns a track_id immediately. The Document row is written right
+        // away as Processing; the background worker (LightRagIngestionStatusHostedService) polls
+        // LightRAG and flips it to Completed/Failed later. The per-file try/catch only guards the
+        // *begin* step (e.g. LightRAG unreachable) — those files get no row and are reported failed.
         var documents = new List<Document>();
         var documentTags = new List<DocumentTag>();
         var results = new List<UploadDocumentResult>();
@@ -124,37 +128,37 @@ public class DocumentsController : ControllerBase
         {
             if (file.Length <= 0) continue;
 
+            var document = new Document
+            {
+                Id = Guid.NewGuid(),
+                Name = file.FileName,
+                AgentId = agentId,
+                FolderId = folderId,
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Type = DocumentType.File,
+                Status = DocumentStatus.Processing
+            };
+
             try
             {
-                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, tags);
-                var document = new Document
-                {
-                    Id = Guid.NewGuid(),
-                    Name = file.FileName,
-                    AgentId = agentId,
-                    KnowledgeDocId = knowledgeDocId,
-                    FolderId = folderId,
-                    CreatedByUserId = userId,
-                    UpdatedByUserId = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    Type = DocumentType.File
-                };
+                document.TrackId = await _knowledgeService.BeginImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, document.Id, tags);
                 documents.Add(document);
                 foreach (var tag in tags)
                 {
-                    var documentTag = new DocumentTag
+                    documentTags.Add(new DocumentTag
                     {
                         DocumentId = document.Id,
                         TagId = new Guid(tag)
-                    };
-                    documentTags.Add(documentTag);
+                    });
                 }
                 results.Add(new UploadDocumentResult(file.FileName, Success: true, ErrorMessage: null, DocumentId: document.Id));
             }
-            catch (LightRagExtractionException ex)
+            catch (Exception ex)
             {
-                _logger.LogWarning(ex, "LightRAG extraction failed for {FileName} (agentId={AgentId})", file.FileName, agentId);
+                _logger.LogError(ex, "Failed to begin ingestion for {FileName} (agentId={AgentId})", file.FileName, agentId);
                 results.Add(new UploadDocumentResult(file.FileName, Success: false, ErrorMessage: ex.Message, DocumentId: null));
             }
         }
@@ -197,10 +201,10 @@ public class DocumentsController : ControllerBase
             return NotFound();
         }
 
-        if (document.KnowledgeDocId != null)
-        {
-            await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
-        }
+        // Always call through so the on-disk file is removed and any LightRAG doc is deleted —
+        // including for still-Processing docs (no KnowledgeDocId yet), where the service resolves
+        // the doc-id from the track_id to avoid leaving an orphan once extraction finishes.
+        await _knowledgeService.RemoveDocumentAsync(agentId, document.Id, document.KnowledgeDocId, document.TrackId);
 
         _agentDbContext.Documents.Remove(document);
         await _agentDbContext.SaveChangesAsync();
@@ -231,22 +235,22 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId, request.Tags);
-
             var document = new Document
             {
                 Id = Guid.NewGuid(),
                 Name = request.Url,
                 AgentId = agentId,
-                KnowledgeDocId = documentId,
                 FolderId = request.FolderId,
                 Url = request.Url,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Type = DocumentType.WebPage
+                Type = DocumentType.WebPage,
+                Status = DocumentStatus.Processing
             };
+
+            document.TrackId = await _knowledgeService.BeginImportWebPageAsync(request.Url, agentId, document.Id, request.Tags);
 
             var documentTags = new List<DocumentTag>();
             foreach (var tag in request.Tags)
@@ -263,7 +267,7 @@ public class DocumentsController : ControllerBase
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
 
-            return Ok(documentId);
+            return Ok(document.Id.ToString());
         }
         catch (Exception ex)
         {
@@ -297,21 +301,22 @@ public class DocumentsController : ControllerBase
         try
         {
             var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
-            var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, fileName, agentId, request.Tags);
 
             var document = new Document
             {
                 Id = Guid.NewGuid(),
                 Name = fileName,
                 AgentId = agentId,
-                KnowledgeDocId = knowledgeDocId,
                 FolderId = request.FolderId,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Type = DocumentType.Text
+                Type = DocumentType.Text,
+                Status = DocumentStatus.Processing
             };
+
+            document.TrackId = await _knowledgeService.BeginImportTextContentAsync(request.Content, fileName, agentId, document.Id, request.Tags);
 
             var documentTags = new List<DocumentTag>();
             foreach (var tag in request.Tags)
@@ -375,12 +380,11 @@ public class DocumentsController : ControllerBase
 
     private async Task<IActionResult> HandleKnowledgeFileDownloadAsync(Document document, Guid agentId, CancellationToken ct)
     {
-        if (document.KnowledgeDocId is null) return NotFound("No knowledge document id.");
         var fileName = FileTypeService.SanitizeFileName(document.Name);
 
         try
         {
-            var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId, ct);
+            var content = await _knowledgeService.ExportDocumentAsync(agentId, document.Id, document.KnowledgeDocId, fileName, ct);
             return File(content.Content, content.ContentType, content.FileName);
         }
         catch (FileNotFoundException)

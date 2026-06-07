@@ -51,10 +51,10 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
 
-        // Upload is now status-aware: the orchestrator polls LightRAG until each doc is
-        // PROCESSED or FAILED. A FAILED file shows up here as Success=false with the
-        // LightRAG error message — surface it as an exception so the existing UI catch
-        // path (in AddKnowledgeForm) shows the message to the user.
+        // Upload is non-blocking: the orchestrator accepts each file (Success=true) and processes it
+        // in the background — the document then shows as "Uploading" in the list until the worker
+        // marks it Uploaded/Failed. Success=false here means the orchestrator couldn't even hand the
+        // file to LightRAG (e.g. container unreachable); surface that via the existing UI catch path.
         var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<UploadDocumentResult>>();
         var failed = results?.FirstOrDefault(r => !r.Success);
         if (failed != null)

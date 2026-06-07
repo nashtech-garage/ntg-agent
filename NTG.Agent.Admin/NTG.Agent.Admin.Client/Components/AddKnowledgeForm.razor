@@ -359,39 +359,32 @@
                     Name = file.Name,
                     Status = UploadStatus.Uploading,
                     Message = "Uploading...",
-                    Progress = 0
+                    Progress = 100
                 };
                 uploadItems.Add(uploadItem);
                 StateHasChanged();
 
                 try
                 {
-                    // Simulate progress
-                    for (int i = 0; i <= 100; i += 20)
-                    {
-                        uploadItem.Progress = i;
-                        StateHasChanged();
-                        await Task.Delay(200);
-                    }
-                    
-                    // Use selected tags
+                    // Non-blocking: the server accepts the file and processes it in the background.
+                    // The document then appears in the list as "Uploading" until it finishes.
                     var tagIds = GetSelectedTagIds();
                     await DocumentClient.UploadDocumentsAsync(AgentId, new List<IBrowserFile> { file }, FolderId, tagIds);
 
                     uploadItem.Status = UploadStatus.Success;
-                    uploadItem.Message = "Successfully uploaded";
+                    uploadItem.Message = "Added — processing in the background";
                 }
                 catch (Exception ex)
                 {
                     uploadItem.Status = UploadStatus.Error;
                     uploadItem.Message = $"Error: {ex.Message}";
                 }
-                
+
                 StateHasChanged();
             }
 
-            // Clear upload items after a delay
-            await Task.Delay(3000);
+            // Let the user glance at the result, then refresh the list (which shows live status).
+            await Task.Delay(800);
             uploadItems.Clear();
             await OnUploadCompleted.InvokeAsync();
         }
@@ -438,12 +431,12 @@
             await DocumentClient.ImportWebPageAsync(AgentId, urlInput, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
-            uploadItem.Message = "Successfully processed URL content";
+            uploadItem.Message = "Added — processing in the background";
             StateHasChanged();
 
             urlInput = string.Empty;
-            
-            await Task.Delay(2000);
+
+            await Task.Delay(800);
             uploadItems.Clear();
             await OnUploadCompleted.InvokeAsync();
         }
@@ -495,13 +488,13 @@
             await DocumentClient.UploadTextContentAsync(AgentId, title, textContent, FolderId, tagIds);
 
             uploadItem.Status = UploadStatus.Success;
-            uploadItem.Message = "Successfully added text content";
+            uploadItem.Message = "Added — processing in the background";
             StateHasChanged();
 
             textContent = string.Empty;
             textTitle = string.Empty;
-            
-            await Task.Delay(2000);
+
+            await Task.Delay(800);
             uploadItems.Clear();
             await OnUploadCompleted.InvokeAsync();
         }

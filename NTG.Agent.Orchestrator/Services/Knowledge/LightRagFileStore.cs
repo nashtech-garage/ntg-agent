@@ -15,8 +15,11 @@ public class LightRagFileStore
         _logger = logger;
     }
 
+    // Files are keyed by the local Document.Id (known at upload time) rather than the LightRAG
+    // doc-id (only assigned once extraction reaches PROCESSED). This lets us persist the original
+    // bytes immediately, so download/delete work regardless of ingestion status.
     // NOTE: Replace with Azure Blob Storage for production deployment.
-    public async Task SaveAsync(Guid agentId, string documentId, string fileName, Stream content, CancellationToken ct = default)
+    public async Task SaveAsync(Guid agentId, Guid documentId, string fileName, Stream content, CancellationToken ct = default)
     {
         var dir = Path.Combine(_basePath, agentId.ToString());
         Directory.CreateDirectory(dir);
@@ -28,7 +31,7 @@ public class LightRagFileStore
 
     // NOTE: Replace with Azure Blob Storage for production deployment.
     // Caller is responsible for disposing the stream inside the returned KnowledgeFileContent.
-    public KnowledgeFileContent? GetAsync(Guid agentId, string documentId, string fileName)
+    public KnowledgeFileContent? GetAsync(Guid agentId, Guid documentId, string fileName)
     {
         var filePath = BuildFilePath(agentId, documentId, fileName);
         if (!File.Exists(filePath))
@@ -42,8 +45,8 @@ public class LightRagFileStore
     }
 
     // NOTE: Replace with Azure Blob Storage for production deployment.
-    // Globs {basePath}/{agentId}/{docId}_* to delete without needing the filename.
-    public void FindAndDelete(Guid agentId, string documentId)
+    // Globs {basePath}/{agentId}/{documentId}_* to delete without needing the filename.
+    public void FindAndDelete(Guid agentId, Guid documentId)
     {
         var dir = Path.Combine(_basePath, agentId.ToString());
         if (!Directory.Exists(dir)) return;
@@ -55,6 +58,6 @@ public class LightRagFileStore
         }
     }
 
-    private string BuildFilePath(Guid agentId, string documentId, string fileName)
+    private string BuildFilePath(Guid agentId, Guid documentId, string fileName)
         => Path.Combine(_basePath, agentId.ToString(), $"{documentId}_{fileName}");
 }

@@ -132,6 +132,8 @@ builder.Services.AddHttpClient(nameof(LightRagClient), c =>
 builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
 builder.Services.AddScoped<LightRagClientFactory>();
 builder.Services.AddHostedService<LightRagReconcilerHostedService>();
+// Polls LightRAG for documents still Processing and advances them to Completed/Failed.
+builder.Services.AddHostedService<LightRagIngestionStatusHostedService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

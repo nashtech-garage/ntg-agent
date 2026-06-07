@@ -1,4 +1,5 @@
 using Microsoft.KernelMemory;
+using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.Common.Dtos.Knowledge;
 using NTG.Agent.Common.Dtos.Services;
 using System.Globalization;
@@ -19,22 +20,35 @@ public class KernelMemoryKnowledge : IKnowledgeService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<string> ImportDocumentAsync(Stream content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    // Kernel Memory's import returns the doc-id immediately and ingests asynchronously, so we use
+    // that doc-id as the tracking handle. CheckIngestStatusAsync resolves readiness from it.
+    public async Task<string> BeginImportDocumentAsync(Stream content, string fileName, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var tagCollection = ComposeTags(agentId, tags);
         return await _kernelMemory.ImportDocumentAsync(content, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
-    public async Task RemoveDocumentAsync(string documentId, Guid agentId, CancellationToken cancellationToken = default)
+    public async Task<DocumentIngestResult> CheckIngestStatusAsync(Guid agentId, string trackId, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("KernelMemoryKnowledge.RemoveDocumentAsync: agentId={AgentId} documentId={DocumentId} index={Index}", agentId, documentId, AgentIndex);
+        var ready = await _kernelMemory.IsDocumentReadyAsync(trackId, index: AgentIndex, cancellationToken: cancellationToken);
+        return ready
+            ? new DocumentIngestResult(DocumentStatus.Completed, trackId, null)
+            : new DocumentIngestResult(DocumentStatus.Processing, null, null);
+    }
+
+    public async Task RemoveDocumentAsync(Guid agentId, Guid documentId, string? knowledgeDocId, string? trackId, CancellationToken cancellationToken = default)
+    {
+        var docId = knowledgeDocId ?? trackId;
+        if (string.IsNullOrEmpty(docId)) return;
+
+        _logger.LogInformation("KernelMemoryKnowledge.RemoveDocumentAsync: agentId={AgentId} documentId={DocumentId} index={Index}", agentId, docId, AgentIndex);
         try
         {
-            await _kernelMemory.DeleteDocumentAsync(documentId, index: AgentIndex, cancellationToken: cancellationToken);
+            await _kernelMemory.DeleteDocumentAsync(docId, index: AgentIndex, cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "KernelMemoryKnowledge.RemoveDocumentAsync failed: agentId={AgentId} documentId={DocumentId}", agentId, documentId);
+            _logger.LogError(ex, "KernelMemoryKnowledge.RemoveDocumentAsync failed: agentId={AgentId} documentId={DocumentId}", agentId, docId);
             throw;
         }
     }
@@ -63,18 +77,18 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return MapToResponse(result);
     }
 
-    public async Task<string> ImportWebPageAsync(string url, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> BeginImportWebPageAsync(string url, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
             throw new ArgumentException("Invalid URL provided.", nameof(url));
         }
         var tagCollection = ComposeTags(agentId, tags);
-        var documentId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
-        return documentId;
+        var knowledgeDocId = await _kernelMemory.ImportWebPageAsync(url, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
+        return knowledgeDocId;
     }
 
-    public async Task<string> ImportTextContentAsync(string content, string fileName, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> BeginImportTextContentAsync(string content, string fileName, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -87,9 +101,11 @@ public class KernelMemoryKnowledge : IKnowledgeService
         return await _kernelMemory.ImportDocumentAsync(stream, fileName, tags: tagCollection, index: AgentIndex, cancellationToken: cancellationToken);
     }
 
-    public async Task<KnowledgeFileContent> ExportDocumentAsync(string documentId, string fileName, Guid agentId, CancellationToken cancellationToken = default)
+    public async Task<KnowledgeFileContent> ExportDocumentAsync(Guid agentId, Guid documentId, string? knowledgeDocId, string fileName, CancellationToken cancellationToken = default)
     {
-        var streamable = await _kernelMemory.ExportFileAsync(documentId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
+        if (string.IsNullOrEmpty(knowledgeDocId))
+            throw new FileNotFoundException($"Document '{documentId}' has no knowledge doc-id to export.");
+        var streamable = await _kernelMemory.ExportFileAsync(knowledgeDocId, fileName, index: AgentIndex, cancellationToken: cancellationToken);
         var stream = await streamable.GetStreamAsync();
         var contentType = FileTypeService.GetContentType(fileName);
         return new KnowledgeFileContent(stream, contentType, fileName);
