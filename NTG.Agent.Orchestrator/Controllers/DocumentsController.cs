@@ -22,13 +22,15 @@ public class DocumentsController : ControllerBase
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<DocumentsController> _logger;
     private readonly IMetricsCollector _metrics;
+    private readonly IngestionStatusSignal _ingestionSignal;
 
-    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, ILogger<DocumentsController> logger, IMetricsCollector metrics)
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, ILogger<DocumentsController> logger, IMetricsCollector metrics, IngestionStatusSignal ingestionSignal)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _ingestionSignal = ingestionSignal ?? throw new ArgumentNullException(nameof(ingestionSignal));
     }
 
     /// <summary>
@@ -168,6 +170,7 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.AddRange(documents);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track these Processing docs
         }
 
         return Ok(results);
@@ -266,6 +269,7 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.Add(document);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
             return Ok(document.Id.ToString());
         }
@@ -332,6 +336,7 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.Add(document);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
             return Ok(document.Id.ToString());
         }

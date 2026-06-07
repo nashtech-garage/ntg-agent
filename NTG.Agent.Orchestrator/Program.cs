@@ -132,7 +132,9 @@ builder.Services.AddHttpClient(nameof(LightRagClient), c =>
 builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
 builder.Services.AddScoped<LightRagClientFactory>();
 builder.Services.AddHostedService<LightRagReconcilerHostedService>();
-// Polls LightRAG for documents still Processing and advances them to Completed/Failed.
+// Event-driven worker: parks while idle and wakes (via IngestionStatusSignal) when an upload
+// begins, polling LightRAG until every Processing document reaches Completed/Failed.
+builder.Services.AddSingleton<IngestionStatusSignal>();
 builder.Services.AddHostedService<LightRagIngestionStatusHostedService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>

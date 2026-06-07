@@ -8,38 +8,47 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 /// <summary>
 /// Advances documents through the LightRAG ingestion pipeline without blocking the upload request.
-/// Periodically polls LightRAG (via <see cref="IKnowledgeService.CheckIngestStatusAsync"/>) for every
-/// document still in <see cref="DocumentStatus.Processing"/> and flips it to
+/// Polls LightRAG (via <see cref="IKnowledgeService.CheckIngestStatusAsync"/>) for every document
+/// still in <see cref="DocumentStatus.Processing"/> and flips it to
 /// <see cref="DocumentStatus.Completed"/> (filling in <c>KnowledgeDocId</c>) or
-/// <see cref="DocumentStatus.Failed"/> (filling in <c>ErrorMessage</c>). This keeps the DB correct
-/// even when no user is watching the page.
+/// <see cref="DocumentStatus.Failed"/> (filling in <c>ErrorMessage</c>).
+///
+/// The worker is <b>event-driven</b>: it only polls while documents are processing. When none
+/// remain it parks on <see cref="IngestionStatusSignal.WaitAsync"/> (no timer, no DB queries) until
+/// an upload calls <see cref="IngestionStatusSignal.Notify"/>. A drain pass also runs once at
+/// startup to recover any documents left Processing by a previous run.
 /// </summary>
 public sealed class LightRagIngestionStatusHostedService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly IngestionStatusSignal _signal;
     private readonly LightRagSettings _settings;
     private readonly ILogger<LightRagIngestionStatusHostedService> _logger;
 
     public LightRagIngestionStatusHostedService(
         IServiceProvider serviceProvider,
+        IngestionStatusSignal signal,
         IOptions<LightRagSettings> settings,
         ILogger<LightRagIngestionStatusHostedService> logger)
     {
         _serviceProvider = serviceProvider;
+        _signal = signal;
         _settings = settings.Value;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var interval = TimeSpan.FromSeconds(Math.Max(1, _settings.PollIntervalSeconds));
-        using var timer = new PeriodicTimer(interval);
+        var pollInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.PollIntervalSeconds));
 
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await PollOnceAsync(stoppingToken);
+                // Drain: keep polling while any document is still Processing. The first iteration
+                // also clears leftovers from a previous run.
+                while (await PollOnceAsync(stoppingToken))
+                    await Task.Delay(pollInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -48,11 +57,23 @@ public sealed class LightRagIngestionStatusHostedService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "LightRAG ingestion status poll failed.");
+                await Task.Delay(pollInterval, stoppingToken);
+            }
+
+            // Idle: nothing to do — park until an upload signals new work (no polling while parked).
+            try
+            {
+                await _signal.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
             }
         }
     }
 
-    private async Task PollOnceAsync(CancellationToken ct)
+    /// <summary>Polls each Processing document once; returns true if any document is still Processing.</summary>
+    private async Task<bool> PollOnceAsync(CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
@@ -62,9 +83,10 @@ public sealed class LightRagIngestionStatusHostedService : BackgroundService
             .Where(d => d.Status == DocumentStatus.Processing && d.TrackId != null)
             .ToListAsync(ct);
 
-        if (pending.Count == 0) return;
+        if (pending.Count == 0) return false;
 
         var changed = false;
+        var stillProcessing = 0;
         foreach (var doc in pending)
         {
             try
@@ -88,18 +110,22 @@ public sealed class LightRagIngestionStatusHostedService : BackgroundService
                         _logger.LogWarning("Ingestion failed: documentId={DocumentId} reason={Reason}", doc.Id, result.ErrorMessage);
                         break;
                     default:
-                        // Still Processing — leave it for the next tick.
+                        // Still Processing — keep it for the next pass.
+                        stillProcessing++;
                         break;
                 }
             }
             catch (Exception ex)
             {
-                // A single agent's container being down shouldn't stop the rest; retry next tick.
+                // A single agent's container being down shouldn't stop the rest; retry next pass.
+                stillProcessing++;
                 _logger.LogWarning(ex, "Failed to check ingestion status for documentId={DocumentId} (agentId={AgentId}).", doc.Id, doc.AgentId);
             }
         }
 
         if (changed)
             await db.SaveChangesAsync(ct);
+
+        return stillProcessing > 0;
     }
 }
