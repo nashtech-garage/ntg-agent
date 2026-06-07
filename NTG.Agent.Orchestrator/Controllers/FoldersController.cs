@@ -234,7 +234,10 @@ public class FoldersController : ControllerBase
             // Remove associated documents from knowledge base if they exist
             foreach (var document in folder.Documents)
             {
-                await _knowledgeService.RemoveDocumentAsync(document.AgentId, document.Id, document.KnowledgeDocId, document.TrackId);
+                if (document.KnowledgeDocId != null)
+                {
+                    await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, document.AgentId);
+                }
             }
         }
 
