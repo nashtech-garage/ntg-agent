@@ -68,7 +68,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportWebPageAsync(url!, _testAgentId, tags));
+            _service.BeginImportWebPageAsync(url!, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
@@ -83,7 +83,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportWebPageAsync(url, _testAgentId, tags));
+            _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
@@ -98,7 +98,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportWebPageAsync(url, _testAgentId, tags));
+            _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
@@ -113,7 +113,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportWebPageAsync(url, _testAgentId, tags));
+            _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
@@ -128,7 +128,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportWebPageAsync(url, _testAgentId, tags));
+            _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("url"));
         Assert.That(exception.Message, Does.Contain("Invalid URL provided."));
@@ -153,7 +153,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(expectedDocumentId);
 
         // Act - Should not throw validation exception
-        var result = await _service.ImportWebPageAsync(url, _testAgentId, tags);
+        var result = await _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags);
         
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
@@ -178,7 +178,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(expectedDocumentId);
 
         // Act - Should not throw validation exception
-        var result = await _service.ImportWebPageAsync(url, _testAgentId, tags);
+        var result = await _service.BeginImportWebPageAsync(url, _testAgentId, Guid.NewGuid(), tags);
         
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
@@ -198,7 +198,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportTextContentAsync(content!, fileName, _testAgentId, tags));
+            _service.BeginImportTextContentAsync(content!, fileName, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
@@ -214,7 +214,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportTextContentAsync(content, fileName, _testAgentId, tags));
+            _service.BeginImportTextContentAsync(content, fileName, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
@@ -230,7 +230,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var exception = Assert.ThrowsAsync<ArgumentException>(() => 
-            _service.ImportTextContentAsync(content, fileName, _testAgentId, tags));
+            _service.BeginImportTextContentAsync(content, fileName, _testAgentId, Guid.NewGuid(), tags));
         
         Assert.That(exception!.ParamName, Is.EqualTo("content"));
         Assert.That(exception.Message, Does.Contain("Content cannot be null or empty."));
@@ -257,7 +257,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(expectedDocumentId);
 
         // Act - Should not throw validation exception
-        var result = await _service.ImportTextContentAsync(content, fileName, _testAgentId, tags);
+        var result = await _service.BeginImportTextContentAsync(content, fileName, _testAgentId, Guid.NewGuid(), tags);
         
         // Assert - Method completes successfully
         Assert.That(result, Is.EqualTo(expectedDocumentId));
@@ -290,7 +290,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(expectedDocumentId);
 
         // Act
-        var result = await _service.ImportDocumentAsync(stream, fileName, _testAgentId, tags);
+        var result = await _service.BeginImportDocumentAsync(stream, fileName, _testAgentId, Guid.NewGuid(), tags);
 
         // Assert
         Assert.That(result, Is.EqualTo(expectedDocumentId));
@@ -319,7 +319,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(expectedDocumentId);
 
         // Act
-        var result = await _service.ImportDocumentAsync(stream, fileName, _testAgentId, tags);
+        var result = await _service.BeginImportDocumentAsync(stream, fileName, _testAgentId, Guid.NewGuid(), tags);
 
         // Assert
         Assert.That(result, Is.EqualTo(expectedDocumentId));
@@ -342,7 +342,7 @@ public class KernelMemoryKnowledgeTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.RemoveDocumentAsync(documentId, _testAgentId);
+        await _service.RemoveDocumentAsync(_testAgentId, Guid.NewGuid(), documentId, null);
 
         // Assert
         _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(
@@ -365,7 +365,7 @@ public class KernelMemoryKnowledgeTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.RemoveDocumentAsync(documentId, _testAgentId, cancellationToken);
+        await _service.RemoveDocumentAsync(_testAgentId, Guid.NewGuid(), documentId, null, cancellationToken);
 
         // Assert
         _mockKernelMemory.Verify(m => m.DeleteDocumentAsync(
@@ -389,7 +389,7 @@ public class KernelMemoryKnowledgeTests
 
         // Act & Assert
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.RemoveDocumentAsync(documentId, _testAgentId));
+            _service.RemoveDocumentAsync(_testAgentId, Guid.NewGuid(), documentId, null));
         Assert.That(ex, Is.SameAs(inner));
     }
 
@@ -486,7 +486,7 @@ public class KernelMemoryKnowledgeTests
             .ReturnsAsync(fakeStreamable);
 
         // Act
-        var result = await _service.ExportDocumentAsync(documentId, fileName, _testAgentId, cancellationToken);
+        var result = await _service.ExportDocumentAsync(_testAgentId, Guid.NewGuid(), documentId, fileName, cancellationToken);
 
         // Assert
         Assert.That(result, Is.Not.Null);

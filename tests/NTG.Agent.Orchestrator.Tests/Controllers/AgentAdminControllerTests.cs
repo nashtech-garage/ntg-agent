@@ -881,7 +881,7 @@ public class AgentAdminControllerTests
         Assert.That(remainingDocs, Is.False);
 
         _mockKnowledgeService.Verify(
-            k => k.RemoveDocumentAsync("doc-123", agentId, It.IsAny<CancellationToken>()),
+            k => k.RemoveDocumentAsync(agentId, document.Id, "doc-123", It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Once);
         _mockContainerManager.Verify(
             m => m.StopAndRemoveContainerAsync(agentId, It.IsAny<CancellationToken>()),
