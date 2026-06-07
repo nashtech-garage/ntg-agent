@@ -21,4 +21,10 @@ public interface ILightRagContainerManager
 
     /// <summary>Stops and removes the agent's container. No-op if it does not exist.</summary>
     Task StopAndRemoveContainerAsync(Guid agentId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stops the agent's container without removing it, so it can be restarted later
+    /// via <see cref="EnsureContainerAsync"/>. No-op if the container is not running.
+    /// </summary>
+    Task StopContainerAsync(Guid agentId, CancellationToken cancellationToken = default);
 }

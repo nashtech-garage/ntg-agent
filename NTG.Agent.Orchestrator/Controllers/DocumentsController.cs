@@ -158,10 +158,14 @@ public class DocumentsController : ControllerBase
                 }
                 results.Add(new UploadDocumentResult(file.FileName, Success: true, ErrorMessage: null, DocumentId: document.Id));
             }
+            catch (OperationCanceledException)
+            {
+                throw; // Propagate cancellation — don't swallow it as an upload error.
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to begin ingestion for {FileName} (agentId={AgentId})", file.FileName, agentId);
-                results.Add(new UploadDocumentResult(file.FileName, Success: false, ErrorMessage: ex.Message, DocumentId: null));
+                _logger.LogError(ex, "Unexpected error importing {FileName} (agentId={AgentId})", file.FileName, agentId);
+                results.Add(new UploadDocumentResult(file.FileName, Success: false, ErrorMessage: $"Unexpected error: {ex.Message}", DocumentId: null));
             }
         }
 

@@ -179,6 +179,42 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         }
     }
 
+    public async Task StopContainerAsync(Guid agentId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            var name = ContainerName(agentId);
+            var existing = await FindContainerAsync(name, cancellationToken);
+            if (existing is null)
+            {
+                _logger.LogInformation("LightRagContainerManager: no container {Name} to stop.", name);
+                return;
+            }
+
+            var inspect = await _docker.Containers.InspectContainerAsync(existing.ID, cancellationToken);
+            if (inspect.State?.Running != true)
+            {
+                _logger.LogInformation("LightRagContainerManager: {Name} is already stopped.", name);
+                return;
+            }
+
+            try
+            {
+                await _docker.Containers.StopContainerAsync(existing.ID, new ContainerStopParameters { WaitBeforeKillSeconds = 10 }, cancellationToken);
+                _logger.LogInformation("LightRagContainerManager: stopped idle container {Name}.", name);
+            }
+            catch (DockerApiException ex)
+            {
+                _logger.LogWarning(ex, "LightRagContainerManager: stop {Name} failed.", name);
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task<ContainerListResponse?> FindContainerAsync(string name, CancellationToken ct)
     {
         var all = await _docker.Containers.ListContainersAsync(new ContainersListParameters { All = true }, ct);
@@ -416,5 +452,9 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         return ReadPublishedPort(inspect, "5432/tcp");
     }
 
-    public void Dispose() => _docker.Dispose();
+    public void Dispose()
+    {
+        _gate.Dispose();
+        _docker.Dispose();
+    }
 }

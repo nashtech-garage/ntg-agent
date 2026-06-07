@@ -130,8 +130,10 @@ builder.Services.AddHttpClient(nameof(LightRagClient), c =>
 // factory resolves a per-agent client, and the reconciler ensures containers exist
 // for every agent on startup.
 builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
+builder.Services.AddSingleton<LightRagContainerAccessTracker>();
 builder.Services.AddScoped<LightRagClientFactory>();
 builder.Services.AddHostedService<LightRagReconcilerHostedService>();
+builder.Services.AddHostedService<LightRagContainerIdleShutdownService>();
 // Event-driven worker: parks while idle and wakes (via IngestionStatusSignal) when an upload
 // begins, polling LightRAG until every Processing document reaches Completed/Failed.
 builder.Services.AddSingleton<IngestionStatusSignal>();
