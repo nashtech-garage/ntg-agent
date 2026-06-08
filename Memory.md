@@ -73,8 +73,8 @@ Wait for `lightrag-postgres`, `lightrag`, and `ntg-agent-orchestrator` to reach 
 
 1. Open the admin URL from the Aspire dashboard (`ntg-agent-admin`). Login with `admin@ntgagent.com` / `Ntg@123`.
 2. **Agents → Default Agent → Knowledge Base tab → Add Knowledge**. Pick a PDF/docx/xlsx/txt and submit.
-3. Under the hood: `POST /api/Documents/upload/{agentId}` (Orchestrator) → `LightRagClient.InsertFileAsync` → LightRAG `/documents/upload` (async queue) → `LightRagKnowledge.WaitForDocumentReadyAsync` polls `/documents/track_status/{track_id}` every `LightRag:PollIntervalSeconds` (default 3s) up to `LightRag:UploadTimeoutSeconds` (default 180s) for the real `doc-XXX` ID. Only after `PROCESSED` does the orchestrator save the file to `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{docId}_{fileName}` and commit a `Document` row. `FAILED` throws `LightRagExtractionException` and the API returns a per-file failure entry — no row is committed.
-4. The HTTP upload call therefore blocks until extraction finishes. Large docs can take 1–2 min; the admin UI shows a spinner. Watch the LightRAG WebUI Documents tab if you want a live view of the pipeline stages (`Pending → Processing → Completed/Failed`).
+3. Under the hood (non-blocking, status-aware): `POST /api/Documents/upload/{agentId}` (Orchestrator) → `LightRagKnowledge.BeginImportDocumentAsync` saves the original file to `./NTG.Agent.Orchestrator/lightrag-filestore/{agentId}/{documentId}_{fileName}` (keyed by the local `Document.Id`, so download works regardless of ingestion state) and calls `LightRagClient.InsertFileAsync` → LightRAG `/documents/upload` (async queue), which returns a `track_id` immediately. The orchestrator commits a `Document` row right away with `Status = Processing` and that `TrackId`, then returns — it does **not** wait for extraction. (A *begin* failure, e.g. the container being unreachable, returns a per-file failure and commits no row.)
+4. A background worker (`LightRagIngestionStatusHostedService`) advances the row: it polls `/documents/track_status/{track_id}` via `LightRagKnowledge.CheckIngestStatusAsync` every `LightRag:PollIntervalSeconds` (default 3s) and flips the row to `Completed` (filling `KnowledgeDocId` with the real `doc-XXX`) or `Failed` (filling `ErrorMessage`). The Admin Knowledge Base list shows the live status as **Uploading → Uploaded / Failed to upload** and auto-refreshes while anything is still "Uploading". The worker is **event-driven**: it stays parked (no polling, no DB queries) until an upload wakes it via `IngestionStatusSignal.Notify()`, drains every `Processing` doc, then parks again. A drain pass also runs on startup to recover docs left `Processing` by a previous run. Watch the LightRAG WebUI Documents tab for a live view of the pipeline stages (`Pending → Processing → Completed/Failed`).
 
 ### Via curl (when you want to bypass auth/UI for testing)
 
@@ -139,10 +139,11 @@ Once at least one document is `Completed` in LightRAG:
   docker volume rm ntg-agent-local-dev-elasticsearch-data       # for KM
   ```
 
-### Upload appears to hang for 1–2 min
+### A document is stuck at "Uploading"
 
-- **Cause**: the upload endpoint is now synchronous — it polls LightRAG until extraction completes (`PROCESSED`) or fails. This is intentional: it ensures the Admin UI Knowledge Base list only shows successfully-extracted docs, and that `Document.KnowledgeDocId` stores the real `doc-XXX` (so delete works).
-- **Tuning**: see `LightRag:UploadTimeoutSeconds` (default 180) and `LightRag:PollIntervalSeconds` (default 3) in `LightRagSettings`. A timeout throws `LightRagExtractionException` and returns a per-file failure to the UI — the doc may still finish in LightRAG, but no `Document` row is committed.
+- **Expected**: ingestion is asynchronous. The upload call returns immediately with the row in `Processing`; the background worker (`LightRagIngestionStatusHostedService`) flips it to `Uploaded`/`Failed` once LightRAG finishes. Large docs can take 1–2 min to leave "Uploading" — the Admin list auto-refreshes.
+- **If it never leaves "Uploading"**: check the agent's LightRAG WebUI for the pipeline stage (`Pending → Processing → Completed/Failed`), and the Orchestrator logs for `Failed to check ingestion status` warnings (e.g. the agent's container is down). The worker retries every tick and only stops polling once no doc is `Processing`.
+- **Tuning**: `LightRag:PollIntervalSeconds` (default 3) sets the worker's poll cadence. (`LightRag:UploadTimeoutSeconds` is now **unused** — the upload request no longer blocks on extraction, so there is no per-request timeout to tune.)
 
 ### `database "uploaded-documents" does not exist` or `extension "age" is not available`
 
@@ -157,10 +158,12 @@ Once at least one document is `Completed` in LightRAG:
 | `NTG.Agent.Orchestrator/Services/Knowledge/LightRagContainerManager.cs` | Docker.DotNet lifecycle for `lightrag-agent-{id}` (pull/create/start/stop/remove, free-port + network discovery) |
 | `NTG.Agent.Orchestrator/Services/Knowledge/LightRagClientFactory.cs` | Resolves a `LightRagClient` for an agent's own container (`http://localhost:{LightRagPort}`) |
 | `NTG.Agent.Orchestrator/Services/Knowledge/LightRagReconcilerHostedService.cs` | Startup: pull image, ensure a container per agent, back-fill `LightRagPort` |
-| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagClient.cs` | Thin HTTP client. `InsertFileAsync` posts `/documents/upload`; `QueryAsync` posts `/query` |
-| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagKnowledge.cs` | `IKnowledgeService` impl — routes each call through `LightRagClientFactory` (per-agent) + local file store |
-| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagFileStore.cs` | Saves/retrieves the original uploaded file on disk |
-| `NTG.Agent.Orchestrator/Controllers/DocumentsController.cs` | `/api/Documents/*` endpoints — upload/list/delete/export |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagIngestionStatusHostedService.cs` | Event-driven background worker — advances `Processing` docs to `Completed`/`Failed` by polling LightRAG; parks while idle, woken by `IngestionStatusSignal` |
+| `NTG.Agent.Orchestrator/Services/Knowledge/IngestionStatusSignal.cs` | Singleton wake signal (`SemaphoreSlim(0,1)`) — `DocumentsController` calls `Notify()` after an upload so the worker only runs while ingestion is in flight |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagClient.cs` | Thin HTTP client. `InsertFileAsync` posts `/documents/upload`; `GetTrackStatusAsync` polls `/documents/track_status/{id}`; `QueryAsync` posts `/query` |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagKnowledge.cs` | `IKnowledgeService` impl — non-blocking `BeginImport*` (returns a `track_id`) + `CheckIngestStatusAsync`; routes through `LightRagClientFactory` (per-agent) + local file store |
+| `NTG.Agent.Orchestrator/Services/Knowledge/LightRagFileStore.cs` | Saves/retrieves the original uploaded file on disk, keyed by the local `Document.Id` |
+| `NTG.Agent.Orchestrator/Controllers/DocumentsController.cs` | `/api/Documents/*` endpoints — upload/list/delete/export; commits `Processing` rows and signals the status worker |
 | `NTG.Agent.Orchestrator/Models/Configuration/LightRagSettings.cs` | `ApiKey`, `FileStorePath`, `TopK`, plus per-agent container provisioning config (image, Postgres, Azure bindings, chunk knobs) |
 | `scripts/lightrag-postgres/Dockerfile` | Custom Postgres image: `pgvector` + Apache AGE compiled from source |
 | `scripts/lightrag-pg-init/01-create-db.sql` | Creates the `uploaded-documents` DB on first boot |
@@ -183,6 +186,8 @@ LightRAG settings on the Orchestrator side (in `appsettings.json`, section `Ligh
 | Setting | Default | What it controls |
 | --- | --- | --- |
 | `TopK` | 60 | Number of entities/relations retrieved from the KG per query. |
+| `PollIntervalSeconds` | 3 | How often `LightRagIngestionStatusHostedService` polls LightRAG for `Processing` docs while draining. |
+| `UploadTimeoutSeconds` | 180 | **Unused** — legacy of the old synchronous upload model; ingestion no longer blocks the request. |
 
 `LightRagClient.QueryAsync` is hard-coded to request up to ~12K tokens of context per query (4000 each for text-unit / global / local). Tune in `LightRagClient.cs:52` if you need smaller responses (e.g. when paired with a small-context chat model).
 
@@ -190,4 +195,4 @@ LightRAG settings on the Orchestrator side (in `appsettings.json`, section `Ligh
 
 - **One container per agent costs RAM**: each agent runs its own LightRAG app container. Fine for a handful of agents in dev; a large fleet would want a pooled/multi-tenant topology or on-demand container start/stop. Containers use `RestartPolicy=unless-stopped` and are reconciled on Orchestrator startup.
 - **Local filestore**: original uploads still live on the Orchestrator's disk (`lightrag-filestore/{agentId}/`) — move to Azure Blob for production.
-- **Synchronous upload model**: the upload HTTP call now blocks until LightRAG's async pipeline finishes — see "Upload appears to hang for 1–2 min" above. Fine for dev-phase admin uploads; for a public-facing ingestion API consider switching to a Pending-row + background-reconciler model so the HTTP call returns immediately.
+- **Pre-existing orphans**: the async model commits the `Document` row before ingestion, so it won't create new orphans. But documents ingested directly into LightRAG (e.g. via curl, or by an older build that timed out) have no `Document` row and won't appear in the Admin UI — clean those up via the LightRAG WebUI.
