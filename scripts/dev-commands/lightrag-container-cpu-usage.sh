@@ -15,3 +15,6 @@ if [ -z "$usage" ]; then
 	exit 0
 fi
 
+for i in "${!usage[@]}"; do
+	echo "${usage[$i]}"
+done
