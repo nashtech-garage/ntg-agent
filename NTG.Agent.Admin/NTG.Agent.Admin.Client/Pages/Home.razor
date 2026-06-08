@@ -17,16 +17,10 @@
                     <i class="bi bi-house-door-fill me-2"></i>
                     Agent Dashboard
                 </h1>
-                <div class="d-flex gap-2">
-                    <a href="/inner-agents/new" class="btn btn-outline-primary">
-                        <i class="bi bi-tools me-2"></i>
-                        Create Inner Agent
-                    </a>
-                    <a href="/agents/new" class="btn btn-primary">
-                        <i class="bi bi-plus-circle me-2"></i>
-                        Create New Agent
-                    </a>
-                </div>
+                <a href="/agents/new" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>
+                    Create New Agent
+                </a>
             </div>
 
             <ul class="nav nav-tabs mb-4">
@@ -96,7 +90,7 @@
                         }
                         else
                         {
-                            <span>No inner agents found. <a href="/inner-agents/new" class="alert-link">Create an inner agent</a> to get started.</span>
+                            <span>No inner agents found. <a href="/agents/new" class="alert-link">Create an inner agent</a> to get started.</span>
                         }
                     </div>
                 </div>
@@ -130,34 +124,31 @@
 
                             <div class="mb-3">
                                 <div class="row g-2">
-                                    @if (!isInnerKind)
-                                    {
-                                        <div class="col-12">
-                                            <div class="d-flex align-items-center">
-                                                @if (agent.IsPublished)
-                                                {
-                                                    <i class="bi bi-globe me-2 text-success"></i>
-                                                }
-                                                else
-                                                {
-                                                    <i class="bi bi-lock me-2 text-secondary"></i>
-                                                }
-                                                <div class="flex-grow-1">
-                                                    <small class="text-muted d-block">Status</small>
-                                                    <span class="fw-medium">
-                                                        @if (agent.IsPublished)
-                                                        {
-                                                            <span class="badge bg-success-subtle text-success">Published</span>
-                                                        }
-                                                        else
-                                                        {
-                                                            <span class="badge bg-secondary-subtle text-secondary">Draft</span>
-                                                        }
-                                                    </span>
-                                                </div>
+                                    <div class="col-12">
+                                        <div class="d-flex align-items-center">
+                                            @if (agent.IsPublished)
+                                            {
+                                                <i class="bi bi-globe me-2 text-success"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-lock me-2 text-secondary"></i>
+                                            }
+                                            <div class="flex-grow-1">
+                                                <small class="text-muted d-block">Status</small>
+                                                <span class="fw-medium">
+                                                    @if (agent.IsPublished)
+                                                    {
+                                                        <span class="badge bg-success-subtle text-success">Published</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                                                    }
+                                                </span>
                                             </div>
                                         </div>
-                                    }
+                                    </div>
                                     <div class="col-12">
                                         <div class="d-flex align-items-center">
                                             <i class="bi bi-person-circle me-2 text-info"></i>
@@ -202,7 +193,7 @@
                             <div class="d-flex gap-2">
                                 <a href="@($"/agents/{agent.Id}")" class="btn btn-primary flex-grow-1">
                                     <i class="bi @(isInnerKind ? "bi-gear" : "bi-arrow-right-circle") me-2"></i>
-                                    @(isInnerKind ? "Manage" : "View Details")
+                                    Manage
                                 </a>
                                 <button class="btn btn-danger" 
                                         @onclick="() => ShowDeleteConfirmation(agent.Id, agent.Name)"

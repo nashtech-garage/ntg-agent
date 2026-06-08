@@ -326,7 +326,7 @@ public class AgentAdminController : ControllerBase
         }
 
         var innerAgents = await _agentDbContext.Agents
-            .Where(a => a.AgentKind == AgentKind.Inner)
+            .Where(a => a.AgentKind == AgentKind.Inner && a.IsPublished)
             .Select(a => new
             {
                 a.Id,
@@ -404,8 +404,13 @@ public class AgentAdminController : ControllerBase
             }
         }
 
+        var draftIds = await _agentDbContext.Agents
+            .Where(a => a.AgentKind == AgentKind.Inner && !a.IsPublished)
+            .Select(a => a.Id)
+            .ToListAsync();
+
         var removed = outerAgent.InnerAgentBindings
-            .Where(b => !requestedIds.Contains(b.InnerAgentId))
+            .Where(b => !requestedIds.Contains(b.InnerAgentId) && !draftIds.Contains(b.InnerAgentId))
             .ToList();
 
         if (removed.Count > 0)

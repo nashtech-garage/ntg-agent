@@ -315,7 +315,7 @@ public class AgentFactory : IAgentFactory
         }
 
         var innerAgents = await _agentDbContext.Agents
-            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.Inner)
+            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.Inner && a.IsPublished)
             .ToListAsync();
 
         var tools = new List<AITool>();
