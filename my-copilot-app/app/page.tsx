@@ -2,21 +2,20 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { extractObjects } from "../src/utils/streamParser";
+import { CopilotKit } from "@copilotkit/react-core";
+import { CopilotChat } from "@copilotkit/react-core/v2";
+import "@copilotkit/react-core/v2/styles.css"; // Ensure styles are imported
+// import "@copilotkit/react-ui/styles.css"; // UI styles are still needed for the chat components
+
 import AgentSelector, { Agent } from "../src/components/AgentSelector";
-import ChatArea, { Message } from "../src/components/ChatArea";
-import ChatInput from "../src/components/ChatInput";
+// import ChatArea, { Message } from "../src/components/ChatArea";
 
 export default function Page() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Initial lookup
+  // 1. Keep your exact automatic lookup feature untouched!
   useEffect(() => {
     fetch("/api/agents")
       .then((r) => r.json())
@@ -25,18 +24,12 @@ export default function Page() {
         const def = data.find((a) => a.isDefault) ?? data[0];
         if (def) {
           setSelectedAgent(def);
-          setMessages([{ role: "assistant", content: `Xin chào! Tôi là ${def.name}. Tôi có thể giúp gì cho bạn hôm nay?` }]);
         }
       })
-      .catch(() => {
-        setMessages([{ role: "assistant", content: "Xin chào! Tôi là NTG Assistant. Tôi có thể giúp gì cho bạn hôm nay?" }]);
+      .catch((err) => {
+        console.error("Failed to load agents automatically:", err);
       });
   }, []);
-
-  // Sync scroll positioning
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   function handleSwitchAgent(agent: Agent) {
     if (agent.id === selectedAgent?.id) {
@@ -45,89 +38,55 @@ export default function Page() {
     }
     setSelectedAgent(agent);
     setAgentMenuOpen(false);
-    setMessages([{ role: "assistant", content: `Xin chào! Tôi là ${agent.name}. Tôi có thể giúp gì cho bạn hôm nay?` }]);
   }
 
-  async function handleSendMessage() {
-    const text = input.trim();
-    if (!text || loading || !selectedAgent) return;
-
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setLoading(true);
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ message: text, agentId: selectedAgent.id }),
-      });
-
-      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const { objects, remaining } = extractObjects(buffer);
-        buffer = remaining;
-
-        for (const chunk of objects) {
-          if (chunk.contentType !== 1 && chunk.content) {
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[updated.length - 1] = {
-                role: "assistant",
-                content: updated[updated.length - 1].content + chunk.content,
-              };
-              return updated;
-            });
-          }
-        }
-      }
-    } catch (err) {
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: `⚠️ Error: ${String(err)}` };
-        return updated;
-      });
-    } {
-      setLoading(false);
-    }
+  // Prevent rendering CopilotKit until the agent ID is automatically fetched
+  if (!selectedAgent) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white dark:bg-gray-900">
+        <div className="text-sm text-gray-500 animate-pulse">Initializing Agent Connection...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-      {/* Top Navbar */}
-      <header className="w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-50">
-        <div className="flex items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-semibold">NTG Agent</h1>
+    // 2. Pass the automatically discovered agent ID directly into the runtime string!
+    // Adding a 'key' makes sure CopilotKit resets cleanly if you swap agents via the menu.
+    <CopilotKit 
+      key={selectedAgent.id}
+      runtimeUrl={`/api/copilotkit/${selectedAgent.id}`}
+      agent="dotnet_orchestrator_agent"
+    >
+      <div className="flex flex-col h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+        {/* Top Navbar */}
+        <header className="w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-50">
+          <div className="flex items-center justify-between px-4 py-3">
+            <h1 className="text-xl font-semibold">NTG Agent</h1>
+          </div>
+        </header>
+
+        {/* Your original selector works exactly the same */}
+        <AgentSelector
+          agents={agents}
+          selectedAgent={selectedAgent}
+          isOpen={agentMenuOpen}
+          setIsOpen={setAgentMenuOpen}
+          onSelect={handleSwitchAgent}
+        />
+
+        {/* Swap out your old custom chat loops with CopilotChat */}
+        <div className="flex-1 overflow-hidden max-w-4xl w-full mx-auto p-4">
+          <CopilotChat
+            agentId="dotnet_orchestrator_agent"
+            className="h-full w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+            labels={{
+              modalHeaderTitle: selectedAgent.name,
+              welcomeMessageText: `Xin chào! Tôi là ${selectedAgent.name}. Tôi có thể giúp gì cho bạn hôm nay?`,
+              chatInputPlaceholder: `Nhắn tin với ${selectedAgent.name}…`,
+            }}
+          />
         </div>
-      </header>
-
-      <AgentSelector
-        agents={agents}
-        selectedAgent={selectedAgent}
-        isOpen={agentMenuOpen}
-        setIsOpen={setAgentMenuOpen}
-        onSelect={handleSwitchAgent}
-      />
-
-      <ChatArea messages={messages} loading={loading} bottomRef={bottomRef} />
-
-      <ChatInput
-        input={input}
-        setInput={setInput}
-        loading={loading}
-        selectedAgent={selectedAgent}
-        onSend={handleSendMessage}
-      />
-    </div>
+      </div>
+    </CopilotKit>
   );
 }

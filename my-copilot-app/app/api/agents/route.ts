@@ -1,3 +1,4 @@
+// app/api/agents/route.ts
 import { NextRequest } from "next/server";
 
 if (process.env.NODE_ENV !== "production") {
@@ -14,6 +15,8 @@ export async function GET(req: NextRequest) {
   const res = await fetch(`${orchestratorUrl}/api/agents`, {
     headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
   });
+  console.log("[agents] orchestratorUrl:", orchestratorUrl);
+  console.log("[agents] cookieHeader:", cookieHeader);
   const data = await res.json();
   return Response.json(data);
 }
