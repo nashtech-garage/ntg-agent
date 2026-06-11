@@ -18,12 +18,14 @@ public class AgentAdminController : ControllerBase
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
     private readonly ILightRagContainerManager _containerManager;
+    private readonly ILightRagProvisioner _provisioner;
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<AgentAdminController> _logger;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
         ILightRagContainerManager containerManager,
+        ILightRagProvisioner provisioner,
         IKnowledgeService knowledgeService,
         ILogger<AgentAdminController> logger
         )
@@ -31,6 +33,7 @@ public class AgentAdminController : ControllerBase
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
         _containerManager = containerManager ?? throw new ArgumentNullException(nameof(containerManager));
+        _provisioner = provisioner ?? throw new ArgumentNullException(nameof(provisioner));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -367,14 +370,12 @@ public class AgentAdminController : ControllerBase
         _agentDbContext.Agents.Add(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);
 
-        // Provision this agent's dedicated LightRAG container and persist its port.
-        // If provisioning fails, roll back the agent row so we never leave an agent
-        // without a knowledge backend.
+        // Provision this agent's dedicated LightRAG container on its reserved port (the
+        // reservation is persisted by the provisioner). If provisioning fails, roll back
+        // the agent row so we never leave an agent without a knowledge backend.
         try
         {
-            var port = await _containerManager.EnsureContainerAsync(agent.Id, null, cancellationToken);
-            agent.LightRagPort = port;
-            await _agentDbContext.SaveChangesAsync(cancellationToken);
+            await _provisioner.ProvisionAsync(agent.Id, cancellationToken);
         }
         catch (Exception ex)
         {

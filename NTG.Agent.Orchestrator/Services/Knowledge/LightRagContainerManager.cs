@@ -1,9 +1,8 @@
-using System.Net;
-using System.Net.Sockets;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Models.Configuration;
 
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
@@ -23,11 +22,14 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     // Serialize create/teardown so two concurrent agent creates can't grab the same free port.
     private readonly SemaphoreSlim _gate = new(1, 1);
 
-    public LightRagContainerManager(IOptions<LightRagSettings> settings, ILogger<LightRagContainerManager> logger)
+    // IDockerClient is injected (built from LightRagSettings.DockerHost in DI) so the
+    // manager can be unit-tested with a mocked daemon and is not tied to a concrete
+    // client construction (DIP).
+    public LightRagContainerManager(IDockerClient docker, IOptions<LightRagSettings> settings, ILogger<LightRagContainerManager> logger)
     {
+        _docker = docker;
         _settings = settings.Value;
         _logger = logger;
-        _docker = new DockerClientConfiguration().CreateClient();
     }
 
     private string ImageName => $"{_settings.ImageRef}:{_settings.ImageTag}";
@@ -63,7 +65,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         _logger.LogInformation("LightRagContainerManager: pulled image {Image}.", ImageName);
     }
 
-    public async Task<int> EnsureContainerAsync(Guid agentId, int? desiredPort, CancellationToken cancellationToken = default)
+    public async Task<int> EnsureContainerAsync(Guid agentId, int hostPort, CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
         try
@@ -80,22 +82,26 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 var onNetwork = inspect.NetworkSettings?.Networks?.ContainsKey(network) == true;
                 var runningPort = inspect.State?.Running == true ? ReadPublishedPort(inspect) : null;
 
-                // Healthy only if it is actually attached to the shared network AND has a
-                // live host port mapping. A detached/crash-looping container (e.g. after an
-                // AppHost restart that recreated Postgres) fails this and is recreated.
+                // Healthy only if it is attached to the shared network AND published on the
+                // agent's reserved port AND its env matches. A detached/crash-looping container,
+                // one on the wrong port, or one with drifted env all fail this and are recreated.
                 if (onNetwork && runningPort is not null)
                 {
                     var desiredEnv = BuildEnv(agentId);
                     var currentEnv = inspect.Config?.Env ?? [];
                     var driftedKeys = FindEnvDrift(currentEnv, desiredEnv);
+                    var portMatches = runningPort.Value == hostPort;
 
-                    if (driftedKeys.Count == 0)
+                    if (portMatches && driftedKeys.Count == 0)
                     {
-                        _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, runningPort);
-                        return runningPort.Value;
+                        _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, hostPort);
+                        return hostPort;
                     }
 
-                    _logger.LogInformation("LightRagContainerManager: env drift on {Name} (keys: {Keys}), recreating.", name, string.Join(", ", driftedKeys));
+                    if (!portMatches)
+                        _logger.LogInformation("LightRagContainerManager: {Name} on :{Old} but reserved :{Reserved}, recreating.", name, runningPort, hostPort);
+                    if (driftedKeys.Count > 0)
+                        _logger.LogInformation("LightRagContainerManager: env drift on {Name} (keys: {Keys}), recreating.", name, string.Join(", ", driftedKeys));
 
                     // EMBEDDING_DIM change means the PGVector columns are wrong dimension — wipe
                     // the workspace vector data so LightRAG rebuilds the index at correct size.
@@ -112,35 +118,19 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
             }
 
-            var port = desiredPort is > 0 && IsPortFree(desiredPort.Value) ? desiredPort.Value : FindFreePort();
+            // Bind to the agent's reserved port exactly. A conflict here means an external
+            // process holds the port — surfaced as PortReservationConflictException so the
+            // caller can reassign. We never silently pick another port (that recycling is
+            // what allowed cross-agent misrouting).
+            var containerId = await CreateAndStartContainerAsync(name, agentId, network, hostPort, cancellationToken);
 
-            var create = await _docker.Containers.CreateContainerAsync(new CreateContainerParameters
-            {
-                Name = name,
-                Image = ImageName,
-                Env = BuildEnv(agentId),
-                ExposedPorts = new Dictionary<string, EmptyStruct> { [ContainerPort] = default },
-                HostConfig = new HostConfig
-                {
-                    NetworkMode = network,
-                    PortBindings = new Dictionary<string, IList<PortBinding>>
-                    {
-                        [ContainerPort] = new List<PortBinding> { new() { HostIP = "127.0.0.1", HostPort = port.ToString() } }
-                    },
-                    RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
-                },
-                // Explicitly attach to the shared network at creation. Relying on NetworkMode
-                // alone does not reliably connect the container to a user-defined network.
-                NetworkingConfig = new NetworkingConfig
-                {
-                    EndpointsConfig = new Dictionary<string, EndpointSettings> { [network] = new EndpointSettings() }
-                }
-            }, cancellationToken);
+            var started = await _docker.Containers.InspectContainerAsync(containerId, cancellationToken);
+            var publishedPort = ReadPublishedPort(started)
+                ?? throw new InvalidOperationException($"LightRAG container {name} started but no published host port was found.");
 
-            await _docker.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), cancellationToken);
-            _logger.LogInformation("LightRagContainerManager: created {Name} on :{Port} (network {Network}, workspace {Workspace}).",
-                name, port, network, Workspace(agentId));
-            return port;
+            _logger.LogInformation("LightRagContainerManager: created {Name} on {Host}:{Port} (network {Network}, workspace {Workspace}).",
+                name, _settings.ServerHost, publishedPort, network, Workspace(agentId));
+            return publishedPort;
         }
         finally
         {
@@ -324,34 +314,70 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         return null;
     }
 
-    private static int FindFreePort()
+    // Creates and starts the agent container bound to its reserved host port. If the port
+    // is already taken on the host (by an external process — never another agent, since
+    // ports are identity-bound), the half-created container is removed and a
+    // PortReservationConflictException is thrown so the caller can reassign and retry.
+    private async Task<string> CreateAndStartContainerAsync(string name, Guid agentId, string network, int hostPort, CancellationToken ct)
     {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
+        var create = await _docker.Containers.CreateContainerAsync(BuildCreateParameters(name, agentId, network, hostPort), ct);
         try
         {
-            return ((IPEndPoint)listener.LocalEndpoint).Port;
+            await _docker.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), ct);
+            return create.ID;
         }
-        finally
+        catch (DockerApiException ex) when (IsPortConflict(ex))
         {
-            listener.Stop();
+            _logger.LogWarning(ex, "LightRagContainerManager: reserved port {Port} unavailable for {Name}; caller should reassign.", hostPort, name);
+            try
+            {
+                await _docker.Containers.RemoveContainerAsync(create.ID, new ContainerRemoveParameters { Force = true }, ct);
+            }
+            catch (DockerApiException removeEx)
+            {
+                _logger.LogWarning(removeEx, "LightRagContainerManager: failed to remove half-created {Name} after port conflict.", name);
+            }
+            throw new PortReservationConflictException(agentId, hostPort, ex);
         }
     }
 
-    private static bool IsPortFree(int port)
-    {
-        try
+    private CreateContainerParameters BuildCreateParameters(string name, Guid agentId, string network, int hostPort) =>
+        new()
         {
-            var listener = new TcpListener(IPAddress.Loopback, port);
-            listener.Start();
-            listener.Stop();
-            return true;
-        }
-        catch (SocketException)
-        {
-            return false;
-        }
-    }
+            Name = name,
+            Image = ImageName,
+            Env = BuildEnv(agentId),
+            ExposedPorts = new Dictionary<string, EmptyStruct> { [ContainerPort] = default },
+            HostConfig = new HostConfig
+            {
+                NetworkMode = network,
+                PortBindings = new Dictionary<string, IList<PortBinding>>
+                {
+                    // Publish on the server's loopback (PortBindHostIp) so the Orchestrator
+                    // reaches it through the SSH SOCKS proxy, never on a public interface.
+                    [ContainerPort] = new List<PortBinding>
+                    {
+                        new()
+                        {
+                            HostIP = string.IsNullOrWhiteSpace(_settings.PortBindHostIp) ? "127.0.0.1" : _settings.PortBindHostIp,
+                            HostPort = hostPort.ToString()
+                        }
+                    }
+                },
+                RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
+            },
+            // Explicitly attach to the shared network at creation. Relying on NetworkMode
+            // alone does not reliably connect the container to a user-defined network.
+            NetworkingConfig = new NetworkingConfig
+            {
+                EndpointsConfig = new Dictionary<string, EndpointSettings> { [network] = new EndpointSettings() }
+            }
+        };
+
+    // Docker surfaces an already-taken host port as a 500 when starting the container.
+    private static bool IsPortConflict(DockerApiException ex) =>
+        ex.Message.Contains("port is already allocated", StringComparison.OrdinalIgnoreCase)
+        || ex.Message.Contains("address already in use", StringComparison.OrdinalIgnoreCase);
 
     // The env keys we control and that affect container behaviour. Internal Docker env vars
     // (PATH, HOME, etc.) are excluded — we only compare what we set in BuildEnv.
@@ -386,16 +412,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     private async Task ResetVectorSchemaAsync(Guid agentId, CancellationToken ct)
     {
         var workspace = Workspace(agentId);
-        var pgPort = await FindPostgresHostPortAsync(ct);
-        if (pgPort is null)
-        {
-            _logger.LogError(
-                "LightRagContainerManager: cannot find {Alias} container — skipping vector schema reset for agent {AgentId}.",
-                _settings.PostgresHostAlias, agentId);
-            return;
-        }
-
-        var connStr = $"Host=localhost;Port={pgPort};Username=postgres;" +
+        // The standalone server Postgres publishes 5432 on the server loopback (reached via
+        // an ssh -L forward), so the endpoint is configured (PostgresHost/PostgresPort),
+        // not discovered from the daemon.
+        var pgHost = string.IsNullOrWhiteSpace(_settings.PostgresHost) ? _settings.ServerHost : _settings.PostgresHost;
+        var pgEndpoint = $"{pgHost}:{_settings.PostgresPort}";
+        var connStr = $"Host={pgHost};Port={_settings.PostgresPort};Username=postgres;" +
                       $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase}";
         try
         {
@@ -424,8 +446,8 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 cmd.Parameters.AddWithValue("$1", workspace);
                 await cmd.ExecuteNonQueryAsync(ct);
                 _logger.LogInformation(
-                    "LightRagContainerManager: cleared {Prefix}* rows for workspace {W} (port={Port}).",
-                    prefix, workspace, pgPort);
+                    "LightRagContainerManager: cleared {Prefix}* rows for workspace {W} ({Endpoint}).",
+                    prefix, workspace, pgEndpoint);
             }
 
             _logger.LogWarning(
@@ -435,26 +457,15 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "LightRagContainerManager: failed to reset vector schema for agent {AgentId} (port={Port}). " +
+                "LightRagContainerManager: failed to reset vector schema for agent {AgentId} ({Endpoint}). " +
                 "Container will still be recreated but first upload may fail until schema is manually reset.",
-                agentId, pgPort);
+                agentId, pgEndpoint);
         }
-    }
-
-    private async Task<int?> FindPostgresHostPortAsync(CancellationToken ct)
-    {
-        var containers = await _docker.Containers.ListContainersAsync(
-            new ContainersListParameters { All = false }, ct);
-        var pg = containers.FirstOrDefault(c =>
-            c.Names.Any(n => n.TrimStart('/').Contains(_settings.PostgresHostAlias)));
-        if (pg is null) return null;
-        var inspect = await _docker.Containers.InspectContainerAsync(pg.ID, ct);
-        return ReadPublishedPort(inspect, "5432/tcp");
     }
 
     public void Dispose()
     {
+        // _docker is owned by the DI container (registered as a singleton) and disposed there.
         _gate.Dispose();
-        _docker.Dispose();
     }
 }

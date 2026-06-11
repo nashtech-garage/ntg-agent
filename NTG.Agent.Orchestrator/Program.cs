@@ -121,16 +121,46 @@ builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResi
 // Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
 // LightRagClientFactory (each agent has its own container endpoint), so we only
 // configure the timeout here. The resilience override above is keyed on this name.
+// When LightRag:SocksProxy is set, route through that SOCKS5 proxy so the dynamic
+// per-agent container ports are reachable over the SSH tunnel (`ssh -D`); empty =>
+// direct connection (local dev).
 builder.Services.AddHttpClient(nameof(LightRagClient), c =>
 {
     c.Timeout = TimeSpan.FromMinutes(5);
+})
+.ConfigurePrimaryHttpMessageHandler(sp =>
+{
+    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
+    var handler = new System.Net.Http.SocketsHttpHandler();
+    if (!string.IsNullOrWhiteSpace(cfg.SocksProxy))
+    {
+        handler.Proxy = new System.Net.WebProxy(cfg.SocksProxy);
+        handler.UseProxy = true;
+    }
+    return handler;
 });
 
 // One LightRAG container per agent: the manager owns the Docker lifecycle, the
 // factory resolves a per-agent client, and the reconciler ensures containers exist
 // for every agent on startup.
+// IDockerClient is built from LightRagSettings.DockerHost (empty => local socket;
+// tcp://<server>:2375 => remote daemon) and injected so the manager is testable.
+builder.Services.AddSingleton<Docker.DotNet.IDockerClient>(sp =>
+{
+    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
+    var dockerConfig = string.IsNullOrWhiteSpace(cfg.DockerHost)
+        ? new Docker.DotNet.DockerClientConfiguration()
+        : new Docker.DotNet.DockerClientConfiguration(new Uri(cfg.DockerHost));
+    return dockerConfig.CreateClient();
+});
 builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
 builder.Services.AddSingleton<LightRagContainerAccessTracker>();
+// Identity-bound host-port reservations (one permanent port per agent) — prevents
+// cross-agent misrouting when a freed port would otherwise be recycled. The provisioner
+// centralises the reserve->ensure->reassign flow used by the factory, reconciler, and
+// agent creation.
+builder.Services.AddScoped<PortReservationService>();
+builder.Services.AddScoped<ILightRagProvisioner, LightRagProvisioner>();
 builder.Services.AddScoped<LightRagClientFactory>();
 builder.Services.AddHostedService<LightRagReconcilerHostedService>();
 builder.Services.AddHostedService<LightRagContainerIdleShutdownService>();

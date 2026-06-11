@@ -30,7 +30,49 @@ public class LightRagSettings
     public string ImageRef { get; set; } = "ghcr.io/hkuds/lightrag";
     public string ImageTag { get; set; } = "v1.4.16";
 
-    // Network alias of the shared Postgres container on Aspire's Docker network.
+    // ---- Remote Docker host (SSH tunnel) ------------------------------------
+    // The LightRAG stack (Postgres + the per-agent containers) lives on a separate
+    // Ubuntu server reached over an SSH tunnel. The Orchestrator forwards the Docker
+    // socket and Postgres with `ssh -L`, and reaches the dynamic per-agent container
+    // ports through an `ssh -D` SOCKS proxy. Empty / loopback defaults preserve the
+    // original all-local behaviour.
+
+    // Docker daemon endpoint the manager drives. Empty => local socket
+    // (npipe/unix) via DockerClientConfiguration's default. SSH-tunnel example:
+    // "tcp://localhost:2375" (a forwarded `ssh -L 2375:/var/run/docker.sock`).
+    public string DockerHost { get; set; } = string.Empty;
+
+    // Host the Orchestrator dials to reach a container's published HTTP port (and,
+    // by fallback, Postgres). Over the SSH tunnel this stays "localhost": the SOCKS
+    // proxy resolves it on the server side, so it means the server's loopback.
+    public string ServerHost { get; set; } = "localhost";
+
+    // IP the container's port is published on (HostConfig.PortBindings HostIP).
+    // Bound to the server's loopback (127.0.0.1); the Orchestrator reaches it through
+    // the SSH SOCKS proxy, so it is never exposed on a public interface.
+    public string PortBindHostIp { get; set; } = "127.0.0.1";
+
+    // SOCKS5 proxy the LightRAG HTTP client routes through to reach the dynamic
+    // per-agent container ports over the SSH tunnel (`ssh -D`). Empty => no proxy
+    // (direct connection for local dev). SSH-tunnel example: "socks5://localhost:1080".
+    public string SocksProxy { get; set; } = string.Empty;
+
+    // Direct Postgres connection used ONLY by ResetVectorSchemaAsync (reached over a
+    // forwarded `ssh -L 5432:127.0.0.1:5432`). Empty PostgresHost => fall back to ServerHost.
+    public string PostgresHost { get; set; } = string.Empty;
+    public int PostgresPort { get; set; } = 5432;
+
+    // ---- Reserved host-port pool (identity-bound ports) ---------------------
+    // Each agent permanently owns one host port from this inclusive range; a port
+    // is never recycled to a different agent, so a reachable reserved port is
+    // provably that agent's own container. This prevents cross-agent misrouting
+    // when idle-shutdown frees a port and a recreate would otherwise reuse it.
+    public int PortRangeStart { get; set; } = 20000;
+    public int PortRangeEnd { get; set; } = 20999;
+
+    // Network alias of the shared Postgres container on the Docker network.
+    // Used internally by the spawned containers (POSTGRES_HOST) — unchanged by
+    // the move, since they resolve it over the server-side Docker network.
     public string PostgresHostAlias { get; set; } = "lightrag-postgres";
     public string PostgresPassword { get; set; } = string.Empty;
     public string PostgresDatabase { get; set; } = "uploaded-documents";

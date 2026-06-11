@@ -16,6 +16,18 @@ var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
 var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 
+// LightRAG + its Postgres now live on a dedicated Ubuntu server reached over an SSH
+// tunnel. The dev sets these for the remote setup; both default to empty so a plain
+// local run uses the local Docker socket and a direct connection. The other LightRag
+// host settings (ServerHost=localhost, PortBindHostIp=127.0.0.1, PostgresHost->ServerHost,
+// PostgresPort=5432) already default correctly for the SSH tunnel, so they are not set here.
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", "");      // e.g. tcp://localhost:2375 (ssh -L)
+var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", "");      // e.g. socks5://localhost:1080 (ssh -D)
+// Local port the Orchestrator dials for Postgres (the reset path) — matches the
+// `ssh -L <thisPort>:127.0.0.1:5432` forward. Default 5432; raise it (e.g. 55432)
+// if the Mac already runs a local Postgres on 5432.
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", "5432");
+
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest") 
 				 .WithEndpoint("tcp", endpoint =>
@@ -30,18 +42,11 @@ if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 
 var db = sql.AddDatabase("NTGAgent");
 
-var lightragPostgres = builder.AddPostgres("lightrag-postgres", password: pgPassword)
-								.WithDockerfile("../scripts/lightrag-postgres")
-								.WithDataVolume("ntg-agent-local-dev-lightrag-postgres-data")
-								.WithBindMount("../scripts/lightrag-pg-init", "/docker-entrypoint-initdb.d");
-
-// Custom image at scripts/lightrag-postgres layers Apache AGE on top of
-// pgvector/pgvector:0.8.2-pg17-trixie so the same instance can serve vector
-// and graph RAG.
-// Data volume: "ntg-agent-local-dev-lightrag-postgres-data"
-
-if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
-	lightragPostgres.WithContainerRuntimeArgs("--platform", "linux/amd64");
+// NOTE: The pgvector + Apache AGE Postgres no longer runs here. It now runs
+// standalone on the Ubuntu server via deploy/lightrag-postgres/docker-compose.yml
+// (same scripts/lightrag-postgres image + scripts/lightrag-pg-init SQL). The
+// Orchestrator reaches it over the SSH tunnel; pgPassword below is still passed to
+// it as LightRag__PostgresPassword.
 
 // NOTE: There is no longer a singleton "lightrag" container here. Each agent now
 // gets its own dedicated lightrag-agent-{agentId} app container, spun up on demand
@@ -144,9 +149,9 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithReference(mcpServer)
 	.WithReference(knowledge)
 	.WaitForCompletion(migrateOrchestrator)
-	// The Orchestrator spawns per-agent LightRAG containers against the shared
-	// Postgres, so it must wait for Postgres to be ready before its reconciler runs.
-	.WaitFor(lightragPostgres)
+	// The Orchestrator spawns per-agent LightRAG containers on the remote Ubuntu
+	// Docker daemon (over the SSH tunnel) against the standalone Postgres there. That
+	// server is provisioned independently, so there is no local resource to wait on.
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
 	.WithEnvironment("KernelMemory__ApiKey", kernelMemoryApiKey)
 	.WithEnvironment("GitHub__Models__GitHubToken", githubToken)
@@ -159,6 +164,12 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__PostgresHostAlias", "lightrag-postgres")
 	.WithEnvironment("LightRag__PostgresPassword", pgPassword)
 	.WithEnvironment("LightRag__PostgresDatabase", "uploaded-documents")
+	// Remote Ubuntu server (over the SSH tunnel): drive its Docker daemon via the
+	// forwarded socket and reach the per-agent container ports through the SOCKS proxy.
+	// Both default to empty for a plain local run.
+	.WithEnvironment("LightRag__DockerHost", lightragDockerHost)
+	.WithEnvironment("LightRag__SocksProxy", lightragSocksProxy)
+	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
 	.WithEnvironment("LightRag__LlmModel", "gpt-5.4")
 	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
 	.WithEnvironment("LightRag__LlmApiKey", azureOpenAiApiKey)

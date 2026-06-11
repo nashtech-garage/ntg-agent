@@ -20,7 +20,7 @@ public sealed class LightRagClientFactory
 {
     private readonly AgentDbContext _db;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILightRagContainerManager _containerManager;
+    private readonly ILightRagProvisioner _provisioner;
     private readonly LightRagContainerAccessTracker _accessTracker;
     private readonly LightRagSettings _settings;
     private readonly ILoggerFactory _loggerFactory;
@@ -29,14 +29,14 @@ public sealed class LightRagClientFactory
     public LightRagClientFactory(
         AgentDbContext db,
         IHttpClientFactory httpClientFactory,
-        ILightRagContainerManager containerManager,
+        ILightRagProvisioner provisioner,
         LightRagContainerAccessTracker accessTracker,
         IOptions<LightRagSettings> settings,
         ILoggerFactory loggerFactory)
     {
         _db = db;
         _httpClientFactory = httpClientFactory;
-        _containerManager = containerManager;
+        _provisioner = provisioner;
         _accessTracker = accessTracker;
         _settings = settings.Value;
         _loggerFactory = loggerFactory;
@@ -55,25 +55,20 @@ public sealed class LightRagClientFactory
             .Select(a => a.LightRagPort)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // If the port is missing or the container is not reachable, ensure it is running.
-        // This handles the case where idle shutdown stopped the container.
+        // Fast path: the port is identity-bound (reserved exclusively to this agent), so if
+        // something answers on it, it is provably this agent's own container — never another
+        // agent's. On a miss (no reservation yet, or stopped by idle shutdown) ensure the
+        // container is running on the agent's reserved port.
         if (port is not > 0 || !await IsContainerReachableAsync(port.Value))
         {
-            port = await _containerManager.EnsureContainerAsync(agentId, port, cancellationToken);
-
-            // Persist the (possibly new) port so subsequent requests skip the health check.
-            var agent = await _db.Agents.FindAsync(new object[] { agentId }, cancellationToken);
-            if (agent is not null && agent.LightRagPort != port)
-            {
-                agent.LightRagPort = port;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
+            port = await _provisioner.ProvisionAsync(agentId, cancellationToken);
         }
 
         // Named client inherits the standard resilience handler with the LightRAGClient
-        // overrides (2-min attempt timeout, no retries) configured in Program.cs.
+        // overrides (2-min attempt timeout, no retries) and the SOCKS proxy configured in
+        // Program.cs (so the container is reached through the SSH tunnel when set).
         var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-        http.BaseAddress = new Uri($"http://localhost:{port}");
+        http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
         if (!string.IsNullOrEmpty(_settings.ApiKey))
             http.DefaultRequestHeaders.Add("X-API-Key", _settings.ApiKey);
 
@@ -83,19 +78,24 @@ public sealed class LightRagClientFactory
         return client;
     }
 
+    private string ResolveHost() => string.IsNullOrWhiteSpace(_settings.ServerHost) ? "localhost" : _settings.ServerHost;
+
     /// <summary>
-    /// Quick TCP check to see if a container is accepting connections on the given port.
-    /// Used to detect containers that were stopped by idle shutdown.
+    /// Quick check that a container is up on the given port. Uses an HTTP request through the
+    /// named client (so it traverses the SOCKS proxy / SSH tunnel when configured, which a raw
+    /// TCP connect cannot). Any HTTP response — even 401/404 — means the container answered;
+    /// only a connection-level failure or timeout counts as unreachable (e.g. stopped by idle
+    /// shutdown).
     /// </summary>
-    private static async Task<bool> IsContainerReachableAsync(int port)
+    private async Task<bool> IsContainerReachableAsync(int port)
     {
         try
         {
-            using var tcpClient = new System.Net.Sockets.TcpClient();
-            var connectTask = tcpClient.ConnectAsync(System.Net.IPAddress.Loopback, port);
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(2));
-            var completed = await Task.WhenAny(connectTask, timeoutTask);
-            return completed == connectTask && tcpClient.Connected;
+            var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
+            http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            using var _ = await http.GetAsync("health", HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            return true;
         }
         catch
         {

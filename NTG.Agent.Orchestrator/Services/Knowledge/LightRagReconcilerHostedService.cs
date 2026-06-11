@@ -34,18 +34,16 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
 
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+            var provisioner = scope.ServiceProvider.GetRequiredService<ILightRagProvisioner>();
             var agents = await db.Agents.ToListAsync(stoppingToken);
 
             foreach (var agent in agents)
             {
                 try
                 {
-                    var port = await _containerManager.EnsureContainerAsync(agent.Id, agent.LightRagPort, stoppingToken);
-                    if (agent.LightRagPort != port)
-                    {
-                        agent.LightRagPort = port;
-                        _logger.LogInformation("LightRAG reconciler: agent {AgentId} port set to {Port}.", agent.Id, port);
-                    }
+                    // Reserve the agent's identity-bound port and ensure its container runs
+                    // on it (reassign + retry once on external port conflict).
+                    await provisioner.ProvisionAsync(agent.Id, stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -53,7 +51,6 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
                 }
             }
 
-            await db.SaveChangesAsync(stoppingToken);
             _logger.LogInformation("LightRAG reconciler: reconciled {Count} agent container(s).", agents.Count);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
