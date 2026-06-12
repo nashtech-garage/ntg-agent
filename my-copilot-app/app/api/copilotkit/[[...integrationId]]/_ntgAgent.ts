@@ -70,13 +70,33 @@ export class NtgAgent extends AbstractAgent {
 
           const messages: any[] = (input as any).messages ?? [];
           const lastUser = [...messages].reverse().find((m: any) => m.role === "user");
-          const prompt =
+          const userPrompt =
             typeof lastUser?.content === "string"
               ? lastUser.content
               : (lastUser?.content as any[])
                   ?.filter((p: any) => p.type === "text")
                   .map((p: any) => p.text)
                   .join("") ?? "";
+
+          // Frontend-tool result follow-up: after the browser executes a tool, CopilotKit
+          // re-runs the agent with a trailing role:"tool" message. Send the result as a
+          // synthetic prompt so the LLM can acknowledge the action.
+          const lastNonSystem = [...messages].reverse().find((m: any) => m.role !== "system");
+          let prompt = userPrompt;
+          if (lastNonSystem?.role === "tool") {
+            const toolCallId = lastNonSystem.toolCallId;
+            let toolName = "unknown_tool";
+            for (const m of messages) {
+              const match = m.role === "assistant" && Array.isArray(m.toolCalls)
+                ? m.toolCalls.find((t: any) => t.id === toolCallId)
+                : undefined;
+              if (match) toolName = match.function?.name ?? toolName;
+            }
+            const resultText = typeof lastNonSystem.content === "string"
+              ? lastNonSystem.content
+              : JSON.stringify(lastNonSystem.content ?? "");
+            prompt = `[The browser tool "${toolName}" was executed and returned: ${resultText}] Briefly confirm to the user what was done. Do not call the tool again.`;
+          }
 
           const canSend = await checkRateLimitStatus(sessionId, cookieHeader);
           if (!canSend && !isAborted) {
@@ -103,6 +123,20 @@ export class NtgAgent extends AbstractAgent {
           formData.append("SessionId", sessionId);
           formData.append("AgentId", agentId);
 
+          // AG-UI frontend tools: CopilotKit has already converted parameters to JSON Schema.
+          // The backend declares these to the LLM but never executes them.
+          const tools: any[] = (input as any).tools ?? [];
+          if (tools.length > 0) {
+            formData.append(
+              "FrontendToolsJson",
+              JSON.stringify(tools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              })))
+            );
+          }
+
           console.log(`[NtgAgent] → POST ${orchestratorUrl}/api/agents/chat`, {
             agentId, sessionId, conversationId, promptLen: prompt.length,
           });
@@ -126,8 +160,45 @@ export class NtgAgent extends AbstractAgent {
           subscriber.next({ type: EventType.RUN_STARTED, timestamp: Date.now(), threadId, runId } as any);
           subscriber.next({ type: EventType.STEP_STARTED, timestamp: Date.now(), stepName: "chat" } as any);
 
-          const messageId = crypto.randomUUID();
-          subscriber.next({ type: EventType.TEXT_MESSAGE_START, timestamp: Date.now(), messageId, role: "assistant" } as any);
+          // Text messages are opened lazily so a pure tool-call turn doesn't
+          // produce an empty assistant message.
+          let messageId = crypto.randomUUID();
+          let textOpen = false;
+          const openText = () => {
+            if (!textOpen) {
+              subscriber.next({ type: EventType.TEXT_MESSAGE_START, timestamp: Date.now(), messageId, role: "assistant" } as any);
+              textOpen = true;
+            }
+          };
+          const closeText = () => {
+            if (textOpen) {
+              subscriber.next({ type: EventType.TEXT_MESSAGE_END, timestamp: Date.now(), messageId } as any);
+              textOpen = false;
+              messageId = crypto.randomUUID();
+            }
+          };
+
+          // contentType: 0 = text, 1 = thinking (not rendered), 2 = frontend tool call
+          const emitChunk = (chunk: any) => {
+            if (chunk.contentType === 2 && chunk.content) {
+              closeText();
+              let toolCall: any;
+              try {
+                toolCall = JSON.parse(chunk.content);
+              } catch {
+                console.error("[NtgAgent] Unparseable tool call chunk:", chunk.content);
+                return;
+              }
+              const toolCallId = toolCall.callId || crypto.randomUUID();
+              const now = Date.now();
+              subscriber.next({ type: EventType.TOOL_CALL_START, timestamp: now, toolCallId, toolCallName: toolCall.name } as any);
+              subscriber.next({ type: EventType.TOOL_CALL_ARGS, timestamp: now, toolCallId, delta: JSON.stringify(toolCall.arguments ?? {}) } as any);
+              subscriber.next({ type: EventType.TOOL_CALL_END, timestamp: now, toolCallId } as any);
+            } else if (chunk.contentType !== 1 && chunk.content) {
+              openText();
+              subscriber.next({ type: EventType.TEXT_MESSAGE_CONTENT, timestamp: Date.now(), messageId, delta: chunk.content } as any);
+            }
+          };
 
           activeReader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -142,9 +213,7 @@ export class NtgAgent extends AbstractAgent {
             buffer = remaining;
 
             for (const chunk of objects) {
-              if (chunk.contentType !== 1 && chunk.content) {
-                subscriber.next({ type: EventType.TEXT_MESSAGE_CONTENT, timestamp: Date.now(), messageId, delta: chunk.content } as any);
-              }
+              emitChunk(chunk);
             }
           }
 
@@ -153,13 +222,11 @@ export class NtgAgent extends AbstractAgent {
           if (buffer.trim()) {
             const { objects } = extractObjects(buffer);
             for (const chunk of objects) {
-              if (chunk.content) {
-                subscriber.next({ type: EventType.TEXT_MESSAGE_CONTENT, timestamp: Date.now(), messageId, delta: chunk.content } as any);
-              }
+              emitChunk(chunk);
             }
           }
 
-          subscriber.next({ type: EventType.TEXT_MESSAGE_END, timestamp: Date.now(), messageId } as any);
+          closeText();
           subscriber.next({ type: EventType.STEP_FINISHED, timestamp: Date.now(), stepName: "chat" } as any);
           subscriber.next({ type: EventType.RUN_FINISHED, timestamp: Date.now(), threadId, runId } as any);
           subscriber.complete();

@@ -4,7 +4,9 @@
 public enum PromptContentType
 {
     Text = 0,
-    Thinking = 1
+    Thinking = 1,
+    /// <summary>A frontend (browser-executed) tool call. Content is JSON: {"callId","name","arguments"}.</summary>
+    ToolCall = 2
 }
 
 /// <summary>

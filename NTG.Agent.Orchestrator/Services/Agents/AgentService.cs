@@ -16,6 +16,7 @@ using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using System.Text;
+using System.Text.Json;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -116,6 +117,10 @@ public class AgentService
                 // Record the start timestamp on the first thinking chunk
                 thinkingStartedAt ??= DateTime.UtcNow;
                 thinkingMessageSb.Append(item.Content);
+            }
+            else if (item.ContentType == PromptContentType.ToolCall)
+            {
+                // Frontend tool calls are protocol payloads, not part of the persisted text reply
             }
             else
             {
@@ -309,6 +314,19 @@ public class AgentService
                 Tools = [memorySearch]
             };
 
+            // AG-UI frontend tools: declared to the LLM but executed in the browser.
+            // Declaration-only tools are not invocable, so the model's call surfaces below
+            // as FunctionCallContent instead of being executed server-side.
+            var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
+            {
+                foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
+                {
+                    chatOptions.Tools.Add(tool);
+                    frontendToolNames.Add(tool.Name);
+                }
+            }
+
             await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
                 foreach (var item in update.Contents)
@@ -320,6 +338,16 @@ public class AgentService
                     else if (item is TextContent textContent)
                     {
                         yield return new PromptResponse(textContent.Text);
+                    }
+                    else if (item is FunctionCallContent functionCall && frontendToolNames.Contains(functionCall.Name))
+                    {
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            callId = functionCall.CallId,
+                            name = functionCall.Name,
+                            arguments = functionCall.Arguments
+                        });
+                        yield return new PromptResponse(payload, PromptContentType.ToolCall);
                     }
                 }
                 ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
@@ -476,6 +504,11 @@ public class AgentService
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
         if (agentConfig == null) return;
+
+        // The ResponseTime column is a SQL `time` (00:00:00–23:59:59). Durations computed from
+        // DateTime.UtcNow can go negative when the clock is stepped backwards mid-request
+        // (common with WSL2 time sync) — clamp so telemetry never crashes the chat stream.
+        if (responseTime < TimeSpan.Zero) responseTime = TimeSpan.Zero;
 
         var sessionIdGuid = !userId.HasValue && Guid.TryParse(sessionId, out var sid) ? sid : (Guid?)null;
 

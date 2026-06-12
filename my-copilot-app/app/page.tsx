@@ -8,12 +8,14 @@ import "@copilotkit/react-core/v2/styles.css"; // Ensure styles are imported
 // import "@copilotkit/react-ui/styles.css"; // UI styles are still needed for the chat components
 
 import AgentSelector, { Agent } from "../src/components/AgentSelector";
+import FrontendTools from "../src/tools";
 // import ChatArea, { Message } from "../src/components/ChatArea";
 
 export default function Page() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [backgroundColor, setBackgroundColor] = useState<string | null>(null);
 
   // 1. Keep your exact automatic lookup feature untouched!
   useEffect(() => {
@@ -57,7 +59,11 @@ export default function Page() {
       runtimeUrl={`/api/copilotkit/${selectedAgent.id}`}
       agent="dotnet_orchestrator_agent"
     >
-      <div className="flex flex-col h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+      <FrontendTools onChangeBackground={setBackgroundColor} />
+      <div
+        className="flex flex-col h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+        style={backgroundColor ? { background: backgroundColor } : undefined}
+      >
         {/* Top Navbar */}
         <header className="w-full bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm z-50">
           <div className="flex items-center justify-between px-4 py-3">

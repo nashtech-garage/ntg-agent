@@ -9,4 +9,11 @@ public class UploadItemForm : UploadItem
     public IFormFile? Content { get; set; }
 }
 
-public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId);
+public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId)
+{
+    /// <summary>
+    /// Optional JSON array of AG-UI frontend tool definitions ({name, description, parameters})
+    /// supplied by the CopilotKit client. These are declared to the LLM but executed in the browser.
+    /// </summary>
+    public string? FrontendToolsJson { get; set; }
+}
