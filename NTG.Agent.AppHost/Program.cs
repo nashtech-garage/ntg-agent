@@ -16,17 +16,10 @@ var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
 var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 
-// LightRAG + its Postgres now live on a dedicated Ubuntu server reached over an SSH
-// tunnel. The dev sets these for the remote setup; both default to empty so a plain
-// local run uses the local Docker socket and a direct connection. The other LightRag
-// host settings (ServerHost=localhost, PortBindHostIp=127.0.0.1, PostgresHost->ServerHost,
-// PostgresPort=5432) already default correctly for the SSH tunnel, so they are not set here.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", "");      // e.g. tcp://localhost:2375 (ssh -L)
-var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", "");      // e.g. socks5://localhost:1080 (ssh -D)
-// Local port the Orchestrator dials for Postgres (the reset path) — matches the
-// `ssh -L <thisPort>:127.0.0.1:5432` forward. Default 5432; raise it (e.g. 55432)
-// if the Mac already runs a local Postgres on 5432.
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", "5432");
+// LightRAG + its Postgres now live on a dedicated Ubuntu server reached over an SSH tunnel.
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
+var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest") 
@@ -41,20 +34,6 @@ if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 	sql.WithContainerRuntimeArgs("--platform", "linux/amd64");
 
 var db = sql.AddDatabase("NTGAgent");
-
-// NOTE: The pgvector + Apache AGE Postgres no longer runs here. It now runs
-// standalone on the Ubuntu server via deploy/lightrag-postgres/docker-compose.yml
-// (same scripts/lightrag-postgres image + scripts/lightrag-pg-init SQL). The
-// Orchestrator reaches it over the SSH tunnel; pgPassword below is still passed to
-// it as LightRag__PostgresPassword.
-
-// NOTE: There is no longer a singleton "lightrag" container here. Each agent now
-// gets its own dedicated lightrag-agent-{agentId} app container, spun up on demand
-// by the Orchestrator (LightRagContainerManager / LightRagReconcilerHostedService)
-// via the host Docker daemon. They all point at the single shared lightrag-postgres
-// above and are isolated by LightRAG's WORKSPACE env var. The Azure OpenAI bindings,
-// chunk knobs, Postgres password and API key that used to live here are passed to the
-// Orchestrator below as LightRag__* env vars and re-applied per spawned container.
 
 var elasticsearch = builder.AddElasticsearch("elasticsearch")
 						   .WithImageTag("8.15.0")

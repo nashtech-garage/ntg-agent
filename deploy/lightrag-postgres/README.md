@@ -10,7 +10,7 @@ Three channels ride one SSH connection:
 | Channel | SSH mechanism | Why |
 |---|---|---|
 | Docker daemon | `-L 2375:/var/run/docker.sock` | Drive the remote daemon; the socket is never put on TCP |
-| Postgres (reset path) | `-L 5432:127.0.0.1:5432` | `ResetVectorSchemaAsync` connects directly |
+| Postgres (reset path) | `-L 55432:127.0.0.1:5432` | `ResetVectorSchemaAsync` connects directly |
 | Per-agent container ports | `-D 1080` (SOCKS5) | Reach any reserved `lightrag-agent` port (20000–20999) with no per-port setup |
 
 Server: `ntgagent@20.24.151.145` (has sudo; Docker already installed).
@@ -47,12 +47,12 @@ ssh -i ~/.ssh/ntg-vm \
     -o ExitOnForwardFailure=yes \
     -D 1080 \
     -L 2375:/var/run/docker.sock \
-    -L 5432:127.0.0.1:5432 \
+    -L 55432:127.0.0.1:5432 \
     ntgagent@20.24.151.145
 ```
 
 `-o ExitOnForwardFailure=yes` makes a local-port collision fail loudly instead of
-silently pointing the Orchestrator at the wrong service. If `2375`/`5432`/`1080` are
+silently pointing the Orchestrator at the wrong service. If `2375`/`55432`/`1080` are
 taken on your Mac, pick other local ports and match them in the Orchestrator config
 (step 5).
 
@@ -60,6 +60,13 @@ Verify over the tunnel:
 
 ```bash
 docker -H tcp://localhost:2375 info                               # daemon reachable
+
+# before query the databases, install psql:
+brew install libpq
+# link the psql:
+brew link --force libpq
+
+# try querying:
 psql -h localhost -U postgres -d uploaded-documents -c '\dx'      # lists vector + age
 ```
 
@@ -72,7 +79,7 @@ with auto-restart, started before the Orchestrator:
 brew install autossh
 autossh -M 0 -f -N \
     -i ~/.ssh/ntg-vm -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
-    -D 1080 -L 2375:/var/run/docker.sock -L 5432:127.0.0.1:5432 \
+    -D 1080 -L 2375:/var/run/docker.sock -L 55432:127.0.0.1:5432 \
     ntgagent@20.24.151.145
 ```
 
@@ -85,8 +92,24 @@ Set the AppHost parameters (user-secrets / launch profile):
 - `Parameters:lightrag-pg-password` = the same value as `POSTGRES_PASSWORD` above
 
 The other LightRAG host settings default correctly for the tunnel (`ServerHost=localhost`,
-`PortBindHostIp=127.0.0.1`, `PostgresHost`→`ServerHost`, `PostgresPort=5432`), so they
+`PortBindHostIp=127.0.0.1`, `PostgresHost`→`ServerHost`, `PostgresPort=55432`), so they
 need no override. (Leave the two params empty for a plain all-local dev run.)
+
+## 6. Remove stale agents before starting the NTG system because these agents' lightrag ports may be out-of-range: 20000–20999 (on the main machine)
+
+```bash
+# find the SQL Server container name first:
+docker ps --filter "name=sqlserver" --format "{{.Names}}"
+
+# drop it (remember to paste the container name into <sqlserver-container>):
+docker exec <sqlserver-container> /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P 'Admin123_Strong!' -C \
+    -Q "IF DB_ID('NTGAgent') IS NOT NULL BEGIN ALTER DATABASE [NTGAgent] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [NTGAgent]; PRINT 'NTGAgent 
+  dropped'; END ELSE PRINT 'NTGAgent did not exist';"
+
+```
+
+## 7. Start the NTG-Agent as usual (on the main machine)
 
 On first run the Orchestrator pulls `ghcr.io/hkuds/lightrag` on the remote daemon and
 spawns `lightrag-agent-*` containers there, each on its reserved port (20000–20999),
