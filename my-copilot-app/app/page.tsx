@@ -5,11 +5,9 @@ import { useState, useRef, useEffect } from "react";
 import { CopilotKit } from "@copilotkit/react-core";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 import "@copilotkit/react-core/v2/styles.css"; // Ensure styles are imported
-// import "@copilotkit/react-ui/styles.css"; // UI styles are still needed for the chat components
 
 import AgentSelector, { Agent } from "../src/components/AgentSelector";
 import FrontendTools from "../src/tools";
-// import ChatArea, { Message } from "../src/components/ChatArea";
 
 export default function Page() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
