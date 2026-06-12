@@ -17,18 +17,38 @@ export default function Page() {
 
   // 1. Keep your exact automatic lookup feature untouched!
   useEffect(() => {
-    fetch("/api/agents")
-      .then((r) => r.json())
-      .then((data: Agent[]) => {
-        setAgents(data);
-        const def = data.find((a) => a.isDefault) ?? data[0];
-        if (def) {
-          setSelectedAgent(def);
+    let cancelled = false;
+
+
+    async function loadAgents() {
+      const maxAttempts = 5;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const r = await fetch("/api/agents");
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const data: Agent[] = await r.json();
+          if (cancelled) return;
+          setAgents(data);
+          const def = data.find((a) => a.isDefault) ?? data[0];
+          if (def) {
+            setSelectedAgent(def);
+          }
+          return;
+        } catch (err) {
+          if (cancelled) return;
+          if (attempt === maxAttempts) {
+            console.error("Failed to load agents automatically:", err);
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
         }
-      })
-      .catch((err) => {
-        console.error("Failed to load agents automatically:", err);
-      });
+      }
+    }
+
+    loadAgents();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function handleSwitchAgent(agent: Agent) {
