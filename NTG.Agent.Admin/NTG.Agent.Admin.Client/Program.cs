@@ -29,6 +29,16 @@ builder.Services.AddHttpClient<TagClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<AgentAccessClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
+builder.Services.AddHttpClient<RoleClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 builder.Services.AddHttpClient<TokenUsageClient>(client =>
 {
     client.BaseAddress = baseUri;

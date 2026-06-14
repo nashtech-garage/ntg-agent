@@ -134,11 +134,19 @@
                                         type="button" role="tab">
                                     <i class="bi bi-book me-2"></i>
                                     Knowledge Base
-                                    <span class="badge bg-secondary ms-2">@documentCount</span>
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
+                                 <span class="badge bg-secondary ms-2">@documentCount</span>
+                             </button>
+                         </li>
+                         <li class="nav-item" role="presentation">
+                             <button class="nav-link @(activeTab == accessTab ? "active" : "") d-flex align-items-center"
+                                     @onclick="() => SetActiveTab(accessTab)"
+                                     type="button" role="tab">
+                                 <i class="bi bi-shield-lock me-2"></i>
+                                 Access
+                             </button>
+                         </li>
+                     </ul>
+                 </div>
 
                     <!-- Mobile Tab Navigation -->
                     <div class="card-header bg-white border-bottom d-block d-md-none">
@@ -157,13 +165,18 @@
                                         <span>Tools</span>
                                         <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
                                     }
-                                    else if (activeTab == documentsTab)
-                                    {
-                                        <i class="bi bi-book me-2"></i>
-                                        <span>Knowledge Base</span>
-                                        <span class="badge bg-secondary ms-2">@documentCount</span>
-                                    }
-                                </span>
+                                else if (activeTab == documentsTab)
+                                {
+                                    <i class="bi bi-book me-2"></i>
+                                    <span>Knowledge Base</span>
+                                    <span class="badge bg-secondary ms-2">@documentCount</span>
+                                }
+                                else if (activeTab == accessTab)
+                                {
+                                    <i class="bi bi-shield-lock me-2"></i>
+                                    <span>Access</span>
+                                }
+                            </span>
                             </button>
                             <ul class="dropdown-menu w-100">
                                 <li>
@@ -187,6 +200,13 @@
                                         <i class="bi bi-book me-2"></i>
                                         Knowledge Base
                                         <span class="badge bg-secondary ms-2">@documentCount</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == accessTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(accessTab)" type="button">
+                                        <i class="bi bi-shield-lock me-2"></i>
+                                        Access
                                     </button>
                                 </li>
                             </ul>
@@ -238,6 +258,12 @@
                             {
                                 <div class="tab-pane fade show active p-2 p-md-4">
                                     <ToolManagementTab AgentDetail="agentDetail" />
+                                </div>
+                            }
+                            else if (activeTab == accessTab)
+                            {
+                                <div class="tab-pane fade show active p-2 p-md-4">
+                                    <AgentAccessTab AgentId="Id" />
                                 </div>
                             }
                         </div>
@@ -310,6 +336,7 @@
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
     private const string toolsTab = "tools";
+    private const string accessTab = "access";
     private string activeTab = settingsTab;
     private int documentCount = 0;
     private Guid? selectedFolderId;

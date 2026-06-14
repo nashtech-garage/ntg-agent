@@ -5,6 +5,7 @@ using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
+using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
@@ -22,6 +23,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
     public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
+
+    public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
 
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
@@ -170,6 +173,20 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
             e.HasIndex(x => new { x.TagId, x.RoleId }).IsUnique();
             e.Property(x => x.RoleId).IsRequired();
+        });
+
+        modelBuilder.Entity<AgentRole>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Agent)
+                .WithMany()
+                .HasForeignKey(x => x.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => new { x.AgentId, x.RoleId }).IsUnique();
+            e.Property(x => x.RoleId)
+                .HasConversion(guidToString)
+                .HasColumnType("nvarchar(450)")
+                .IsRequired();
         });
 
         modelBuilder.Entity<Tag>().HasData(

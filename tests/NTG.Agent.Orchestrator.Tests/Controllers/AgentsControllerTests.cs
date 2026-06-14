@@ -20,6 +20,7 @@ public class AgentsControllerTests
 {
     private AgentDbContext _context;
     private AgentsController _controller;
+    private AgentAccessService _accessService;
     private Mock<AgentService> _mockAgentService;
     private Guid _testUserId;
 
@@ -30,6 +31,7 @@ public class AgentsControllerTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _context = new AgentDbContext(options);
+        _accessService = new AgentAccessService(_context);
         _testUserId = Guid.NewGuid();
 
         // Mock the user principal
@@ -51,7 +53,7 @@ public class AgentsControllerTests
             Mock.Of<ILogger<AgentService>>()
         );
 
-        _controller = new AgentsController(_mockAgentService.Object, _context)
+        _controller = new AgentsController(_mockAgentService.Object, _context, _accessService)
         {
             ControllerContext = new ControllerContext
             {

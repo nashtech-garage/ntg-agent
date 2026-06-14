@@ -89,6 +89,7 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddScoped<AgentAccessService>();
 builder.Services.AddScoped<IKnowledgeService, LightRagKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();

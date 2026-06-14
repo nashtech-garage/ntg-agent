@@ -9,6 +9,7 @@ using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Exceptions;
 using OpenAI;
 using OpenAI.Responses;
 using System.ClientModel;
@@ -33,6 +34,29 @@ public class AgentFactory : IAgentFactory
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+        string agentProvider = agentConfig.ProviderName;
+        return agentProvider switch
+        {
+            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
+            "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
+            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
+            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
+            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
+            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+        };
+    }
+
+    public async Task<AIAgent> CreateAgent(Guid agentId, Guid? userId, bool isAdmin)
+    {
+        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
+            a.Id == agentId
+            && a.IsPublished
+            && (a.OwnerUserId == userId || isAdmin
+                || _agentDbContext.AgentRoles.Any(ar =>
+                    ar.AgentId == a.Id
+                    && _agentDbContext.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))))
+            ?? throw new AgentAccessDeniedException(agentId);
+
         string agentProvider = agentConfig.ProviderName;
         return agentProvider switch
         {

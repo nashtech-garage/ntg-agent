@@ -1,4 +1,4 @@
-﻿﻿@using NTG.Agent.Common.Dtos.Chats
+﻿@using NTG.Agent.Common.Dtos.Chats
 @using NTG.Agent.Common.Dtos.Enums
 @using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.Common.Dtos.Agents
@@ -550,6 +550,12 @@ else
             response.Message = "You have reached your message limit. Please sign in to continue chatting.";
             await LoadRateLimitStatus();
             showRateLimitModal = true;
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            Logger.LogWarning(ex, "Access denied to agent");
+            response.Message = "You no longer have access to this agent. Please select a different agent.";
             StateHasChanged();
         }
         catch (Exception ex)

@@ -55,7 +55,7 @@ public class AgentService
         _documentAnalysisService = documentAnalysisService;
     }
 
-    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
+    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest, bool isAdmin = false)
     {
         var startTime = DateTime.UtcNow;
         var anonymousSessionId = Guid.Empty;
@@ -109,7 +109,7 @@ public class AgentService
         DateTime? thinkingStartedAt = null;
         DateTime? thinkingEndedAt = null;
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin))
         {
             if (item.ContentType == PromptContentType.Thinking)
             {
@@ -273,18 +273,19 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments,
         TokenUsageInfo tokenUsageInfo,
-        Guid? userId)
+        Guid? userId,
+        bool isAdmin = false)
     {
         if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
         {
-            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
+            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId, isAdmin))
             {
                 yield return new PromptResponse(response);
             }
         }
         else
         {
-            var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
+            var agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
 
             var chatHistory = new List<ChatMessage>();
 
@@ -346,11 +347,12 @@ public class AgentService
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
         List<string> tags,
-        Guid? userId)
+        Guid? userId,
+        bool isAdmin = false)
     {
-        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
-        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
-        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F")); // Azure OpenAI Agent ID
+        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA"), userId, isAdmin); // Gemini Agent ID
+        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F"), userId, isAdmin); // Azure OpenAI Agent ID
         
         // Suppress MAAIW001 as CreateHandoffBuilderWith is marked for evaluation purposes
         #pragma warning disable MAAIW001
