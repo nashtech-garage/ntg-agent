@@ -250,16 +250,13 @@ public class AgUiController : ControllerBase
         {
             // Find the tool name from the matching assistant tool call
             var toolCallId = lastNonSystem.ToolCallId ?? "";
-            var toolName = "unknown_tool";
-            foreach (var m in messages.Where(m => m.Role == "assistant" && m.ToolCalls != null))
-            {
-                var match = m.ToolCalls.FirstOrDefault(t => t.Id == toolCallId);
-                if (match != null)
-                {
-                    toolName = match.Function?.Name ?? toolName;
-                    break;
-                }
-            }
+            var toolName = messages
+                .Where(m => m.Role == "assistant" && m.ToolCalls != null)
+                .Select(m => m.ToolCalls!.FirstOrDefault(t => t.Id == toolCallId))
+                .Where(match => match != null)
+                .Select(match => match!.Function?.Name)
+                .FirstOrDefault(name => !string.IsNullOrEmpty(name))
+                ?? "unknown_tool";
             var resultText = lastNonSystem.Content ?? "";
             return $"[The browser tool \"{toolName}\" was executed and returned: {resultText}] Briefly confirm to the user what was done. Do not call the tool again.";
         }
