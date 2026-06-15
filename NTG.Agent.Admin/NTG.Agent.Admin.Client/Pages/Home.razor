@@ -192,7 +192,7 @@
                         <div class="card-footer bg-transparent border-0 pt-0">
                             <div class="d-flex gap-2">
                                 <a href="@($"/agents/{agent.Id}")" class="btn btn-primary flex-grow-1">
-                                    <i class="bi @(isInnerKind ? "bi-gear" : "bi-arrow-right-circle") me-2"></i>
+                                    <i class="bi bi-gear me-2"></i>
                                     Manage
                                 </a>
                                 <button class="btn btn-danger" 
@@ -229,10 +229,9 @@
         allAgents = await AgentClient.GetListAsync();
     }
 
-    private async Task SetFilter(AgentKind? kind)
+    private void SetFilter(AgentKind? kind)
     {
         filterKind = kind;
-        allAgents = await AgentClient.GetListAsync(kind);
         StateHasChanged();
     }
 
@@ -243,7 +242,7 @@
 
     private async Task HandleAgentDeleted()
     {
-        allAgents = await AgentClient.GetListAsync(filterKind);
+        allAgents = await AgentClient.GetListAsync();
         StateHasChanged();
     }
 }

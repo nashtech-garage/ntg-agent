@@ -13,14 +13,17 @@
                         MCP & Built-in Tools
                     </button>
                 </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link @(activeSubTab == innerAgentsTab ? "active" : "")"
-                            @onclick="() => SetActiveSubTab(innerAgentsTab)"
-                            type="button" role="tab">
-                        <i class="bi bi-diagram-3 me-2"></i>
-                        Inner Agents
-                    </button>
-                </li>
+                @if (AgentDetail.AgentKind == AgentKind.Outer)
+                {
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeSubTab == innerAgentsTab ? "active" : "")"
+                                @onclick="() => SetActiveSubTab(innerAgentsTab)"
+                                type="button" role="tab">
+                            <i class="bi bi-diagram-3 me-2"></i>
+                            Inner Agents
+                        </button>
+                    </li>
+                }
             </ul>
 
             @if (activeSubTab == mcpTab)
@@ -227,7 +230,9 @@
         var tools = await AgentClient.GetAgentToolsByAgentId(AgentDetail.Id);
         builtInTools = tools.Where(x => x.AgentToolType == AgentToolType.BuiltIn).ToList();
         mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
-        innerAgentBindings = (await AgentClient.GetInnerAgentBindingsAsync(AgentDetail.Id)).ToList();
+        innerAgentBindings = AgentDetail.AgentKind == AgentKind.Outer
+            ? (await AgentClient.GetInnerAgentBindingsAsync(AgentDetail.Id)).ToList()
+            : null;
         if (!string.IsNullOrEmpty(AgentDetail.McpServer))
         {
             mcpEndpoint = AgentDetail.McpServer;

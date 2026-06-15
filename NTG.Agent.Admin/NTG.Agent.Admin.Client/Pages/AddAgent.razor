@@ -85,9 +85,7 @@
                     <div class="card-body p-4">
                         <EditForm Model="@agentDetail" OnValidSubmit="HandleValidSubmit">
                         <DataAnnotationsValidator />
-                        
-                        @if (!isDuplicating)
-                        {
+                         
                             <div class="mb-4">
                                 <label class="form-label fw-semibold">
                                     <i class="bi bi-diagram-3 me-2 text-primary"></i>
@@ -119,7 +117,6 @@
                             </div>
 
                             <hr class="my-4" />
-                        }
 
                         <div class="mb-4">
                             <label for="name" class="form-label fw-semibold">
