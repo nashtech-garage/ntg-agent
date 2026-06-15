@@ -251,16 +251,13 @@ public class AgUiController : ControllerBase
             // Find the tool name from the matching assistant tool call
             var toolCallId = lastNonSystem.ToolCallId ?? "";
             var toolName = "unknown_tool";
-            foreach (var m in messages)
+            foreach (var m in messages.Where(m => m.Role == "assistant" && m.ToolCalls != null))
             {
-                if (m.Role == "assistant" && m.ToolCalls != null)
+                var match = m.ToolCalls.FirstOrDefault(t => t.Id == toolCallId);
+                if (match != null)
                 {
-                    var match = m.ToolCalls.FirstOrDefault(t => t.Id == toolCallId);
-                    if (match != null)
-                    {
-                        toolName = match.Function?.Name ?? toolName;
-                        break;
-                    }
+                    toolName = match.Function?.Name ?? toolName;
+                    break;
                 }
             }
             var resultText = lastNonSystem.Content ?? "";
