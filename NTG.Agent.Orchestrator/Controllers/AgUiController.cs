@@ -258,7 +258,10 @@ public class AgUiController : ControllerBase
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name))
                 ?? "unknown_tool";
             var resultText = lastNonSystem.Content ?? "";
-            return $"[The browser tool \"{toolName}\" was executed and returned: {resultText}] Briefly confirm to the user what was done. Do not call the tool again.";
+            return $"[The user responded to the \"{toolName}\" request with: {resultText}] " +
+                "Acknowledge the outcome appropriately: if approved, briefly confirm what changed; " +
+                "if denied or different from what you proposed, ask what they'd like instead. " +
+                "Do not call the tool again with the same arguments without checking first.";
         }
 
         // Normal user turn: last user message
