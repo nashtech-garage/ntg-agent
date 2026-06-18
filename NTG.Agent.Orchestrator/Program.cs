@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Data;
@@ -129,8 +130,24 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     // options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("::"), 0));
 });
 
-builder.Services.AddAuthentication("Identity.Application")
-    .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
+// Identity is configured here so the Orchestrator can ISSUE the shared
+// `.AspNetCore.Identity.Application` cookie (via SignInManager in AccountController),
+// in addition to reading it. The Identity table schema/migrations remain owned by the
+// WebClient's ApplicationDbContext; AppIdentityDbContext only reads/writes those tables.
+builder.Services.AddDbContext<AppIdentityDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentityCore<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppIdentityDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+// AddIdentityCookies() registers the standard Identity schemes (Application, External,
+// TwoFactor*) with the default cookie name `.AspNetCore.Identity.Application`, keeping the
+// issued cookie byte-compatible with the WebClient and existing [Authorize] behavior intact.
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
 
 var app = builder.Build();
 
