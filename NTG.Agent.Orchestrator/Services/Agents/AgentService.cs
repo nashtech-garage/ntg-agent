@@ -162,7 +162,8 @@ public class AgentService
             var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
             await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
 
-            if (userId is Guid userGuid)
+            // Skip memory extraction for tool-result follow-up turns (synthetic prompt).
+            if (userId is Guid userGuid && promptRequest.PersistUserMessage)
             {
                 await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
             }
@@ -254,7 +255,6 @@ public class AgentService
     private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments)
     {
         // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
-        var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
         var assistantMessage = new PChatMessage
         {
             UserId = userId,
@@ -265,7 +265,15 @@ public class AgentService
             Role = ChatRole.Assistant
         };
 
-        _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
+        // Tool-result follow-up turns carry a synthetic acknowledgement prompt that the user
+        // never typed — persist only the assistant reply so it doesn't pollute the transcript.
+        if (promptRequest.PersistUserMessage)
+        {
+            var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
+            _agentDbContext.ChatMessages.Add(userMessage);
+        }
+
+        _agentDbContext.ChatMessages.Add(assistantMessage);
 
         await _agentDbContext.SaveChangesAsync();
 

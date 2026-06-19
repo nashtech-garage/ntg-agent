@@ -47,6 +47,11 @@ public class AgUiController : ControllerBase
         var prompt = ExtractPrompt(input.Messages);
         var frontendToolsJson = BuildFrontendToolsJson(input.Tools);
 
+        // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
+        // it as a user message (otherwise the instruction text shows up in the chat history).
+        var lastNonSystem = input.Messages.LastOrDefault(m => m.Role != "system" && m.Role != "developer");
+        var isToolResultTurn = lastNonSystem?.Role == "tool";
+
         var promptRequest = new PromptRequestForm(
             Prompt: prompt,
             ConversationId: conversationId,
@@ -54,7 +59,8 @@ public class AgUiController : ControllerBase
             Documents: null,
             AgentId: agentId)
         {
-            FrontendToolsJson = frontendToolsJson
+            FrontendToolsJson = frontendToolsJson,
+            PersistUserMessage = !isToolResultTurn
         };
 
         await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
@@ -205,12 +211,12 @@ public class AgUiController : ControllerBase
 
         // Try to find an existing conversation in DB for this thread
         Conversation? existing = null;
-        if (userId.HasValue)
+        if (userId.HasValue && Guid.TryParse(threadId, out var authedThreadGuid))
         {
             existing = await _dbContext.Conversations
-                .FirstOrDefaultAsync(c => c.UserId == userId && c.SessionId == Guid.Parse(threadId));
+                .FirstOrDefaultAsync(c => c.UserId == userId && c.SessionId == authedThreadGuid);
         }
-        else if (Guid.TryParse(threadId, out var threadGuid))
+        else if (!userId.HasValue && Guid.TryParse(threadId, out var threadGuid))
         {
             existing = await _dbContext.Conversations
                 .FirstOrDefaultAsync(c => c.SessionId == threadGuid && c.UserId == null);

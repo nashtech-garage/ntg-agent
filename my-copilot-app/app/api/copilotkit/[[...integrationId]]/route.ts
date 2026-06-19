@@ -62,10 +62,10 @@ async function handleCopilotRequest(req: NextRequest, integrationId: string) {
 
     return response;
 
-  } catch (globalError: any) {
+  } catch (globalError: unknown) {
     console.error("[Copilot Handler CRITICAL]", globalError);
     return NextResponse.json(
-      { error: "Internal Server Error", details: globalError?.message },
+      { error: "Internal Server Error", details: globalError instanceof Error ? globalError.message : String(globalError) },
       { status: 500 }
     );
   }

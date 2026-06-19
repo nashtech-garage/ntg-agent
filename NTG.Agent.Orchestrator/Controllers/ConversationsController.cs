@@ -62,7 +62,7 @@ public class ConversationsController : ControllerBase
             .OrderByDescending(c => c.UpdatedAt)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(c => new ConversationListItem(c.Id, c.Name))
+            .Select(c => new ConversationListItem(c.Id, c.Name, c.SessionId))
             .ToListAsync();
 
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
