@@ -16,10 +16,17 @@ var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
 var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 
-// LightRAG + its Postgres now live on a dedicated Ubuntu server reached over an SSH tunnel.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
-var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);
+// LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
+// These routing knobs are OPTIONAL: empty => plain all-local run (local Docker socket, no
+// SOCKS proxy). We supply a literal value pulled from configuration (user-secrets / .env)
+// with an empty/local default so the parameter always resolves — otherwise Aspire treats an
+// unset secret parameter as required and hangs on "Waiting for value from resource '...'".
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host",
+    builder.Configuration["Parameters:lightrag-docker-host"] ?? "", secret: true);        // e.g. tcp://localhost:2375 (ssh -L)
+var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy",
+    builder.Configuration["Parameters:lightrag-socks-proxy"] ?? "", secret: true);        // e.g. socks5://localhost:1080 (ssh -D)
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port",
+    builder.Configuration["Parameters:lightrag-postgres-port"] ?? "5432", secret: true);  // local Postgres default
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest") 

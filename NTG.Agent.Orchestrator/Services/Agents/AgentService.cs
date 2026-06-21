@@ -285,7 +285,28 @@ public class AgentService
         }
         else
         {
-            var agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+            // Build the agent up front. A misconfigured agent (e.g. no model provider
+            // selected) throws here; catch it so we can stream a friendly message
+            // instead of letting the exception corrupt the JSON response stream — a
+            // mid-stream throw surfaces on the client as a confusing deserialization
+            // error rather than the real cause.
+            AIAgent? agent = null;
+            string? configError = null;
+            try
+            {
+                agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+            }
+            catch (NotSupportedException)
+            {
+                // C# disallows yield inside a catch, so record the message and emit it below.
+                configError = "This agent has no model provider configured. Open the agent settings and select a provider, model, and API key before chatting.";
+            }
+
+            if (configError is not null)
+            {
+                yield return new PromptResponse(configError);
+                yield break;
+            }
 
             var chatHistory = new List<ChatMessage>();
 
@@ -310,7 +331,7 @@ public class AgentService
                 Tools = [memorySearch]
             };
 
-            await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            await foreach (var update in agent!.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
                 foreach (var item in update.Contents)
                 {

@@ -89,6 +89,12 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
+// Provider probing (test connection / list models) for the admin agent screens.
+// Uses a typed HttpClient so the standard ServiceDefaults resilience pipeline applies.
+builder.Services.AddHttpClient<IProviderModelService, ProviderModelService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
 builder.Services.AddScoped<AgentAccessService>();
 builder.Services.AddScoped<IKnowledgeService, LightRagKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();

@@ -34,6 +34,11 @@ builder.Services.AddHttpClient<AgentAccessClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<ProviderProbeClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 builder.Services.AddHttpClient<RoleClient>(client =>
 {
     client.BaseAddress = baseUri;
