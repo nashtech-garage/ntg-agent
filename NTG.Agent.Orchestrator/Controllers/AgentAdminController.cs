@@ -113,7 +113,8 @@ public class AgentAdminController : ControllerBase
             .FirstOrDefaultAsync(a => a.Id == id) ?? throw new ArgumentException($"Agent with ID '{id}' not found.");
 
         var availableTools = await _agentFactory.GetAvailableTools(agent);
-        List<AgentToolDto> tools = MergeAgentTools(agent, availableTools);
+        var mcpToolNames = await GetMcpToolNamesAsync(agent);
+        List<AgentToolDto> tools = MergeAgentTools(agent, availableTools, mcpToolNames);
 
         if (tools == null)
         {
@@ -122,7 +123,22 @@ public class AgentAdminController : ControllerBase
         return Ok(tools);
     }
 
-    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools)
+    // Names of the tools the agent's MCP server exposes, used to classify a tool as MCP vs built-in.
+    private async Task<HashSet<string>> GetMcpToolNamesAsync(Models.Agents.Agent agent)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(agent.McpServer))
+        {
+            var mcpTools = await _agentFactory.GetMcpToolsAsync(agent.McpServer);
+            foreach (var tool in mcpTools)
+            {
+                names.Add(tool.Name);
+            }
+        }
+        return names;
+    }
+
+    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools, ISet<string> mcpToolNames)
     {
         return availableTools
                 .Select(t =>
@@ -130,13 +146,16 @@ public class AgentAdminController : ControllerBase
                     var existing = agent.AgentTools
                         .FirstOrDefault(x => string.Equals(x.Name, t.Name, StringComparison.OrdinalIgnoreCase));
 
+                    // Classify by source: tools exposed by the MCP server are MCP, everything else is built-in.
+                    var toolType = mcpToolNames.Contains(t.Name) ? AgentToolType.MCP : AgentToolType.BuiltIn;
+
                     return new AgentToolDto
                     {
                         Id = existing?.Id ?? Guid.Empty,
                         AgentId = agent.Id,
                         Name = t.Name,
                         Description = t.Description ?? string.Empty,
-                        AgentToolType = existing?.AgentToolType ?? AgentToolType.BuiltIn,
+                        AgentToolType = toolType,
                         IsEnabled = existing?.IsEnabled ?? false,
                         CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = existing?.UpdatedAt ?? DateTime.UtcNow
@@ -204,9 +223,11 @@ public class AgentAdminController : ControllerBase
 
         if (!string.IsNullOrEmpty(endpoint.Trim()))
         {
-            var tools = await _agentFactory.GetMcpToolsAsync(endpoint);
+            var tools = (await _agentFactory.GetMcpToolsAsync(endpoint)).ToList();
+            // Everything from the MCP server is, by definition, an MCP tool.
+            var mcpToolNames = tools.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            agentToolsDto = MergeAgentTools(agent, tools.ToList());
+            agentToolsDto = MergeAgentTools(agent, tools, mcpToolNames);
         }
 
         return agentToolsDto;
