@@ -4,111 +4,202 @@
 <div class="tab-pane fade show active" id="mcp-tools" role="tabpanel">
     <div class="row">
         <div class="col-lg-8">
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeSubTab == mcpTab ? "active" : "")"
+                            @onclick="() => SetActiveSubTab(mcpTab)"
+                            type="button" role="tab">
+                        <i class="bi bi-tools me-2"></i>
+                        MCP & Built-in Tools
+                    </button>
+                </li>
+                @if (AgentDetail.AgentKind == AgentKind.Outer)
+                {
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link @(activeSubTab == innerAgentsTab ? "active" : "")"
+                                @onclick="() => SetActiveSubTab(innerAgentsTab)"
+                                type="button" role="tab">
+                            <i class="bi bi-diagram-3 me-2"></i>
+                            Inner Agents
+                        </button>
+                    </li>
+                }
+            </ul>
 
-            <!-- === MCP Server Section === -->
-            <div class="mb-4">
-                <h5 class="mb-1">MCP Server Connection</h5>
-                <p class="text-muted mb-0">Connect to an MCP server and explore registered tools.</p>
-            </div>
+            @if (activeSubTab == mcpTab)
+            {
+                <!-- === MCP Server Section === -->
+                <div class="mb-4">
+                    <h5 class="mb-1">MCP Server Connection</h5>
+                    <p class="text-muted mb-0">Connect to an MCP server and explore registered tools.</p>
+                </div>
 
-            <EditForm Model="this" OnValidSubmit="ConnectToMcpServer">
-                <div class="card border-0 bg-light">
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-link-45deg me-2"></i>MCP Server Endpoint
-                            </label>
-                            <InputText @bind-Value="mcpEndpoint"
-                                       @oninput="HandleEndpointInput"
-                                       class="form-control"
-                                       placeholder="Enter MCP server endpoint (e.g., http://localhost:5136)" />
+                <EditForm Model="this" OnValidSubmit="ConnectToMcpServer">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-link-45deg me-2"></i>MCP Server Endpoint
+                                </label>
+                                <InputText @bind-Value="mcpEndpoint"
+                                           @oninput="HandleEndpointInput"
+                                           class="form-control"
+                                           placeholder="Enter MCP server endpoint (e.g., http://localhost:5136)" />
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary" disabled="@isConnecting">
+                                    @if (isConnecting)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-plug me-1"></i>
+                                    }
+                                    Connect
+                                </button>
+                            </div>
                         </div>
+                    </div>
+                </EditForm>
 
-                        <div class="d-flex justify-content-end">
-                            <button type="submit" class="btn btn-primary" disabled="@isConnecting">
-                                @if (isConnecting)
+                @if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="alert @(isConnected ? "alert-success" : "alert-danger") mt-3 d-flex align-items-center" role="alert">
+                        <i class="@(isConnected ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+                        <div>@statusMessage</div>
+                    </div>
+                }
+
+                <!-- === MCP Tools === -->
+                @if (isConnected && mcpTools?.Any() == true)
+                {
+                    <div class="card border-0 bg-light mt-3">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-wrench me-2"></i>Available MCP Tools
+                            </h6>
+                            <ul class="list-group list-group-flush small">
+                                @foreach (var tool in mcpTools)
                                 {
-                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@tool.Name</strong>
+                                            <div class="text-muted">@tool.Description</div>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   @bind="tool.IsEnabled" />
+                                        </div>
+                                    </li>
                                 }
-                                else
-                                {
-                                    <i class="bi bi-plug me-1"></i>
-                                }
-                                Connect
-                            </button>
+                            </ul>
                         </div>
                     </div>
-                </div>
-            </EditForm>
+                }
 
-            @if (!string.IsNullOrEmpty(statusMessage))
-            {
-                <div class="alert @(isConnected ? "alert-success" : "alert-danger") mt-3 d-flex align-items-center" role="alert">
-                    <i class="@(isConnected ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
-                    <div>@statusMessage</div>
-                </div>
-            }
-
-            <!-- === MCP Tools === -->
-            @if (isConnected && mcpTools?.Any() == true)
-            {
-                <div class="card border-0 bg-light mt-3">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <i class="bi bi-wrench me-2"></i>Available MCP Tools
-                        </h6>
-                        <ul class="list-group list-group-flush small">
-                            @foreach (var tool in mcpTools)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>@tool.Name</strong>
-                                        <div class="text-muted">@tool.Description</div>
-                                    </div>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox"
-                                               @bind="tool.IsEnabled" />
-                                    </div>
-                                </li>
-                            }
-                        </ul>
+                <!-- === Built-in Tools === -->
+                @if (builtInTools?.Any() == true)
+                {
+                    <div class="card border-0 bg-light mt-4">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="bi bi-gear-fill me-2"></i>Built-in Tools
+                            </h6>
+                            <ul class="list-group list-group-flush small">
+                                @foreach (var tool in builtInTools)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@tool.Name</strong>
+                                            <div class="text-muted">@tool.Description</div>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   @bind="tool.IsEnabled" />
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
                     </div>
+                }
+
+                <!-- === Save Button === -->
+                <div class="d-flex justify-content-end mt-4">
+                    <button class="btn btn-success" @onclick="SaveAiToolsSettings">
+                        <i class="bi bi-save me-1"></i> Save AI Tools Settings
+                    </button>
                 </div>
             }
-
-            <!-- === Built-in Tools === -->
-            @if (builtInTools?.Any() == true)
+            else if (activeSubTab == innerAgentsTab)
             {
-                <div class="card border-0 bg-light mt-4">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <i class="bi bi-gear-fill me-2"></i>Built-in Tools
-                        </h6>
-                        <ul class="list-group list-group-flush small">
-                            @foreach (var tool in builtInTools)
-                            {
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>@tool.Name</strong>
-                                        <div class="text-muted">@tool.Description</div>
-                                    </div>
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox"
-                                               @bind="tool.IsEnabled" />
-                                    </div>
-                                </li>
-                            }
-                        </ul>
+                <div class="mb-3">
+                    <h5 class="mb-1">Inner Agents</h5>
+                    <p class="text-muted mb-0">Select which inner agents the outer agent can call as tools.</p>
+                </div>
+
+                @if (innerAgentBindings == null)
+                {
+                    <div class="d-flex justify-content-center align-items-center" style="min-height: 120px;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
                     </div>
+                }
+                else if (innerAgentBindings.Count == 0)
+                {
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <div>No inner agents available. Create inner agents in the Agent as a Tool Management screen.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush small">
+                                @foreach (var innerAgent in innerAgentBindings)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@innerAgent.Name</strong>
+                                            <div class="text-muted">@innerAgent.Description</div>
+                                            @if (!string.IsNullOrWhiteSpace(innerAgent.ProviderModelName))
+                                            {
+                                                <div class="text-muted">Model: @innerAgent.ProviderModelName</div>
+                                            }
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   @bind="innerAgent.IsEnabled" />
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(innerAgentStatusMessage))
+                {
+                    <div class="alert alert-success mt-3 d-flex align-items-center" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <div>@innerAgentStatusMessage</div>
+                    </div>
+                }
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button class="btn btn-success" @onclick="SaveInnerAgentBindings" disabled="@isSavingInnerAgents">
+                        @if (isSavingInnerAgents)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        <i class="bi bi-save me-1"></i> Save Inner Agents
+                    </button>
                 </div>
             }
-
-            <!-- === Save Button === -->
-            <div class="d-flex justify-content-end mt-4">
-                <button class="btn btn-success" @onclick="SaveAiToolsSettings">
-                    <i class="bi bi-save me-1"></i> Save AI Tools Settings
-                </button>
-            </div>
         </div>
     </div>
 </div>
@@ -126,12 +217,22 @@
 
     private List<AgentToolDto>? mcpTools;
     private List<AgentToolDto>? builtInTools;
+    private List<InnerAgentBindingDto>? innerAgentBindings;
+    private string? innerAgentStatusMessage;
+    private bool isSavingInnerAgents;
+
+    private const string mcpTab = "mcp";
+    private const string innerAgentsTab = "inner-agents";
+    private string activeSubTab = mcpTab;
 
     protected override async Task OnInitializedAsync()
     {
         var tools = await AgentClient.GetAgentToolsByAgentId(AgentDetail.Id);
         builtInTools = tools.Where(x => x.AgentToolType == AgentToolType.BuiltIn).ToList();
         mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
+        innerAgentBindings = AgentDetail.AgentKind == AgentKind.Outer
+            ? (await AgentClient.GetInnerAgentBindingsAsync(AgentDetail.Id)).ToList()
+            : null;
         if (!string.IsNullOrEmpty(AgentDetail.McpServer))
         {
             mcpEndpoint = AgentDetail.McpServer;
@@ -141,6 +242,11 @@
                 statusMessage = string.Empty;
             }
         }
+    }
+
+    private void SetActiveSubTab(string tab)
+    {
+        activeSubTab = tab;
     }
 
     private void HandleEndpointInput(ChangeEventArgs e)
@@ -208,5 +314,19 @@
         await AgentClient.UpdateAgentToolsAsync(AgentDetail.Id, allTools);
         statusMessage = $"Saved {allTools.Count(t => t.IsEnabled)} tools as enabled.";
         isConnected = true;
+    }
+
+    private async Task SaveInnerAgentBindings()
+    {
+        if (innerAgentBindings == null)
+        {
+            return;
+        }
+
+        isSavingInnerAgents = true;
+        innerAgentStatusMessage = string.Empty;
+        await AgentClient.UpdateInnerAgentBindingsAsync(AgentDetail.Id, innerAgentBindings);
+        innerAgentStatusMessage = $"Saved {innerAgentBindings.Count(i => i.IsEnabled)} inner agents.";
+        isSavingInnerAgents = false;
     }
 }

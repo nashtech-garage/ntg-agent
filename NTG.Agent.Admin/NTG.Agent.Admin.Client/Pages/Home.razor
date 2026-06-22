@@ -22,10 +22,43 @@
                     Create New Agent
                 </a>
             </div>
+
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <button class="nav-link @(filterKind == null ? "active" : "")"
+                            @onclick="() => SetFilter(null)">
+                        <i class="bi bi-grid me-1"></i> All
+                        @if (allAgents != null)
+                        {
+                            <span class="badge bg-secondary ms-1">@allAgents.Count</span>
+                        }
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(filterKind == AgentKind.Outer ? "active" : "")"
+                            @onclick="() => SetFilter(AgentKind.Outer)">
+                        <i class="bi bi-people-fill me-1"></i> Outer Agents
+                        @if (allAgents != null)
+                        {
+                            <span class="badge bg-primary ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.Outer)</span>
+                        }
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(filterKind == AgentKind.Inner ? "active" : "")"
+                            @onclick="() => SetFilter(AgentKind.Inner)">
+                        <i class="bi bi-tools me-1"></i> Inner Agents
+                        @if (allAgents != null)
+                        {
+                            <span class="badge bg-success ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.Inner)</span>
+                        }
+                    </button>
+                </li>
+            </ul>
         </div>
     </div>
 
-    @if (agents == null)
+    @if (allAgents == null)
     {
         <div class="row">
             <div class="col-12">
@@ -40,14 +73,25 @@
             </div>
         </div>
     }
-    else if (agents.Count == 0)
+    else if (displayedAgents.Count == 0)
     {
         <div class="row">
             <div class="col-12">
                 <div class="alert alert-info d-flex align-items-center" role="alert">
                     <i class="bi bi-info-circle-fill me-2"></i>
                     <div>
-                        No agents found. Create your first agent to get started!
+                        @if (filterKind == null)
+                        {
+                            <span>No agents found. Create your first agent to get started!</span>
+                        }
+                        else if (filterKind == AgentKind.Outer)
+                        {
+                            <span>No outer agents found. <a href="/agents/new" class="alert-link">Create an outer agent</a> to get started.</span>
+                        }
+                        else
+                        {
+                            <span>No inner agents found. <a href="/agents/new" class="alert-link">Create an inner agent</a> to get started.</span>
+                        }
                     </div>
                 </div>
             </div>
@@ -55,32 +99,27 @@
     }
     else
     {
-        <div class="row">
-            <div class="col-12 mb-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-robot me-2"></i>
-                        Your Agents
-                        <span class="badge bg-secondary ms-2">@agents.Count</span>
-                    </h2>
-                </div>
-            </div>
-        </div>
-
         <div class="row g-4">
-            @foreach (var agent in agents)
+            @foreach (var agent in displayedAgents)
             {
+                var isInnerKind = agent.AgentKind == AgentKind.Inner;
                 <div class="col-12 col-md-6 col-lg-4">
-                    <div class="card h-100 shadow-sm border-0" style="border-left: 4px solid #1b6ec2 !important;">
+                    <div class="card h-100 shadow-sm border-0" style="border-left: 4px solid @(isInnerKind ? "#198754" : "#1b6ec2") !important;">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-3">
                                 <h5 class="card-title mb-0 text-truncate" title="@agent.Name">
-                                    <i class="bi bi-robot me-2 text-primary"></i>
+                                    <i class="bi @(isInnerKind ? "bi-tools" : "bi-robot") me-2 @(isInnerKind ? "text-success" : "text-primary")"></i>
                                     @agent.Name
                                 </h5>
                                 <small class="text-muted">
                                     ID: @agent.Id.ToString()[..8]...
                                 </small>
+                            </div>
+
+                            <div class="mb-2">
+                                <span class="badge @(isInnerKind ? "bg-success-subtle text-success" : "bg-info-subtle text-info")">
+                                    @(isInnerKind ? "Inner Agent" : "Outer Agent")
+                                </span>
                             </div>
 
                             <div class="mb-3">
@@ -153,8 +192,8 @@
                         <div class="card-footer bg-transparent border-0 pt-0">
                             <div class="d-flex gap-2">
                                 <a href="@($"/agents/{agent.Id}")" class="btn btn-primary flex-grow-1">
-                                    <i class="bi bi-arrow-right-circle me-2"></i>
-                                    View Details
+                                    <i class="bi bi-gear me-2"></i>
+                                    Manage
                                 </a>
                                 <button class="btn btn-danger" 
                                         @onclick="() => ShowDeleteConfirmation(agent.Id, agent.Name)"
@@ -174,12 +213,26 @@
 <DeleteAgentConfirmationModal @ref="deleteModal" OnDeleted="HandleAgentDeleted" />
 
 @code {
-    private IList<AgentListItem>? agents;
+    private IList<AgentListItem>? allAgents;
+    private AgentKind? filterKind;
     private DeleteAgentConfirmationModal? deleteModal;
+
+    private IList<AgentListItem> displayedAgents =>
+        allAgents == null
+            ? new List<AgentListItem>()
+            : filterKind == null
+                ? allAgents
+                : allAgents.Where(a => a.AgentKind == filterKind).ToList();
 
     protected override async Task OnInitializedAsync()
     {
-        agents = await AgentClient.GetListAsync();
+        allAgents = await AgentClient.GetListAsync();
+    }
+
+    private void SetFilter(AgentKind? kind)
+    {
+        filterKind = kind;
+        StateHasChanged();
     }
 
     private void ShowDeleteConfirmation(Guid agentId, string agentName)
@@ -189,7 +242,7 @@
 
     private async Task HandleAgentDeleted()
     {
-        agents = await AgentClient.GetListAsync();
+        allAgents = await AgentClient.GetListAsync();
         StateHasChanged();
     }
 }
