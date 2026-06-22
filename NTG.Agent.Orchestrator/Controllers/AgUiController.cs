@@ -127,6 +127,22 @@ public class AgUiController : ControllerBase
                     await WriteEventAsync(new { type = "TOOL_CALL_ARGS", toolCallId, delta = args, timestamp = Now() });
                     await WriteEventAsync(new { type = "TOOL_CALL_END", toolCallId, timestamp = Now() });
                 }
+                else if (chunk.ContentType == PromptContentType.ToolResult && !string.IsNullOrEmpty(chunk.Content))
+                {
+                    // Result of a server-side tool the browser renders (e.g. get_weather → weather card).
+                    JsonElement toolResult;
+                    try { toolResult = JsonDocument.Parse(chunk.Content).RootElement; }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to parse tool result chunk");
+                        continue;
+                    }
+
+                    var resultCallId = toolResult.TryGetProperty("callId", out var rcid) ? rcid.GetString() ?? NewId() : NewId();
+                    var resultContent = toolResult.TryGetProperty("result", out var rc) ? rc.GetString() ?? "" : "";
+
+                    await WriteEventAsync(new { type = "TOOL_CALL_RESULT", messageId = NewId(), toolCallId = resultCallId, content = resultContent, role = "tool", timestamp = Now() });
+                }
                 else if (chunk.ContentType == PromptContentType.Text && !string.IsNullOrEmpty(chunk.Content))
                 {
                     // Close reasoning block when text starts

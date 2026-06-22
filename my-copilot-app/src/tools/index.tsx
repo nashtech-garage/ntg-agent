@@ -1,6 +1,7 @@
 "use client";
 
 import ChangeBackgroundTool from "./ChangeBackgroundTool";
+import WeatherCardTool from "./WeatherCardTool";
 
 export interface FrontendToolsProps {
   onChangeBackground: (color: string) => void;
@@ -13,6 +14,7 @@ export default function FrontendTools({ onChangeBackground }: FrontendToolsProps
   return (
     <>
       <ChangeBackgroundTool onChange={onChangeBackground} />
+      <WeatherCardTool />
     </>
   );
 }

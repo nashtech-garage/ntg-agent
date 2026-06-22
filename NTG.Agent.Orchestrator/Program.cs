@@ -88,6 +88,9 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
+// Request-scoped buffer shared by the outer agent and any inner agents it delegates to, used to
+// surface renderable server-side tool results (e.g. get_weather) to the browser. See RenderableToolCapture.
+builder.Services.AddScoped<RenderableToolCapture>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
