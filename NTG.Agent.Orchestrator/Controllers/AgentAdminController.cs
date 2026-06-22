@@ -177,20 +177,39 @@ public class AgentAdminController : ControllerBase
         if (agent == null)
             return NotFound($"Agent with ID '{id}' not found.");
 
-        var existingTools = agent.AgentTools.ToList();
+        // Collapse any pre-existing duplicate rows (same name) down to one, keeping a single tracked row
+        // per tool. Self-heals agents whose tools were duplicated by earlier saves.
+        var byName = new Dictionary<string, Models.Agents.AgentTools>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tool in agent.AgentTools.ToList())
+        {
+            if (byName.ContainsKey(tool.Name))
+            {
+                _agentDbContext.AgentTools.Remove(tool);
+            }
+            else
+            {
+                byName[tool.Name] = tool;
+            }
+        }
 
+        // Upsert each incoming tool exactly once (ignore duplicate names within the payload).
+        var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var toolDto in updatedTools)
         {
-            var existingTool = existingTools.FirstOrDefault(t => t.Name == toolDto.Name);
+            if (string.IsNullOrWhiteSpace(toolDto.Name) || !processed.Add(toolDto.Name))
+            {
+                continue;
+            }
 
-            if (existingTool != null)
+            if (byName.TryGetValue(toolDto.Name, out var existingTool))
             {
                 existingTool.IsEnabled = toolDto.IsEnabled;
+                existingTool.AgentToolType = toolDto.AgentToolType;
                 existingTool.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
-                agent.AgentTools.Add(new Models.Agents.AgentTools
+                var added = new Models.Agents.AgentTools
                 {
                     AgentId = id,
                     Name = toolDto.Name,
@@ -199,7 +218,9 @@ public class AgentAdminController : ControllerBase
                     AgentToolType = toolDto.AgentToolType,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
-                });
+                };
+                agent.AgentTools.Add(added);
+                byName[toolDto.Name] = added;
             }
         }
 
