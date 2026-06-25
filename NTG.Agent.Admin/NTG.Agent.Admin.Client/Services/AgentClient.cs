@@ -79,4 +79,37 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
         response.EnsureSuccessStatusCode();
     }
+
+    // Agent-as-a-tool management
+
+    /// <summary>
+    /// Gets all published agents that can be linked as tools to the given parent agent.
+    /// </summary>
+    public async Task<IList<LinkableAgentDto>> GetLinkableAgentsAsync(Guid agentId)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/linkable-agents");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<IList<LinkableAgentDto>>();
+        return result ?? [];
+    }
+
+    /// <summary>
+    /// Links a child agent as a tool on the parent agent.
+    /// </summary>
+    public async Task<AgentToolDto> AddAgentToolAsync(Guid agentId, AddAgentToolRequest request)
+    {
+        var response = await httpClient.PostAsJsonAsync($"api/agentadmin/{agentId}/agent-tools", request);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<AgentToolDto>();
+        return result ?? throw new InvalidOperationException("Failed to deserialize agent tool response.");
+    }
+
+    /// <summary>
+    /// Removes an agent-type tool link from the parent agent.
+    /// </summary>
+    public async Task RemoveAgentToolAsync(Guid agentId, Guid toolId)
+    {
+        var response = await httpClient.DeleteAsync($"api/agentadmin/{agentId}/agent-tools/{toolId}");
+        response.EnsureSuccessStatusCode();
+    }
 }

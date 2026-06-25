@@ -216,6 +216,14 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
 
+        // LinkedAgentId FK: Restrict to avoid multiple cascade paths
+        // (AgentTools already cascades from Agent via AgentId).
+        modelBuilder.Entity<AgentTools>()
+            .HasOne(t => t.LinkedAgent)
+            .WithMany()
+            .HasForeignKey(t => t.LinkedAgentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // UserPreference configuration
         modelBuilder.Entity<UserPreference>(e =>
         {

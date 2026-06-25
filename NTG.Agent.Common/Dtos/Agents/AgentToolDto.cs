@@ -14,6 +14,8 @@ public class AgentToolDto
 
     public AgentToolType AgentToolType { get; set; }
 
+    public Guid? LinkedAgentId { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

@@ -3,5 +3,6 @@
 public enum AgentToolType
 {
     BuiltIn = 1,
-    MCP = 2
+    MCP = 2,
+    Agent = 3
 }

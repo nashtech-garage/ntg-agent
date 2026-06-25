@@ -103,6 +103,80 @@
                 </div>
             }
 
+            <!-- === Agent Tools (linked document agents) === -->
+            <div class="card border-0 bg-light mt-4">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i class="bi bi-robot me-2"></i>Agent Tools
+                    </h6>
+                    <p class="text-muted small mb-3">
+                        Link a document agent as a tool. Users with access to the linked agent
+                        will be able to query its knowledge base through this agent's chat.
+                    </p>
+
+                    @if (agentTools?.Any() == true)
+                    {
+                        <ul class="list-group list-group-flush small mb-3">
+                            @foreach (var tool in agentTools)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>@tool.Name</strong>
+                                        <span class="badge bg-info ms-2">Agent</span>
+                                        <div class="text-muted">@tool.Description</div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="form-check form-switch mb-0">
+                                            <input class="form-check-input" type="checkbox"
+                                                   @bind="tool.IsEnabled" />
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger"
+                                                @onclick="() => RemoveAgentTool(tool)"
+                                                title="Remove link">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center small mb-3">No agent tools linked yet.</p>
+                    }
+
+                    <!-- Add agent tool -->
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold small">Link an agent</label>
+                            <select class="form-select form-select-sm" @bind="selectedLinkedAgentId">
+                                <option value="">Select an agent…</option>
+                                @foreach (var a in linkableAgents)
+                                {
+                                    <option value="@a.Id">@a.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold small">Tool name (optional)</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   @bind="newToolName"
+                                   placeholder="Defaults to agent name" />
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-sm btn-primary w-100" @onclick="AddAgentTool"
+                                    disabled="@(string.IsNullOrEmpty(selectedLinkedAgentId) || isAddingAgentTool)">
+                                @if (isAddingAgentTool)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-plus-circle me-1"></i>Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- === Save Button === -->
             <div class="d-flex justify-content-end mt-4">
                 <button class="btn btn-success" @onclick="SaveAiToolsSettings">
@@ -126,12 +200,21 @@
 
     private List<AgentToolDto>? mcpTools;
     private List<AgentToolDto>? builtInTools;
+    private List<AgentToolDto>? agentTools;
+
+    // Agent tool linking state
+    private List<LinkableAgentDto> linkableAgents = new();
+    private string? selectedLinkedAgentId;
+    private string newToolName = string.Empty;
+    private bool isAddingAgentTool = false;
 
     protected override async Task OnInitializedAsync()
     {
         var tools = await AgentClient.GetAgentToolsByAgentId(AgentDetail.Id);
         builtInTools = tools.Where(x => x.AgentToolType == AgentToolType.BuiltIn).ToList();
         mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
+        agentTools = tools.Where(x => x.AgentToolType == AgentToolType.Agent).ToList();
+
         if (!string.IsNullOrEmpty(AgentDetail.McpServer))
         {
             mcpEndpoint = AgentDetail.McpServer;
@@ -140,6 +223,20 @@
             {
                 statusMessage = string.Empty;
             }
+        }
+
+        await LoadLinkableAgents();
+    }
+
+    private async Task LoadLinkableAgents()
+    {
+        try
+        {
+            linkableAgents = (await AgentClient.GetLinkableAgentsAsync(AgentDetail.Id)).ToList();
+        }
+        catch
+        {
+            linkableAgents = new();
         }
     }
 
@@ -183,6 +280,49 @@
         }
     }
 
+    private async Task AddAgentTool()
+    {
+        if (string.IsNullOrEmpty(selectedLinkedAgentId) || !Guid.TryParse(selectedLinkedAgentId, out var linkedId))
+            return;
+
+        try
+        {
+            isAddingAgentTool = true;
+            var request = new AddAgentToolRequest(linkedId, string.IsNullOrEmpty(newToolName) ? null : newToolName);
+            var addedTool = await AgentClient.AddAgentToolAsync(AgentDetail.Id, request);
+
+            // Refresh the agent tools list
+            agentTools ??= new();
+            agentTools.Add(addedTool);
+
+            selectedLinkedAgentId = null;
+            newToolName = string.Empty;
+            statusMessage = "Agent tool linked successfully.";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to link agent tool: {ex.Message}";
+        }
+        finally
+        {
+            isAddingAgentTool = false;
+        }
+    }
+
+    private async Task RemoveAgentTool(AgentToolDto tool)
+    {
+        try
+        {
+            await AgentClient.RemoveAgentToolAsync(AgentDetail.Id, tool.Id);
+            agentTools?.RemoveAll(t => t.Id == tool.Id);
+            statusMessage = "Agent tool removed.";
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Failed to remove agent tool: {ex.Message}";
+        }
+    }
+
 
     private async Task SaveAiToolsSettings()
     {
@@ -197,10 +337,11 @@
             }
         }
 
-        // Combine both lists
+        // Combine all lists
         var allTools = new List<AgentToolDto>();
         if (builtInTools != null) allTools.AddRange(builtInTools);
         if (mcpTools != null) allTools.AddRange(mcpTools);
+        if (agentTools != null) allTools.AddRange(agentTools);
 
         AgentDetail.McpServer = mcpEndpoint;
 

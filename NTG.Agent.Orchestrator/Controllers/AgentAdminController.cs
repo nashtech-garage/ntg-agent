@@ -206,6 +206,7 @@ public class AgentAdminController : ControllerBase
                         Name = t.Name,
                         Description = t.Description ?? string.Empty,
                         AgentToolType = existing?.AgentToolType ?? AgentToolType.BuiltIn,
+                        LinkedAgentId = existing?.LinkedAgentId,
                         IsEnabled = existing?.IsEnabled ?? false,
                         CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = existing?.UpdatedAt ?? DateTime.UtcNow
@@ -267,6 +268,7 @@ public class AgentAdminController : ControllerBase
                     Description = toolDto.Description,
                     IsEnabled = toolDto.IsEnabled,
                     AgentToolType = toolDto.AgentToolType,
+                    LinkedAgentId = toolDto.AgentToolType == AgentToolType.Agent ? toolDto.LinkedAgentId : null,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
@@ -532,6 +534,94 @@ public class AgentAdminController : ControllerBase
             .Select(r => new RoleDto(r.Id, r.Name))
             .ToListAsync();
         return Ok(roles);
+    }
+
+    /// <summary>
+    /// Lists all published agents available to be linked as tools.
+    /// Excludes the agent with the given ID to prevent self-referencing.
+    /// </summary>
+    [HttpGet("{agentId}/linkable-agents")]
+    public async Task<IActionResult> GetLinkableAgents(Guid agentId)
+    {
+        var agents = await _agentDbContext.Agents
+            .Where(a => a.IsPublished && a.Id != agentId)
+            .Select(a => new { a.Id, a.Name, a.Description })
+            .ToListAsync();
+        return Ok(agents);
+    }
+
+    /// <summary>
+    /// Adds an agent-type tool linking a child (document) agent to a parent agent.
+    /// </summary>
+    [HttpPost("{agentId}/agent-tools")]
+    public async Task<IActionResult> AddAgentTool(Guid agentId, [FromBody] AddAgentToolRequest request)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(agentId);
+        if (agent == null) return NotFound($"Agent with ID '{agentId}' not found.");
+
+        var linkedAgent = await _agentDbContext.Agents.FindAsync(request.LinkedAgentId);
+        if (linkedAgent == null || !linkedAgent.IsPublished)
+            return BadRequest($"Linked agent with ID '{request.LinkedAgentId}' not found or not published.");
+
+        // Prevent self-referencing
+        if (request.LinkedAgentId == agentId)
+            return BadRequest("An agent cannot link to itself as a tool.");
+
+        // Check for duplicate
+        var exists = await _agentDbContext.AgentTools
+            .AnyAsync(t => t.AgentId == agentId && t.LinkedAgentId == request.LinkedAgentId);
+        if (exists)
+            return Ok("Agent tool link already exists.");
+
+        var tool = new Models.Agents.AgentTools
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agentId,
+            Name = request.Name ?? linkedAgent.Name,
+            Description = request.Description ?? linkedAgent.Description ?? $"Search documents from {linkedAgent.Name}",
+            IsEnabled = true,
+            AgentToolType = AgentToolType.Agent,
+            LinkedAgentId = request.LinkedAgentId,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _agentDbContext.AgentTools.Add(tool);
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok(new AgentToolDto
+        {
+            Id = tool.Id,
+            AgentId = tool.AgentId,
+            Name = tool.Name,
+            Description = tool.Description,
+            IsEnabled = tool.IsEnabled,
+            AgentToolType = tool.AgentToolType,
+            LinkedAgentId = tool.LinkedAgentId,
+            CreatedAt = tool.CreatedAt,
+            UpdatedAt = tool.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Removes an agent-type tool link from a parent agent.
+    /// </summary>
+    [HttpDelete("{agentId}/agent-tools/{toolId}")]
+    public async Task<IActionResult> RemoveAgentTool(Guid agentId, Guid toolId)
+    {
+        var tool = await _agentDbContext.AgentTools
+            .FirstOrDefaultAsync(t => t.Id == toolId && t.AgentId == agentId);
+
+        if (tool == null)
+            return NotFound($"Agent tool with ID '{toolId}' not found for agent '{agentId}'.");
+
+        if (tool.AgentToolType != AgentToolType.Agent)
+            return BadRequest("Only agent-type tools can be removed through this endpoint.");
+
+        _agentDbContext.AgentTools.Remove(tool);
+        await _agentDbContext.SaveChangesAsync();
+
+        return NoContent();
     }
 
     /// <summary>

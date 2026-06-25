@@ -50,6 +50,7 @@ public class AgentsControllerTests
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<IUserMemoryService>(),
             Mock.Of<IDocumentAnalysisService>(),
+            _accessService,
             Mock.Of<ILogger<AgentService>>()
         );
 

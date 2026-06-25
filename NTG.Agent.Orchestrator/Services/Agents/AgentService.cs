@@ -2,6 +2,7 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -30,6 +31,7 @@ public class AgentService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IUserMemoryService _memoryService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
+    private readonly AgentAccessService _agentAccessService;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -42,6 +44,7 @@ public class AgentService
         IHttpContextAccessor httpContextAccessor,
         IUserMemoryService memoryService,
         IDocumentAnalysisService documentAnalysisService,
+        AgentAccessService agentAccessService,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -53,6 +56,7 @@ public class AgentService
         _memoryService = memoryService;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
+        _agentAccessService = agentAccessService;
     }
 
     public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest, bool isAdmin = false)
@@ -326,9 +330,39 @@ public class AgentService
 
             AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
 
+            // Load agent-as-a-tool entries: linked child agents that the current user
+            // is allowed to invoke. Registration-time filter + call-time check = defense in depth.
+            var tools = new List<AITool> { memorySearch };
+            var agentToolRows = await _agentDbContext.AgentTools
+                .Where(t => t.AgentId == promptRequest.AgentId
+                         && t.AgentToolType == AgentToolType.Agent
+                         && t.IsEnabled
+                         && t.LinkedAgentId != null)
+                .ToListAsync();
+
+            foreach (var toolRow in agentToolRows)
+            {
+                var childAgentId = toolRow.LinkedAgentId!.Value;
+
+                // Skip self-referencing tools to prevent recursion
+                if (childAgentId == promptRequest.AgentId) continue;
+
+                // Registration-time access filter: don't even expose the tool if the
+                // user can't access the child agent. The plugin also re-checks at call time.
+                if (!await _agentAccessService.HasAccessAsync(childAgentId, userId, isAdmin))
+                    continue;
+
+                var agentTool = new AgentToolPlugin(
+                    _agentFactory, _agentAccessService, _knowledgeService,
+                    childAgentId, userId, isAdmin,
+                    toolRow.Name, toolRow.Description).AsAITool();
+
+                tools.Add(agentTool);
+            }
+
             var chatOptions = new ChatOptions
             {
-                Tools = [memorySearch]
+                Tools = tools
             };
 
             await foreach (var update in agent!.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
