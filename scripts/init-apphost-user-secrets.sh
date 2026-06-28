@@ -57,7 +57,7 @@ Sets NTG.Agent.AppHost user secrets. Per value:
   exported env var → prompt (TTY only) → $REPO_ROOT/.env → default.
 Kernel Memory: if still empty after that, openssl generates a key.
 
-Env/.env keys: GITHUB_TOKEN, KERNEL_MEMORY_API_KEY,
+Env/.env keys: GITHUB_TOKEN, KERNEL_MEMORY_API_KEY, KERNEL_MEMORY_API_KEY_2,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
 AZURE_OPENAI_API_KEY, AZURE_EMBEDDING_API_KEY.
@@ -189,25 +189,56 @@ if [[ -z "$GITHUB_TOKEN" ]]; then
   exit 1
 fi
 
+# Validate a Kernel Memory access key: length >= 32 and KM's allowed charset (rejects
+# '/' and '+' from base64). $1=value, $2=name for messages. (-, ] kept tr-safe by position.)
+validate_km_key() {
+  local val="$1" name="$2"
+  if ((${#val} < 32)); then
+    echo "error: $name must be at least 32 characters" >&2
+    exit 1
+  fi
+  if [[ -n "$(printf '%s' "$val" | tr -d 'A-Za-z0-9,.;:_!@#$^*~=|[]{}()-')" ]]; then
+    echo "error: $name has characters Kernel Memory rejects (e.g. '/', '+', whitespace)." >&2
+    echo "       Allowed: letters, digits, and , . ; : _ - ! @ # \$ ^ * ~ = | [ ] { } ( )" >&2
+    exit 1
+  fi
+}
+
+# KM requires TWO distinct access keys (AccessKey1/AccessKey2) to allow rotation, even
+# though the app only ever presents AccessKey1. Generated keys use hex (0-9a-f): base64
+# would emit '/' and '+', which KM's validator rejects.
 resolve_field KERNEL_MEMORY_API_KEY \
-  "Kernel Memory API key (32+ chars) [Enter for .env or auto-generate]: " \
+  "Kernel Memory API key 1 (32+ chars) [Enter for .env or auto-generate]: " \
   1 \
   "KERNEL_MEMORY_API_KEY" \
   "KERNEL_MEMORY_API_KEY" \
   "__EMPTY__"
 
-if [[ -z "$KERNEL_MEMORY_API_KEY" ]]; then
-  if command -v openssl >/dev/null 2>&1; then
-    KERNEL_MEMORY_API_KEY="$(openssl rand -base64 48 | tr -d '\n\r')"
-    echo "Generated KERNEL_MEMORY_API_KEY (${#KERNEL_MEMORY_API_KEY} characters)."
-  else
-    echo "error: KERNEL_MEMORY_API_KEY missing; install openssl for auto-generation or set in .env" >&2
+resolve_field KERNEL_MEMORY_API_KEY_2 \
+  "Kernel Memory API key 2 / rotation spare (32+ chars) [Enter for .env or auto-generate]: " \
+  1 \
+  "KERNEL_MEMORY_API_KEY_2" \
+  "KERNEL_MEMORY_API_KEY_2" \
+  "__EMPTY__"
+
+if [[ -z "$KERNEL_MEMORY_API_KEY" || -z "$KERNEL_MEMORY_API_KEY_2" ]]; then
+  if ! command -v openssl >/dev/null 2>&1; then
+    echo "error: Kernel Memory key(s) missing; install openssl for auto-generation or set in .env" >&2
     exit 1
   fi
+  [[ -z "$KERNEL_MEMORY_API_KEY" ]] && KERNEL_MEMORY_API_KEY="$(openssl rand -hex 32 | tr -d '\n\r')"
+  # Regenerate key 2 until it differs from key 1 (KM rejects identical keys).
+  while [[ -z "$KERNEL_MEMORY_API_KEY_2" || "$KERNEL_MEMORY_API_KEY_2" == "$KERNEL_MEMORY_API_KEY" ]]; do
+    KERNEL_MEMORY_API_KEY_2="$(openssl rand -hex 32 | tr -d '\n\r')"
+  done
+  echo "Generated Kernel Memory access key(s)."
 fi
 
-if ((${#KERNEL_MEMORY_API_KEY} < 32)); then
-  echo "error: KERNEL_MEMORY_API_KEY must be at least 32 characters" >&2
+validate_km_key "$KERNEL_MEMORY_API_KEY" "KERNEL_MEMORY_API_KEY"
+validate_km_key "$KERNEL_MEMORY_API_KEY_2" "KERNEL_MEMORY_API_KEY_2"
+
+if [[ "$KERNEL_MEMORY_API_KEY" == "$KERNEL_MEMORY_API_KEY_2" ]]; then
+  echo "error: KERNEL_MEMORY_API_KEY and KERNEL_MEMORY_API_KEY_2 must differ (KM requires distinct keys for rotation)." >&2
   exit 1
 fi
 
@@ -285,6 +316,7 @@ fi
 
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:kernel-memory-api-key" "$KERNEL_MEMORY_API_KEY"
+set_secret "Parameters:kernel-memory-api-key-2" "$KERNEL_MEMORY_API_KEY_2"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"

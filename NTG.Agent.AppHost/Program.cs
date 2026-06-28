@@ -9,6 +9,9 @@ var builder = DistributedApplication.CreateBuilder(args);
 var saPassword = builder.AddParameter("sql-sa-password", "Admin123_Strong!", secret: true);
 var githubToken = builder.AddParameter("github-token", secret: true);
 var kernelMemoryApiKey = builder.AddParameter("kernel-memory-api-key", secret: true);
+// KM requires AccessKey1 != AccessKey2 (to allow rotation). The Orchestrator only ever
+// presents AccessKey1 (KernelMemory__ApiKey below); this second key is the rotation spare.
+var kernelMemoryApiKey2 = builder.AddParameter("kernel-memory-api-key-2", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
@@ -125,7 +128,7 @@ var knowledge = builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-know
 	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__Endpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
 	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__APIKey", azureOpenAiApiKey)
 	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey1", kernelMemoryApiKey)
-	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey2", kernelMemoryApiKey)
+	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey2", kernelMemoryApiKey2)
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__Endpoint", elasticsearch.GetEndpoint("http"))
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__UserName", "elastic")
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__Password", elasticsearch.Resource.PasswordParameter);
