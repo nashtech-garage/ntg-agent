@@ -24,14 +24,6 @@ public class AgentTools
 
     public AgentToolType AgentToolType { get; set; } = AgentToolType.BuiltIn;
 
-    /// <summary>
-    /// For <see cref="AgentToolType.Agent"/> tools, the ID of the linked child (document) agent.
-    /// Null for BuiltIn and MCP tool types.
-    /// </summary>
-    public Guid? LinkedAgentId { get; set; }
-
-    public Agent? LinkedAgent { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

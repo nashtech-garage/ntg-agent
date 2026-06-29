@@ -61,6 +61,7 @@ public class AgentsController : ControllerBase
         Guid? userId = User.GetUserId();
         bool isAdmin = User.IsInRole("Admin");
         var agents = await _agentAccessService.AccessibleAgentsQuery(userId, isAdmin)
+            .Where(a => a.AgentKind == AgentKind.Outer)
             .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);

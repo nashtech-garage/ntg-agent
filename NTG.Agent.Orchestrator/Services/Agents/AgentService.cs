@@ -330,35 +330,12 @@ public class AgentService
 
             AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
 
-            // Load agent-as-a-tool entries: linked child agents that the current user
-            // is allowed to invoke. Registration-time filter + call-time check = defense in depth.
+            // The outer agent's own knowledge tool is attached per-request here; inner-agent
+            // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory
+            // (GetInnerAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
+            // CreateAgent above. Each inner agent is wrapped by AgentToolPlugin, which re-checks
+            // access at call time and scopes the child to its own LightRAG workspace.
             var tools = new List<AITool> { memorySearch };
-            var agentToolRows = await _agentDbContext.AgentTools
-                .Where(t => t.AgentId == promptRequest.AgentId
-                         && t.AgentToolType == AgentToolType.Agent
-                         && t.IsEnabled
-                         && t.LinkedAgentId != null)
-                .ToListAsync();
-
-            foreach (var toolRow in agentToolRows)
-            {
-                var childAgentId = toolRow.LinkedAgentId!.Value;
-
-                // Skip self-referencing tools to prevent recursion
-                if (childAgentId == promptRequest.AgentId) continue;
-
-                // Registration-time access filter: don't even expose the tool if the
-                // user can't access the child agent. The plugin also re-checks at call time.
-                if (!await _agentAccessService.HasAccessAsync(childAgentId, userId, isAdmin))
-                    continue;
-
-                var agentTool = new AgentToolPlugin(
-                    _agentFactory, _agentAccessService, _knowledgeService,
-                    childAgentId, userId, isAdmin,
-                    toolRow.Name, toolRow.Description).AsAITool();
-
-                tools.Add(agentTool);
-            }
 
             var chatOptions = new ChatOptions
             {

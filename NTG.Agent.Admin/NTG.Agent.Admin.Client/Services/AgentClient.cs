@@ -5,9 +5,15 @@ namespace NTG.Agent.Admin.Client.Services;
 
 public class AgentClient(HttpClient httpClient)
 {
-    public async Task<IList<AgentListItem>> GetListAsync()
+    public async Task<IList<AgentListItem>> GetListAsync(AgentKind? agentKind = null)
     {
-        var response = await httpClient.GetAsync("api/agentadmin");
+        string url = "api/agentadmin";
+        if (agentKind.HasValue)
+        {
+            url += $"?agentKind={agentKind.Value}";
+        }
+
+        var response = await httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<IList<AgentListItem>>();
@@ -80,36 +86,18 @@ public class AgentClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    // Agent-as-a-tool management
-
-    /// <summary>
-    /// Gets all published agents that can be linked as tools to the given parent agent.
-    /// </summary>
-    public async Task<IList<LinkableAgentDto>> GetLinkableAgentsAsync(Guid agentId)
+    public async Task<IList<InnerAgentBindingDto>> GetInnerAgentBindingsAsync(Guid agentId)
     {
-        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/linkable-agents");
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/inner-agents");
         response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<IList<LinkableAgentDto>>();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<InnerAgentBindingDto>>();
         return result ?? [];
     }
 
-    /// <summary>
-    /// Links a child agent as a tool on the parent agent.
-    /// </summary>
-    public async Task<AgentToolDto> AddAgentToolAsync(Guid agentId, AddAgentToolRequest request)
+    public async Task UpdateInnerAgentBindingsAsync(Guid agentId, IList<InnerAgentBindingDto> bindings)
     {
-        var response = await httpClient.PostAsJsonAsync($"api/agentadmin/{agentId}/agent-tools", request);
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<AgentToolDto>();
-        return result ?? throw new InvalidOperationException("Failed to deserialize agent tool response.");
-    }
-
-    /// <summary>
-    /// Removes an agent-type tool link from the parent agent.
-    /// </summary>
-    public async Task RemoveAgentToolAsync(Guid agentId, Guid toolId)
-    {
-        var response = await httpClient.DeleteAsync($"api/agentadmin/{agentId}/agent-tools/{toolId}");
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/inner-agents", bindings);
         response.EnsureSuccessStatusCode();
     }
 }

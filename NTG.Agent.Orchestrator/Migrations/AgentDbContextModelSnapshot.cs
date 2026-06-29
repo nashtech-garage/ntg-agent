@@ -28,6 +28,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("AgentKind")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -96,6 +99,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         new
                         {
                             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
+                            AgentKind = 0,
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
                             IsDefault = true,
@@ -140,6 +144,30 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.ToTable("AgentRoles");
                 });
 
+            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>
+                {
+                    b.Property<Guid>("OuterAgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InnerAgentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("OuterAgentId", "InnerAgentId");
+
+                    b.HasIndex("InnerAgentId");
+
+                    b.ToTable("AgentInnerAgents");
+                });
+
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
                 {
                     b.Property<Guid>("Id")
@@ -162,9 +190,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<bool>("IsEnabled")
                         .HasColumnType("bit");
 
-                    b.Property<Guid?>("LinkedAgentId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -175,8 +200,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AgentId");
-
-                    b.HasIndex("LinkedAgentId");
 
                     b.ToTable("AgentTools");
                 });
@@ -791,6 +814,25 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Agent");
                 });
 
+            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>
+                {
+                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "InnerAgent")
+                        .WithMany("OuterAgentBindings")
+                        .HasForeignKey("InnerAgentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "OuterAgent")
+                        .WithMany("InnerAgentBindings")
+                        .HasForeignKey("OuterAgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InnerAgent");
+
+                    b.Navigation("OuterAgent");
+                });
+
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
@@ -799,14 +841,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "LinkedAgent")
-                        .WithMany()
-                        .HasForeignKey("LinkedAgentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Agent");
-
-                    b.Navigation("LinkedAgent");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.PChatMessage", b =>
@@ -880,6 +915,10 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
                 {
                     b.Navigation("AgentTools");
+
+                    b.Navigation("InnerAgentBindings");
+
+                    b.Navigation("OuterAgentBindings");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>

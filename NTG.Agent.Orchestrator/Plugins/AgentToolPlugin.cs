@@ -7,13 +7,17 @@ using System.ComponentModel;
 namespace NTG.Agent.Orchestrator.Plugins;
 
 /// <summary>
-/// Wraps a linked child (document) agent as an AITool that can be called from a parent
-/// agent's chat. Performs a role-gated access check at call time — if the current user
-/// lacks access to the child agent, a refusal is returned and no document content leaks.
+/// Wraps an inner (document) agent as an AITool callable from a parent agent's chat.
+///
+/// Two responsibilities main's bare <c>agent.AsAIFunction()</c> wrapper does not cover:
+/// 1. Re-checks role-gated access at call time (defense in depth — the inner agent is also
+///    filtered at registration in <see cref="AgentFactory.GetInnerAgentToolsAsync"/>).
+/// 2. Attaches the child's own LightRAG knowledge tool, scoped to the child agent's
+///    workspace, so the child answers from its documents rather than parametric knowledge.
 /// </summary>
 public sealed class AgentToolPlugin
 {
-    private readonly IAgentFactory _agentFactory;
+    private readonly AIAgent _childAgent;
     private readonly AgentAccessService _accessService;
     private readonly IKnowledgeService _knowledgeService;
     private readonly Guid _childAgentId;
@@ -23,7 +27,7 @@ public sealed class AgentToolPlugin
     private readonly string _toolDescription;
 
     public AgentToolPlugin(
-        IAgentFactory agentFactory,
+        AIAgent childAgent,
         AgentAccessService accessService,
         IKnowledgeService knowledgeService,
         Guid childAgentId,
@@ -32,7 +36,7 @@ public sealed class AgentToolPlugin
         string toolName,
         string toolDescription)
     {
-        _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
+        _childAgent = childAgent ?? throw new ArgumentNullException(nameof(childAgent));
         _accessService = accessService ?? throw new ArgumentNullException(nameof(accessService));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _childAgentId = childAgentId;
@@ -47,33 +51,26 @@ public sealed class AgentToolPlugin
         [Description("The question to ask the document agent")] string query,
         CancellationToken cancellationToken = default)
     {
-        // Defense in depth: re-check access at call time even if the tool was
-        // filtered at registration. This is the critical permission gate.
+        // Defense in depth: re-check access at call time even though the tool was filtered
+        // at registration. This is the critical permission gate.
         var hasAccess = await _accessService.HasAccessAsync(_childAgentId, _userId, _isAdmin, cancellationToken);
         if (!hasAccess)
         {
             return "You do not have permission to access this resource.";
         }
 
-        // Create the child agent (also throws AgentAccessDeniedException if access changed
-        // between registration and call — defense in depth).
-        var childAgent = await _agentFactory.CreateAgent(_childAgentId, _userId, _isAdmin);
-
-        // The agent factory only attaches static-config tools (DateTime, MCP); the LightRAG
-        // knowledge tool is a request-layer concern wired in AgentService for direct chat.
-        // The tool path bypasses AgentService, so re-attach it here scoped to the CHILD agent's
-        // workspace — otherwise the child answers from parametric knowledge, not its documents.
-        // Tags are passed empty: LightRAG ignores tag filtering, so per-agent isolation is the scope.
+        // Attach the child agent's own knowledge tool, scoped to its workspace, so the child
+        // searches its documents rather than answering from parametric knowledge. Tags are
+        // empty: LightRAG ignores tag filtering, so per-agent isolation is the scope.
         var memoryTool = new KnowledgePlugin(_knowledgeService, [], _childAgentId).AsAITool();
         var runOptions = new ChatClientAgentRunOptions(new ChatOptions { Tools = [memoryTool] });
 
-        // Run a single-turn chat against the child agent.
         var chatHistory = new List<ChatMessage>
         {
             new(ChatRole.User, query)
         };
 
-        var result = await childAgent.RunAsync(chatHistory, options: runOptions, cancellationToken: cancellationToken);
+        var result = await _childAgent.RunAsync(chatHistory, options: runOptions, cancellationToken: cancellationToken);
         return result.Text ?? string.Empty;
     }
 

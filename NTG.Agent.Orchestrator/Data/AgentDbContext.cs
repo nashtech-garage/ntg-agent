@@ -26,6 +26,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
 
+    public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
+
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
@@ -113,7 +115,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Name = "Default Agent",
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
-            IsPublished = true
+            IsPublished = true,
+            AgentKind = Common.Dtos.Agents.AgentKind.Outer
         });
 
         modelBuilder.Entity<Folder>().HasData(
@@ -216,13 +219,20 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
 
-        // LinkedAgentId FK: Restrict to avoid multiple cascade paths
-        // (AgentTools already cascades from Agent via AgentId).
-        modelBuilder.Entity<AgentTools>()
-            .HasOne(t => t.LinkedAgent)
-            .WithMany()
-            .HasForeignKey(t => t.LinkedAgentId)
-            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Models.Agents.AgentInnerAgent>(entity =>
+        {
+            entity.HasKey(x => new { x.OuterAgentId, x.InnerAgentId });
+
+            entity.HasOne(x => x.OuterAgent)
+                .WithMany(a => a.InnerAgentBindings)
+                .HasForeignKey(x => x.OuterAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.InnerAgent)
+                .WithMany(a => a.OuterAgentBindings)
+                .HasForeignKey(x => x.InnerAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         // UserPreference configuration
         modelBuilder.Entity<UserPreference>(e =>

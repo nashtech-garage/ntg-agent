@@ -10,6 +10,8 @@ using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
+using NTG.Agent.Orchestrator.Plugins;
+using NTG.Agent.Orchestrator.Services.Knowledge;
 using OpenAI;
 using OpenAI.Responses;
 using System.ClientModel;
@@ -21,29 +23,27 @@ public class AgentFactory : IAgentFactory
 {
     private readonly IConfiguration _configuration;
     private readonly AgentDbContext _agentDbContext;
+    private readonly IKnowledgeService _knowledgeService;
+    private readonly AgentAccessService _agentAccessService;
     public string ToolContext { get; set; } = string.Empty;
 
     private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
-    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext)
+    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
+        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
     }
 
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
-        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished) ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
-        string agentProvider = agentConfig.ProviderName;
-        return agentProvider switch
-        {
-            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
-            "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
-            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
-            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
-            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
-            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
-        };
+        var agentConfig = await _agentDbContext.Agents
+            .FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished && a.AgentKind == AgentKind.Outer)
+            ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
+
+        return await CreateAgentFromConfigAsync(agentConfig);
     }
 
     public async Task<AIAgent> CreateAgent(Guid agentId, Guid? userId, bool isAdmin)
@@ -57,16 +57,7 @@ public class AgentFactory : IAgentFactory
                     && _agentDbContext.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))))
             ?? throw new AgentAccessDeniedException(agentId);
 
-        string agentProvider = agentConfig.ProviderName;
-        return agentProvider switch
-        {
-            "GitHubModel" => await CreateOpenAIAgentAsync(agentConfig),
-            "GoogleGemini" => await CreateOpenAIAgentAsync(agentConfig),
-            "OpenAI" => await CreateOpenAIAgentAsync(agentConfig),
-            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agentConfig),
-            "Anthropic" => await CreateAnthropicAgentAsync(agentConfig),
-            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
-        };
+        return await CreateAgentFromConfigAsync(agentConfig, userId, isAdmin);
     }
 
     // This agent is used for simple tasks, like summarization, naming the conversation, etc.
@@ -121,7 +112,7 @@ public class AgentFactory : IAgentFactory
         return agent;
     }
 
-    private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
         IChatClient chatClient;
 
@@ -161,11 +152,11 @@ public class AgentFactory : IAgentFactory
                 .Build();
         }
 
-        var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
-    private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
         IChatClient chatClient;
 
@@ -206,12 +197,12 @@ public class AgentFactory : IAgentFactory
                 .Build();
         }
 
-        var tools = await GetAgentToolsByAgentId(agent);
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
 
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
-    private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
+    private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
         IChatClient chatClient;
 
@@ -254,11 +245,11 @@ public class AgentFactory : IAgentFactory
                 .Build();
         }
 
-        var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: agent.Description, tools: tools);
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
-    private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent)
+    private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
         var tools = new List<AITool>();
         if (agent != null)
@@ -277,6 +268,12 @@ public class AgentFactory : IAgentFactory
             tools = allTools
                 .Where(t => enabledToolNames.Contains(t.Name))
                 .ToList();
+
+            if (agent.AgentKind == AgentKind.Outer)
+            {
+                var innerAgentTools = await GetInnerAgentToolsAsync(agent, userId, isAdmin);
+                tools.AddRange(innerAgentTools);
+            }
         }
 
         return tools;
@@ -300,6 +297,84 @@ public class AgentFactory : IAgentFactory
         }
 
         return allTools;
+    }
+
+    private async Task<AIAgent> CreateAgentFromConfigAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
+    {
+        string agentProvider = agent.ProviderName;
+        return agentProvider switch
+        {
+            "GitHubModel" => await CreateOpenAIAgentAsync(agent, userId, isAdmin),
+            "GoogleGemini" => await CreateOpenAIAgentAsync(agent, userId, isAdmin),
+            "OpenAI" => await CreateOpenAIAgentAsync(agent, userId, isAdmin),
+            "AzureOpenAI" => await CreateAzureOpenAIAgentAsync(agent, userId, isAdmin),
+            "Anthropic" => await CreateAnthropicAgentAsync(agent, userId, isAdmin),
+            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+        };
+    }
+
+    private static string? GetAgentDescription(Models.Agents.Agent agent)
+    {
+        if (!string.IsNullOrWhiteSpace(agent.Description))
+        {
+            return agent.Description;
+        }
+
+        return string.IsNullOrWhiteSpace(agent.Instructions) ? null : agent.Instructions;
+    }
+
+    private async Task<List<AITool>> GetInnerAgentToolsAsync(Models.Agents.Agent outerAgent, Guid? userId = null, bool isAdmin = false)
+    {
+        var bindings = await _agentDbContext.AgentInnerAgents
+            .Where(b => b.OuterAgentId == outerAgent.Id && b.IsEnabled)
+            .Select(b => b.InnerAgentId)
+            .ToListAsync();
+
+        if (bindings.Count == 0)
+        {
+            return [];
+        }
+
+        var innerAgents = await _agentDbContext.Agents
+            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.Inner && a.IsPublished)
+            .ToListAsync();
+
+        var tools = new List<AITool>();
+        foreach (var innerAgent in innerAgents)
+        {
+            // Per-role access gate: only expose an inner agent the caller may use.
+            // The plugin re-checks access at call time as defense in depth.
+            if (!await _agentAccessService.HasAccessAsync(innerAgent.Id, userId, isAdmin))
+            {
+                continue;
+            }
+
+            var child = await CreateAgentFromConfigAsync(innerAgent, userId, isAdmin);
+            var toolName = ToToolName(innerAgent.Name, innerAgent.Id);
+            var toolDescription = !string.IsNullOrWhiteSpace(innerAgent.Description)
+                ? innerAgent.Description
+                : (!string.IsNullOrWhiteSpace(innerAgent.Instructions) ? innerAgent.Instructions : innerAgent.Name);
+
+            // Wrap the child so that (a) access is re-checked at call time and (b) the child's
+            // own LightRAG knowledge tool is attached (scoped to its workspace) — the bare
+            // AsAIFunction() path would let the child answer only from parametric knowledge.
+            var plugin = new AgentToolPlugin(
+                child, _agentAccessService, _knowledgeService,
+                innerAgent.Id, userId, isAdmin, toolName, toolDescription);
+            tools.Add(plugin.AsAITool());
+        }
+
+        return tools;
+    }
+
+    // Function/tool names must be a safe identifier; derive one from the agent name and
+    // fall back to a stable id-based name when it sanitizes to empty.
+    private static string ToToolName(string? name, Guid agentId)
+    {
+        var sanitized = new string((name ?? string.Empty)
+            .Select(ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == '-' ? ch : '_')
+            .ToArray()).Trim('_');
+        return string.IsNullOrWhiteSpace(sanitized) ? $"agent_{agentId:N}" : sanitized;
     }
 
 
