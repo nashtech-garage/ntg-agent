@@ -48,6 +48,7 @@ public class AgentsControllerTests
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<IUserMemoryService>(),
             Mock.Of<IDocumentAnalysisService>(),
+            new RenderableToolCapture(),
             Mock.Of<ILogger<AgentService>>()
         );
 
