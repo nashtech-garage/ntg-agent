@@ -7,6 +7,7 @@ import { CopilotKit } from "@copilotkit/react-core";
 import { Agent } from "../src/components/AgentSelector";
 import ChatWorkspace from "../src/components/ChatWorkspace";
 import { AGENT_ID } from "../src/constants";
+import { a2uiActivityRenderers } from "../src/a2ui/activityRenderer";
 
 export default function Page() {
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
@@ -74,6 +75,7 @@ export default function Page() {
       key={selectedAgent.id}
       runtimeUrl={`/api/copilotkit/${selectedAgent.id}`}
       agent={AGENT_ID}
+      renderActivityMessages={a2uiActivityRenderers}
     >
       <ChatWorkspace
         agents={agents}

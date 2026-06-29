@@ -7,6 +7,7 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import { HttpAgent } from "@ag-ui/client";
+import { A2UIMiddleware } from "@ag-ui/a2ui-middleware";
 
 if (process.env.NODE_ENV !== "production") {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -36,6 +37,12 @@ async function handleCopilotRequest(req: NextRequest, integrationId: string) {
       headers: { ...(cookie ? { Cookie: cookie } : {}) },
     });
     console.log(`[Copilot Handler] HttpAgent → ${orchestratorUrl}/api/agui/${integrationId}`);
+
+    // A2UI: inject the `render_a2ui` tool into the run and convert the agent's
+    // streamed render_a2ui tool-call args into ACTIVITY_SNAPSHOT messages that the
+    // A2UI renderer (registered on <CopilotKit renderActivityMessages>) consumes.
+    // Also injects log_a2ui_event tool calls for user interactions on a surface.
+    agentInstance.use(new A2UIMiddleware({ injectA2UITool: true }));
 
     const runtime = new CopilotRuntime({
       agents: { dotnet_orchestrator_agent: agentInstance },
