@@ -419,6 +419,15 @@ public class AgentService
                 }
             }
 
+            // A2UI: when the client's middleware has injected the render_a2ui tool, give the
+            // model the A2UI v0.9 component catalog so it can generate valid UI surfaces.
+            // (The middleware ships this guidance via the AG-UI context channel, which this
+            // backend does not forward — so we inject it as a leading system message here.)
+            if (frontendToolNames.Contains(A2uiPrompt.RenderToolName))
+            {
+                chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
+            }
+
             await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
                 // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
