@@ -39,24 +39,19 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves a list of all agents in the system.
+    /// Retrieves a list of all agents, optionally filtered by AgentKind.
     /// </summary>
-    /// <remarks>
-    /// This endpoint returns a summary list of all agents including their ID, name, owner, last updater, and last update timestamp.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing a list of <see cref="AgentListItem"/> objects.
-    /// Returns 200 OK with the agent list.
-    /// </returns>
-    /// <response code="200">Returns the list of agents successfully</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
     [HttpGet]
-    public async Task<IActionResult> GetAgents()
+    public async Task<IActionResult> GetAgents([FromQuery] AgentKind? agentKind = null)
     {
-        var agents = await _agentDbContext.Agents
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished))
+        IQueryable<Models.Agents.Agent> query = _agentDbContext.Agents;
+        if (agentKind.HasValue)
+        {
+            query = query.Where(x => x.AgentKind == agentKind.Value);
+        }
+
+        var agents = await query
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind))
             .ToListAsync();
         return Ok(agents);
     }
@@ -64,19 +59,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Retrieves detailed information about a specific agent by its unique identifier.
     /// </summary>
-    /// <remarks>
-    /// This endpoint returns comprehensive details about an agent including its configuration, 
-    /// provider settings, and tool count. Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent to retrieve.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing an <see cref="AgentDetail"/> object.
-    /// Returns 200 OK with the agent details if found, or 404 Not Found if the agent doesn't exist.
-    /// </returns>
-    /// <response code="200">Returns the agent details successfully</response>
-    /// <response code="404">If the agent with the specified ID is not found</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetAgentById(Guid id)
     {
@@ -90,6 +72,7 @@ public class AgentAdminController : ControllerBase
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
                 IsDefault = x.IsDefault,
                 IsPublished = x.IsPublished,
+                AgentKind = x.AgentKind,
                 Mode = x.Mode
             })
             .FirstOrDefaultAsync();
@@ -104,24 +87,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Updates an existing agent's configuration and settings.
     /// </summary>
-    /// <remarks>
-    /// This endpoint allows modification of an agent's properties including name, instructions, 
-    /// provider configuration, and MCP server settings. The authenticated user is recorded as 
-    /// the updater, and the update timestamp is automatically set to the current UTC time.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent to update.</param>
-    /// <param name="updatedAgent">An <see cref="AgentDetail"/> object containing the updated agent information.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> indicating the result of the update operation.
-    /// Returns 204 No Content on success, 400 Bad Request if IDs don't match, or 404 Not Found if the agent doesn't exist.
-    /// </returns>
-    /// <response code="204">Agent updated successfully</response>
-    /// <response code="400">If the ID in the URL doesn't match the ID in the request body</response>
-    /// <response code="404">If the agent with the specified ID is not found</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateAgent(Guid id, [FromBody] AgentDetail updatedAgent)
     {
@@ -130,7 +95,7 @@ public class AgentAdminController : ControllerBase
             return BadRequest("ID in URL does not match ID in body.");
         }
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-        var agent = await _agentDbContext.Agents.FindAsync(id);
+        var agent = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == id);
         if (agent == null)
         {
             return NotFound();
@@ -153,22 +118,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Retrieves all available tools for a specific agent, including their enabled status.
     /// </summary>
-    /// <remarks>
-    /// This endpoint returns a merged list of all available tools (built-in, MCP, and custom) 
-    /// with their current configuration status for the specified agent. It combines tools from 
-    /// the agent factory with the agent's saved tool preferences.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent whose tools to retrieve.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing a list of <see cref="AgentToolDto"/> objects.
-    /// Returns 200 OK with the tool list, or 404 Not Found if the tools are not available.
-    /// </returns>
-    /// <response code="200">Returns the list of agent tools successfully</response>
-    /// <response code="404">If the tools list is not available or agent is not found</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
-    /// <exception cref="ArgumentException">Thrown if the agent with the specified ID is not found.</exception>
     [HttpGet("{id}/tools")]
     public async Task<IActionResult> GetAgentToolsByAgentId(Guid id)
     {
@@ -212,22 +161,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Updates the tool configuration for a specific agent.
     /// </summary>
-    /// <remarks>
-    /// This endpoint allows enabling/disabling tools for an agent. For existing tools in the database, 
-    /// it updates their enabled status. For new tools, it creates new tool associations with the agent.
-    /// The update timestamp is automatically set for modified tools.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent whose tools to update.</param>
-    /// <param name="updatedTools">A list of <see cref="AgentToolDto"/> objects representing the updated tool configurations.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> indicating the result of the update operation.
-    /// Returns 200 OK with a success message, or 404 Not Found if the agent doesn't exist.
-    /// </returns>
-    /// <response code="200">Tools updated successfully</response>
-    /// <response code="404">If the agent with the specified ID is not found</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
     [HttpPut("{id}/tools")]
     public async Task<IActionResult> UpdateAgentTools(Guid id, [FromBody] List<AgentToolDto> updatedTools)
     {
@@ -238,23 +171,19 @@ public class AgentAdminController : ControllerBase
         if (agent == null)
             return NotFound($"Agent with ID '{id}' not found.");
 
-        // Existing tools from DB
         var existingTools = agent.AgentTools.ToList();
 
-        // Update or insert
         foreach (var toolDto in updatedTools)
         {
             var existingTool = existingTools.FirstOrDefault(t => t.Name == toolDto.Name);
 
             if (existingTool != null)
             {
-                // Update existing
                 existingTool.IsEnabled = toolDto.IsEnabled;
                 existingTool.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
-                // Add new
                 agent.AgentTools.Add(new Models.Agents.AgentTools
                 {
                     AgentId = id,
@@ -277,22 +206,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Connects an agent to a Model Context Protocol (MCP) server and retrieves available tools.
     /// </summary>
-    /// <remarks>
-    /// This endpoint establishes a connection to an MCP server using the provided endpoint URL 
-    /// and retrieves all available tools from that server. The tools are then merged with the 
-    /// agent's existing tool configuration to show which tools are enabled.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent to connect to the MCP server.</param>
-    /// <param name="endpoint">The MCP server endpoint URL to connect to.</param>
-    /// <returns>
-    /// An <see cref="IEnumerable{AgentToolDto}"/> containing the list of available tools from the MCP server 
-    /// merged with the agent's current tool configuration.
-    /// </returns>
-    /// <response code="200">Returns the list of MCP tools successfully</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
-    /// <exception cref="ArgumentException">Thrown if the agent with the specified ID is not found.</exception>
     [HttpPost("{id}/connect")]
     public async Task<IEnumerable<AgentToolDto>> ConnectToMcpServerAsync(Guid id, [FromBody] string endpoint)
     {
@@ -315,29 +228,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Creates a new agent with the specified configuration.
     /// </summary>
-    /// <remarks>
-    /// This endpoint creates a new agent in the system with the provided configuration including 
-    /// name, instructions, provider settings, and MCP server configuration. The authenticated user 
-    /// is set as both the owner and updater of the agent. All optional fields (instructions, provider 
-    /// settings) default to empty strings if not provided. A new GUID is automatically generated for 
-    /// the agent, and creation/update timestamps are set to the current UTC time.
-    /// Only users with Admin role can access this endpoint.
-    /// 
-    /// After successful creation, the agent's ID should be used to create a default folder structure 
-    /// via the FoldersController endpoint: POST /api/folders/{agentId}/folders/default
-    /// </remarks>
-    /// <param name="updatedAgent">An <see cref="AgentDetail"/> object containing the new agent's configuration. 
-    /// Only the Name field is required; all other fields are optional.</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> containing the created agent.
-    /// Returns 201 Created with the agent details and a Location header pointing to the GetAgentById endpoint,
-    /// or 400 Bad Request if the agent data is invalid.
-    /// </returns>
-    /// <response code="201">Agent created successfully, returns the created agent with its ID</response>
-    /// <response code="400">If the agent data is null or invalid</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost]
     public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent, CancellationToken cancellationToken = default)
     {
@@ -358,11 +248,12 @@ public class AgentAdminController : ControllerBase
             ProviderEndpoint = updatedAgent.ProviderEndpoint ?? string.Empty,
             ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty,
             ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty,
-            Mode = updatedAgent.Mode,
+            Mode = updatedAgent.AgentKind == AgentKind.Inner ? AgentMode.Fast : updatedAgent.Mode,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
             IsDefault = false,
             IsPublished = false,
+            AgentKind = updatedAgent.AgentKind,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -392,28 +283,11 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Updates the publication status of an agent.
     /// </summary>
-    /// <remarks>
-    /// This endpoint allows toggling the publication status of an agent between published and draft states.
-    /// When an agent is published, it becomes available for use. The authenticated user is recorded as 
-    /// the updater, and the update timestamp is automatically set to the current UTC time.
-    /// Only users with Admin role can access this endpoint.
-    /// </remarks>
-    /// <param name="id">The unique identifier (GUID) of the agent to update.</param>
-    /// <param name="isPublished">Boolean value indicating whether the agent should be published (true) or set to draft (false).</param>
-    /// <returns>
-    /// An <see cref="IActionResult"/> indicating the result of the update operation.
-    /// Returns 200 OK on success, or 404 Not Found if the agent doesn't exist.
-    /// </returns>
-    /// <response code="200">Agent publication status updated successfully</response>
-    /// <response code="404">If the agent with the specified ID is not found</response>
-    /// <response code="401">If the user is not authenticated</response>
-    /// <response code="403">If the user does not have Admin role</response>
-    /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPatch("{id}/publish")]
     public async Task<IActionResult> UpdateAgentPublishStatus(Guid id, [FromBody] bool isPublished)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
-        var agent = await _agentDbContext.Agents.FindAsync(id);
+        var agent = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == id);
         
         if (agent == null)
         {
@@ -432,14 +306,6 @@ public class AgentAdminController : ControllerBase
     /// <summary>
     /// Deletes the agent with the specified identifier.
     /// </summary>
-    /// <remarks>Default agents cannot be deleted. Additionally, agents associated with documents cannot be
-    /// deleted.</remarks>
-    /// <param name="id">The unique identifier of the agent to delete.</param>
-    /// <returns>An <see cref="IActionResult"/> indicating the result of the operation: <list type="bullet">
-    /// <item><description><see cref="NotFoundResult"/> if no agent with the specified identifier
-    /// exists.</description></item> <item><description><see cref="BadRequestResult"/> if the agent is a default agent
-    /// or is associated with documents.</description></item> <item><description><see cref="NoContentResult"/> if the
-    /// agent is successfully deleted.</description></item> </list></returns>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteAgent(Guid id, CancellationToken cancellationToken = default)
     {
@@ -452,6 +318,17 @@ public class AgentAdminController : ControllerBase
         if (agent.IsDefault)
         {
             return BadRequest("Default agent cannot be deleted.");
+        }
+
+        // If this agent is linked as an inner agent of any outer agent, remove those
+        // bindings first — the InnerAgentId FK is Restrict (no cascade), so the delete
+        // would otherwise fail. OuterAgent bindings cascade automatically.
+        var innerBindings = await _agentDbContext.AgentInnerAgents
+            .Where(b => b.InnerAgentId == id)
+            .ToListAsync(cancellationToken);
+        if (innerBindings.Count > 0)
+        {
+            _agentDbContext.AgentInnerAgents.RemoveRange(innerBindings);
         }
 
         // Cascade-delete the agent's knowledge: remove each document from its LightRAG
@@ -478,5 +355,115 @@ public class AgentAdminController : ControllerBase
         await _agentDbContext.SaveChangesAsync(cancellationToken);
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Retrieves inner agent bindings for an outer agent.
+    /// </summary>
+    [HttpGet("{id}/inner-agents")]
+    public async Task<IActionResult> GetInnerAgentBindings(Guid id)
+    {
+        var outerAgentExists = await _agentDbContext.Agents.AnyAsync(a => a.Id == id && a.AgentKind == AgentKind.Outer);
+        if (!outerAgentExists)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        var innerAgents = await _agentDbContext.Agents
+            .Where(a => a.AgentKind == AgentKind.Inner && a.IsPublished)
+            .Select(a => new
+            {
+                a.Id,
+                a.Name,
+                a.Description,
+                a.Instructions,
+                a.ProviderModelName
+            })
+            .ToListAsync();
+
+        var bindings = await _agentDbContext.AgentInnerAgents
+            .Where(b => b.OuterAgentId == id)
+            .ToListAsync();
+
+        var bindingMap = bindings.ToDictionary(b => b.InnerAgentId, b => b.IsEnabled);
+
+        var result = innerAgents.Select(agent => new InnerAgentBindingDto
+        {
+            InnerAgentId = agent.Id,
+            Name = agent.Name,
+            Description = string.IsNullOrWhiteSpace(agent.Description) ? agent.Instructions ?? string.Empty : agent.Description,
+            ProviderModelName = agent.ProviderModelName ?? string.Empty,
+            IsEnabled = bindingMap.TryGetValue(agent.Id, out var enabled) && enabled
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Updates inner agent bindings for an outer agent.
+    /// </summary>
+    [HttpPut("{id}/inner-agents")]
+    public async Task<IActionResult> UpdateInnerAgentBindings(Guid id, [FromBody] List<InnerAgentBindingDto> bindings)
+    {
+        var outerAgent = await _agentDbContext.Agents
+            .Include(a => a.InnerAgentBindings)
+            .FirstOrDefaultAsync(a => a.Id == id && a.AgentKind == AgentKind.Outer);
+
+        if (outerAgent == null)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        var requestedIds = bindings.Select(b => b.InnerAgentId).Distinct().ToList();
+        var validIds = await _agentDbContext.Agents
+            .Where(a => requestedIds.Contains(a.Id) && a.AgentKind == AgentKind.Inner)
+            .Select(a => a.Id)
+            .ToListAsync();
+
+        if (validIds.Count != requestedIds.Count)
+        {
+            return BadRequest("One or more inner agents are invalid.");
+        }
+
+        var now = DateTime.UtcNow;
+        var existingBindings = outerAgent.InnerAgentBindings.ToDictionary(b => b.InnerAgentId);
+
+        foreach (var bindingDto in bindings)
+        {
+            if (existingBindings.TryGetValue(bindingDto.InnerAgentId, out var binding))
+            {
+                binding.IsEnabled = bindingDto.IsEnabled;
+                binding.UpdatedAt = now;
+            }
+            else
+            {
+                outerAgent.InnerAgentBindings.Add(new Models.Agents.AgentInnerAgent
+                {
+                    OuterAgentId = id,
+                    InnerAgentId = bindingDto.InnerAgentId,
+                    IsEnabled = bindingDto.IsEnabled,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+        }
+
+        var draftIds = await _agentDbContext.Agents
+            .Where(a => a.AgentKind == AgentKind.Inner && !a.IsPublished)
+            .Select(a => a.Id)
+            .ToListAsync();
+
+        var removed = outerAgent.InnerAgentBindings
+            .Where(b => !requestedIds.Contains(b.InnerAgentId) && !draftIds.Contains(b.InnerAgentId))
+            .ToList();
+
+        if (removed.Count > 0)
+        {
+            _agentDbContext.AgentInnerAgents.RemoveRange(removed);
+        }
+
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok("Inner agent bindings updated successfully.");
     }
 }

@@ -5,9 +5,15 @@ namespace NTG.Agent.Admin.Client.Services;
 
 public class AgentClient(HttpClient httpClient)
 {
-    public async Task<IList<AgentListItem>> GetListAsync()
+    public async Task<IList<AgentListItem>> GetListAsync(AgentKind? agentKind = null)
     {
-        var response = await httpClient.GetAsync("api/agentadmin");
+        string url = "api/agentadmin";
+        if (agentKind.HasValue)
+        {
+            url += $"?agentKind={agentKind.Value}";
+        }
+
+        var response = await httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<IList<AgentListItem>>();
@@ -77,6 +83,21 @@ public class AgentClient(HttpClient httpClient)
     public async Task UpdateAgentPublishStatus(Guid id, bool isPublished)
     {
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IList<InnerAgentBindingDto>> GetInnerAgentBindingsAsync(Guid agentId)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/inner-agents");
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<InnerAgentBindingDto>>();
+        return result ?? [];
+    }
+
+    public async Task UpdateInnerAgentBindingsAsync(Guid agentId, IList<InnerAgentBindingDto> bindings)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/inner-agents", bindings);
         response.EnsureSuccessStatusCode();
     }
 }

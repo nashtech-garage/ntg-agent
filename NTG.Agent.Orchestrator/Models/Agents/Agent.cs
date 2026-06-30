@@ -34,6 +34,8 @@ public class Agent
     /// <summary>Whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
 
+    public AgentKind AgentKind { get; set; } = AgentKind.Outer;
+
     public string? McpServer { get; set; } = string.Empty;
 
     /// <summary>
@@ -56,5 +58,11 @@ public class Agent
     public User UpdatedByUser { get; set; } = null!;
 
     public ICollection<AgentTools> AgentTools { get; set; } = new List<AgentTools>();
+
+    /// <summary>Bindings where this agent is the outer agent.</summary>
+    public ICollection<AgentInnerAgent> InnerAgentBindings { get; set; } = new List<AgentInnerAgent>();
+
+    /// <summary>Bindings where this agent is used as an inner agent.</summary>
+    public ICollection<AgentInnerAgent> OuterAgentBindings { get; set; } = new List<AgentInnerAgent>();
 
 }

@@ -364,7 +364,7 @@
         hoveredConversationId = null;
     }
 
-    private async void ToggleMenu(Guid conversationId)
+    private async Task ToggleMenu(Guid conversationId)
     {
         if (contextMenuConversationId == conversationId)
         {
