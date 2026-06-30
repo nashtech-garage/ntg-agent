@@ -449,7 +449,6 @@ public class KernelMemoryKnowledgeTests
         // Arrange
         var documentId = "test-doc-id";
         var fileName = "test-file.txt";
-        var fakeStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("content"));
         var fakeStreamable = new StreamableFileContent();
 
         _mockKernelMemory.Setup(m => m.ExportFileAsync(

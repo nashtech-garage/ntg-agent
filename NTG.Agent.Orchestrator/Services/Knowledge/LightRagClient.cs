@@ -38,7 +38,7 @@ public class LightRagClient
 
     public async Task DeleteDocumentAsync(string docId, CancellationToken ct = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/documents/delete_document")
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "/documents/delete_document")
         {
             Content = JsonContent.Create(new DeleteDocumentRequest([docId]))
         };
