@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.KernelMemory;
+using NTG.Agent.Common.Knowledge;
+using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
@@ -76,7 +77,6 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
 
 builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
 builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.GetSection("Azure:DocumentIntelligence"));
-builder.Services.Configure<LightRagSettings>(builder.Configuration.GetSection("LightRag"));
 
 builder.Services.AddControllers();
 
@@ -89,7 +89,6 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
-builder.Services.AddScoped<IKnowledgeService, LightRagKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
@@ -97,83 +96,36 @@ builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
 
-builder.Services.AddSingleton<LightRagFileStore>(sp =>
-{
-    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-    var log = sp.GetRequiredService<ILogger<LightRagFileStore>>();
-    return new LightRagFileStore(cfg.FileStorePath, log);
-});
-
-// LightRAG /query invokes an LLM and routinely takes >10s, exceeding the
-// standard resilience handler's 10s per-attempt timeout. Override the named
-// options for this client so the global ServiceDefaults pipeline is reused
-// with longer timeouts and no retries (retrying slow LLM calls is wasteful).
-builder.Services.Configure<Microsoft.Extensions.Http.Resilience.HttpStandardResilienceOptions>(
-    nameof(LightRagClient),
-    o =>
-    {
-        o.AttemptTimeout.Timeout = TimeSpan.FromMinutes(2);
-        o.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
-        o.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(5);
-        o.Retry.MaxRetryAttempts = 0;
-    });
-
-// Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
-// LightRagClientFactory (each agent has its own container endpoint), so we only
-// configure the timeout here. The resilience override above is keyed on this name.
-// When LightRag:SocksProxy is set, route through that SOCKS5 proxy so the dynamic
-// per-agent container ports are reachable over the SSH tunnel (`ssh -D`); empty =>
-// direct connection (local dev).
-builder.Services.AddHttpClient(nameof(LightRagClient), c =>
-{
-    c.Timeout = TimeSpan.FromMinutes(5);
-})
-.ConfigurePrimaryHttpMessageHandler(sp =>
-{
-    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-    var handler = new System.Net.Http.SocketsHttpHandler();
-    if (!string.IsNullOrWhiteSpace(cfg.SocksProxy))
-    {
-        handler.Proxy = new System.Net.WebProxy(cfg.SocksProxy);
-        handler.UseProxy = true;
-    }
-    return handler;
-});
-
-// One LightRAG container per agent: the manager owns the Docker lifecycle, the
-// factory resolves a per-agent client, and the reconciler ensures containers exist
-// for every agent on startup.
-// IDockerClient is built from LightRagSettings.DockerHost (empty => local socket;
-// tcp://<server>:2375 => remote daemon) and injected so the manager is testable.
-builder.Services.AddSingleton<Docker.DotNet.IDockerClient>(sp =>
-{
-    var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-    var dockerConfig = string.IsNullOrWhiteSpace(cfg.DockerHost)
-        ? new Docker.DotNet.DockerClientConfiguration()
-        : new Docker.DotNet.DockerClientConfiguration(new Uri(cfg.DockerHost));
-    return dockerConfig.CreateClient();
-});
-builder.Services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
-builder.Services.AddSingleton<LightRagContainerAccessTracker>();
-// Identity-bound host-port reservations (one permanent port per agent) — prevents
-// cross-agent misrouting when a freed port would otherwise be recycled. The provisioner
-// centralises the reserve->ensure->reassign flow used by the factory, reconciler, and
-// agent creation.
-builder.Services.AddScoped<PortReservationService>();
-builder.Services.AddScoped<ILightRagProvisioner, LightRagProvisioner>();
-builder.Services.AddScoped<LightRagClientFactory>();
-builder.Services.AddHostedService<LightRagReconcilerHostedService>();
-builder.Services.AddHostedService<LightRagContainerIdleShutdownService>();
-// Event-driven worker: parks while idle and wakes (via IngestionStatusSignal) when an upload
-// begins, polling LightRAG until every Processing document reaches Completed/Failed.
+// Provider-neutral knowledge plumbing: the upload endpoints signal the active provider's
+// ingestion worker through this regardless of which provider is configured.
 builder.Services.AddSingleton<IngestionStatusSignal>();
-builder.Services.AddHostedService<LightRagIngestionStatusHostedService>();
+
+// Knowledge provider selection — the Orchestrator only depends on IKnowledgeService /
+// IKnowledgeProvisioner; the provider behind them is chosen by configuration so backends
+// can be swapped without touching Orchestrator code.
+var knowledgeProvider = builder.Configuration["Knowledge:Provider"] ?? "LightRag";
+switch (knowledgeProvider)
+{
+    case "LightRag":
+        // Self-contained provider package (containers, port reservations, HTTP clients,
+        // background workers). The EF adapters below are its only touch points with our DB.
+        builder.Services.AddLightRagKnowledge(builder.Configuration);
+        builder.Services.AddScoped<ILightRagAgentPortStore, LightRagEfAgentPortStore>();
+        builder.Services.AddScoped<ILightRagIngestionStore, LightRagEfIngestionStore>();
+        break;
+    case "KernelMemory":
+        builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
+        builder.Services.AddScoped<IKnowledgeProvisioner, NoOpKnowledgeProvisioner>();
+        break;
+    default:
+        throw new ConfigurationException($"Unknown Knowledge:Provider '{knowledgeProvider}'. Supported: LightRag, KernelMemory.");
+}
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {
     var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__https__0") 
-                   ?? Environment.GetEnvironmentVariable($"services__ntg-agent-knowledge__http__0") 
+    var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-kernel-memory__https__0") 
+                   ?? Environment.GetEnvironmentVariable($"services__ntg-agent-kernel-memory__http__0") 
                    ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
     var apiKey = configuration["KernelMemory:ApiKey"] 
                 ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
