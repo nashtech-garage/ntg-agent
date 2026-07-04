@@ -103,7 +103,7 @@ var mcpServer = builder.AddProject<Projects.NTG_Agent_MCP_Server>("ntg-agent-mcp
 	.WithEnvironment("Google__ApiKey", googleApiKey)
 	.WithEnvironment("Google__SearchEngineId", googleSearchId);
 
-var knowledge = builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-knowledge")
+var kernelMemory = builder.AddProject<Projects.NTG_Agent_KernelMemory>("ntg-agent-kernel-memory")
 	.WaitFor(db)
 	.WaitFor(elasticsearch)
 	.WithEnvironment("KernelMemory__Services__SqlServer__ConnectionString", db)
@@ -126,7 +126,7 @@ var knowledge = builder.AddProject<Projects.NTG_Agent_Knowledge>("ntg-agent-know
 var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agent-orchestrator")
 	.WithExternalHttpEndpoints()
 	.WithReference(mcpServer)
-	.WithReference(knowledge)
+	.WithReference(kernelMemory)
 	.WaitForCompletion(migrateOrchestrator)
 	// The Orchestrator spawns per-agent LightRAG containers on the remote Ubuntu
 	// Docker daemon (over the SSH tunnel) against the standalone Postgres there. That

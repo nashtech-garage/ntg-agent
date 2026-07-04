@@ -1,9 +1,10 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.Common.Dtos.Knowledge;
-using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Common.Knowledge;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 public class LightRagKnowledge : IKnowledgeService
 {

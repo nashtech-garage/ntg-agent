@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.KernelMemory;
 using Moq;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Tests.Services;

@@ -1,7 +1,7 @@
 using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.Common.Dtos.Knowledge;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.Common.Knowledge;
 
 /// <summary>
 /// Result of polling an in-flight ingestion. <see cref="KnowledgeDocId"/> is populated once the

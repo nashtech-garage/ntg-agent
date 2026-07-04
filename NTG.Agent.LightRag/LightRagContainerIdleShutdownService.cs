@@ -1,9 +1,9 @@
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Models.Configuration;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Background service that periodically checks whether LightRAG containers have been
@@ -80,20 +80,17 @@ public sealed class LightRagContainerIdleShutdownService : BackgroundService
     private async Task ShutdownIdleContainersAsync(CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var portStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentPortStore>();
 
-        var agents = await db.Agents.ToListAsync(ct);
+        // Agents without a port reservation have no container yet, so only assigned ports matter.
+        var assigned = await portStore.GetAssignedPortsAsync(ct);
         var timeout = TimeSpan.FromMinutes(_settings.IdleTimeoutMinutes);
         var now = DateTime.UtcNow;
         var shutdownCount = 0;
 
-        foreach (var agent in agents)
+        foreach (var (agentId, _) in assigned)
         {
-            // Skip agents that don't have a container yet.
-            if (agent.LightRagPort is null or 0)
-                continue;
-
-            var lastAccess = _accessTracker.GetLastAccess(agent.Id);
+            var lastAccess = _accessTracker.GetLastAccess(agentId);
 
             // If we've never tracked access for this agent, don't shut it down —
             // it might have been just created or reconciled.
@@ -107,19 +104,19 @@ public sealed class LightRagContainerIdleShutdownService : BackgroundService
             _logger.LogInformation(
                 "LightRAG idle shutdown: agent {AgentId} has been idle for {IdleMinutes:F0}min " +
                 "(threshold={Threshold}min). Stopping container.",
-                agent.Id, idleDuration.TotalMinutes, _settings.IdleTimeoutMinutes);
+                agentId, idleDuration.TotalMinutes, _settings.IdleTimeoutMinutes);
 
             try
             {
-                await _containerManager.StopContainerAsync(agent.Id, ct);
-                _accessTracker.Remove(agent.Id);
+                await _containerManager.StopContainerAsync(agentId, ct);
+                _accessTracker.Remove(agentId);
                 shutdownCount++;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
                     "LightRAG idle shutdown: failed to stop container for agent {AgentId}.",
-                    agent.Id);
+                    agentId);
             }
         }
 

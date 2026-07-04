@@ -1,17 +1,19 @@
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Documents;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Common.Knowledge;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Advances documents through the LightRAG ingestion pipeline without blocking the upload request.
 /// Polls LightRAG (via <see cref="IKnowledgeService.CheckIngestStatusAsync"/>) for every document
 /// still in <see cref="DocumentStatus.Processing"/> and flips it to
-/// <see cref="DocumentStatus.Completed"/> (filling in <c>KnowledgeDocId</c>) or
-/// <see cref="DocumentStatus.Failed"/> (filling in <c>ErrorMessage</c>).
+/// <see cref="DocumentStatus.Completed"/> (filling in the knowledge doc-id) or
+/// <see cref="DocumentStatus.Failed"/> (filling in the error message) via
+/// <see cref="ILightRagIngestionStore"/>.
 ///
 /// The worker is <b>event-driven</b>: it only polls while documents are processing. When none
 /// remain it parks on <see cref="IngestionStatusSignal.WaitAsync"/> (no timer, no DB queries) until
@@ -76,38 +78,29 @@ public sealed class LightRagIngestionStatusHostedService : BackgroundService
     private async Task<bool> PollOnceAsync(CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        var store = scope.ServiceProvider.GetRequiredService<ILightRagIngestionStore>();
         var knowledge = scope.ServiceProvider.GetRequiredService<IKnowledgeService>();
 
-        var pending = await db.Documents
-            .Where(d => d.Status == DocumentStatus.Processing && d.TrackId != null)
-            .ToListAsync(ct);
+        var pending = await store.GetProcessingDocumentsAsync(ct);
 
         if (pending.Count == 0) return false;
 
-        var changed = false;
+        var updates = new List<IngestionStatusUpdate>();
         var stillProcessing = 0;
         foreach (var doc in pending)
         {
             try
             {
-                var result = await knowledge.CheckIngestStatusAsync(doc.AgentId, doc.TrackId!, ct);
+                var result = await knowledge.CheckIngestStatusAsync(doc.AgentId, doc.TrackId, ct);
                 switch (result.Status)
                 {
                     case DocumentStatus.Completed:
-                        doc.Status = DocumentStatus.Completed;
-                        doc.KnowledgeDocId = result.KnowledgeDocId;
-                        doc.UpdatedAt = DateTime.UtcNow;
-                        changed = true;
-                        _logger.LogInformation("Ingestion completed: documentId={DocumentId} knowledgeDocId={KnowledgeDocId}", doc.Id, result.KnowledgeDocId);
+                        updates.Add(new IngestionStatusUpdate(doc.DocumentId, DocumentStatus.Completed, result.KnowledgeDocId, null));
+                        _logger.LogInformation("Ingestion completed: documentId={DocumentId} knowledgeDocId={KnowledgeDocId}", doc.DocumentId, result.KnowledgeDocId);
                         break;
                     case DocumentStatus.Failed:
-                        doc.Status = DocumentStatus.Failed;
-                        doc.KnowledgeDocId = result.KnowledgeDocId;
-                        doc.ErrorMessage = result.ErrorMessage;
-                        doc.UpdatedAt = DateTime.UtcNow;
-                        changed = true;
-                        _logger.LogWarning("Ingestion failed: documentId={DocumentId} reason={Reason}", doc.Id, result.ErrorMessage);
+                        updates.Add(new IngestionStatusUpdate(doc.DocumentId, DocumentStatus.Failed, result.KnowledgeDocId, result.ErrorMessage));
+                        _logger.LogWarning("Ingestion failed: documentId={DocumentId} reason={Reason}", doc.DocumentId, result.ErrorMessage);
                         break;
                     default:
                         // Still Processing — keep it for the next pass.
@@ -119,12 +112,12 @@ public sealed class LightRagIngestionStatusHostedService : BackgroundService
             {
                 // A single agent's container being down shouldn't stop the rest; retry next pass.
                 stillProcessing++;
-                _logger.LogWarning(ex, "Failed to check ingestion status for documentId={DocumentId} (agentId={AgentId}).", doc.Id, doc.AgentId);
+                _logger.LogWarning(ex, "Failed to check ingestion status for documentId={DocumentId} (agentId={AgentId}).", doc.DocumentId, doc.AgentId);
             }
         }
 
-        if (changed)
-            await db.SaveChangesAsync(ct);
+        if (updates.Count > 0)
+            await store.ApplyUpdatesAsync(updates, ct);
 
         return stillProcessing > 0;
     }

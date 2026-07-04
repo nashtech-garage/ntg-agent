@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Exceptions;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Thrown when no free host port remains in the configured reservation range

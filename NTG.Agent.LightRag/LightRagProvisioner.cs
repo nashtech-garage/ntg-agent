@@ -1,6 +1,5 @@
-using NTG.Agent.Orchestrator.Exceptions;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Single place that provisions an agent's LightRAG container on its identity-bound port:

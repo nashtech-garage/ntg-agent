@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Exceptions;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Thrown when an agent's reserved host port cannot be bound because an external

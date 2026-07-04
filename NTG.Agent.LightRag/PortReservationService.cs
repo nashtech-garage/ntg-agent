@@ -1,10 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Exceptions;
-using NTG.Agent.Orchestrator.Models.Configuration;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Assigns each agent a permanently-owned host port from the configured range
@@ -20,12 +16,12 @@ public sealed class PortReservationService
     // is scoped (a new instance per request) but there is one Orchestrator process.
     private static readonly SemaphoreSlim AllocationGate = new(1, 1);
 
-    private readonly AgentDbContext _db;
+    private readonly ILightRagAgentPortStore _portStore;
     private readonly LightRagSettings _settings;
 
-    public PortReservationService(AgentDbContext db, IOptions<LightRagSettings> settings)
+    public PortReservationService(ILightRagAgentPortStore portStore, IOptions<LightRagSettings> settings)
     {
-        _db = db;
+        _portStore = portStore;
         _settings = settings.Value;
     }
 
@@ -38,15 +34,12 @@ public sealed class PortReservationService
         await AllocationGate.WaitAsync(cancellationToken);
         try
         {
-            var agent = await _db.Agents.FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
-                ?? throw new InvalidOperationException($"Agent {agentId} not found while reserving a LightRAG port.");
-
-            if (agent.LightRagPort is > 0)
-                return agent.LightRagPort.Value;
+            var existing = await _portStore.GetPortAsync(agentId, cancellationToken);
+            if (existing is > 0)
+                return existing.Value;
 
             var port = await AllocateFreePortAsync(excludeAgentId: agentId, avoidPort: null, cancellationToken);
-            agent.LightRagPort = port;
-            await _db.SaveChangesAsync(cancellationToken);
+            await _portStore.SetPortAsync(agentId, port, cancellationToken);
             return port;
         }
         finally
@@ -64,12 +57,9 @@ public sealed class PortReservationService
         await AllocationGate.WaitAsync(cancellationToken);
         try
         {
-            var agent = await _db.Agents.FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
-                ?? throw new InvalidOperationException($"Agent {agentId} not found while reassigning a LightRAG port.");
-
-            var port = await AllocateFreePortAsync(excludeAgentId: agentId, avoidPort: agent.LightRagPort, cancellationToken);
-            agent.LightRagPort = port;
-            await _db.SaveChangesAsync(cancellationToken);
+            var current = await _portStore.GetPortAsync(agentId, cancellationToken);
+            var port = await AllocateFreePortAsync(excludeAgentId: agentId, avoidPort: current, cancellationToken);
+            await _portStore.SetPortAsync(agentId, port, cancellationToken);
             return port;
         }
         finally
@@ -81,11 +71,7 @@ public sealed class PortReservationService
     // Lowest port in range not reserved by any *other* agent (and not the avoided one).
     private async Task<int> AllocateFreePortAsync(Guid excludeAgentId, int? avoidPort, CancellationToken cancellationToken)
     {
-        var taken = (await _db.Agents
-            .Where(a => a.Id != excludeAgentId && a.LightRagPort != null)
-            .Select(a => a.LightRagPort!.Value)
-            .ToListAsync(cancellationToken))
-            .ToHashSet();
+        var taken = (await _portStore.GetReservedPortsAsync(excludeAgentId, cancellationToken)).ToHashSet();
 
         for (var port = _settings.PortRangeStart; port <= _settings.PortRangeEnd; port++)
         {

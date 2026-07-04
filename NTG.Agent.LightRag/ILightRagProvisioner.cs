@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Provisions an agent's LightRAG container on its identity-bound reserved port

@@ -1,11 +1,12 @@
-using Microsoft.EntityFrameworkCore;
-using NTG.Agent.Orchestrator.Data;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
-/// On startup, pulls the LightRAG image once and ensures every agent in the DB has a
-/// running dedicated container, back-filling/repairing <c>Agent.LightRagPort</c>.
+/// On startup, pulls the LightRAG image once and ensures every agent has a running
+/// dedicated container, back-filling/repairing its port reservation.
 /// Runs as a background service so it does not block app startup (the first-run image
 /// pull can take minutes); <see cref="ILightRagContainerManager.EnsureContainerAsync"/>
 /// also self-pulls, so agent creation works even before this finishes.
@@ -33,25 +34,25 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
             await _containerManager.EnsureImagePulledAsync(stoppingToken);
 
             using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+            var portStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentPortStore>();
             var provisioner = scope.ServiceProvider.GetRequiredService<ILightRagProvisioner>();
-            var agents = await db.Agents.ToListAsync(stoppingToken);
+            var agentIds = await portStore.GetAgentIdsAsync(stoppingToken);
 
-            foreach (var agent in agents)
+            foreach (var agentId in agentIds)
             {
                 try
                 {
                     // Reserve the agent's identity-bound port and ensure its container runs
                     // on it (reassign + retry once on external port conflict).
-                    await provisioner.ProvisionAsync(agent.Id, stoppingToken);
+                    await provisioner.ProvisionAsync(agentId, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "LightRAG reconciler: failed to ensure container for agent {AgentId}.", agent.Id);
+                    _logger.LogError(ex, "LightRAG reconciler: failed to ensure container for agent {AgentId}.", agentId);
                 }
             }
 
-            _logger.LogInformation("LightRAG reconciler: reconciled {Count} agent container(s).", agents.Count);
+            _logger.LogInformation("LightRAG reconciler: reconciled {Count} agent container(s).", agentIds.Count);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

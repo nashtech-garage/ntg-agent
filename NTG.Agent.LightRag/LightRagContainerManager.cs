@@ -1,11 +1,10 @@
+using Microsoft.Extensions.Logging;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
 using Npgsql;
-using NTG.Agent.Orchestrator.Exceptions;
-using NTG.Agent.Orchestrator.Models.Configuration;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Docker.DotNet-backed implementation of <see cref="ILightRagContainerManager"/>.

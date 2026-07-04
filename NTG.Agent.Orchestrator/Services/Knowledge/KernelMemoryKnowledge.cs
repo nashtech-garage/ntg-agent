@@ -1,6 +1,7 @@
 using Microsoft.KernelMemory;
 using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.Common.Dtos.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Common.Dtos.Services;
 using System.Globalization;
 

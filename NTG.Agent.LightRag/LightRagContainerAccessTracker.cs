@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Thread-safe singleton that tracks the last time each agent's LightRAG container

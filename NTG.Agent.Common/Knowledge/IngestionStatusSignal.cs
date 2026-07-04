@@ -1,7 +1,7 @@
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.Common.Knowledge;
 
 /// <summary>
-/// Wake signal that lets <see cref="LightRagIngestionStatusHostedService"/> stay parked (no polling,
+/// Wake signal that lets the knowledge provider's ingestion-status worker stay parked (no polling,
 /// no DB queries) while nothing is being ingested. Upload endpoints call <see cref="Notify"/> after
 /// persisting a Processing document; the worker drains all Processing docs, then waits again.
 ///

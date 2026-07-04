@@ -72,7 +72,7 @@ dotnet tool install --global dotnet-ef
 4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
    - `sqlserver` — SQL Server 2022 container with a persistent volume
    - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
-   - `ntg-agent-mcp-server`, `ntg-agent-knowledge`, `ntg-agent-orchestrator` — backend services
+   - `ntg-agent-mcp-server`, `ntg-agent-kernel-memory`, `ntg-agent-orchestrator` — backend services
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
@@ -119,6 +119,25 @@ The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
 
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
 Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
+
+## Knowledge providers
+
+Document knowledge (upload, search, RAG) is served by a pluggable provider behind
+`IKnowledgeService` / `IKnowledgeProvisioner` (in `NTG.Agent.Common`). The Orchestrator
+selects the provider from configuration, so backends can be swapped without code changes:
+
+```json
+{
+  "Knowledge": {
+    "Provider": "LightRag"
+  }
+}
+```
+
+- `LightRag` (default) — one LightRAG container per agent, implemented in the
+  `NTG.Agent.LightRag` project. The Orchestrator only provides two small EF-backed
+  stores (agent port reservations, document ingestion status).
+- `KernelMemory` — the shared Kernel Memory service (`NTG.Agent.KernelMemory` project).
 
 ## Long Term Memory Configuration
 

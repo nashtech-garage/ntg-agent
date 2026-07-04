@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 
@@ -17,23 +17,20 @@ public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
-    private readonly ILightRagContainerManager _containerManager;
-    private readonly ILightRagProvisioner _provisioner;
+    private readonly IKnowledgeProvisioner _knowledgeProvisioner;
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<AgentAdminController> _logger;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
-        ILightRagContainerManager containerManager,
-        ILightRagProvisioner provisioner,
+        IKnowledgeProvisioner knowledgeProvisioner,
         IKnowledgeService knowledgeService,
         ILogger<AgentAdminController> logger
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
-        _containerManager = containerManager ?? throw new ArgumentNullException(nameof(containerManager));
-        _provisioner = provisioner ?? throw new ArgumentNullException(nameof(provisioner));
+        _knowledgeProvisioner = knowledgeProvisioner ?? throw new ArgumentNullException(nameof(knowledgeProvisioner));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -261,20 +258,20 @@ public class AgentAdminController : ControllerBase
         _agentDbContext.Agents.Add(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);
 
-        // Provision this agent's dedicated LightRAG container on its reserved port (the
-        // reservation is persisted by the provisioner). If provisioning fails, roll back
-        // the agent row so we never leave an agent without a knowledge backend.
+        // Provision this agent's knowledge backend (e.g. its dedicated LightRAG container).
+        // If provisioning fails, roll back the agent row so we never leave an agent without
+        // a knowledge backend.
         try
         {
-            await _provisioner.ProvisionAsync(agent.Id, cancellationToken);
+            await _knowledgeProvisioner.ProvisionAgentAsync(agent.Id, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to provision LightRAG container for agent {AgentId}; rolling back.", agent.Id);
+            _logger.LogError(ex, "Failed to provision the knowledge backend for agent {AgentId}; rolling back.", agent.Id);
             _agentDbContext.Agents.Remove(agent);
             await _agentDbContext.SaveChangesAsync(cancellationToken);
             return StatusCode(StatusCodes.Status500InternalServerError,
-                $"Failed to provision the agent's LightRAG container: {ex.Message}");
+                $"Failed to provision the agent's knowledge backend: {ex.Message}");
         }
 
         return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
@@ -331,10 +328,10 @@ public class AgentAdminController : ControllerBase
             _agentDbContext.AgentInnerAgents.RemoveRange(innerBindings);
         }
 
-        // Cascade-delete the agent's knowledge: remove each document from its LightRAG
-        // container (and the on-disk filestore) while the container is still alive, then
-        // drop the SQL rows, then tear the container down. Document removal is best-effort
-        // so a single LightRAG hiccup can't block deleting the agent.
+        // Cascade-delete the agent's knowledge: remove each document from the knowledge
+        // backend while it is still alive, then drop the SQL rows, then tear down the
+        // agent's backend resources. Document removal is best-effort so a single backend
+        // hiccup can't block deleting the agent.
         var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
         foreach (var doc in documents)
         {
@@ -344,12 +341,12 @@ public class AgentAdminController : ControllerBase
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to remove document {DocId} from LightRAG while deleting agent {AgentId}; continuing.", doc.Id, id);
+                _logger.LogWarning(ex, "Failed to remove document {DocId} from the knowledge backend while deleting agent {AgentId}; continuing.", doc.Id, id);
             }
         }
         _agentDbContext.Documents.RemoveRange(documents);
 
-        await _containerManager.StopAndRemoveContainerAsync(id, cancellationToken);
+        await _knowledgeProvisioner.DeprovisionAgentAsync(id, cancellationToken);
 
         _agentDbContext.Agents.Remove(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);

@@ -1,15 +1,13 @@
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Models.Configuration;
 
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Resolves a <see cref="LightRagClient"/> pointed at a specific agent's dedicated
-/// container (<c>http://localhost:{Agent.LightRagPort}</c>). This is what scopes every
-/// chat/upload call to the agent's own LightRAG workspace instead of a shared endpoint.
-/// Scoped: caches resolved clients for the lifetime of the request scope.
+/// container (<c>http://localhost:{port}</c> from the agent's port reservation). This is what
+/// scopes every chat/upload call to the agent's own LightRAG workspace instead of a shared
+/// endpoint. Scoped: caches resolved clients for the lifetime of the request scope.
 /// <para>
 /// If the container is not running (e.g. stopped by idle shutdown), this factory will
 /// restart it via <see cref="ILightRagContainerManager.EnsureContainerAsync"/> and update
@@ -18,7 +16,7 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 /// </summary>
 public sealed class LightRagClientFactory
 {
-    private readonly AgentDbContext _db;
+    private readonly ILightRagAgentPortStore _portStore;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILightRagProvisioner _provisioner;
     private readonly LightRagContainerAccessTracker _accessTracker;
@@ -27,14 +25,14 @@ public sealed class LightRagClientFactory
     private readonly Dictionary<Guid, LightRagClient> _cache = [];
 
     public LightRagClientFactory(
-        AgentDbContext db,
+        ILightRagAgentPortStore portStore,
         IHttpClientFactory httpClientFactory,
         ILightRagProvisioner provisioner,
         LightRagContainerAccessTracker accessTracker,
         IOptions<LightRagSettings> settings,
         ILoggerFactory loggerFactory)
     {
-        _db = db;
+        _portStore = portStore;
         _httpClientFactory = httpClientFactory;
         _provisioner = provisioner;
         _accessTracker = accessTracker;
@@ -50,10 +48,7 @@ public sealed class LightRagClientFactory
             return cached;
         }
 
-        var port = await _db.Agents
-            .Where(a => a.Id == agentId)
-            .Select(a => a.LightRagPort)
-            .FirstOrDefaultAsync(cancellationToken);
+        var port = await _portStore.GetPortAsync(agentId, cancellationToken);
 
         // Fast path: the port is identity-bound (reserved exclusively to this agent), so if
         // something answers on it, it is provably this agent's own container — never another
@@ -66,7 +61,7 @@ public sealed class LightRagClientFactory
 
         // Named client inherits the standard resilience handler with the LightRAGClient
         // overrides (2-min attempt timeout, no retries) and the SOCKS proxy configured in
-        // Program.cs (so the container is reached through the SSH tunnel when set).
+        // AddLightRagKnowledge (so the container is reached through the SSH tunnel when set).
         var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
         http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
         if (!string.IsNullOrEmpty(_settings.ApiKey))

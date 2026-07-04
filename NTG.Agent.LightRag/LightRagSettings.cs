@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Models.Configuration;
+namespace NTG.Agent.LightRag;
 
 public class LightRagSettings
 {

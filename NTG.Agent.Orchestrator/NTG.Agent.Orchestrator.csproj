@@ -10,7 +10,6 @@
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.11.0" />
     <PackageReference Include="Azure.AI.OpenAI" Version="2.8.0-beta.1" />
-    <PackageReference Include="Docker.DotNet" Version="3.125.15" />
     <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.8.0" />
     <PackageReference Include="Azure.Identity" Version="1.20.0" />
@@ -26,7 +25,6 @@
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
     <PackageReference Include="Microsoft.KernelMemory.WebClient" Version="0.98.250508.3" />
-    <PackageReference Include="Npgsql" Version="9.0.3" />
     <PackageReference Include="OpenTelemetry" Version="1.15.3" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
   </ItemGroup>
@@ -35,6 +33,7 @@
     <ProjectReference Include="..\AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Common\NTG.Agent.Common.csproj" />
+    <ProjectReference Include="..\NTG.Agent.LightRag\NTG.Agent.LightRag.csproj" />
   </ItemGroup>
 
 </Project>

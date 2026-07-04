@@ -13,7 +13,7 @@ using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Memory;
 using System.Text;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;

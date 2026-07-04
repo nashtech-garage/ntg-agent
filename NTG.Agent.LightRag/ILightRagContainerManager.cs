@@ -1,4 +1,4 @@
-namespace NTG.Agent.Orchestrator.Services.Knowledge;
+namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Manages the lifecycle of per-agent LightRAG app containers
@@ -17,7 +17,7 @@ public interface ILightRagContainerManager
     /// container already running on the reserved port is reused; otherwise it is
     /// (re)created on the reserved port.
     /// </summary>
-    /// <exception cref="Exceptions.PortReservationConflictException">
+    /// <exception cref="PortReservationConflictException">
     /// The reserved port is held on the host by an external process; the caller should
     /// reassign a new reserved port and retry.
     /// </exception>
