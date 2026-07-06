@@ -61,9 +61,12 @@ async function handleCopilotRequest(req: NextRequest, integrationId: string) {
     const incomingCookie = req.headers.get("cookie") ?? "";
     if (!/ntg_session_id=/.test(incomingCookie) && response instanceof Response) {
       const sessionId = crypto.randomUUID();
+      // Secure in production so the session id is never sent over plaintext HTTP
+      // (dev runs on http://localhost, where Secure would prevent the cookie being set).
+      const secureAttribute = process.env.NODE_ENV === "production" ? "; Secure" : "";
       response.headers.append(
         "Set-Cookie",
-        `ntg_session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax`
+        `ntg_session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax${secureAttribute}`
       );
     }
 

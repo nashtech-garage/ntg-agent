@@ -11,12 +11,11 @@ const orchestratorUrl =
   "https://localhost:7093";
 
 export async function GET(req: NextRequest) {
+  // Forwarded so the backend can identify the user; never log it — it carries auth cookies.
   const cookieHeader = req.headers.get("cookie") ?? "";
   const res = await fetch(`${orchestratorUrl}/api/agents`, {
     headers: { ...(cookieHeader ? { Cookie: cookieHeader } : {}) },
   });
-  console.log("[agents] orchestratorUrl:", orchestratorUrl);
-  console.log("[agents] cookieHeader:", cookieHeader);
   const data = await res.json();
   return Response.json(data);
 }
