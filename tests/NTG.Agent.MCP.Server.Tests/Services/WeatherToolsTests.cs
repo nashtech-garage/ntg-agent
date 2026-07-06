@@ -153,10 +153,12 @@ public sealed class WeatherToolsTests
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new HttpResponseMessage(_status)
+            // Ownership transfers to the HttpClient caller, which disposes the response.
+            var response = new HttpResponseMessage(_status)
             {
                 Content = new StringContent(_body, Encoding.UTF8, "application/json")
-            });
+            };
+            return Task.FromResult(response);
         }
     }
 }

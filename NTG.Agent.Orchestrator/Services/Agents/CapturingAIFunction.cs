@@ -81,9 +81,8 @@ public sealed class CapturingAIFunction : AIFunction
     private static string ExtractFromArray(JsonElement array)
     {
         var sb = new StringBuilder();
-        foreach (var item in array.EnumerateArray())
+        foreach (var item in array.EnumerateArray().Where(i => i.ValueKind == JsonValueKind.Object))
         {
-            if (item.ValueKind != JsonValueKind.Object) continue;
             if (item.TryGetProperty("Text", out var t) && t.ValueKind == JsonValueKind.String)
                 sb.Append(t.GetString());
             else if (item.TryGetProperty("text", out var t2) && t2.ValueKind == JsonValueKind.String)

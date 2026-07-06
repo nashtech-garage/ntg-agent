@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
 
@@ -18,8 +19,9 @@ public sealed record CapturedToolCall(string CallId, string Name, IReadOnlyDicti
 public sealed class RenderableToolCapture
 {
     // Server-side tools whose call + result are surfaced to the browser to render (e.g. weather card).
-    public static readonly HashSet<string> RenderableToolNames =
-        new(StringComparer.OrdinalIgnoreCase) { "get_weather" };
+    // Kept private and frozen so the set cannot be mutated at runtime; IsRenderable is the API surface.
+    private static readonly FrozenSet<string> RenderableToolNames =
+        new[] { "get_weather" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     private readonly ConcurrentQueue<CapturedToolCall> _pending = new();
 

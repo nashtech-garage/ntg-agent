@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
@@ -7,7 +8,6 @@ using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Services.Agents;
-using System.Collections.Concurrent;
 using System.Text.Json;
 
 namespace NTG.Agent.Orchestrator.Controllers;
@@ -19,27 +19,42 @@ public class AgUiController : ControllerBase
     private readonly AgentService _agentService;
     private readonly AgentDbContext _dbContext;
     private readonly ILogger<AgUiController> _logger;
+    private readonly IMemoryCache _cache;
 
-    // Maps threadId → conversationId for the lifetime of the server process.
+    // Maps threadId → conversationId. Cached with a sliding expiration so the map cannot grow
+    // unbounded; evicted entries are recovered from the DB lookup in GetOrCreateConversationAsync.
     // Avoids a DB schema change; acceptable for single-instance dev/staging.
-    private static readonly ConcurrentDictionary<string, Guid> _threadConversationMap = new();
+    private const string ThreadConversationKeyPrefix = "agui:thread-conversation:";
+    private static readonly MemoryCacheEntryOptions ThreadConversationEntryOptions = new()
+    {
+        SlidingExpiration = TimeSpan.FromHours(4)
+    };
 
-    public AgUiController(AgentService agentService, AgentDbContext dbContext, ILogger<AgUiController> logger)
+    public AgUiController(AgentService agentService, AgentDbContext dbContext, ILogger<AgUiController> logger, IMemoryCache cache)
     {
         _agentService = agentService;
         _dbContext = dbContext;
         _logger = logger;
+        _cache = cache;
     }
 
     [HttpPost("{agentId}")]
     public async Task RunAgentAsync(Guid agentId, [FromBody] AgUiRunRequest input)
     {
+        var threadId = input.ThreadId;
+        if (string.IsNullOrWhiteSpace(threadId))
+        {
+            // Without a thread id every request would share the same conversation mapping.
+            Response.StatusCode = StatusCodes.Status400BadRequest;
+            await Response.WriteAsJsonAsync(new { error = "threadId is required." });
+            return;
+        }
+        var runId = string.IsNullOrWhiteSpace(input.RunId) ? NewId() : input.RunId;
+
         Response.ContentType = "text/event-stream";
         Response.Headers["Cache-Control"] = "no-cache";
         Response.Headers["X-Accel-Buffering"] = "no";
 
-        var threadId = input.ThreadId;
-        var runId = input.RunId;
         Guid? userId = User.GetUserId();
 
         var conversationId = await GetOrCreateConversationAsync(userId, threadId);
@@ -112,7 +127,7 @@ public class AgUiController : ControllerBase
 
                     JsonElement toolCall;
                     try { toolCall = JsonDocument.Parse(chunk.Content).RootElement; }
-                    catch (Exception ex)
+                    catch (JsonException ex)
                     {
                         _logger.LogError(ex, "Failed to parse tool call chunk");
                         continue;
@@ -132,7 +147,7 @@ public class AgUiController : ControllerBase
                     // Result of a server-side tool the browser renders (e.g. get_weather → weather card).
                     JsonElement toolResult;
                     try { toolResult = JsonDocument.Parse(chunk.Content).RootElement; }
-                    catch (Exception ex)
+                    catch (JsonException ex)
                     {
                         _logger.LogError(ex, "Failed to parse tool result chunk");
                         continue;
@@ -191,6 +206,11 @@ public class AgUiController : ControllerBase
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
             await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
         }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            // Client disconnected mid-stream; nothing useful can be written back.
+            _logger.LogDebug("AG-UI run for thread {ThreadId} was cancelled by client disconnect", threadId);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "AG-UI agent run failed for thread {ThreadId}", threadId);
@@ -222,7 +242,8 @@ public class AgUiController : ControllerBase
 
     private async Task<Guid> GetOrCreateConversationAsync(Guid? userId, string threadId)
     {
-        if (_threadConversationMap.TryGetValue(threadId, out var cached))
+        var cacheKey = ThreadConversationKeyPrefix + threadId;
+        if (_cache.TryGetValue(cacheKey, out Guid cached))
             return cached;
 
         // Try to find an existing conversation in DB for this thread
@@ -240,7 +261,7 @@ public class AgUiController : ControllerBase
 
         if (existing != null)
         {
-            _threadConversationMap[threadId] = existing.Id;
+            _cache.Set(cacheKey, existing.Id, ThreadConversationEntryOptions);
             return existing.Id;
         }
 
@@ -250,12 +271,12 @@ public class AgUiController : ControllerBase
         {
             Name = "New Conversation",
             UserId = userId,
-            SessionId = userId.HasValue ? sessionId : sessionId
+            SessionId = sessionId
         };
         _dbContext.Conversations.Add(conversation);
         await _dbContext.SaveChangesAsync();
 
-        _threadConversationMap[threadId] = conversation.Id;
+        _cache.Set(cacheKey, conversation.Id, ThreadConversationEntryOptions);
         return conversation.Id;
     }
 

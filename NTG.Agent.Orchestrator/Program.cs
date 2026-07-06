@@ -79,6 +79,9 @@ builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.G
 
 builder.Services.AddControllers();
 
+// Backs the AG-UI threadId → conversationId map (see AgUiController).
+builder.Services.AddMemoryCache();
+
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");

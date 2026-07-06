@@ -39,9 +39,8 @@ public sealed class FrontendToolDeclaration : AIFunctionDeclaration
         using var doc = JsonDocument.Parse(frontendToolsJson);
         if (doc.RootElement.ValueKind != JsonValueKind.Array) return tools;
 
-        foreach (var tool in doc.RootElement.EnumerateArray())
+        foreach (var tool in doc.RootElement.EnumerateArray().Where(t => t.ValueKind == JsonValueKind.Object))
         {
-            if (tool.ValueKind != JsonValueKind.Object) continue;
             var name = tool.TryGetProperty("name", out var n) ? n.GetString() : null;
             if (string.IsNullOrWhiteSpace(name)) continue;
 

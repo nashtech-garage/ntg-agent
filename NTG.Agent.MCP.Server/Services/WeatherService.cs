@@ -50,16 +50,21 @@ public sealed class WeatherService
         {
             response = await _httpClient.GetAsync(requestUri);
         }
-        catch (Exception ex)
+        // HttpRequestException covers DNS/connection/TLS failures; TaskCanceledException covers timeouts.
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             throw new InvalidOperationException($"Failed to reach the weather service: {ex.Message}", ex);
         }
 
-        var json = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        string json;
+        using (response)
         {
-            ThrowForError(response.StatusCode, json, location);
+            json = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                ThrowForError(response.StatusCode, json, location);
+            }
         }
 
         try

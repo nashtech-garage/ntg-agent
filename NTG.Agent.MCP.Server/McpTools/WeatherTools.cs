@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace NTG.Agent.MCP.Server.McpTools;
 
 /// <summary>
-/// Weather MCP tool. Fetches the real current weather for a location from OpenWeather
+/// Weather MCP tool. Fetches the real current weather for a location from WeatherAPI.com
 /// and returns it in a shape that maps directly to the browser show_weather card.
 /// </summary>
 [McpServerToolType]
