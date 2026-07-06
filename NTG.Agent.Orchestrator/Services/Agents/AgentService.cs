@@ -291,6 +291,8 @@ public class AgentService
         // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
         // Stamp explicit, strictly increasing timestamps so reload order is deterministic:
         // user question → tool render (weather card) → assistant text reply.
+        // UpdatedAt is aligned with CreatedAt because PrepareConversationHistory orders by UpdatedAt;
+        // leaving it at the constructor timestamp would let the assistant sort before the user message.
         var now = DateTime.UtcNow;
         var assistantMessage = new PChatMessage
         {
@@ -300,14 +302,15 @@ public class AgentService
             ThinkingContent = thinkingContent,
             ThinkingDurationMs = thinkingDurationMs,
             Role = ChatRole.Assistant,
-            CreatedAt = now.AddMilliseconds(2)
+            CreatedAt = now.AddMilliseconds(2),
+            UpdatedAt = now.AddMilliseconds(2)
         };
 
         // Tool-result follow-up turns carry a synthetic acknowledgement prompt that the user
         // never typed — persist only the assistant reply so it doesn't pollute the transcript.
         if (promptRequest.PersistUserMessage)
         {
-            var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User, CreatedAt = now };
+            var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User, CreatedAt = now, UpdatedAt = now };
             _agentDbContext.ChatMessages.Add(userMessage);
         }
 
@@ -322,7 +325,8 @@ public class AgentService
                 Conversation = conversation,
                 Content = toolRenderJson,
                 Role = ChatRole.Tool,
-                CreatedAt = now.AddMilliseconds(1)
+                CreatedAt = now.AddMilliseconds(1),
+                UpdatedAt = now.AddMilliseconds(1)
             };
             _agentDbContext.ChatMessages.Add(toolMessage);
         }
