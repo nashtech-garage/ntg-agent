@@ -16,13 +16,15 @@ var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
 var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 
-// LightRAG + its Postgres now live on a dedicated Ubuntu server reached over an SSH tunnel.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
-var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);
+// LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
+// All three default to empty = plain local run (local Docker socket, localhost:5432);
+// set them in user-secrets to target the remote host instead.
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", value: "", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
+var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", value: "", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", value: "5432", secret: true); // 55432 over the tunnel
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
-				 .WithImageTag("2022-latest") 
+				 .WithImageTag("2025-latest")
 				 .WithEndpoint("tcp", endpoint =>
 				 {
 					 endpoint.Port = 1433;
@@ -95,7 +97,10 @@ var migrateOrchestrator = builder.AddExecutable(
 		workingDirectory: "..",
 		"ef", "database", "update",
 		"--project", "NTG.Agent.Orchestrator/NTG.Agent.Orchestrator.csproj",
-		"--startup-project", "NTG.Agent.Orchestrator/NTG.Agent.Orchestrator.csproj")
+		"--startup-project", "NTG.Agent.Orchestrator/NTG.Agent.Orchestrator.csproj",
+		// The Orchestrator has two DbContexts since the AG-UI merge; AppIdentityDbContext
+		// owns no migrations (Identity schema belongs to the WebClient), so migrate AgentDbContext.
+		"--context", "AgentDbContext")
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
 	.WaitForCompletion(migrateAdmin);
 
