@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Data;
@@ -78,6 +79,9 @@ builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.G
 
 builder.Services.AddControllers();
 
+// Backs the AG-UI threadId → conversationId map (see AgUiController).
+builder.Services.AddMemoryCache();
+
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo("../key/"))
     .SetApplicationName("NTGAgent");
@@ -87,6 +91,9 @@ builder.Services.Configure<AnonymousUserSettings>(
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
+// Request-scoped buffer shared by the outer agent and any inner agents it delegates to, used to
+// surface renderable server-side tool results (e.g. get_weather) to the browser. See RenderableToolCapture.
+builder.Services.AddScoped<RenderableToolCapture>();
 builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
 builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
@@ -129,8 +136,24 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     // options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("::"), 0));
 });
 
-builder.Services.AddAuthentication("Identity.Application")
-    .AddCookie("Identity.Application", option => option.Cookie.Name = ".AspNetCore.Identity.Application");
+// Identity is configured here so the Orchestrator can ISSUE the shared
+// `.AspNetCore.Identity.Application` cookie (via SignInManager in AccountController),
+// in addition to reading it. The Identity table schema/migrations remain owned by the
+// WebClient's ApplicationDbContext; AppIdentityDbContext only reads/writes those tables.
+builder.Services.AddDbContext<AppIdentityDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddIdentityCore<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = false)
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<AppIdentityDbContext>()
+    .AddSignInManager()
+    .AddDefaultTokenProviders();
+
+// AddIdentityCookies() registers the standard Identity schemes (Application, External,
+// TwoFactor*) with the default cookie name `.AspNetCore.Identity.Application`, keeping the
+// issued cookie byte-compatible with the WebClient and existing [Authorize] behavior intact.
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
 
 var app = builder.Build();
 

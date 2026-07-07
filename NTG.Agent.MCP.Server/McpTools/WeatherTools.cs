@@ -6,8 +6,8 @@ using System.Text.Json;
 namespace NTG.Agent.MCP.Server.McpTools;
 
 /// <summary>
-/// Weather MCP tool for testing inner agent integration.
-/// Provides weather data for various locations to validate tool invocation flow.
+/// Weather MCP tool. Fetches the real current weather for a location from WeatherAPI.com
+/// and returns it in a shape that maps directly to the browser show_weather card.
 /// </summary>
 [McpServerToolType]
 public sealed class WeatherTools
@@ -21,13 +21,17 @@ public sealed class WeatherTools
     }
 
     /// <summary>
-    /// Get current weather for a specified location.
-    /// This tool is designed to test the inner agent weather test flow.
+    /// Get current weather for a specified location from WeatherAPI.com.
     /// </summary>
     /// <param name="location">The city or location to get weather for (e.g., "Ho Chi Minh City", "New York", "Tokyo")</param>
-    /// <returns>JSON-serialized weather data including temperature, condition, humidity, and wind speed</returns>
-    [McpServerTool, Description("Get current weather for a location. Returns temperature (°C), condition, humidity (%), and wind speed (km/h).")]
-    public async Task<string> GetWeather([Description("Location name (city or country, e.g., 'Ho Chi Minh City', 'New York', 'Tokyo')")] string location)
+    /// <returns>JSON-serialized weather data (city, country, temperatureC, condition, humidity, windKph, feelsLikeC)</returns>
+    [McpServerTool(Name = "get_weather"), Description("Get the real current weather for a city or location from " +
+        "WeatherAPI.com. Call this whenever the user asks about the weather, temperature, or conditions. The UI " +
+        "renders the result as a weather card automatically, so you do not need any other tool to show it. After " +
+        "calling this, write a short, friendly description of the current weather for the user (temperature and how " +
+        "it feels, the condition, and anything notable about humidity, wind or UV). Never invent weather values; if " +
+        "the call returns success=false, tell the user what went wrong in plain text.")]
+    public async Task<string> GetWeather([Description("Location name, optionally with a country code, e.g. 'Hanoi', 'London,GB' or 'Tokyo'.")] string location)
     {
         try
         {
@@ -37,11 +41,17 @@ public sealed class WeatherTools
                 success = true,
                 data = new
                 {
-                    weather.Location,
-                    weather.Temperature,
-                    weather.Condition,
-                    weather.Humidity,
-                    weather.WindSpeed
+                    city = weather.Location,
+                    country = weather.Country,
+                    localTime = weather.LocalTime,
+                    temperatureC = weather.Temperature,
+                    condition = weather.Condition,
+                    iconUrl = weather.IconUrl,
+                    humidity = weather.Humidity,
+                    windKph = weather.WindSpeed,
+                    feelsLikeC = weather.FeelsLike,
+                    uv = weather.Uv,
+                    isDay = weather.IsDay
                 },
                 message = $"Weather for {weather.Location}: {weather.Condition}, {weather.Temperature}°C"
             }, JsonOptions);
@@ -61,6 +71,15 @@ public sealed class WeatherTools
             {
                 success = false,
                 error = "LocationNotFoundError",
+                message = ex.Message
+            }, JsonOptions);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                error = "WeatherServiceError",
                 message = ex.Message
             }, JsonOptions);
         }
