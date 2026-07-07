@@ -1,3 +1,3 @@
 ﻿namespace NTG.Agent.Common.Dtos.Chats;
 
-public record ConversationListItem (Guid Id, string Name);
+public record ConversationListItem (Guid Id, string Name, Guid? SessionId = null);

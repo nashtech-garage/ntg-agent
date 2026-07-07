@@ -1,0 +1,104 @@
+// app/api/copilotkit/[[...integrationId]]/route.ts
+
+import { NextRequest, NextResponse } from "next/server";
+import {
+  CopilotRuntime,
+  ExperimentalEmptyAdapter,
+  copilotRuntimeNextJSAppRouterEndpoint,
+} from "@copilotkit/runtime";
+import { HttpAgent } from "@ag-ui/client";
+import { A2UIMiddleware } from "@ag-ui/a2ui-middleware";
+
+if (process.env.NODE_ENV !== "production") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
+const orchestratorUrl =
+  process.env.services__ntg_agent_orchestrator__https__0 ??
+  process.env.ORCHESTRATOR_URL ??
+  "https://localhost:7093";
+
+async function handleCopilotRequest(req: NextRequest, integrationId: string) {
+  console.log(`[Copilot Handler] ${req.method} ${req.url}`);
+
+  try {
+    const url = new URL(req.url);
+    // Segments: ["", "api", "copilotkit", "<uuid>", ...]
+    // We want exactly the first 4 segments as the base: /api/copilotkit/<uuid>
+    const segments = url.pathname.split("/");
+    const endpoint = segments.slice(0, 4).join("/") || "/";
+    console.log(`[Copilot Handler] basePath endpoint: ${endpoint}`);
+
+    // Forward the session cookie so the .NET backend can identify the user / anonymous session.
+    const cookie = req.headers.get("cookie") ?? "";
+    const agentInstance = new HttpAgent({
+      agentId: "dotnet_orchestrator_agent",
+      url: `${orchestratorUrl}/api/agui/${integrationId}`,
+      headers: { ...(cookie ? { Cookie: cookie } : {}) },
+    });
+    console.log(`[Copilot Handler] HttpAgent → ${orchestratorUrl}/api/agui/${integrationId}`);
+
+    // A2UI: inject the `render_a2ui` tool into the run and convert the agent's
+    // streamed render_a2ui tool-call args into ACTIVITY_SNAPSHOT messages that the
+    // A2UI renderer (registered on <CopilotKit renderActivityMessages>) consumes.
+    // Also injects log_a2ui_event tool calls for user interactions on a surface.
+    agentInstance.use(new A2UIMiddleware({ injectA2UITool: true }));
+
+    const runtime = new CopilotRuntime({
+      agents: { dotnet_orchestrator_agent: agentInstance },
+    });
+
+    const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+      runtime,
+      serviceAdapter: new ExperimentalEmptyAdapter(),
+      endpoint,
+    });
+
+    const response = await handleRequest(req);
+    console.log(`[Copilot Handler] responded with status: ${response.status}`);
+
+    // Set session cookie if not already present
+    const incomingCookie = req.headers.get("cookie") ?? "";
+    if (!/ntg_session_id=/.test(incomingCookie) && response instanceof Response) {
+      const sessionId = crypto.randomUUID();
+      // Secure in production so the session id is never sent over plaintext HTTP
+      // (dev runs on http://localhost, where Secure would prevent the cookie being set).
+      const secureAttribute = process.env.NODE_ENV === "production" ? "; Secure" : "";
+      response.headers.append(
+        "Set-Cookie",
+        `ntg_session_id=${sessionId}; Path=/; HttpOnly; SameSite=Lax${secureAttribute}`
+      );
+    }
+
+    return response;
+
+  } catch (globalError: unknown) {
+    console.error("[Copilot Handler CRITICAL]", globalError);
+    return NextResponse.json(
+      { error: "Internal Server Error", details: globalError instanceof Error ? globalError.message : String(globalError) },
+      { status: 500 }
+    );
+  }
+}
+
+type RouteParams = { params: Promise<{ integrationId?: string[] }> };
+
+export async function GET(req: NextRequest, { params }: RouteParams) {
+  const { integrationId } = await params;
+  const lastSegment = integrationId?.[integrationId.length - 1];
+
+  // CopilotKit's thread-store pings /threads to load conversation history.
+  // ExperimentalEmptyAdapter doesn't implement threads — return an empty list.
+  if (lastSegment === "threads") {
+    return NextResponse.json({ threads: [] });
+  }
+
+  const extractedId = integrationId?.[0] ?? "default_agent";
+  return handleCopilotRequest(req, extractedId);
+}
+
+export async function POST(req: NextRequest, { params }: RouteParams) {
+  const { integrationId } = await params;
+  const extractedId = integrationId?.[0] ?? "default_agent";
+  return handleCopilotRequest(req, extractedId);
+}

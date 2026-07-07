@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   A2UI generated surfaces — "Ink & Iris"
+   The agent conjures cards/forms inline in chat. The official basic catalog
+   ships hardcoded inline styles and reads no theme, so we restyle its
+   primitives with scoped !important rules under the stable .a2ui-surface
+   wrapper. Direction: a calm neutral card with an iris (indigo-violet) accent
+   — not the default #007bff — and a faint iris-tinted ambient shadow so these
+   read as crafted, live artifacts the assistant hands you. Restraint elsewhere.
+   ────────────────────────────────────────────────────────────────────────── */
+.a2ui-surface {
+  --a2ui-accent: #5b5bd6;
+  --a2ui-ink: #1f2333;
+  --a2ui-muted: #6b7180;
+  --a2ui-card: #ffffff;
+  --a2ui-border: #e6e7f0;
+  --a2ui-field: #fbfbfe;
+  --a2ui-ring: rgba(91, 91, 214, 0.30);
+  /* The basic catalog's primary Button reads this var for its background. */
+  --a2ui-primary-color: var(--a2ui-accent);
+
+  max-width: 460px !important;
+  margin: 6px 0 !important;
+  padding: 18px 18px 20px !important;
+  background: var(--a2ui-card) !important;
+  color: var(--a2ui-ink) !important;
+  border: 1px solid var(--a2ui-border) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 1px 2px rgba(20, 22, 40, 0.04),
+    0 12px 28px -12px rgba(91, 91, 214, 0.22) !important;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-size: 14px;
+  line-height: 1.55;
+  box-sizing: border-box;
+}
+
+/* Headings — intentional scale, tighter tracking */
+.a2ui-surface h1,
+.a2ui-surface h2,
+.a2ui-surface h3,
+.a2ui-surface h4,
+.a2ui-surface h5 {
+  margin: 2px 0 !important;
+  color: var(--a2ui-ink) !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.012em !important;
+  line-height: 1.25 !important;
+}
+.a2ui-surface h3 { font-size: 18px !important; }
+.a2ui-surface h4 { font-size: 16px !important; }
+.a2ui-surface small { color: var(--a2ui-muted) !important; }
+
+/* Field labels — quiet, recognizable */
+.a2ui-surface label {
+  font-size: 12.5px !important;
+  font-weight: 550 !important;
+  letter-spacing: 0 !important;
+  color: var(--a2ui-muted) !important;
+}
+
+/* Text inputs & textareas — tactile, clearly editable, iris focus ring */
+.a2ui-surface input,
+.a2ui-surface textarea {
+  border: 1px solid var(--a2ui-border) !important;
+  border-radius: 10px !important;
+  background: var(--a2ui-field) !important;
+  color: var(--a2ui-ink) !important;
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.a2ui-surface input:focus,
+.a2ui-surface textarea:focus {
+  outline: none !important;
+  border-color: var(--a2ui-accent) !important;
+  box-shadow: 0 0 0 3px var(--a2ui-ring) !important;
+}
+.a2ui-surface input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  accent-color: var(--a2ui-accent) !important;
+}
+
+/* Buttons — primary inherits the iris var; all get a clear focus state */
+.a2ui-surface button {
+  border-radius: 10px !important;
+  padding: 9px 16px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.04s ease;
+}
+.a2ui-surface button:hover { filter: brightness(0.97); }
+.a2ui-surface button:active { transform: translateY(1px); }
+.a2ui-surface button:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--a2ui-ring) !important;
+}
+
+/* Dividers */
+.a2ui-surface hr {
+  border: none !important;
+  border-top: 1px solid var(--a2ui-border) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .a2ui-surface {
+    --a2ui-accent: #7c7cf0;
+    --a2ui-ink: #e9eaf2;
+    --a2ui-muted: #9aa0b4;
+    --a2ui-card: #161922;
+    --a2ui-border: #2a2f40;
+    --a2ui-field: #1d2130;
+    --a2ui-ring: rgba(124, 124, 240, 0.34);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.30),
+      0 14px 30px -14px rgba(0, 0, 0, 0.55) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .a2ui-surface input,
+  .a2ui-surface textarea,
+  .a2ui-surface button {
+    transition: none !important;
+  }
+}
