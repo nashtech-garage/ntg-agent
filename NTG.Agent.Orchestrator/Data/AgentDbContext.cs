@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Chat;
@@ -114,6 +115,36 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             IsDefault = true,
             IsPublished = true,
             AgentKind = Common.Dtos.Agents.AgentKind.Outer
+        });
+
+        modelBuilder.Entity<Models.Agents.Agent>().HasData(new Models.Agents.Agent
+        {
+            Id = new Guid("F0B9A7D7-2F4E-4D8F-8C0B-5E3A1E2C4F11"), // Use a fixed GUID
+            Name = "English Coach Agent",
+            Description = "A friendly AI English tutor for practicing conversation, improving grammar, and expanding vocabulary.",
+            Instructions = """
+        You are a friendly English coach. Your goals are:
+        - Help users improve spoken English.
+        - Keep the conversation natural.
+        - Correct only the most important grammar mistakes.
+        - Explain corrections simply.
+        - Suggest more natural vocabulary when appropriate.
+        - Encourage the learner.
+        - Always end your response with a follow-up question to continue the conversation.
+        """,
+            ProviderName = "GitHubModel",
+            ProviderModelName = "openai/gpt-4.1",
+            ProviderEndpoint = "https://models.github.ai/inference",
+            ProviderApiKey = "",
+            McpServer = "http://localhost:5136",
+            IsDefault = false,
+            IsPublished = true,
+            Mode = AgentMode.Fast,
+            AgentKind = AgentKind.Outer,
+            CreatedAt = new DateTime(2026, 6, 24, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2026, 6, 25, 0, 0, 0, DateTimeKind.Utc),
+            OwnerUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"),
+            UpdatedByUserId = new Guid("e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71")
         });
 
         modelBuilder.Entity<Folder>().HasData(
