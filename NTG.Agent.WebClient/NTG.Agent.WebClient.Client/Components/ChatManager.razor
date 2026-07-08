@@ -1,0 +1,34 @@
+﻿
+<DynamicComponent Type="@CurrentComponent"
+                  Parameters="@CurrentParameters" />
+
+@code
+{
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
+    [Parameter]
+    public string? Language { get; set; } = "en-US";
+
+    // Temporary
+    [Parameter]
+    public string Experience { get; set; } = "default";
+
+    private static readonly IReadOnlyDictionary<string, Type> ExperienceRegistry =
+        new Dictionary<string, Type>
+        {
+            ["default"] = typeof(Chat),
+            ["english-coach"] = typeof(EnglishCoachChat)
+        };
+
+    private Type CurrentComponent =>
+        ExperienceRegistry.TryGetValue(Experience, out var component)
+            ? component
+            : typeof(Chat);
+
+    private Dictionary<string, object?> CurrentParameters => new()
+    {
+        [nameof(Chat.ConversationId)] = ConversationId,
+        [nameof(Chat.Language)] = Language
+    };
+}
