@@ -1,0 +1,825 @@
+﻿﻿@using NTG.Agent.Common.Dtos.Chats
+@using NTG.Agent.Common.Dtos.Enums
+@using NTG.Agent.Common.Dtos.SharedConversations
+@using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Common.Dtos.AnonymousSessions
+@using NTG.Agent.WebClient.Client.Components.Shared
+@using System.Text
+@inject ChatClient ChatClient
+@inject NavigationManager Navigation
+@inject ConversationClient ConversationClient
+@inject SharedConversationClient SharedConversationClient
+@inject ConversationState ConversationState
+@inject PreferenceClient PreferenceClient
+@inject IJSRuntime JSRuntime
+@inject ILogger<DefaultChat> Logger
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+
+@if (unauthorized)
+{
+    <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
+        <h2 class="mb-4">Unauthorized</h2>
+        <p class="text-muted">You are not authorized to view this conversation.</p>
+        <button class="btn btn-primary" @onclick="@GoHome">Go to Home</button>
+    </div>
+}
+else if (ConversationId.HasValue)
+{
+    @if (isAuthenticated)
+    {
+        <button id="share-conversation-btn" class="share-button" @onclick="() => ShowShareModal()" title="Share conversation">
+            <i class="bi bi-share"></i>
+        </button>
+    }
+    <div class="chat-container">
+        @foreach (var item in chatHistory)
+        {
+            if (item.IsAssistant)
+            {
+                <div class="p-2 w-100">
+                    @if (!string.IsNullOrEmpty(item.ThinkingContent) || (isThinking && item == chatHistory.LastOrDefault(m => m.IsAssistant)))
+                    {
+                        var isCurrentlyThinking = isThinking && item == chatHistory.LastOrDefault(m => m.IsAssistant);
+                        <details class="thinking-block mb-2">
+                            <summary class="thinking-summary">
+                                <span class="thinking-indicator @(isCurrentlyThinking ? "thinking-pulse" : "thinking-done")">
+                                    <i class="bi bi-cpu-fill"></i>
+                                    @(isCurrentlyThinking ? "Thinking\u2026" : "Thought process")
+                                    @if (!isCurrentlyThinking && item.ThinkingDurationMs.HasValue)
+                                    {
+                                        <span class="thinking-duration text-muted fst-italic">(@FormatThinkingDuration(item.ThinkingDurationMs.Value))</span>
+                                    }
+                                </span>
+                            </summary>
+                            <div class="thinking-content">
+                                @(isCurrentlyThinking ? liveThinkingContent : item.ThinkingContent)
+                            </div>
+                        </details>
+                    }
+                    <EnhancedMarkdown Value="@item.Message" @ref="MarkdownSetValue"
+                                      CssClass="p-2 rounded rounded-4 border chat-response"></EnhancedMarkdown>
+                    <div class="chat-actions mt-2 ms-2">
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleLike(item))" title="Like">
+                            <i class="bi @(item.Reaction == ReactionType.Like ? "bi-hand-thumbs-up-fill" : "bi-hand-thumbs-up")"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleDislike(item))"
+                                title="Dislike">
+                            <i class="bi @(item.Reaction == ReactionType.Dislike ? "bi-hand-thumbs-down-fill" : "bi-hand-thumbs-down")"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2" @onclick="@(() => ToggleComment(item))" title="Comment">
+                            <i class="bi bi-chat-dots"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="@(() => ShowShareMessageModal(item))" title="Share this message">
+                            <i class="bi bi-share"></i>
+                        </button>
+                    </div>
+                    @if (showCommentFor == item.Id)
+                    {
+                        <div class="comment-section mt-2 ms-2">
+                            <div class="input-group input-group-sm">
+                                <input type="text" class="form-control" placeholder="Add a comment..." @bind="currentComment" />
+                                <button class="btn btn-outline-primary" type="button" @onclick="@(() => SaveComment(item))">
+                                    <i class="bi bi-check"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else if (item.IsUser)
+            {
+                <div class="text-end p-2 w-100">
+                    @if (!string.IsNullOrEmpty(item.Message))
+                    {
+                        <span class="text-white bg-primary p-2 rounded rounded-4">
+                            @item.Message
+                        </span>
+                    }
+                </div>
+            }
+        }
+    </div>
+    <div class="form-group row">
+        <form method="post" @onsubmit="SendMessage" @formname="chat-form">
+        <div class="col-8 col-md-6 col-sm-8 m-auto fixed-bottom" id="inputChatContainer">
+            @if (!isAuthenticated && rateLimitStatus != null)
+            {
+                <RateLimitIndicator RateLimitStatus="rateLimitStatus" />
+            }
+            @if (uploadItems.Any())
+            {
+                <div class="row row-cols-2 g-2 mb-2">
+                    @foreach (var item in uploadItems)
+                    {
+                        <div class="col">
+                            <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
+                                <i class="bi bi-file-earmark-text me-2 flex-shrink-0"></i>
+                                <span class="text-truncate flex-grow-1">@item.Name</span>
+                                <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0" type="button" @onclick="() => RemoveUploadItem(item)">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="position-relative">
+                @if (showPlusMenu)
+                {
+                    <div class="chat-plus-backdrop" @onclick="ClosePlusMenu"></div>
+                    <div class="chat-plus-menu">
+                        @if (documentIntelligenceEnabled)
+                        {
+                            <button class="btn chat-plus-menu-item" type="button"
+                                    @onclick="() => { ClosePlusMenu(); ShowUploadFileModal(); }">
+                                <i class="bi bi-paperclip me-2"></i>Add photos &amp; files
+                            </button>
+                        }
+                        <button class="btn chat-plus-menu-item" type="button"
+                                @onclick="() => { ClosePlusMenu(); ShowAgentSelector(); }">
+                            <i class="bi bi-robot me-2"></i>@GetSelectedAgentName()
+                        </button>
+                    </div>
+                }
+                <div class="chat-input-box mb-3">
+                    <button class="chat-input-icon-btn" type="button" @onclick="TogglePlusMenu"
+                            aria-label="More options" title="More options">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                    <input type="text" id="userInput" class="chat-input-field" @bind="userInput"
+                            autocomplete="off" spellcheck="false" autocorrect="off"
+                            autocapitalize="off" placeholder="Type your message..." />
+                    <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                    <button class="chat-input-icon-btn" type="submit" aria-label="Send message" title="Send message">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        </form>
+    </div>
+}
+else
+{
+    <div class="d-flex flex-column justify-content-center align-items-center" style="height: 70vh;">
+        <h2 class="mb-4">What can I help with?</h2>
+        <div class="form-group w-100">
+            <form method="post" @onsubmit="SendMessage" @formname="chat-form">
+            <div class="col-8 col-md-6 col-sm-8 mx-auto" id="inputChatContainer">
+                @if (!isAuthenticated && rateLimitStatus != null)
+                {
+                    <RateLimitIndicator RateLimitStatus="rateLimitStatus" />
+                }
+                @if (uploadItems.Any())
+                {
+                    <div class="row row-cols-2 g-2 mb-2">
+                        @foreach (var item in uploadItems)
+                        {
+                            <div class="col">
+                                <div class="d-flex align-items-center bg-light border rounded px-2 py-1">
+                                    <i class="bi bi-file-earmark-text me-2 flex-shrink-0"></i>
+                                    <span class="text-truncate flex-grow-1">@item.Name</span>
+                                    <button class="btn btn-sm btn-outline-danger ms-2 flex-shrink-0" type="button" @onclick="() => RemoveUploadItem(item)">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                <div class="position-relative">
+                    @if (showPlusMenu)
+                    {
+                        <div class="chat-plus-backdrop" @onclick="ClosePlusMenu"></div>
+                        <div class="chat-plus-menu">
+                            @if (documentIntelligenceEnabled)
+                            {
+                                <button class="btn chat-plus-menu-item" type="button"
+                                        @onclick="() => { ClosePlusMenu(); ShowUploadFileModal(); }">
+                                    <i class="bi bi-paperclip me-2"></i>Add photos &amp; files
+                                </button>
+                            }
+                            <button class="btn chat-plus-menu-item" type="button"
+                                    @onclick="() => { ClosePlusMenu(); ShowAgentSelector(); }">
+                                <i class="bi bi-robot me-2"></i>@GetSelectedAgentName()
+                            </button>
+                        </div>
+                    }
+                    <div class="chat-input-box mb-3">
+                        <button class="chat-input-icon-btn" type="button" @onclick="TogglePlusMenu"
+                                aria-label="More options" title="More options">
+                            <i class="bi bi-plus-lg"></i>
+                        </button>
+                        <input type="text" id="userInput" class="chat-input-field" @bind="userInput"
+                               autocomplete="off" spellcheck="false" autocorrect="off"
+                               autocapitalize="off" placeholder="Ask anything" />
+                        <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
+                        <button class="btn" type="submit" aria-label="Send message"
+                                title="Send message">
+                            <i class="bi bi-send fs-6"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            </form>
+        </div>       
+    </div>
+}
+
+<UploadFileModal IsVisible="showUploadFileModal" OnUploadCompleted="OnFilesUploaded" OnClose="CloseUploadFileModal" />
+
+<ShareConversationModal IsVisible="showShareModal"
+                        ConversationId="ConversationId"
+                        ConversationName=""
+                        ChatId="shareChatId"
+                        OnClose="CloseShareModal"
+                        OnSharedConversationChanged="HandleSharedConversationChanged" />
+
+<RateLimitModal IsVisible="showRateLimitModal"
+                RateLimitStatus="rateLimitStatus"
+                OnClose="CloseRateLimitModal" />
+
+<!-- Agent Selector Modal -->
+@if (showAgentSelector)
+{
+    <div class="modal-backdrop fade show" @onclick="CloseAgentSelector"></div>
+    <div class="agent-selector-modal fade show" style="display: block;">
+        <div class="agent-selector-content">
+            <div class="agent-selector-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-robot me-2"></i>Select an AI Agent
+                </h5>
+                <button type="button" class="btn-close" @onclick="CloseAgentSelector"></button>
+            </div>
+            <div class="agent-selector-body">
+                @foreach (var agent in availableAgents)
+                {
+                    <div class="agent-card @(selectedAgentId == agent.Id ? "selected" : "")" 
+                         @onclick="() => SelectAgent(agent.Id)">
+                        <div class="agent-card-icon">
+                            <i class="bi bi-robot"></i>
+                        </div>
+                        <div class="agent-card-content">
+                            <div class="agent-card-name">@agent.Name</div>
+                            <div class="d-flex gap-1 mt-1 flex-wrap">
+                                @if (agent.IsDefault)
+                                {
+                                    <span class="badge bg-primary">Default</span>
+                                }
+                                @if (agent.Mode == AgentMode.Thinking)
+                                {
+                                    <span class="badge" style="background:#0dcaf0;color:#000">
+                                        <i class="bi bi-cpu-fill me-1"></i>Thinking
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        <i class="bi bi-lightning-charge-fill me-1"></i>Fast
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                        @if (selectedAgentId == agent.Id)
+                        {
+                            <div class="agent-card-check">
+                                <i class="bi bi-check-circle-fill"></i>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
+    [Parameter]
+    public string? Language { get; set; } = "en-US";
+
+    private string userInput = string.Empty;
+    private List<ChatMessageItem> chatHistory = new List<ChatMessageItem>();
+    private List<UploadItemClient> uploadItems = new();
+    private EnhancedMarkdown? MarkdownSetValue { get; set; }
+    private string currentSessionId = string.Empty;
+    private bool isAuthenticated = false;
+    private bool unauthorized = false;
+    private bool showShareModal = false;
+    private bool showUploadFileModal = false;
+    private Guid? shareChatId = null;
+    private Guid? showCommentFor = null;
+    private string currentComment = string.Empty;
+    private List<AgentListItemDto> availableAgents = new();
+    private Guid selectedAgentId;
+    private bool showAgentSelector = false;
+    private bool showPlusMenu = false;
+    private bool documentIntelligenceEnabled = false;
+    private RateLimitStatus? rateLimitStatus = null;
+    private bool showRateLimitModal = false;
+    private int messagesSinceLastCheck = 0;
+    private const int RATE_LIMIT_CHECK_INTERVAL = 5; // Check server every 5 messages
+    private string liveThinkingContent = string.Empty;
+    private bool isThinking = false;
+    private DateTime? thinkingStartedAt;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
+
+        // Load available agents
+        availableAgents = await ChatClient.GetAgentsAsync();
+
+        // Fetch feature flags so the UI can show/hide the file upload button
+        // based on whether Azure Document Intelligence is configured on the server.
+        var features = await ChatClient.GetFeaturesAsync();
+        documentIntelligenceEnabled = features.DocumentIntelligenceEnabled;
+        
+        // Try to load saved agent selection from localStorage
+        await LoadSavedAgentSelection();
+
+        // Load rate limit status for anonymous users
+        if (!isAuthenticated)
+        {
+            currentSessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId") ?? string.Empty;
+            await LoadRateLimitStatus();
+        }
+
+        if (ConversationId.HasValue)
+        {
+            try
+            {
+                var chatMessages = await ConversationClient.GetConversationMessagesAsync(
+                    ConversationId.Value, currentSessionId);
+
+                foreach (var item in chatMessages)
+                {
+                    chatHistory.Add(new ChatMessageItem
+                        {
+                            Id = item.Id,
+                            IsAssistant = item.Role == "assistant",
+                            IsUser = item.Role == "user",
+                            Message = item.Content,
+                            ThinkingContent = item.ThinkingContent,
+                            ThinkingDurationMs = item.ThinkingDurationMs,
+                            Reaction = item.Reaction,
+                            UserComment = item.UserComment
+                        });
+                }
+                StateHasChanged();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                unauthorized = true;
+            }
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Task.Delay(2000);
+            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+        }
+    }
+
+    private void OnFilesUploaded(List<UploadItemClient> items)
+    {
+        uploadItems = items.ToList();
+        showUploadFileModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userInput))
+        {
+            return;
+        }
+
+        // Check rate limit for anonymous users before sending
+        if (!isAuthenticated && rateLimitStatus != null && !rateLimitStatus.CanSendMessage)
+        {
+            showRateLimitModal = true;
+            StateHasChanged();
+            return;
+        }
+
+        var newConversation = false;
+        if (!ConversationId.HasValue)
+        {
+            if (!isAuthenticated)
+            {
+                currentSessionId = Guid.NewGuid().ToString();
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", currentSessionId);
+            }
+            var conversation = await ConversationClient.Create(currentSessionId);
+            ConversationId = conversation.Id;
+            newConversation = true;
+        }
+
+        // Add user input to history
+        var query = userInput.Trim();
+        chatHistory.Add(new ChatMessageItem { IsAssistant = false, IsUser = true, Message = query });
+
+
+        // Agent "thinking"
+        var response = new ChatMessageItem { IsAssistant = true, IsUser = false, Message = "One moment, the agent is thinking ..." };
+        chatHistory.Add(response);
+        userInput = string.Empty;
+        StateHasChanged();
+        // Yield so Blazor renders the "One moment..." placeholder before it is cleared below.
+        // Without this, subsequent messages skip the render because response.Message = string.Empty
+        // executes synchronously before the first await in the try block.
+        await Task.Delay(1);
+
+        try
+        {
+            // 🚀 Send text + image to backend
+            // Snapshot uploads into a new list so that uploadItems.Clear() below
+            // does not mutate the collection that request.Documents references.
+            var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
+                currentSessionId, uploadItems.ToList(), selectedAgentId);
+
+            response.Message = string.Empty;
+            uploadItems.Clear();
+
+            liveThinkingContent = string.Empty;
+            isThinking = false;
+            thinkingStartedAt = null;
+            var liveThinkingBuilder = new StringBuilder();
+            DateTime? thinkingEndedAt = null;
+
+            await foreach (var item in ChatClient.InvokeStreamAsync(request))
+            {
+                if (item.ContentType == PromptContentType.Thinking)
+                {
+                    // Record start timestamp on the first thinking chunk
+                    thinkingStartedAt ??= DateTime.UtcNow;
+                    isThinking = true;
+                    liveThinkingBuilder.Append(item.Content);
+                    liveThinkingContent = liveThinkingBuilder.ToString();
+                    StateHasChanged();
+                }
+                else
+                {
+                    if (isThinking)
+                    {
+                        // Record end timestamp at the thinking→answer transition
+                        thinkingEndedAt = DateTime.UtcNow;
+                        // Transition: commit the "Thought process" render before streaming main content
+                        isThinking = false;
+                        StateHasChanged();
+                        await Task.Delay(1);
+                    }
+                    response.Message += item.Content;
+                    await Task.Delay(1);
+                    if (MarkdownSetValue is not null)
+                        await MarkdownSetValue.SetValue(response.Message);
+                }
+            }
+
+            // Finalize thinking state before the final render
+            response.ThinkingContent = liveThinkingBuilder.Length > 0 ? liveThinkingBuilder.ToString() : null;
+            // Calculate duration from the tracked timestamps (server also stores this, but we set it here
+            // so the completed block shows the time immediately without a page reload)
+            response.ThinkingDurationMs = thinkingStartedAt.HasValue
+                ? (int)((thinkingEndedAt ?? DateTime.UtcNow) - thinkingStartedAt.Value).TotalMilliseconds
+                : null;
+            liveThinkingContent = string.Empty;
+            isThinking = false;
+            // Ensure the UI reflects the final streamed state for all users/conversation types
+            StateHasChanged();
+
+            // Update rate limit count client-side for better performance
+            if (!isAuthenticated && rateLimitStatus != null)
+            {
+                rateLimitStatus.CurrentCount++;
+                rateLimitStatus.RemainingMessages--;
+                messagesSinceLastCheck++;
+                
+                // Periodic server sync to detect manual blocks or policy changes
+                if (messagesSinceLastCheck >= RATE_LIMIT_CHECK_INTERVAL)
+                {
+                    await LoadRateLimitStatus(); // Sync with server
+                    messagesSinceLastCheck = 0;
+                    
+                    // If server indicates blocked, show modal
+                    if (rateLimitStatus != null && !rateLimitStatus.CanSendMessage)
+                    {
+                        showRateLimitModal = true;
+                    }
+                }
+                else
+                {
+                    // Check if we hit the limit locally
+                    if (rateLimitStatus.CurrentCount >= rateLimitStatus.MaxMessages)
+                    {
+                        rateLimitStatus.CanSendMessage = false;
+                        rateLimitStatus.IsReadOnlyMode = true;
+                    }
+                }
+                
+                StateHasChanged();
+            }
+
+            if (newConversation)
+            {
+                ConversationState.NotifyConversationAdded();
+                Navigation.NavigateTo($"/c/{ConversationId}", false);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Validation errors from ChatClient (e.g. total file size exceeded).
+            // Show the exact message so the user knows what to fix.
+            Logger.LogWarning(ex, "Upload validation failed");
+            response.Message = ex.Message;
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            // Handle 429 rate limit response
+            response.Message = "You have reached your message limit. Please sign in to continue chatting.";
+            await LoadRateLimitStatus();
+            showRateLimitModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending message");
+            response.Message = "An error occurred while sending your message. Please try again.";
+            StateHasChanged();
+        }
+    }
+
+    private void HandleTranscription(string result)
+    {
+        userInput = result;
+        StateHasChanged();
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/", true);
+    }
+
+    // Share Modal methods
+    private async Task ShowShareModal()
+    {
+        if (ConversationId.HasValue && isAuthenticated)
+        {
+            shareChatId = null;
+            showShareModal = true;
+            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+        }
+    }
+
+    private void RemoveUploadItem(UploadItemClient item)
+    {
+        uploadItems.Remove(item);
+        StateHasChanged();
+    }
+
+    private void ShowUploadFileModal()
+    {
+        showUploadFileModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseUploadFileModal()
+    {
+        showUploadFileModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ShowShareMessageModal(ChatMessageItem message)
+    {
+        if (ConversationId.HasValue && isAuthenticated)
+        {
+            shareChatId = message.Id;
+            showShareModal = true;
+            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+        }
+    }
+
+    private async Task ToggleLike(ChatMessageItem message)
+    {
+        var newReaction = message.Reaction == ReactionType.Like ? ReactionType.None : ReactionType.Like;
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
+        if (success)
+        {
+            message.Reaction = newReaction;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseShareModal()
+    {
+        showShareModal = false;
+        shareChatId = null;
+        JSRuntime.InvokeVoidAsync("showInputChatContainer");
+        StateHasChanged();
+    }
+
+    private void HandleSharedConversationChanged()
+    {
+        StateHasChanged();
+    }
+
+    private async Task ToggleDislike(ChatMessageItem message)
+    {
+        var newReaction = message.Reaction == ReactionType.Dislike ? ReactionType.None : ReactionType.Dislike;
+        var success = await ConversationClient.UpdateMessageReactionAsync(ConversationId!.Value, message.Id, newReaction);
+        if (success)
+        {
+            message.Reaction = newReaction;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleComment(ChatMessageItem message)
+    {
+        if (showCommentFor == message.Id)
+        {
+            showCommentFor = null;
+            currentComment = string.Empty;
+        }
+        else
+        {
+            showCommentFor = message.Id;
+            currentComment = message.UserComment;
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveComment(ChatMessageItem message)
+    {
+        var success = await ConversationClient.UpdateMessageCommentAsync(ConversationId!.Value, message.Id, currentComment);
+        if (success)
+        {
+            message.UserComment = currentComment;
+            showCommentFor = null;
+            currentComment = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowAgentSelector()
+    {
+        showAgentSelector = true;
+        StateHasChanged();
+    }
+
+    private void CloseAgentSelector()
+    {
+        showAgentSelector = false;
+        StateHasChanged();
+    }
+
+    private void TogglePlusMenu()
+    {
+        showPlusMenu = !showPlusMenu;
+        StateHasChanged();
+    }
+
+    private void ClosePlusMenu()
+    {
+        showPlusMenu = false;
+        StateHasChanged();
+    }
+
+    private void SelectAgent(Guid agentId)
+    {
+        selectedAgentId = agentId;
+        showAgentSelector = false;
+        
+        // Save the selected agent to the database via API
+        _ = SaveAgentSelection(agentId);
+        
+        StateHasChanged();
+    }
+
+    private string GetSelectedAgentName()
+    {
+        var agent = availableAgents.FirstOrDefault(a => a.Id == selectedAgentId);
+        return agent?.Name ?? "Select Agent";
+    }
+
+    /// <summary>
+    /// Load the saved agent selection from the database via API.
+    /// If no saved selection exists or the saved agent is not available, use the default agent.
+    /// </summary>
+    private async Task LoadSavedAgentSelection()
+    {
+        try
+        {
+            // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
+            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            
+            // Try to load preference from the server
+            var preference = await PreferenceClient.GetPreferenceAsync(sessionId);
+            
+            if (preference != null)
+            {
+                // Check if the saved agent still exists in the available agents list
+                if (availableAgents.Any(a => a.Id == preference.SelectedAgentId))
+                {
+                    selectedAgentId = preference.SelectedAgentId;
+                    Logger.LogInformation("Loaded saved agent preference: {AgentId}", preference.SelectedAgentId);
+                    return;
+                }
+                else
+                {
+                    Logger.LogWarning("Saved agent {AgentId} no longer exists in available agents", preference.SelectedAgentId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // If API call fails or there's an error, continue to use default
+            Logger.LogWarning(ex, "Failed to load saved agent preference from server");
+        }
+        
+        // Fallback to default agent if no valid saved selection
+        selectedAgentId = availableAgents.FirstOrDefault(a => a.IsDefault)?.Id 
+                          ?? availableAgents.FirstOrDefault()?.Id 
+                          ?? Guid.Empty;
+        Logger.LogInformation("Using default agent: {AgentId}", selectedAgentId);
+    }
+
+    /// <summary>
+    /// Save the selected agent ID to the database via API for persistence across sessions.
+    /// </summary>
+    private async Task SaveAgentSelection(Guid agentId)
+    {
+        try
+        {
+            // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
+            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            
+            // If anonymous user doesn't have a session ID yet, create one
+            if (!isAuthenticated && string.IsNullOrEmpty(sessionId))
+            {
+                sessionId = Guid.NewGuid().ToString();
+                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
+                Logger.LogInformation("Created new session ID: {SessionId}", sessionId);
+            }
+            
+            // Save preference to the server
+            var success = await PreferenceClient.SavePreferenceAsync(agentId, null, null, sessionId);
+            
+            if (success)
+            {
+                Logger.LogInformation("Successfully saved agent preference: {AgentId}", agentId);
+            }
+            else
+            {
+                Logger.LogWarning("Failed to save agent preference to server");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log the error but don't fail the UI operation
+            Logger.LogError(ex, "Error saving agent preference");
+        }
+    }
+
+    /// <summary>
+    /// Load the current rate limit status for anonymous users.
+    /// </summary>
+    private async Task LoadRateLimitStatus()
+    {
+        try
+        {
+            rateLimitStatus = await ConversationClient.GetAnonymousRateLimitStatusAsync(currentSessionId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading rate limit status");
+        }
+    }
+
+    /// <summary>
+    /// Close the rate limit modal.
+    /// </summary>
+    private void CloseRateLimitModal()
+    {
+        showRateLimitModal = false;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Formats a reasoning duration for display. Shows milliseconds below one second,
+    /// otherwise one decimal place in seconds (e.g. "1.4s").
+    /// </summary>
+    private static string FormatThinkingDuration(int ms) =>
+        ms >= 1000 ? $"{ms / 1000.0:F1}s" : $"{ms}ms";
+}

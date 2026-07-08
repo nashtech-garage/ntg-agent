@@ -1,0 +1,486 @@
+.share-button {
+    position: absolute;
+    top: 60px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    z-index: 100;
+}
+
+.share-button:hover {
+    background: #f9fafb;
+    border-color: #9ca3af;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.share-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.share-button i {
+    font-size: 16px;
+    color: #374151;
+}
+
+.text-end {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
+.text-end span {
+    max-width: 70%;
+    word-wrap: break-word;
+    display: inline-block;
+    text-align: left;
+}
+
+/* System message styling */
+.chat-response {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+/* Chat actions */
+.chat-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.chat-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+/* Comment section */
+.comment-section {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+}
+
+/* Agent Selector Modal */
+.agent-selector-modal {
+    position: fixed;
+    top: 0;
+    left: 40%;
+    width: 100%;
+    height: 100%;
+    z-index: 1055;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;    
+    padding-top: 5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-bottom: 1rem;
+}
+
+.agent-selector-modal > div {
+    margin: 0;
+}
+
+.agent-selector-content {
+    background: var(--bs-body-bg);
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    width: 100%;
+    max-width: 500px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.agent-selector-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--bs-border-color, #e9ecef);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.agent-selector-header h5 {
+    font-weight: 600;
+    color: var(--bs-body-color, #212529);
+    display: flex;
+    align-items: center;
+}
+
+.agent-selector-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.agent-card {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 2px solid var(--bs-border-color, #e9ecef);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--bs-body-bg);
+}
+
+.agent-card:hover {
+    border-color: var(--bs-primary);
+    background: var(--bs-secondary-bg, #f8f9fa);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(var(--bs-primary-rgb), 0.15);
+}
+
+.agent-card.selected {
+    border-color: var(--bs-primary);
+    background: rgba(var(--bs-primary-rgb), 0.1);
+}
+
+.agent-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.agent-card-icon i {
+    font-size: 1.5rem;
+    color: white;
+}
+
+.agent-card-content {
+    flex: 1;
+}
+
+.agent-card-name {
+    font-weight: 600;
+    color: #212529;
+    margin-bottom: 0.25rem;
+}
+
+.agent-card-check {
+    color: var(--bs-primary);
+    font-size: 1.5rem;
+    margin-left: 1rem;
+}
+
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .share-button {
+        top: 60px;
+        right: 15px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        z-index: 1000;
+    }
+    
+    .share-button i {
+        font-size: 16px;
+    }
+    
+    .text-end span {
+        max-width: 85%;
+        font-size: 0.9rem;
+    }
+    
+    .chat-actions {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    
+    .chat-actions .btn {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.8rem;
+    }
+
+    .agent-selector-content {
+        max-width: 100%;
+        margin: 1rem;
+    }
+}
+
+/* ── Thinking block ─────────────────────────────────────────────────────── */
+
+.thinking-block {
+    border-left: 3px solid #0dcaf0;
+    padding-left: 0.75rem;
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.thinking-summary {
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    padding: 0.25rem 0;
+}
+
+.thinking-summary::-webkit-details-marker {
+    display: none;
+}
+
+.thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+}
+
+.thinking-pulse {
+    color: #0dcaf0;
+    animation: thinking-pulse-animation 1.2s ease-in-out infinite;
+}
+
+.thinking-done {
+    color: #198754;
+}
+
+.thinking-content {
+    margin-top: 0.5rem;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+@keyframes thinking-pulse-animation {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+/* ── Plus menu ── */
+
+/* Full-screen transparent backdrop that closes the plus menu on outside click */
+.chat-plus-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1049;
+}
+
+/* Popup menu anchored above the + button */
+.chat-plus-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 1050;
+    min-width: 210px;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+    padding: 0.375rem 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Individual menu items */
+.chat-plus-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.chat-plus-menu-item:hover,
+.chat-plus-menu-item:focus {
+    background-color: var(--bs-secondary-bg);
+}
+
+/* ── ChatGPT-style input pill ── */
+.chat-input-box {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    background-color: var(--bs-body-bg);
+    box-shadow: 0 1px 6px rgba(0, 0, 0, .08);
+    transition: box-shadow .15s ease, border-color .15s ease;
+}
+
+.chat-input-box:focus-within {
+    border-color: var(--bs-primary);
+    box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), .15);
+}
+
+/* Transparent input that fills all available space */
+.chat-input-field {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 0.3rem 0.4rem;
+    font-size: 1rem;
+    color: var(--bs-body-color);
+    min-width: 0;
+}
+
+/* Text selection follows the active accent color */
+.chat-input-field::selection {
+    background-color: rgba(var(--bs-primary-rgb), 0.3);
+    color: var(--bs-body-color);
+}
+
+/* ─── Dark mode overrides ───────────────────────────────────────────────── */
+
+[data-bs-theme=dark] .share-button {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .share-button i {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .share-button:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .chat-response {
+    background-color: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-selector-content {
+    background: var(--bs-body-bg);
+}
+
+[data-bs-theme=dark] .agent-selector-header {
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-selector-header h5 {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .agent-card {
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
+}
+
+[data-bs-theme=dark] .agent-card:hover {
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-primary);
+}
+
+[data-bs-theme=dark] .agent-card.selected {
+    background: var(--bs-secondary-bg);
+}
+
+[data-bs-theme=dark] .agent-card-name {
+    color: var(--bs-body-color);
+}
+
+[data-bs-theme=dark] .thinking-content {
+    background: var(--bs-tertiary-bg);
+}
+
+.chat-input-field::placeholder {
+    color: var(--bs-secondary-color);
+}
+
+/* Icon buttons inside the pill */
+.chat-input-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--bs-secondary-color);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+    padding: 0;
+    font-size: 1rem;
+}
+
+.chat-input-icon-btn:hover {
+    background-color: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+}
+
+/* Send button (#4): accent-colored icon so it reads as the primary CTA */
+.chat-input-icon-btn[type="submit"] {
+    color: var(--bs-primary);
+}
+
+.chat-input-icon-btn[type="submit"]:hover {
+    background-color: var(--bs-primary);
+    color: #fff;
+}
+
+/* Plus button (#2): tint to accent on hover */
+.chat-input-icon-btn[type="button"]:hover {
+    background-color: rgba(var(--bs-primary-rgb), .1);
+    color: var(--bs-primary);
+}
+
+/* SpeechToText renders its button inside a child component, so ::deep is required
+   to pierce the Blazor CSS isolation boundary. */
+.chat-input-box ::deep .speech-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    color: var(--bs-secondary-color);
+    cursor: pointer;
+    margin-right: 0;
+    transition: background .15s ease, color .15s ease;
+    text-decoration: none;
+}
+
+/* Mic button (#3): tint to accent on hover */
+.chat-input-box ::deep .speech-btn:hover {
+    background-color: rgba(var(--bs-primary-rgb), .1);
+    color: var(--bs-primary);
+}
