@@ -1,12 +1,10 @@
 ﻿@using Microsoft.AspNetCore.Components.Web
 
 <div class="container-fluid h-100 d-flex justify-content-center align-items-center"
-     tabindex="0"
-     @ref="pageRef"
+     tabindex="0" @ref="pageRef"
      @onkeydown="HandleKeyDown"
      @onkeyup="HandleKeyUp">
-
-    <div class="col-lg-8 col-xl-7">
+    <div id="inputChatContainer" class="col-lg-8 col-xl-7">
 
         <div class="text-center mb-5">
 
@@ -113,16 +111,17 @@
 
 </div>
 
-@code
-{
+@code {
     [Parameter]
     public Guid? ConversationId { get; set; }
 
     [Parameter]
     public string? Language { get; set; } = "en-US";
 
-    private bool IsListening;
+    [Parameter]
+    public EventCallback ExitExperience { get; set; }
 
+    private bool IsListening;
     private ElementReference pageRef;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -148,4 +147,5 @@
             IsListening = false;
         }
     }
+
 }
