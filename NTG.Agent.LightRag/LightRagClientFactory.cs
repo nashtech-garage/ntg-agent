@@ -19,6 +19,7 @@ public sealed class LightRagClientFactory
     private readonly ILightRagAgentPortStore _portStore;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILightRagProvisioner _provisioner;
+    private readonly ILightRagHealthProbe _healthProbe;
     private readonly LightRagContainerAccessTracker _accessTracker;
     private readonly LightRagSettings _settings;
     private readonly ILoggerFactory _loggerFactory;
@@ -28,6 +29,7 @@ public sealed class LightRagClientFactory
         ILightRagAgentPortStore portStore,
         IHttpClientFactory httpClientFactory,
         ILightRagProvisioner provisioner,
+        ILightRagHealthProbe healthProbe,
         LightRagContainerAccessTracker accessTracker,
         IOptions<LightRagSettings> settings,
         ILoggerFactory loggerFactory)
@@ -35,6 +37,7 @@ public sealed class LightRagClientFactory
         _portStore = portStore;
         _httpClientFactory = httpClientFactory;
         _provisioner = provisioner;
+        _healthProbe = healthProbe;
         _accessTracker = accessTracker;
         _settings = settings.Value;
         _loggerFactory = loggerFactory;
@@ -53,8 +56,9 @@ public sealed class LightRagClientFactory
         // Fast path: the port is identity-bound (reserved exclusively to this agent), so if
         // something answers on it, it is provably this agent's own container — never another
         // agent's. On a miss (no reservation yet, or stopped by idle shutdown) ensure the
-        // container is running on the agent's reserved port.
-        if (port is not > 0 || !await IsContainerReachableAsync(port.Value))
+        // container is running on the agent's reserved port. ProvisionAsync only returns once
+        // the container is serving (its readiness gate), so the client below is safe to use.
+        if (port is not > 0 || !await _healthProbe.IsHealthyAsync(port.Value, cancellationToken))
         {
             port = await _provisioner.ProvisionAsync(agentId, cancellationToken);
         }
@@ -74,27 +78,4 @@ public sealed class LightRagClientFactory
     }
 
     private string ResolveHost() => string.IsNullOrWhiteSpace(_settings.ServerHost) ? "localhost" : _settings.ServerHost;
-
-    /// <summary>
-    /// Quick check that a container is up on the given port. Uses an HTTP request through the
-    /// named client (so it traverses the SOCKS proxy / SSH tunnel when configured, which a raw
-    /// TCP connect cannot). Any HTTP response — even 401/404 — means the container answered;
-    /// only a connection-level failure or timeout counts as unreachable (e.g. stopped by idle
-    /// shutdown).
-    /// </summary>
-    private async Task<bool> IsContainerReachableAsync(int port)
-    {
-        try
-        {
-            var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-            http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            using var _ = await http.GetAsync("health", HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

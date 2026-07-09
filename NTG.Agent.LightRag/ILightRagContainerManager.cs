@@ -8,6 +8,12 @@ namespace NTG.Agent.LightRag;
 /// </summary>
 public interface ILightRagContainerManager
 {
+    /// <summary>
+    /// Returns true if the Docker daemon answers a ping; false if it is unreachable
+    /// (e.g. the SSH tunnel is down). Never throws for connectivity failures.
+    /// </summary>
+    Task<bool> IsDaemonReachableAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Pulls the configured LightRAG image if it is not already present locally.</summary>
     Task EnsureImagePulledAsync(CancellationToken cancellationToken = default);
 

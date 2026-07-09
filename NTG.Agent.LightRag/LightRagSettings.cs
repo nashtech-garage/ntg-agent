@@ -99,6 +99,28 @@ public class LightRagSettings
     public int MaxParallelInsert { get; set; } = 2;
     public int EmbeddingFuncMaxAsync { get; set; } = 8;
 
+    // ---- Container readiness gate -----------------------------------------------
+    // After a container is started, its published host port is bound immediately, but the
+    // LightRAG ASGI app inside is still booting (Postgres/pgvector init). A request sent in
+    // that window is dropped ("response ended prematurely"). EnsureContainerAsync polls
+    // GET /health until the app answers before returning, up to this budget; on expiry it
+    // throws LightRagContainerNotReadyException rather than hand back a not-serving endpoint.
+    public int ReadinessTimeoutSeconds { get; set; } = 60;
+
+    // How often the readiness gate re-probes /health while waiting for the app to come up.
+    public int ReadinessPollIntervalMs { get; set; } = 500;
+
+    // ---- Docker daemon readiness (startup) --------------------------------------
+    // The daemon is reached over an SSH tunnel (tcp://localhost:2375 forwarded to the server's
+    // /var/run/docker.sock). If the Orchestrator boots before the tunnel is up, the startup
+    // reconciler polls the daemon for reachability up to this budget before giving up, so
+    // startup no longer has to be ordered after the tunnel.
+    // Default 60s ≈ "retry within 1 minute, then fail".
+    public int DaemonProbeTimeoutSeconds { get; set; } = 60;
+
+    // How often the reconciler re-pings the daemon while waiting for it to come up.
+    public int DaemonProbePollIntervalMs { get; set; } = 2000;
+
     // ---- Idle container shutdown ------------------------------------------------
     // When a per-agent LightRAG container has not received a request for this many
     // minutes, it is stopped to reclaim RAM. Set to 0 or negative to disable.

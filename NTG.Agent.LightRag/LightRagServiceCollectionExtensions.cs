@@ -80,6 +80,10 @@ public static class LightRagServiceCollectionExtensions
                 : new DockerClientConfiguration(new Uri(cfg.DockerHost));
             return dockerConfig.CreateClient();
         });
+        // Shared readiness probe: used by the container manager to poll a freshly-started
+        // container until its app serves, and by the client factory's fast-path reachability
+        // check. Singleton — it is stateless and only builds named HTTP clients on demand.
+        services.AddSingleton<ILightRagHealthProbe, LightRagHealthProbe>();
         services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
         services.AddSingleton<LightRagContainerAccessTracker>();
         // Identity-bound host-port reservations (one permanent port per agent) — prevents

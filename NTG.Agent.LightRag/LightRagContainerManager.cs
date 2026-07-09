@@ -16,6 +16,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     private const string ContainerPort = "9621/tcp";
 
     private readonly IDockerClient _docker;
+    private readonly ILightRagHealthProbe _healthProbe;
     private readonly LightRagSettings _settings;
     private readonly ILogger<LightRagContainerManager> _logger;
     // Serialize create/teardown so two concurrent agent creates can't grab the same free port.
@@ -23,10 +24,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 
     // IDockerClient is injected (built from LightRagSettings.DockerHost in DI) so the
     // manager can be unit-tested with a mocked daemon and is not tied to a concrete
-    // client construction (DIP).
-    public LightRagContainerManager(IDockerClient docker, IOptions<LightRagSettings> settings, ILogger<LightRagContainerManager> logger)
+    // client construction (DIP). ILightRagHealthProbe is likewise injected so the readiness
+    // gate can be exercised without real HTTP.
+    public LightRagContainerManager(IDockerClient docker, ILightRagHealthProbe healthProbe, IOptions<LightRagSettings> settings, ILogger<LightRagContainerManager> logger)
     {
         _docker = docker;
+        _healthProbe = healthProbe;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -38,6 +41,23 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     // LightRAG WORKSPACE scopes every row it writes in the shared Postgres tables.
     // Use the dash-less GUID so it is a safe identifier in any backend.
     private static string Workspace(Guid agentId) => $"w{agentId:N}";
+
+    // Cheap round-trip that proves the daemon is reachable before we attempt the heavier
+    // image/container operations. Catches connectivity failures (SSH tunnel down => refused)
+    // and reports not-reachable rather than throwing — same "catch => not-ready" shape as the
+    // container health probe. The caller's cancellation is surfaced by the caller.
+    public async Task<bool> IsDaemonReachableAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _docker.System.PingAsync(cancellationToken);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     public async Task EnsureImagePulledAsync(CancellationToken cancellationToken = default)
     {
@@ -66,74 +86,126 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 
     public async Task<int> EnsureContainerAsync(Guid agentId, int hostPort, CancellationToken cancellationToken = default)
     {
+        int port;
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            await EnsureImagePulledAsync(cancellationToken);
-            var network = await EnsureSharedNetworkAsync(cancellationToken);
-
-            var name = ContainerName(agentId);
-            var existing = await FindContainerAsync(name, cancellationToken);
-
-            if (existing is not null)
-            {
-                var inspect = await _docker.Containers.InspectContainerAsync(existing.ID, cancellationToken);
-                var onNetwork = inspect.NetworkSettings?.Networks?.ContainsKey(network) == true;
-                var runningPort = inspect.State?.Running == true ? ReadPublishedPort(inspect) : null;
-
-                // Healthy only if it is attached to the shared network AND published on the
-                // agent's reserved port AND its env matches. A detached/crash-looping container,
-                // one on the wrong port, or one with drifted env all fail this and are recreated.
-                if (onNetwork && runningPort is not null)
-                {
-                    var desiredEnv = BuildEnv(agentId);
-                    var currentEnv = inspect.Config?.Env ?? [];
-                    var driftedKeys = FindEnvDrift(currentEnv, desiredEnv);
-                    var portMatches = runningPort.Value == hostPort;
-
-                    if (portMatches && driftedKeys.Count == 0)
-                    {
-                        _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, hostPort);
-                        return hostPort;
-                    }
-
-                    if (!portMatches)
-                        _logger.LogInformation("LightRagContainerManager: {Name} on :{Old} but reserved :{Reserved}, recreating.", name, runningPort, hostPort);
-                    if (driftedKeys.Count > 0)
-                        _logger.LogInformation("LightRagContainerManager: env drift on {Name} (keys: {Keys}), recreating.", name, string.Join(", ", driftedKeys));
-
-                    // EMBEDDING_DIM change means the PGVector columns are wrong dimension — wipe
-                    // the workspace vector data so LightRAG rebuilds the index at correct size.
-                    if (driftedKeys.Contains("EMBEDDING_DIM"))
-                    {
-                        await ResetVectorSchemaAsync(agentId, cancellationToken);
-                    }
-                }
-                else
-                {
-                    _logger.LogInformation("LightRagContainerManager: recreating {Name} (onNetwork={OnNetwork}, livePort={Port}).", name, onNetwork, runningPort);
-                }
-
-                await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
-            }
-
-            // Bind to the agent's reserved port exactly. A conflict here means an external
-            // process holds the port — surfaced as PortReservationConflictException so the
-            // caller can reassign. We never silently pick another port (that recycling is
-            // what allowed cross-agent misrouting).
-            var containerId = await CreateAndStartContainerAsync(name, agentId, network, hostPort, cancellationToken);
-
-            var started = await _docker.Containers.InspectContainerAsync(containerId, cancellationToken);
-            var publishedPort = ReadPublishedPort(started)
-                ?? throw new InvalidOperationException($"LightRAG container {name} started but no published host port was found.");
-
-            _logger.LogInformation("LightRagContainerManager: created {Name} on {Host}:{Port} (network {Network}, workspace {Workspace}).",
-                name, _settings.ServerHost, publishedPort, network, Workspace(agentId));
-            return publishedPort;
+            port = await EnsureContainerCoreAsync(agentId, hostPort, cancellationToken);
         }
         finally
         {
             _gate.Release();
+        }
+
+        // The published host port is bound the instant Docker starts the container, but the
+        // LightRAG ASGI app inside is still booting — a request sent now races that boot and the
+        // connection is dropped ("response ended prematurely"). Wait for the app to actually
+        // serve before returning. Polled OUTSIDE _gate so one agent's cold boot does not
+        // serialize every other agent's container operations behind it; by this point the port
+        // is already bound, so the port-race _gate guards is over.
+        await WaitUntilReadyAsync(port, ContainerName(agentId), cancellationToken);
+        return port;
+    }
+
+    // The port-allocation-sensitive create/start/inspect flow, run under _gate. Returns the
+    // agent's live published host port; readiness is awaited by the caller after the gate is
+    // released.
+    private async Task<int> EnsureContainerCoreAsync(Guid agentId, int hostPort, CancellationToken cancellationToken)
+    {
+        // Fail fast with a clean, typed error if the daemon (SSH tunnel) is down, instead of
+        // letting the raw Docker.DotNet/SocketException leak from the first Docker call below to
+        // the chat/upload caller. LightRagProvisioner only catches PortReservationConflictException,
+        // so this propagates cleanly.
+        if (!await IsDaemonReachableAsync(cancellationToken))
+            throw new LightRagDaemonUnavailableException(_settings.DockerHost);
+
+        await EnsureImagePulledAsync(cancellationToken);
+        var network = await EnsureSharedNetworkAsync(cancellationToken);
+
+        var name = ContainerName(agentId);
+        var existing = await FindContainerAsync(name, cancellationToken);
+
+        if (existing is not null)
+        {
+            var inspect = await _docker.Containers.InspectContainerAsync(existing.ID, cancellationToken);
+            var onNetwork = inspect.NetworkSettings?.Networks?.ContainsKey(network) == true;
+            var runningPort = inspect.State?.Running == true ? ReadPublishedPort(inspect) : null;
+
+            // Healthy only if it is attached to the shared network AND published on the
+            // agent's reserved port AND its env matches. A detached/crash-looping container,
+            // one on the wrong port, or one with drifted env all fail this and are recreated.
+            if (onNetwork && runningPort is not null)
+            {
+                var desiredEnv = BuildEnv(agentId);
+                var currentEnv = inspect.Config?.Env ?? [];
+                var driftedKeys = FindEnvDrift(currentEnv, desiredEnv);
+                var portMatches = runningPort.Value == hostPort;
+
+                if (portMatches && driftedKeys.Count == 0)
+                {
+                    _logger.LogInformation("LightRagContainerManager: {Name} healthy on :{Port}.", name, hostPort);
+                    return hostPort;
+                }
+
+                if (!portMatches)
+                    _logger.LogInformation("LightRagContainerManager: {Name} on :{Old} but reserved :{Reserved}, recreating.", name, runningPort, hostPort);
+                if (driftedKeys.Count > 0)
+                    _logger.LogInformation("LightRagContainerManager: env drift on {Name} (keys: {Keys}), recreating.", name, string.Join(", ", driftedKeys));
+
+                // EMBEDDING_DIM change means the PGVector columns are wrong dimension — wipe
+                // the workspace vector data so LightRAG rebuilds the index at correct size.
+                if (driftedKeys.Contains("EMBEDDING_DIM"))
+                {
+                    await ResetVectorSchemaAsync(agentId, cancellationToken);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("LightRagContainerManager: recreating {Name} (onNetwork={OnNetwork}, livePort={Port}).", name, onNetwork, runningPort);
+            }
+
+            await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
+        }
+
+        // Bind to the agent's reserved port exactly. A conflict here means an external
+        // process holds the port — surfaced as PortReservationConflictException so the
+        // caller can reassign. We never silently pick another port (that recycling is
+        // what allowed cross-agent misrouting).
+        var containerId = await CreateAndStartContainerAsync(name, agentId, network, hostPort, cancellationToken);
+
+        var started = await _docker.Containers.InspectContainerAsync(containerId, cancellationToken);
+        var publishedPort = ReadPublishedPort(started)
+            ?? throw new InvalidOperationException($"LightRAG container {name} started but no published host port was found.");
+
+        _logger.LogInformation("LightRagContainerManager: created {Name} on {Host}:{Port} (network {Network}, workspace {Workspace}).",
+            name, _settings.ServerHost, publishedPort, network, Workspace(agentId));
+        return publishedPort;
+    }
+
+    // Polls GET /health until the container's app answers, or throws once the readiness
+    // budget is exhausted. A container reused on the fast path is already serving, so this
+    // returns on the first probe; a freshly-started one is waited out through its boot.
+    private async Task WaitUntilReadyAsync(int port, string name, CancellationToken cancellationToken)
+    {
+        var timeout = TimeSpan.FromSeconds(Math.Max(1, _settings.ReadinessTimeoutSeconds));
+        var interval = TimeSpan.FromMilliseconds(Math.Max(50, _settings.ReadinessPollIntervalMs));
+        var deadline = DateTime.UtcNow + timeout;
+        var attempts = 0;
+
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            attempts++;
+            if (await _healthProbe.IsHealthyAsync(port, cancellationToken))
+            {
+                _logger.LogInformation("LightRagContainerManager: {Name} ready on :{Port} after {Attempts} probe(s).", name, port, attempts);
+                return;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+                throw new LightRagContainerNotReadyException(name, port, timeout);
+
+            await Task.Delay(interval, cancellationToken);
         }
     }
 

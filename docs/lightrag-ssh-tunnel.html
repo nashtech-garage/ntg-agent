@@ -51,7 +51,7 @@
   <pre class="cmd">ssh -D 1080 \
     -L 2375:/var/run/docker.sock \
     -L 5432:127.0.0.1:5432 \
-    ntgagent@20.24.151.145</pre>
+    ntgagent@4.193.109.6</pre>
 
   <h2>1. Topology</h2>
   <pre class="mermaid">
@@ -72,7 +72,7 @@ flowchart LR
     l5432 -. "SSH :22" .-> sshd
     d1080 -. "SSH :22" .-> sshd
 
-    subgraph vm["Azure Ubuntu VM — public 20.24.151.145"]
+    subgraph vm["Azure Ubuntu VM — public 4.193.109.6"]
         sshd["sshd :22 (already open)"]
         sock["/var/run/docker.sock"]
         subgraph dnet["docker network: ntg-agent-lightrag"]
