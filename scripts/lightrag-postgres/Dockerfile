@@ -36,3 +36,7 @@ RUN set -eux; \
         postgresql-server-dev-17; \
     apt-get clean; \
     rm -rf /var/lib/apt/lists/*
+
+# Root was only needed for the AGE build above. Run the server as the unprivileged
+# postgres user (the official image entrypoint fully supports this).
+USER postgres

@@ -500,21 +500,32 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
             // variants so a dimension change correctly clears the previous model's tables.
             foreach (var prefix in new[] { "lightrag_vdb_chunks", "lightrag_vdb_entity", "lightrag_vdb_relation" })
             {
+                // DO blocks cannot bind command parameters, so pass values through
+                // session settings instead of interpolating them into the SQL text.
+                await using (var setCfg = conn.CreateCommand())
+                {
+                    setCfg.CommandText =
+                        "SELECT set_config('ntg.table_prefix', @prefix, false), set_config('ntg.workspace', @workspace, false)";
+                    setCfg.Parameters.AddWithValue("prefix", prefix);
+                    setCfg.Parameters.AddWithValue("workspace", workspace);
+                    await setCfg.ExecuteNonQueryAsync(ct);
+                }
+
                 await using var cmd = conn.CreateCommand();
-                // Parameterised workspace; table name comes from pg_tables (not user input).
-                cmd.CommandText = $@"
+                // Table names come from pg_tables (not user input); %I quotes them safely.
+                cmd.CommandText = @"
                     DO $do$
                     DECLARE t text;
                     BEGIN
                         FOR t IN
                             SELECT tablename FROM pg_tables
-                            WHERE schemaname = 'public' AND tablename LIKE '{prefix}%'
+                            WHERE schemaname = 'public'
+                              AND tablename LIKE current_setting('ntg.table_prefix') || '%'
                         LOOP
-                            EXECUTE format('DELETE FROM %%I WHERE workspace = $1', t)
-                            USING $1;
+                            EXECUTE format('DELETE FROM %I WHERE workspace = $1', t)
+                            USING current_setting('ntg.workspace');
                         END LOOP;
                     END $do$;";
-                cmd.Parameters.AddWithValue("$1", workspace);
                 await cmd.ExecuteNonQueryAsync(ct);
                 _logger.LogInformation(
                     "LightRagContainerManager: cleared {Prefix}* rows for workspace {W} ({Endpoint}).",

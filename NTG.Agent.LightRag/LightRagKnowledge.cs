@@ -55,11 +55,18 @@ public class LightRagKnowledge : IKnowledgeService
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             throw new ArgumentException("Invalid URL provided.", nameof(url));
 
+        // SSRF guard: the URL is user-supplied and fetched server-side, so refuse hosts that
+        // resolve to loopback/private/link-local ranges (cloud metadata, internal services...).
+        var addresses = await System.Net.Dns.GetHostAddressesAsync(uri.DnsSafeHost, cancellationToken);
+        if (addresses.Length == 0 || Array.Exists(addresses, IsPrivateOrReservedAddress))
+            throw new ArgumentException("URL host resolves to a private or reserved address.", nameof(url));
+
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
 
         // LightRAG v1.4.x has no /v1/documents/url endpoint; download and insert as text.
+        // The fetch uses the validated absolute Uri, never the raw string.
         using var http = _httpClientFactory.CreateClient();
-        var pageContent = await http.GetStringAsync(url, cancellationToken);
+        var pageContent = await http.GetStringAsync(uri, cancellationToken);
         var description = $"Web page: {url}";
         var trackId = await client.InsertTextAsync(pageContent, description, cancellationToken);
 
@@ -170,5 +177,30 @@ public class LightRagKnowledge : IKnowledgeService
         var result = _fileStore.GetAsync(agentId, documentId, fileName)
             ?? throw new FileNotFoundException($"Document '{documentId}' not found in file store for agent '{agentId}'.");
         return Task.FromResult(result);
+    }
+
+    // SSRF guard for BeginImportWebPageAsync: true for loopback, private (RFC 1918),
+    // link-local (169.254.0.0/16 — includes cloud metadata endpoints), and IPv6
+    // unique-local/link-local addresses.
+    private static bool IsPrivateOrReservedAddress(System.Net.IPAddress address)
+    {
+        if (System.Net.IPAddress.IsLoopback(address)) return true;
+
+        if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            if (address.IsIPv4MappedToIPv6) return IsPrivateOrReservedAddress(address.MapToIPv4());
+            return address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6UniqueLocal;
+        }
+
+        var bytes = address.GetAddressBytes();
+        return bytes[0] switch
+        {
+            10 => true,                             // 10.0.0.0/8
+            172 => bytes[1] >= 16 && bytes[1] < 32, // 172.16.0.0/12
+            192 => bytes[1] == 168,                 // 192.168.0.0/16
+            169 => bytes[1] == 254,                 // 169.254.0.0/16 (link-local / metadata)
+            0 => true,                              // 0.0.0.0/8
+            _ => false,
+        };
     }
 }
