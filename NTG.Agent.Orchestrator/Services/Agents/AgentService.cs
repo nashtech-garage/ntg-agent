@@ -111,14 +111,16 @@ public class AgentService
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
 
+        // For a new conversation, generate its title concurrently with the answer stream so it never
+        // delays the first token. The title agent is built here (a sequential settings read); its
+        // RunAsync then runs in parallel and performs no DbContext work, so it cannot race the
+        // request-scoped context. The result is awaited after streaming (below), before the client's
+        // post-stream reload picks up the name.
+        Task<(string Name, TokenUsageInfo Usage, TimeSpan Elapsed)>? nameTask = null;
         if (conversation.Name == "New Conversation")
         {
-            var nameTokenUsage = new TokenUsageInfo();
-            var nameStart = DateTime.UtcNow;
-            conversation.Name = await GenerateConversationName(promptRequest.Prompt, nameTokenUsage);
-            _agentDbContext.Conversations.Update(conversation);
-            await _agentDbContext.SaveChangesAsync();
-            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameTokenUsage, DateTime.UtcNow - nameStart);
+            var titleAgent = await _agentFactory.CreateTitleAgentAsync("Generate a short, descriptive conversation name (≤ 5 words).");
+            nameTask = GenerateConversationNameAsync(titleAgent, promptRequest.Prompt);
         }
 
         // Track text and thinking content separately — thinking is persisted but excluded from AI history
@@ -160,6 +162,28 @@ public class AgentService
             }
 
             yield return item;
+        }
+
+        // Title generation overlapped the whole stream, so this await is typically instant. Persist
+        // the name (and its token usage) before saving messages so downstream tracking sees it.
+        // A failure here must never break the chat, hence the guard.
+        if (nameTask is not null)
+        {
+            try
+            {
+                var (generatedName, nameUsage, nameElapsed) = await nameTask;
+                if (!string.IsNullOrWhiteSpace(generatedName))
+                {
+                    conversation.Name = generatedName.Trim();
+                    _agentDbContext.Conversations.Update(conversation);
+                    await _agentDbContext.SaveChangesAsync();
+                    await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameUsage, nameElapsed);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Conversation name generation failed for conversation {ConversationId}", promptRequest.ConversationId);
+            }
         }
 
         var toolRenderJson = toolRenderEnvelopes.Count > 0 ? JsonSerializer.Serialize(toolRenderEnvelopes) : null;
@@ -288,7 +312,7 @@ public class AgentService
 
     private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments, string? toolRenderJson = null)
     {
-        // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
+        // Note: conversation name generation runs concurrently with the stream in ChatStreamingAsync.
         // Stamp explicit, strictly increasing timestamps so reload order is deterministic:
         // user question → tool render (weather card) → assistant text reply.
         // UpdatedAt is aligned with CreatedAt because PrepareConversationHistory orders by UpdatedAt;
@@ -560,12 +584,16 @@ public class AgentService
 
     }
 
-    private async Task<string> GenerateConversationName(string question, TokenUsageInfo tokenUsageInfo)
+    // Runs the pre-built title agent to name the conversation, returning the name, its token usage,
+    // and how long the call took. Side-effect-free (no DbContext), so it is safe to run concurrently
+    // with the chat stream. The title agent is resolved by the caller via CreateTitleAgentAsync.
+    private async Task<(string Name, TokenUsageInfo Usage, TimeSpan Elapsed)> GenerateConversationNameAsync(AIAgent titleAgent, string question)
     {
-        var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
-        var results = await agent.RunAsync(question);
-        ExtractTokenUsage(results.Usage, tokenUsageInfo);
-        return results.Text;
+        var usage = new TokenUsageInfo();
+        var start = DateTime.UtcNow;
+        var results = await titleAgent.RunAsync(question);
+        ExtractTokenUsage(results.Usage, usage);
+        return (results.Text, usage, DateTime.UtcNow - start);
     }
 
     private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages, TokenUsageInfo tokenUsageInfo)

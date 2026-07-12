@@ -1,4 +1,5 @@
 ﻿using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Settings;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
@@ -31,6 +32,20 @@ public class AgentClient(HttpClient httpClient)
     public async Task UpdateAgent(AgentDetail agentDetail)
     {
         var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentDetail.Id}", agentDetail);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<TitleGenerationSettingsDto> GetTitleGenerationSettings()
+    {
+        var response = await httpClient.GetAsync("api/agentadmin/title-generation-settings");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<TitleGenerationSettingsDto>();
+        return result ?? new TitleGenerationSettingsDto();
+    }
+
+    public async Task UpdateTitleGenerationSettings(TitleGenerationSettingsDto settings)
+    {
+        var response = await httpClient.PutAsJsonAsync("api/agentadmin/title-generation-settings", settings);
         response.EnsureSuccessStatusCode();
     }
 

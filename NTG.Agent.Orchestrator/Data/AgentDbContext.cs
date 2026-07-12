@@ -47,6 +47,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<AnonymousSession> AnonymousSessions { get; set; } = null!;
 
+    public DbSet<Models.Settings.TitleGenerationSettings> TitleGenerationSettings { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var guidToString = new ValueConverter<Guid, string>(
@@ -114,6 +116,19 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             IsDefault = true,
             IsPublished = true,
             AgentKind = Common.Dtos.Agents.AgentKind.Outer
+        });
+
+        // Single-row settings for the conversation-title model. Seeded blank (no secrets in the
+        // migration); an admin configures it from the panel. Blank ProviderName => fall back to the
+        // Default Agent, so titles keep working before it is set.
+        modelBuilder.Entity<Models.Settings.TitleGenerationSettings>().HasData(new Models.Settings.TitleGenerationSettings
+        {
+            Id = Models.Settings.TitleGenerationSettings.SingletonId,
+            ProviderName = string.Empty,
+            ProviderModelName = string.Empty,
+            ProviderEndpoint = string.Empty,
+            ProviderApiKey = string.Empty,
+            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
 
         modelBuilder.Entity<Folder>().HasData(

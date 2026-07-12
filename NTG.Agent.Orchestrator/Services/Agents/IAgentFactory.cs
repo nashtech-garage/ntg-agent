@@ -8,6 +8,7 @@ public interface IAgentFactory
 
     Task<AIAgent> CreateAgent(Guid agentId);
     Task<AIAgent> CreateBasicAgent(string instructions);
+    Task<AIAgent> CreateTitleAgentAsync(string instructions);
     Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent);
     Task<IEnumerable<AITool>> GetMcpToolsAsync(string endpoint);
 }

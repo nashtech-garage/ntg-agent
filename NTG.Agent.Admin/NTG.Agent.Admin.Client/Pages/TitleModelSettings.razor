@@ -1,0 +1,143 @@
+@page "/title-model-settings"
+@using NTG.Agent.Common.Dtos.Settings
+@using NTG.Agent.Admin.Client.Services
+@attribute [Authorize(Roles = "Admin")]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@inject AgentClient AgentClient
+@inject ILogger<TitleModelSettings> Logger
+
+<PageTitle>Title Generation Model</PageTitle>
+
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="mb-4">
+                <h4 class="mb-1"><i class="bi bi-input-cursor-text me-2"></i>Conversation Title Model</h4>
+                <p class="text-muted mb-0">
+                    A dedicated lightweight model used only to name new conversations. It runs in parallel
+                    with the chat, so it never slows the main response. Leave the provider blank to fall
+                    back to the Default Agent.
+                </p>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+                </div>
+            }
+            else
+            {
+                <EditForm Model="settings" OnValidSubmit="Save">
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Name</label>
+                                <select class="form-select form-select-sm" @bind="settings.ProviderName">
+                                    <option value="">— Use Default Agent —</option>
+                                    <option value="GitHubModel">GitHub Models</option>
+                                    <option value="AzureOpenAI">Azure Open AI</option>
+                                    <option value="GoogleGemini">Google Gemini</option>
+                                    <option value="OpenAI">OpenAI</option>
+                                    <option value="Anthropic">Anthropic</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Endpoint</label>
+                                <InputText @bind-Value="settings.ProviderEndpoint" class="form-control"
+                                           placeholder="e.g. https://your-resource.openai.azure.com/openai/v1" />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider API Key</label>
+                                <div class="input-group">
+                                    <InputText @bind-Value="settings.ProviderApiKey"
+                                               type="@(showApiKey ? "text" : "password")"
+                                               class="form-control" placeholder="Enter the API Key..." />
+                                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showApiKey = !showApiKey">
+                                        <i class="bi @(showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small">Provider Model Name</label>
+                                <InputText @bind-Value="settings.ProviderModelName" class="form-control"
+                                           placeholder="e.g. gpt-5.4-mini" />
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary" disabled="@isSaving">
+                                    @if (isSaving)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    }
+                                    else
+                                    {
+                                        <i class="bi bi-check-circle me-2"></i>
+                                    }
+                                    Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </EditForm>
+
+                @if (!string.IsNullOrEmpty(statusMessage))
+                {
+                    <div class="alert @(isSuccess ? "alert-success" : "alert-danger") d-flex align-items-center mt-3" role="alert">
+                        <i class="@(isSuccess ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+                        <div>@statusMessage</div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private TitleGenerationSettingsDto settings = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool showApiKey = false;
+    private bool isSuccess = false;
+    private string statusMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            settings = await AgentClient.GetTitleGenerationSettings();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load title generation settings");
+            statusMessage = $"Failed to load settings: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            isSaving = true;
+            statusMessage = string.Empty;
+            await AgentClient.UpdateTitleGenerationSettings(settings);
+            statusMessage = "Title model settings saved.";
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save title generation settings");
+            statusMessage = $"Error saving settings: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Settings;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -23,6 +24,45 @@ public class AgentAdminController : ControllerBase
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
+    }
+
+    /// <summary>
+    /// Returns the system-wide configuration for the lightweight conversation-title model.
+    /// Values are blank until an admin configures it (naming then falls back to the Default Agent).
+    /// </summary>
+    [HttpGet("title-generation-settings")]
+    public async Task<IActionResult> GetTitleGenerationSettings()
+    {
+        var settings = await _agentDbContext.TitleGenerationSettings.FirstOrDefaultAsync();
+        var dto = new TitleGenerationSettingsDto
+        {
+            ProviderName = settings?.ProviderName ?? string.Empty,
+            ProviderModelName = settings?.ProviderModelName ?? string.Empty,
+            ProviderEndpoint = settings?.ProviderEndpoint ?? string.Empty,
+            ProviderApiKey = settings?.ProviderApiKey ?? string.Empty,
+        };
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Upserts the conversation-title model configuration (single row).
+    /// </summary>
+    [HttpPut("title-generation-settings")]
+    public async Task<IActionResult> UpdateTitleGenerationSettings([FromBody] TitleGenerationSettingsDto updated)
+    {
+        var settings = await _agentDbContext.TitleGenerationSettings.FirstOrDefaultAsync();
+        if (settings is null)
+        {
+            settings = new Models.Settings.TitleGenerationSettings { Id = Models.Settings.TitleGenerationSettings.SingletonId };
+            _agentDbContext.TitleGenerationSettings.Add(settings);
+        }
+        settings.ProviderName = updated.ProviderName ?? string.Empty;
+        settings.ProviderModelName = updated.ProviderModelName ?? string.Empty;
+        settings.ProviderEndpoint = updated.ProviderEndpoint ?? string.Empty;
+        settings.ProviderApiKey = updated.ProviderApiKey ?? string.Empty;
+        settings.UpdatedAt = DateTime.UtcNow;
+        await _agentDbContext.SaveChangesAsync();
+        return NoContent();
     }
 
     /// <summary>

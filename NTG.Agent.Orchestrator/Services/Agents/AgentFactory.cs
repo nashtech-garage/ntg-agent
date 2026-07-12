@@ -47,17 +47,43 @@ public class AgentFactory : IAgentFactory
     public async Task<AIAgent> CreateBasicAgent(string instructions)
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == DefaultAgentId) ?? throw new ArgumentException($"Agent with ID '{DefaultAgentId}' not found.");
-        string agentProvider = agentConfig.ProviderName;
-        return agentProvider switch
+        return BuildBasicAgent(agentConfig, instructions);
+    }
+
+    // Creates the lightweight, no-tools agent used to name conversations. Reads the admin-configured
+    // TitleGenerationSettings row once (sequentially) and builds a client from those plain provider
+    // values — so the caller can run its LLM call concurrently with the chat stream without any
+    // DbContext access on the parallel path. Falls back to the Default Agent when unconfigured.
+    public async Task<AIAgent> CreateTitleAgentAsync(string instructions)
+    {
+        var settings = await _agentDbContext.TitleGenerationSettings.FirstOrDefaultAsync();
+        if (settings is null || string.IsNullOrWhiteSpace(settings.ProviderName))
+        {
+            return await CreateBasicAgent(instructions);
+        }
+
+        var config = new Models.Agents.Agent
+        {
+            ProviderName = settings.ProviderName,
+            ProviderModelName = settings.ProviderModelName,
+            ProviderEndpoint = settings.ProviderEndpoint,
+            ProviderApiKey = settings.ProviderApiKey,
+        };
+        return BuildBasicAgent(config, instructions);
+    }
+
+    // Builds a basic (no-tools) agent from a provider configuration, shared by the Default Agent path
+    // (CreateBasicAgent) and the title-model path (CreateTitleAgentAsync).
+    private static AIAgent BuildBasicAgent(Models.Agents.Agent agentConfig, string instructions) =>
+        agentConfig.ProviderName switch
         {
             "GitHubModel" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "GoogleGemini" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "OpenAI" => CreateBasicOpenAIAgent(agentConfig, instructions),
             "AzureOpenAI" => CreateBasicAzureOpenAIAgent(agentConfig, instructions),
             "Anthropic" => CreateBasicAnthropicAgent(agentConfig, instructions),
-            _ => throw new NotSupportedException($"Agent provider '{agentProvider}' is not supported."),
+            _ => throw new NotSupportedException($"Agent provider '{agentConfig.ProviderName}' is not supported."),
         };
-    }
 
     private static ChatClientAgent CreateBasicOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
