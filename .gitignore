@@ -366,3 +366,7 @@ MigrationBackup/
 FodyWeavers.xsd
 # C# Dev Kit / Roslyn language server cache
 *.lscache
+
+# Local environment files (contain secrets — never commit)
+.env
+.env.example
