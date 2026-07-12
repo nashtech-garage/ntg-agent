@@ -1,7 +1,6 @@
 ﻿using Anthropic;
 using Anthropic.Core;
 using Anthropic.Models.Messages;
-using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -85,9 +84,12 @@ public class AgentFactory : IAgentFactory
 
     private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Agent agentConfig, string instructions)
     {
-        var agent = new AzureOpenAIClient(
-             new Uri(agentConfig.ProviderEndpoint),
-             new ApiKeyCredential(agentConfig.ProviderApiKey))
+        // The Azure resource is reached through its OpenAI-compatible v1 surface
+        // (ProviderEndpoint ends in /openai/v1), so we use the plain OpenAIClient rather than
+        // AzureOpenAIClient — the latter targets the legacy api-version deployment API and cannot
+        // address /openai/v1. The same key is sent as a Bearer token, which that surface accepts.
+        var clientOptions = new OpenAIClientOptions { Endpoint = new Uri(agentConfig.ProviderEndpoint) };
+        var agent = new OpenAIClient(new ApiKeyCredential(agentConfig.ProviderApiKey), clientOptions)
                .GetChatClient(agentConfig.ProviderModelName)
                .AsAIAgent(instructions: instructions);
         return agent;
@@ -183,41 +185,84 @@ public class AgentFactory : IAgentFactory
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
+    /// <summary>
+    /// Whether a model surfaces reasoning through the Chat Completions API (top-level
+    /// <c>reasoning_effort</c>) rather than the Responses API (<c>reasoning.effort</c>).
+    /// </summary>
+    /// <remarks>
+    /// DeepSeek reasoning models reject the Responses API reasoning parameter (HTTP 400
+    /// <c>unsupported_parameter</c>) and instead expose their chain-of-thought as
+    /// <c>reasoning_content</c> over Chat Completions. gpt-5.x / o-series use the Responses API.
+    /// Detection is by model name because the agent configuration carries no capability flag.
+    /// </remarks>
+    private static bool UsesChatCompletionsReasoning(string modelName) =>
+        modelName.Contains("deepseek", StringComparison.OrdinalIgnoreCase);
+
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
     {
         IChatClient chatClient;
 
         if (agent.Mode == AgentMode.Thinking)
         {
-            // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+            // Both reasoning paths address the OpenAI-compatible v1 surface via OpenAIClient (not
+            // AzureOpenAIClient, which cannot reach /openai/v1 — see CreateBasicAzureOpenAIAgent).
 #pragma warning disable OPENAI001
-            chatClient = new AzureOpenAIClient(
-                    new Uri(agent.ProviderEndpoint),
-                    new ApiKeyCredential(agent.ProviderApiKey))
-                .GetResponsesClient()
-                .AsIChatClient(agent.ProviderModelName)
-                .AsBuilder()
-                .UseFunctionInvocation()
-                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-                .ConfigureOptions(o =>
-                {
-                    o.RawRepresentationFactory = _ => new CreateResponseOptions
+            var thinkingClientOptions = new OpenAIClientOptions { Endpoint = new Uri(agent.ProviderEndpoint) };
+            var thinkingClient = new OpenAIClient(new ApiKeyCredential(agent.ProviderApiKey), thinkingClientOptions);
+
+            if (UsesChatCompletionsReasoning(agent.ProviderModelName))
+            {
+                // DeepSeek-family reasoning: Chat Completions with a top-level reasoning_effort.
+                // The chain-of-thought returns as reasoning_content, which Microsoft.Extensions.AI
+                // maps to TextReasoningContent — the same type the Responses path emits, so the
+                // streaming/UI layer (AgentService) needs no change.
+                chatClient = thinkingClient
+                    .GetChatClient(agent.ProviderModelName)
+                    .AsIChatClient()
+                    .AsBuilder()
+                    .UseFunctionInvocation()
+                    .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                    .ConfigureOptions(o =>
                     {
-                        ReasoningOptions = new ResponseReasoningOptions
+                        o.RawRepresentationFactory = _ => new ChatCompletionOptions
                         {
-                            ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
-                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
-                        }
-                    };
-                })
-                .Build();
+                            ReasoningEffortLevel = ChatReasoningEffortLevel.High,
+                        };
+                    })
+                    .Build();
+            }
+            else
+            {
+                // gpt-5.x / o-series reasoning: Responses API (/openai/v1/responses) with reasoning.effort.
+                // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+                chatClient = thinkingClient
+                    .GetResponsesClient()
+                    .AsIChatClient(agent.ProviderModelName)
+                    .AsBuilder()
+                    .UseFunctionInvocation()
+                    .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                    .ConfigureOptions(o =>
+                    {
+                        o.RawRepresentationFactory = _ => new CreateResponseOptions
+                        {
+                            ReasoningOptions = new ResponseReasoningOptions
+                            {
+                                ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                                ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                            }
+                        };
+                    })
+                    .Build();
+            }
 #pragma warning restore OPENAI001
         }
         else
         {
-            chatClient = new AzureOpenAIClient(
-                new Uri(agent.ProviderEndpoint),
-                new ApiKeyCredential(agent.ProviderApiKey))
+            // Chat Completions over the same v1 surface (/openai/v1/chat/completions) via OpenAIClient.
+            var fastClientOptions = new OpenAIClientOptions { Endpoint = new Uri(agent.ProviderEndpoint) };
+            chatClient = new OpenAIClient(
+                new ApiKeyCredential(agent.ProviderApiKey),
+                fastClientOptions)
                 .GetChatClient(agent.ProviderModelName)
                 .AsIChatClient()
                 .AsBuilder()
