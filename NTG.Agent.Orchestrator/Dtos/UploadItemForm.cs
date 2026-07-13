@@ -9,7 +9,7 @@ public class UploadItemForm : UploadItem
     public IFormFile? Content { get; set; }
 }
 
-public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId)
+public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId, string? SkillName = null) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId, SkillName)
 {
     /// <summary>
     /// Optional JSON array of AG-UI frontend tool definitions ({name, description, parameters})

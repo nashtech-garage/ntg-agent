@@ -1,4 +1,5 @@
 ﻿@using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Common.Dtos.Skills
 @inject AgentClient AgentClient
 
 <div class="tab-pane fade show active" id="mcp-tools" role="tabpanel">
@@ -24,6 +25,14 @@
                         </button>
                     </li>
                 }
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(activeSubTab == skillsTab ? "active" : "")"
+                            @onclick="() => SetActiveSubTab(skillsTab)"
+                            type="button" role="tab">
+                        <i class="bi bi-mortarboard me-2"></i>
+                        Skills
+                    </button>
+                </li>
             </ul>
 
             @if (activeSubTab == mcpTab)
@@ -200,6 +209,79 @@
                     </button>
                 </div>
             }
+            else if (activeSubTab == skillsTab)
+            {
+                <div class="mb-3">
+                    <h5 class="mb-1">Agent Skills</h5>
+                    <p class="text-muted mb-0">Select which skills from the MCP server this agent may load. Enabled skills are advertised to the agent by name and description; the full SKILL.md is loaded on demand.</p>
+                </div>
+
+                @if (string.IsNullOrWhiteSpace(AgentDetail.McpServer))
+                {
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <div>Connect this agent to an MCP server first (MCP &amp; Built-in Tools tab), then its skills appear here.</div>
+                    </div>
+                }
+                else if (agentSkills == null)
+                {
+                    <div class="d-flex justify-content-center align-items-center" style="min-height: 120px;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                }
+                else if (agentSkills.Count == 0)
+                {
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <div>The MCP server exposes no skills. Upload skills in the Skills Management screen.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card border-0 bg-light">
+                        <div class="card-body">
+                            <ul class="list-group list-group-flush small">
+                                @foreach (var skill in agentSkills)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>@skill.Name</strong>
+                                            <div class="text-muted">@skill.Description</div>
+                                        </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox"
+                                                   @bind="skill.IsEnabled" />
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(skillsStatusMessage))
+                {
+                    <div class="alert alert-success mt-3 d-flex align-items-center" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <div>@skillsStatusMessage</div>
+                    </div>
+                }
+
+                @if (agentSkills is { Count: > 0 })
+                {
+                    <div class="d-flex justify-content-end mt-4">
+                        <button class="btn btn-success" @onclick="SaveAgentSkills" disabled="@isSavingSkills">
+                            @if (isSavingSkills)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            }
+                            <i class="bi bi-save me-1"></i> Save Skills
+                        </button>
+                    </div>
+                }
+            }
         </div>
     </div>
 </div>
@@ -220,9 +302,13 @@
     private List<InnerAgentBindingDto>? innerAgentBindings;
     private string? innerAgentStatusMessage;
     private bool isSavingInnerAgents;
+    private List<AgentSkillDto>? agentSkills;
+    private string? skillsStatusMessage;
+    private bool isSavingSkills;
 
     private const string mcpTab = "mcp";
     private const string innerAgentsTab = "inner-agents";
+    private const string skillsTab = "skills";
     private string activeSubTab = mcpTab;
 
     protected override async Task OnInitializedAsync()
@@ -241,6 +327,7 @@
             {
                 statusMessage = string.Empty;
             }
+            agentSkills = (await AgentClient.GetAgentSkillsAsync(AgentDetail.Id)).ToList();
         }
     }
 
@@ -314,6 +401,20 @@
         await AgentClient.UpdateAgentToolsAsync(AgentDetail.Id, allTools);
         statusMessage = $"Saved {allTools.Count(t => t.IsEnabled)} tools as enabled.";
         isConnected = true;
+    }
+
+    private async Task SaveAgentSkills()
+    {
+        if (agentSkills == null)
+        {
+            return;
+        }
+
+        isSavingSkills = true;
+        skillsStatusMessage = string.Empty;
+        await AgentClient.UpdateAgentSkillsAsync(AgentDetail.Id, agentSkills);
+        skillsStatusMessage = $"Saved {agentSkills.Count(s => s.IsEnabled)} skills as enabled.";
+        isSavingSkills = false;
     }
 
     private async Task SaveInnerAgentBindings()

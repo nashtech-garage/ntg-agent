@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Skills;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -353,6 +354,108 @@ public class AgentAdminController : ControllerBase
         await _agentDbContext.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// Retrieves the Agent Skills advertised by the agent's MCP server, merged with
+    /// this agent's persisted enablement flags.
+    /// </summary>
+    [HttpGet("{id}/skills")]
+    public async Task<IActionResult> GetAgentSkills(Guid id)
+    {
+        var agent = await _agentDbContext.Agents
+            .Include(a => a.AgentSkills)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (agent == null)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        var skills = new List<AgentSkillDto>();
+        if (!string.IsNullOrWhiteSpace(agent.McpServer))
+        {
+            var liveSkills = await _agentFactory.GetMcpSkillsAsync(agent.McpServer);
+            skills = liveSkills.Select(s => new AgentSkillDto
+            {
+                Name = s.Name,
+                Description = s.Description,
+                IsEnabled = agent.AgentSkills
+                    .FirstOrDefault(x => string.Equals(x.Name, s.Name, StringComparison.OrdinalIgnoreCase))?.IsEnabled ?? false
+            }).ToList();
+        }
+
+        return Ok(skills);
+    }
+
+    /// <summary>
+    /// Updates the per-agent skill enablement flags.
+    /// </summary>
+    [HttpPut("{id}/skills")]
+    public async Task<IActionResult> UpdateAgentSkills(Guid id, [FromBody] List<AgentSkillDto> updatedSkills)
+    {
+        var agent = await _agentDbContext.Agents
+            .Include(a => a.AgentSkills)
+            .FirstOrDefaultAsync(a => a.Id == id);
+
+        if (agent == null)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        var byName = new Dictionary<string, Models.Agents.AgentSkill>(StringComparer.OrdinalIgnoreCase);
+        foreach (var skill in agent.AgentSkills.ToList())
+        {
+            if (byName.ContainsKey(skill.Name))
+            {
+                _agentDbContext.AgentSkills.Remove(skill);
+            }
+            else
+            {
+                byName[skill.Name] = skill;
+            }
+        }
+
+        var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var skillDto in updatedSkills)
+        {
+            if (string.IsNullOrWhiteSpace(skillDto.Name) || !processed.Add(skillDto.Name))
+            {
+                continue;
+            }
+
+            if (byName.TryGetValue(skillDto.Name, out var existingSkill))
+            {
+                existingSkill.IsEnabled = skillDto.IsEnabled;
+                existingSkill.Description = skillDto.Description;
+                existingSkill.UpdatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                var added = new Models.Agents.AgentSkill
+                {
+                    AgentId = id,
+                    Name = skillDto.Name,
+                    Description = skillDto.Description,
+                    IsEnabled = skillDto.IsEnabled,
+                };
+                agent.AgentSkills.Add(added);
+                byName[skillDto.Name] = added;
+            }
+        }
+
+        // Drop rows for skills that no longer exist on the MCP server (not in the payload).
+        var removed = agent.AgentSkills
+            .Where(s => !processed.Contains(s.Name))
+            .ToList();
+        if (removed.Count > 0)
+        {
+            _agentDbContext.AgentSkills.RemoveRange(removed);
+        }
+
+        await _agentDbContext.SaveChangesAsync();
+
+        return Ok("Agent skills updated successfully.");
     }
 
     /// <summary>

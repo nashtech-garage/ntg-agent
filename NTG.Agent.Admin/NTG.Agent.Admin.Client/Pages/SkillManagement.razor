@@ -1,0 +1,321 @@
+@page "/skills-management"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Common.Dtos.Skills
+@using NTG.Agent.Admin.Client.Services
+@inject SkillClient SkillClient
+
+<PageTitle>Skills Management</PageTitle>
+
+<div class="container-fluid px-2 px-md-4 py-2 py-md-3">
+    <div class="row mb-2 mb-md-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Skills Management</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="flex-grow-1">
+                        <h4 class="mb-1">Skills Management</h4>
+                        <p class="text-muted mb-0 d-none d-sm-block">
+                            Upload and manage Agent Skills (SKILL.md). Skills are hosted on the MCP server;
+                            enable them per agent from the agent's Tools &rarr; Skills tab.
+                        </p>
+                    </div>
+                    <button class="btn btn-primary" @onclick="ShowCreateEditor">
+                        <i class="bi bi-plus-circle me-2"></i>New Skill
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        @errorMessage
+                        <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        @successMessage
+                        <button type="button" class="btn-close" @onclick="() => successMessage = string.Empty"></button>
+                    </div>
+                }
+
+                @if (isLoading)
+                {
+                    <div class="d-flex justify-content-center align-items-center" style="min-height: 160px;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                }
+                else if (skills.Count == 0)
+                {
+                    <div class="alert alert-info d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <div>No skills yet. Create one or upload a SKILL.md file.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th class="text-nowrap">Updated</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var skill in skills)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold text-nowrap">@skill.Name</td>
+                                        <td>@skill.Description</td>
+                                        <td class="text-nowrap">@skill.UpdatedAt.ToLocalTime().ToString("g")</td>
+                                        <td class="text-end text-nowrap">
+                                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => ShowEditEditor(skill.Id)">
+                                                <i class="bi bi-pencil"></i> Edit
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(skill)">
+                                                <i class="bi bi-trash"></i> Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (showEditor)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingSkillId == null ? "New Skill" : "Edit Skill")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditor"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload SKILL.md</label>
+                        <InputFile OnChange="OnFileSelected" class="form-control" accept=".md,.markdown,.txt" />
+                        <div class="form-text">Or edit the content directly below. The 'name' and 'description' frontmatter fields are required.</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">SKILL.md content</label>
+                        <textarea class="form-control font-monospace" rows="16" @bind="editorContent"
+                                  placeholder="---&#10;name: my-skill&#10;description: When to use this skill.&#10;---&#10;&#10;# Instructions..."></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(editorError))
+                    {
+                        <div class="alert alert-danger d-flex align-items-center mb-0" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <div>@editorError</div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditor">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveSkill" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        <i class="bi bi-save me-1"></i> Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (skillToDelete != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Skill</h5>
+                    <button type="button" class="btn-close" @onclick="() => skillToDelete = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Delete skill <strong>@skillToDelete.Name</strong>? Agents that had it enabled will simply no longer see it.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => skillToDelete = null">Cancel</button>
+                    <button type="button" class="btn btn-danger" @onclick="DeleteSkill" disabled="@isSaving">
+                        <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const long MaxUploadBytes = 512 * 1024;
+
+    private List<SkillDto> skills = [];
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+
+    private bool showEditor;
+    private Guid? editingSkillId;
+    private string editorContent = string.Empty;
+    private string editorError = string.Empty;
+    private bool isSaving;
+
+    private SkillDto? skillToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSkillsAsync();
+    }
+
+    private async Task LoadSkillsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            skills = (await SkillClient.GetSkillsAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load skills: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateEditor()
+    {
+        editingSkillId = null;
+        editorContent = string.Empty;
+        editorError = string.Empty;
+        showEditor = true;
+    }
+
+    private async Task ShowEditEditor(Guid id)
+    {
+        try
+        {
+            var skill = await SkillClient.GetSkillAsync(id);
+            if (skill == null)
+            {
+                errorMessage = "Skill not found.";
+                return;
+            }
+            editingSkillId = id;
+            editorContent = skill.Content;
+            editorError = string.Empty;
+            showEditor = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load skill: {ex.Message}";
+        }
+    }
+
+    private void CloseEditor()
+    {
+        showEditor = false;
+        editorError = string.Empty;
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(MaxUploadBytes));
+            editorContent = await reader.ReadToEndAsync();
+            editorError = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            editorError = $"Failed to read file: {ex.Message}";
+        }
+    }
+
+    private async Task SaveSkill()
+    {
+        try
+        {
+            isSaving = true;
+            editorError = string.Empty;
+
+            if (editingSkillId == null)
+            {
+                var created = await SkillClient.CreateSkillAsync(editorContent);
+                successMessage = $"Skill '{created.Name}' created.";
+            }
+            else
+            {
+                var updated = await SkillClient.UpdateSkillAsync(editingSkillId.Value, editorContent);
+                successMessage = $"Skill '{updated.Name}' updated.";
+            }
+
+            showEditor = false;
+            await LoadSkillsAsync();
+        }
+        catch (Exception ex)
+        {
+            editorError = ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ConfirmDelete(SkillDto skill)
+    {
+        skillToDelete = skill;
+    }
+
+    private async Task DeleteSkill()
+    {
+        if (skillToDelete == null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            await SkillClient.DeleteSkillAsync(skillToDelete.Id);
+            successMessage = $"Skill '{skillToDelete.Name}' deleted.";
+            skillToDelete = null;
+            await LoadSkillsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to delete skill: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

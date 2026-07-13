@@ -3,6 +3,7 @@
 @using NTG.Agent.Common.Dtos.SharedConversations
 @using NTG.Agent.Common.Dtos.Agents
 @using NTG.Agent.Common.Dtos.AnonymousSessions
+@using NTG.Agent.Common.Dtos.Skills
 @using NTG.Agent.WebClient.Client.Components.Shared
 @using System.Text
 @inject ChatClient ChatClient
@@ -142,14 +143,49 @@ else if (ConversationId.HasValue)
                         </button>
                     </div>
                 }
+                @if (showSkillPicker)
+                {
+                    <div class="chat-plus-backdrop" @onclick="CloseSkillPicker"></div>
+                    <div class="chat-plus-menu">
+                        @if (skillsForPicker == null)
+                        {
+                            <div class="px-3 py-2 text-muted small">Loading skills…</div>
+                        }
+                        else if (!FilteredSkills.Any())
+                        {
+                            <div class="px-3 py-2 text-muted small">No skills enabled for this agent.</div>
+                        }
+                        else
+                        {
+                            @foreach (var skill in FilteredSkills)
+                            {
+                                <button class="btn chat-plus-menu-item" type="button" @onclick="() => SelectSkill(skill.Name)">
+                                    <i class="bi bi-mortarboard me-2"></i><strong>@skill.Name</strong>
+                                    <span class="text-muted small ms-2 text-truncate d-inline-block" style="max-width: 240px; vertical-align: bottom;">@skill.Description</span>
+                                </button>
+                            }
+                        }
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(selectedSkill))
+                {
+                    <div class="mb-2">
+                        <span class="badge rounded-pill text-bg-primary">
+                            <i class="bi bi-mortarboard me-1"></i>/@selectedSkill
+                            <button type="button" class="btn-close btn-close-white ms-1" style="font-size: .6rem;"
+                                    @onclick="ClearSelectedSkill" aria-label="Remove skill"></button>
+                        </span>
+                    </div>
+                }
                 <div class="chat-input-box mb-3">
                     <button class="chat-input-icon-btn" type="button" @onclick="TogglePlusMenu"
                             aria-label="More options" title="More options">
                         <i class="bi bi-plus-lg"></i>
                     </button>
                     <input type="text" id="userInput" class="chat-input-field" @bind="userInput"
+                            @bind:event="oninput" @bind:after="OnUserInputChanged" @onkeydown="HandleInputKeyDown"
                             autocomplete="off" spellcheck="false" autocorrect="off"
-                            autocapitalize="off" placeholder="Type your message..." />
+                            autocapitalize="off" placeholder="Type your message, or /skill to use a skill..." />
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
                     <button class="chat-input-icon-btn" type="submit" aria-label="Send message" title="Send message">
                         <i class="bi bi-send"></i>
@@ -206,12 +242,47 @@ else
                             </button>
                         </div>
                     }
+                    @if (showSkillPicker)
+                    {
+                        <div class="chat-plus-backdrop" @onclick="CloseSkillPicker"></div>
+                        <div class="chat-plus-menu">
+                            @if (skillsForPicker == null)
+                            {
+                                <div class="px-3 py-2 text-muted small">Loading skills…</div>
+                            }
+                            else if (!FilteredSkills.Any())
+                            {
+                                <div class="px-3 py-2 text-muted small">No skills enabled for this agent.</div>
+                            }
+                            else
+                            {
+                                @foreach (var skill in FilteredSkills)
+                                {
+                                    <button class="btn chat-plus-menu-item" type="button" @onclick="() => SelectSkill(skill.Name)">
+                                        <i class="bi bi-mortarboard me-2"></i><strong>@skill.Name</strong>
+                                        <span class="text-muted small ms-2 text-truncate d-inline-block" style="max-width: 240px; vertical-align: bottom;">@skill.Description</span>
+                                    </button>
+                                }
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedSkill))
+                    {
+                        <div class="mb-2">
+                            <span class="badge rounded-pill text-bg-primary">
+                                <i class="bi bi-mortarboard me-1"></i>/@selectedSkill
+                                <button type="button" class="btn-close btn-close-white ms-1" style="font-size: .6rem;"
+                                        @onclick="ClearSelectedSkill" aria-label="Remove skill"></button>
+                            </span>
+                        </div>
+                    }
                     <div class="chat-input-box mb-3">
                         <button class="chat-input-icon-btn" type="button" @onclick="TogglePlusMenu"
                                 aria-label="More options" title="More options">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                         <input type="text" id="userInput" class="chat-input-field" @bind="userInput"
+                               @bind:event="oninput" @bind:after="OnUserInputChanged" @onkeydown="HandleInputKeyDown"
                                autocomplete="off" spellcheck="false" autocorrect="off"
                                autocapitalize="off" placeholder="Ask anything" />
                         <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
@@ -327,6 +398,17 @@ else
     private bool isThinking = false;
     private DateTime? thinkingStartedAt;
 
+    // /skill command picker state. Skills are the ones an admin enabled for the selected
+    // agent; the list is cached per agent and refreshed when the agent changes.
+    private List<AgentSkillListItemDto>? skillsForPicker;
+    private Guid skillsLoadedForAgentId;
+    private bool showSkillPicker = false;
+    private string skillFilter = string.Empty;
+    private string? selectedSkill;
+
+    private IEnumerable<AgentSkillListItemDto> FilteredSkills =>
+        skillsForPicker?.Where(s => s.Name.Contains(skillFilter, StringComparison.OrdinalIgnoreCase)) ?? [];
+
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -390,6 +472,69 @@ else
         }
     }
 
+    private async Task OnUserInputChanged()
+    {
+        var text = userInput.TrimStart();
+        if (text.StartsWith("/skill", StringComparison.OrdinalIgnoreCase))
+        {
+            skillFilter = text.Length > "/skill".Length
+                ? text["/skill".Length..].TrimStart(':', ' ')
+                : string.Empty;
+            showSkillPicker = true;
+            await EnsureSkillsLoadedAsync();
+        }
+        else if (showSkillPicker)
+        {
+            showSkillPicker = false;
+        }
+    }
+
+    private async Task EnsureSkillsLoadedAsync()
+    {
+        if (skillsForPicker == null || skillsLoadedForAgentId != selectedAgentId)
+        {
+            try
+            {
+                skillsForPicker = await ChatClient.GetAgentSkillsAsync(selectedAgentId);
+                skillsLoadedForAgentId = selectedAgentId;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to load skills for agent {AgentId}", selectedAgentId);
+                skillsForPicker = [];
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void SelectSkill(string name)
+    {
+        selectedSkill = name;
+        userInput = string.Empty;
+        showSkillPicker = false;
+        StateHasChanged();
+    }
+
+    private void ClearSelectedSkill()
+    {
+        selectedSkill = null;
+        StateHasChanged();
+    }
+
+    private void CloseSkillPicker()
+    {
+        showSkillPicker = false;
+        StateHasChanged();
+    }
+
+    private void HandleInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && showSkillPicker)
+        {
+            showSkillPicker = false;
+        }
+    }
+
     private void OnFilesUploaded(List<UploadItemClient> items)
     {
         uploadItems = items.ToList();
@@ -399,6 +544,18 @@ else
 
     private async Task SendMessage()
     {
+        // Enter while the /skill picker is open picks the first matching skill
+        // instead of sending the raw "/skill..." text as a message.
+        if (showSkillPicker)
+        {
+            var firstMatch = FilteredSkills.FirstOrDefault();
+            if (firstMatch != null)
+            {
+                SelectSkill(firstMatch.Name);
+            }
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(userInput))
         {
             return;
@@ -446,10 +603,11 @@ else
             // Snapshot uploads into a new list so that uploadItems.Clear() below
             // does not mutate the collection that request.Documents references.
             var request = new PromptRequest<UploadItemClient>(query, ConversationId.Value,
-                currentSessionId, uploadItems.ToList(), selectedAgentId);
+                currentSessionId, uploadItems.ToList(), selectedAgentId, selectedSkill);
 
             response.Message = string.Empty;
             uploadItems.Clear();
+            selectedSkill = null;
 
             liveThinkingContent = string.Empty;
             isThinking = false;
@@ -700,10 +858,15 @@ else
     {
         selectedAgentId = agentId;
         showAgentSelector = false;
-        
+
+        // Skills are per-agent: drop the picked skill and the cached list.
+        selectedSkill = null;
+        skillsForPicker = null;
+        showSkillPicker = false;
+
         // Save the selected agent to the database via API
         _ = SaveAgentSelection(agentId);
-        
+
         StateHasChanged();
     }
 

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using NTG.Agent.WebClient.Client.Dtos;
 using System.Globalization;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Skills;
 using NTG.Agent.Common.Dtos;
 
 namespace NTG.Agent.WebClient.Client.Services;
@@ -61,6 +62,8 @@ public class ChatClient(HttpClient httpClient)
         if (!string.IsNullOrEmpty(request.SessionId))
             form.Add(new StringContent(request.SessionId), nameof(request.SessionId));
         form.Add(new StringContent(request.AgentId.ToString()), nameof(request.AgentId));
+        if (!string.IsNullOrEmpty(request.SkillName))
+            form.Add(new StringContent(request.SkillName), nameof(request.SkillName));
 
         // --- 3️ Send request, reading headers-first so the response can be streamed ---
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, REQUEST_URI) { Content = form };
@@ -83,6 +86,17 @@ public class ChatClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
         var agents = await response.Content.ReadFromJsonAsync<List<AgentListItemDto>>();
         return agents ?? new List<AgentListItemDto>();
+    }
+
+    /// <summary>
+    /// Retrieves the skills an admin enabled for the agent. Backs the /skill command picker.
+    /// </summary>
+    public async Task<List<AgentSkillListItemDto>> GetAgentSkillsAsync(Guid agentId)
+    {
+        var response = await httpClient.GetAsync($"/api/agents/{agentId}/skills");
+        response.EnsureSuccessStatusCode();
+        var skills = await response.Content.ReadFromJsonAsync<List<AgentSkillListItemDto>>();
+        return skills ?? [];
     }
 
     /// <summary>

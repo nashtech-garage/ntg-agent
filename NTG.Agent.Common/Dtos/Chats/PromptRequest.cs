@@ -7,6 +7,7 @@ public record PromptRequest<TUpload>(
     Guid ConversationId,
     string? SessionId,
     IEnumerable<TUpload>? Documents,
-    Guid AgentId
+    Guid AgentId,
+    string? SkillName = null
 )
 where TUpload : UploadItem;

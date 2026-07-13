@@ -63,6 +63,7 @@ internal static class Program
                 long? maxSize = config.Service.GetMaxUploadSizeInBytes();
                 if (!maxSize.HasValue) { return; }
 
+                // services.Configure<IISServerOptions>(x => { x.MaxRequestBodySize = maxSize.Value; });
                 services.Configure<KestrelServerOptions>(x => { x.Limits.MaxRequestBodySize = maxSize.Value; });
                 services.Configure<FormOptions>(x =>
                 {

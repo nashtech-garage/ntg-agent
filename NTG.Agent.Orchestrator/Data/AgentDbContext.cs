@@ -25,6 +25,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
 
+    public DbSet<Models.Agents.AgentSkill> AgentSkills { get; set; } = null!;
+
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
@@ -201,6 +203,17 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .WithOne(t => t.Agent)
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Models.Agents.AgentSkill>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(64);
+            entity.HasIndex(x => new { x.AgentId, x.Name }).IsUnique();
+
+            entity.HasOne(x => x.Agent)
+                .WithMany(a => a.AgentSkills)
+                .HasForeignKey(x => x.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<Models.Agents.AgentInnerAgent>(entity =>
         {

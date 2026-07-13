@@ -1,4 +1,5 @@
 ﻿using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Skills;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
@@ -83,6 +84,21 @@ public class AgentClient(HttpClient httpClient)
     public async Task UpdateAgentPublishStatus(Guid id, bool isPublished)
     {
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IList<AgentSkillDto>> GetAgentSkillsAsync(Guid agentId)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/skills");
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<AgentSkillDto>>();
+        return result ?? [];
+    }
+
+    public async Task UpdateAgentSkillsAsync(Guid agentId, IList<AgentSkillDto> skills)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/skills", skills);
         response.EnsureSuccessStatusCode();
     }
 

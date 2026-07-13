@@ -54,9 +54,9 @@ following https://developers.google.com/custom-search/docs/tutorial/creatingcse 
 }
 ```
 
-- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connects to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of three projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge
+- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connects to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of four projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge, NTG.Agent.MCP.Server (the MCP server uses its own `NTGAgentSkills` database for Agent Skills)
 
-- In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
+- In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator and NTG.Agent.MCP.Server projects.
 
 - Run the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
   - NTG.Agent.WebClient is the website for end users
@@ -125,6 +125,19 @@ Once you have the resource endpoint and API key, add the following to your user 
 - `IsEnabled` defaults to `false`. Set it to `true` only when you have a valid Azure subscription and resource configured.
 - When `IsEnabled` is `false`, the file upload button is hidden in the chat UI and no OCR processing is performed.
 - The API key is sensitive — use [user secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) in development and environment variables or Azure Key Vault in production. Do not commit it to source control.
+
+## Agent Skills
+
+NTG Agent supports [Agent Skills](https://learn.microsoft.com/en-us/agent-framework/agents/skills) — portable packages of domain expertise defined as `SKILL.md` markdown documents (YAML frontmatter with `name` and `description`, followed by instructions). Skills use progressive disclosure: each enabled skill costs only its one-line description in the system prompt, and the model calls the `load_skill` tool to pull in the full instructions when the task matches.
+
+How it works in NTG Agent:
+
+- **Hosting**: skills are stored in the MCP server's `NTGAgentSkills` database and served over MCP `skill://` resources (`skill://index.json` + `skill://{name}/SKILL.md`).
+- **Managing**: admins upload/edit/delete skills in **NTG.Agent.Admin → Skills Management**. The `name` and `description` frontmatter fields are required (`name`: lowercase letters, digits and hyphens).
+- **Enabling per agent**: open an agent in **Agent Management → Tools → Skills** and toggle the skills that agent may use. The agent must have an MCP server configured (Tools → MCP & Built-in Tools).
+- **Using**: the agent automatically loads a skill when the request matches its description. Users can also type `/skill` in the web client chat box to pick one of the agent's enabled skills explicitly.
+
+A sample `expense-report` skill is seeded with the MCP server database so the feature is demoable out of the box.
 
 ## Contributing
 

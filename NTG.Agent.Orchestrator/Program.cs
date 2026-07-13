@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.KernelMemory;
+using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
@@ -101,6 +102,16 @@ builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
+
+// Skill catalog proxy target: the MCP server hosts the skill CRUD API; its endpoint is
+// injected by Aspire service discovery (same env-var convention as the knowledge service).
+builder.Services.AddHttpClient(SkillAdminController.McpSkillCatalogClientName, client =>
+{
+    var endpoint = Environment.GetEnvironmentVariable("services__ntg-agent-mcp-server__https__0")
+                   ?? Environment.GetEnvironmentVariable("services__ntg-agent-mcp-server__http__0")
+                   ?? throw new InvalidOperationException("MCP server endpoint configuration is required");
+    client.BaseAddress = new Uri(endpoint);
+});
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

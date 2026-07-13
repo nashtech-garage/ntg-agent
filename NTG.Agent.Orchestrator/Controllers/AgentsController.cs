@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
+using NTG.Agent.Common.Dtos.Skills;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
@@ -55,5 +56,21 @@ public class AgentsController : ControllerBase
             .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);
+    }
+
+    /// <summary>
+    /// Retrieves the skills an admin enabled for a published agent. Backs the /skill
+    /// command picker in the web client chat box.
+    /// </summary>
+    [HttpGet("{agentId}/skills")]
+    public async Task<IActionResult> GetAgentSkills(Guid agentId)
+    {
+        var skills = await _agentDbContext.AgentSkills
+            .Where(s => s.AgentId == agentId && s.IsEnabled
+                && s.Agent.IsPublished && s.Agent.AgentKind == AgentKind.Outer)
+            .OrderBy(s => s.Name)
+            .Select(s => new AgentSkillListItemDto(s.Name, s.Description))
+            .ToListAsync();
+        return Ok(skills);
     }
 }

@@ -52,6 +52,8 @@ public class Agent
 
     public ICollection<AgentTools> AgentTools { get; set; } = new List<AgentTools>();
 
+    public ICollection<AgentSkill> AgentSkills { get; set; } = new List<AgentSkill>();
+
     /// <summary>Bindings where this agent is the outer agent.</summary>
     public ICollection<AgentInnerAgent> InnerAgentBindings { get; set; } = new List<AgentInnerAgent>();
 

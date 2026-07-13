@@ -5,13 +5,17 @@ using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using ModelContextProtocol;
 using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
 using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Skills;
 using NTG.Agent.Orchestrator.Data;
 using OpenAI;
 using OpenAI.Responses;
 using System.ClientModel;
+using System.Text.Json;
 using OpenAI.Chat;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -134,7 +138,8 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+        var skillsProvider = await GetSkillsProviderAsync(agent);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools, skillsProvider: skillsProvider);
     }
 
     private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Agent agent)
@@ -179,8 +184,9 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
+        var skillsProvider = await GetSkillsProviderAsync(agent);
 
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools, skillsProvider: skillsProvider);
     }
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Agent agent)
@@ -227,7 +233,8 @@ public class AgentFactory : IAgentFactory
         }
 
         var tools = await GetAgentToolsByAgentId(agent);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+        var skillsProvider = await GetSkillsProviderAsync(agent);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools, skillsProvider: skillsProvider);
     }
 
     private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent)
@@ -343,20 +350,103 @@ public class AgentFactory : IAgentFactory
     }
 
 
-    private static AIAgent Create(IChatClient chatClient, string instructions, string name, string? description, List<AITool> tools)
+    private static AIAgent Create(IChatClient chatClient, string instructions, string name, string? description, List<AITool> tools, AIContextProvider? skillsProvider = null)
     {
-        var agent = new ChatClientAgent(chatClient,
-            name: name,
-            instructions: instructions,
-            description: description,
-            tools: tools)
+        var options = new ChatClientAgentOptions
+        {
+            Name = name,
+            Description = description,
+            ChatOptions = new ChatOptions
+            {
+                Instructions = instructions,
+                Tools = tools,
+            },
+        };
+
+        if (skillsProvider is not null)
+        {
+            options.AIContextProviders = [skillsProvider];
+        }
+
+        var agent = new ChatClientAgent(chatClient, options)
             .AsBuilder()
             .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator")
             .Build();
         return agent;
     }
 
+    /// <summary>
+    /// Builds the Agent Skills context provider for an agent: skills are discovered from the
+    /// agent's MCP server (skill:// resources) and filtered down to the ones an admin enabled.
+    /// Returns null when the agent has no MCP server or no enabled skills, so agents without
+    /// skills pay no discovery cost.
+    /// </summary>
+    private async Task<AIContextProvider?> GetSkillsProviderAsync(Models.Agents.Agent agent)
+    {
+        if (string.IsNullOrWhiteSpace(agent.McpServer))
+        {
+            return null;
+        }
+
+        var enabledSkillNames = await _agentDbContext.AgentSkills
+            .Where(s => s.AgentId == agent.Id && s.IsEnabled)
+            .Select(s => s.Name)
+            .ToListAsync();
+
+        if (enabledSkillNames.Count == 0)
+        {
+            return null;
+        }
+
+        var enabled = enabledSkillNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var mcpClient = await CreateMcpClientAsync(agent.McpServer);
+
+        return new AgentSkillsProviderBuilder()
+            .UseMcpSkills(mcpClient)
+            .UseFilter((skill, _) => skill.Frontmatter.Name is { } name && enabled.Contains(name))
+            .Build();
+    }
+
     public async Task<IEnumerable<AITool>> GetMcpToolsAsync(string endpoint)
+    {
+        var mcpClient = await CreateMcpClientAsync(endpoint);
+
+        var tools = await mcpClient.ListToolsAsync().ConfigureAwait(false);
+
+        return tools.Cast<AITool>();
+    }
+
+    /// <summary>
+    /// Reads the skill://index.json discovery document (SEP-2640) from an MCP server and
+    /// returns the advertised skills. Servers without a skill index yield an empty list.
+    /// </summary>
+    public async Task<IReadOnlyList<AgentSkillListItemDto>> GetMcpSkillsAsync(string endpoint)
+    {
+        var mcpClient = await CreateMcpClientAsync(endpoint);
+
+        try
+        {
+            var result = await mcpClient.ReadResourceAsync("skill://index.json").ConfigureAwait(false);
+            var text = result.Contents.OfType<TextResourceContents>().FirstOrDefault()?.Text;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return [];
+            }
+
+            var index = JsonSerializer.Deserialize<SkillIndexDocument>(text, SkillIndexJsonOptions);
+            return index?.Skills?
+                .Where(s => !string.IsNullOrWhiteSpace(s.Name))
+                .Select(s => new AgentSkillListItemDto(s.Name!, s.Description ?? string.Empty))
+                .ToList() ?? [];
+        }
+        catch (McpException)
+        {
+            // The MCP server does not expose a skill index; treat as "no skills".
+            return [];
+        }
+    }
+
+    private static async Task<McpClient> CreateMcpClientAsync(string endpoint)
     {
         var transport = new HttpClientTransport(new HttpClientTransportOptions
         {
@@ -365,10 +455,12 @@ public class AgentFactory : IAgentFactory
             ConnectionTimeout = TimeSpan.FromMinutes(2)
         });
 
-        var mcpClient = await McpClient.CreateAsync(transport);
-
-        var tools = await mcpClient.ListToolsAsync().ConfigureAwait(false);
-
-        return tools.Cast<AITool>();
+        return await McpClient.CreateAsync(transport);
     }
+
+    private static readonly JsonSerializerOptions SkillIndexJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record SkillIndexDocument(List<SkillIndexEntry>? Skills);
+
+    private sealed record SkillIndexEntry(string? Name, string? Description);
 }

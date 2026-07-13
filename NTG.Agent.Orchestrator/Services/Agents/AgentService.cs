@@ -432,6 +432,21 @@ public class AgentService
                 chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
             }
 
+            // Explicit /skill invocation from the web client: direct the model to load the chosen
+            // skill deterministically instead of relying on it matching the skill's description.
+            // Only honored for skills an admin actually enabled for this agent.
+            if (!string.IsNullOrWhiteSpace(promptRequest.SkillName))
+            {
+                var skillEnabled = await _agentDbContext.AgentSkills.AnyAsync(s =>
+                    s.AgentId == promptRequest.AgentId && s.IsEnabled && s.Name == promptRequest.SkillName);
+                if (skillEnabled)
+                {
+                    chatHistory.Insert(0, new ChatMessage(ChatRole.System,
+                        $"The user explicitly invoked the skill '{promptRequest.SkillName}' for this request. " +
+                        "Load it with the load_skill tool and follow its instructions when answering."));
+                }
+            }
+
             await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
                 // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
