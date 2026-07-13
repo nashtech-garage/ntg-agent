@@ -15,6 +15,10 @@ var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
 var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
+// Dedicated Azure key for LightRAG — used for BOTH its embedding and LLM bindings (the
+// hcm resource exposes one key for chat + embeddings). Kept separate from Kernel Memory's
+// azureOpenAiApiKey / azureEmbeddingApiKey so the two subsystems can target different resources.
+var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 
 // LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
 // All three default to empty = plain local run (local Docker socket, localhost:5432);
@@ -154,12 +158,12 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__DockerHost", lightragDockerHost)
 	.WithEnvironment("LightRag__SocksProxy", lightragSocksProxy)
 	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
-	.WithEnvironment("LightRag__LlmModel", "gpt-5.4")
-	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("LightRag__LlmApiKey", azureOpenAiApiKey)
+	.WithEnvironment("LightRag__LlmModel", "gpt-5.1")
+	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-hcm--resource.openai.azure.com/")
+	.WithEnvironment("LightRag__LlmApiKey", lightragEmbeddingApiKey)
 	.WithEnvironment("LightRag__EmbeddingModel", "text-embedding-3-large")
-	.WithEnvironment("LightRag__EmbeddingEndpoint", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("LightRag__EmbeddingApiKey", azureEmbeddingApiKey)
+	.WithEnvironment("LightRag__EmbeddingEndpoint", "https://rmit-capstone-2026-hcm--resource.openai.azure.com/")
+	.WithEnvironment("LightRag__EmbeddingApiKey", lightragEmbeddingApiKey)
 	.WithEnvironment("LightRag__AzureApiVersion", "2024-08-01-preview")
 	.WithEnvironment("LightRag__EmbeddingDim", "1536")
 	.WithEnvironment("LightRag__ChunkSize", "1500")
