@@ -48,7 +48,10 @@ var elasticsearch = builder.AddElasticsearch("elasticsearch")
 							   endpoint.Port = 9200;
 							   endpoint.TargetPort = 9200;
 						   })
-						   .WithDataVolume("ntg-agent-local-dev-elasticsearch-data");
+						   .WithDataVolume("ntg-agent-local-dev-elasticsearch-data")
+						   // Disabled at startup: Elasticsearch backs only the Kernel Memory service.
+						   // It stays fully defined so it can be started manually from the dashboard.
+						   .WithExplicitStart();
 
 builder.Eventing.Subscribe<ResourceReadyEvent>(elasticsearch.Resource, async (evt, ct) =>
 {
@@ -83,7 +86,9 @@ var kibana = builder.AddContainer("kibana", "docker.elastic.co/kibana/kibana", "
 	.WithEnvironment("ELASTICSEARCH_HOSTS", "http://elasticsearch:9200")
 	.WithEnvironment("ELASTICSEARCH_USERNAME", "kibana_system")
 	.WithEnvironment("ELASTICSEARCH_PASSWORD", elasticsearch.Resource.PasswordParameter)
-	.WaitFor(elasticsearch);
+	.WaitFor(elasticsearch)
+	// Disabled at startup alongside Elasticsearch (Kibana is only its UI).
+	.WithExplicitStart();
 
 var migrateAdmin = builder.AddExecutable(
 		"db-migrate-admin",
@@ -130,7 +135,12 @@ var kernelMemory = builder.AddProject<Projects.NTG_Agent_KernelMemory>("ntg-agen
 	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey2", kernelMemoryApiKey)
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__Endpoint", elasticsearch.GetEndpoint("http"))
 	.WithEnvironment("KernelMemory__Services__Elasticsearch__UserName", "elastic")
-	.WithEnvironment("KernelMemory__Services__Elasticsearch__Password", elasticsearch.Resource.PasswordParameter);
+	.WithEnvironment("KernelMemory__Services__Elasticsearch__Password", elasticsearch.Resource.PasswordParameter)
+	// Disabled at startup: the Orchestrator defaults to the LightRag knowledge backend, so
+	// Kernel Memory is dormant. The .WithReference(kernelMemory) below is intentionally kept
+	// so service-discovery config is still injected and the Orchestrator's IKernelMemory
+	// factory resolves without throwing. Start manually from the dashboard to re-enable.
+	.WithExplicitStart();
 
 var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agent-orchestrator")
 	.WithExternalHttpEndpoints()
