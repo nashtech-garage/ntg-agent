@@ -42,8 +42,8 @@
     <thead><tr><th>Channel</th><th>SSH mechanism</th><th>Why</th></tr></thead>
     <tbody>
       <tr><td>Docker daemon</td><td><code>-L localhost:2375 → /var/run/docker.sock</code></td><td>Drive the remote daemon; socket never exposed on TCP</td></tr>
-      <tr><td>Postgres (reset path)</td><td><code>-L localhost:5432 → 127.0.0.1:5432</code></td><td><code>ResetVectorSchemaAsync</code> connects directly</td></tr>
-      <tr><td>Dynamic container HTTP ports</td><td><code>-D 1080</code> (SOCKS5)</td><td>Reach any runtime-assigned <code>lightrag-agent</code> port with no per-port setup</td></tr>
+      <tr><td>Postgres (reset path)</td><td><code>-L localhost:5432 → 127.0.0.1:5432</code></td><td><code>ResetVectorSchemaAsync</code> connects directly (only on an embedding-dimension change)</td></tr>
+      <tr><td>Reserved container HTTP ports</td><td><code>-D 1080</code> (SOCKS5)</td><td>Reach any agent's reserved <code>lightrag-agent</code> port in the pool with one proxy, no per-port forward</td></tr>
     </tbody>
   </table>
 
@@ -52,6 +52,13 @@
     -L 2375:/var/run/docker.sock \
     -L 5432:127.0.0.1:5432 \
     ntgagent@4.193.109.6</pre>
+
+  <p class="note"><strong>Port model.</strong> Each agent permanently owns one host port
+  from a configured pool (<code>PortRangeStart</code>…<code>PortRangeEnd</code>, default
+  <code>20000–20999</code>). <code>PortReservationService</code> assigns the lowest free
+  port and never hands it to a second agent, so a reachable reserved port is
+  <em>provably</em> that agent's own container. The container binds that exact port — ports
+  are no longer auto-assigned by Docker and discovered by inspect.</p>
 
   <h2>1. Topology</h2>
   <pre class="mermaid">
@@ -77,12 +84,12 @@ flowchart LR
         sock["/var/run/docker.sock"]
         subgraph dnet["docker network: ntg-agent-lightrag"]
             pg["lightrag-postgres — 127.0.0.1:5432"]
-            a1["lightrag-agent-A — 9621 to 127.0.0.1:PA"]
-            a2["lightrag-agent-B — 9621 to 127.0.0.1:PB"]
+            a1["lightrag-agent-A — 9621 to 127.0.0.1:20000 (reserved)"]
+            a2["lightrag-agent-B — 9621 to 127.0.0.1:20001 (reserved)"]
         end
         sshd -->|"forwarded socket"| sock
         sshd -->|"-L to 127.0.0.1:5432"| pg
-        sshd -->|"SOCKS to 127.0.0.1:PA / PB"| a1
+        sshd -->|"SOCKS to 127.0.0.1:reserved ports"| a1
         sshd --> a2
         sock -->|"create / start / stop"| a1
         sock --> a2
@@ -92,35 +99,50 @@ flowchart LR
   </pre>
   <p class="note">The agent containers reach Postgres <strong>internally</strong> over the
   Docker network alias <code>lightrag-postgres</code> — that traffic never touches the
-  tunnel. Container ports and Postgres bind to the VM's <strong>loopback</strong>; the
-  Docker daemon stays on its <strong>unix socket</strong> (never on TCP).</p>
+  tunnel. Reserved ports and Postgres bind to the VM's <strong>loopback</strong>
+  (<code>PortBindHostIp=127.0.0.1</code>); the Docker daemon stays on its
+  <strong>unix socket</strong> (never on TCP). Every agent is isolated by a LightRAG
+  <code>WORKSPACE=w{agentId}</code> scoping all its rows in the shared Postgres.</p>
 
   <h2>2. Container spawn (Orchestrator drives the remote daemon)</h2>
+  <p>Provisioning is centralised in <code>LightRagProvisioner.ProvisionAsync</code>:
+  <strong>reserve</strong> the agent's port → <strong>ensure</strong> the container runs on
+  it → on a host-port conflict (an external process holds the reserved port),
+  <strong>reassign</strong> a new free port and retry once.</p>
   <pre class="mermaid">
 sequenceDiagram
     autonumber
-    participant O as Orchestrator
+    participant O as Orchestrator (Provisioner)
+    participant R as PortReservationService
     participant T as ssh -L 2375
     participant D as Docker daemon (server)
     participant C as lightrag-agent container
+    O->>R: GetOrReserveAsync(agentId)
+    R-->>O: reserved port P (identity-bound)
     O->>T: Docker API to tcp://localhost:2375
     T->>D: forwarded to /var/run/docker.sock
-    O->>D: create container (HostPort "0", bind 127.0.0.1)
+    O->>D: Ping (daemon reachable?)
+    O->>D: create container (HostPort P, bind 127.0.0.1)
     O->>D: start container
-    D-->>C: running on 127.0.0.1:P (auto-assigned)
-    O->>D: inspect → read published port P
+    alt port P held by an external process
+        D-->>O: 500 "port is already allocated"
+        O->>R: ReassignAsync(agentId) → new port P'
+        O->>D: recreate + start on P'
+    end
+    D-->>C: running on 127.0.0.1:P
+    O->>D: inspect → confirm published port
     D-->>O: port P
     Note over O: persist Agent.LightRagPort = P
   </pre>
 
-  <h2>3. RAG query (reaching a dynamic container port via SOCKS)</h2>
+  <h2>3. RAG query (reaching a reserved container port via SOCKS)</h2>
   <pre class="mermaid">
 sequenceDiagram
     autonumber
     participant O as Orchestrator
     participant S as SOCKS proxy localhost:1080
     participant T as ssh -D tunnel
-    participant C as lightrag-agent 127.0.0.1:P
+    participant C as lightrag-agent 127.0.0.1:P (reserved)
     participant PG as lightrag-postgres
     O->>S: GET http://127.0.0.1:P/query (proxied)
     S->>T: SOCKS5 CONNECT 127.0.0.1:P
@@ -130,60 +152,100 @@ sequenceDiagram
     C-->>O: grounded answer (back through the tunnel)
   </pre>
   <p class="note">Because SOCKS resolves the destination <strong>on the server side</strong>,
-  <code>127.0.0.1:P</code> means the server's loopback — so any new container port is
-  reachable with no extra setup.</p>
+  <code>127.0.0.1:P</code> means the server's loopback. The port <code>P</code> is the
+  agent's reserved port, so a response on it is provably that agent's own container — the
+  client factory's cached-port fast path relies on this to avoid cross-agent misrouting.</p>
 
-  <h2>4. The dynamic-port problem: plain <code>-L</code> vs SOCKS <code>-D</code></h2>
+  <h2>4. Reaching the reserved-port pool: plain <code>-L</code> vs SOCKS <code>-D</code></h2>
+  <p>Ports are now a <strong>bounded reserved range</strong> (<code>20000–20999</code>), one
+  per agent — not random runtime ports. So plain <code>-L</code> forwarding <em>could</em>
+  pre-forward the whole range up front. The implementation instead routes the LightRAG
+  <code>HttpClient</code> through a single SOCKS <code>-D 1080</code> proxy
+  (<code>SocksProxy</code>, wired as a <code>WebProxy</code> on the client's
+  <code>SocketsHttpHandler</code>).</p>
   <pre class="mermaid">
 flowchart TB
-    subgraph plain["Plain -L forwarding — fiddly"]
+    subgraph plain["Plain -L forwarding"]
         direction TB
-        p1["container gets a random port P at runtime"]
-        p2["-L must know the port up front"]
-        p3["pin a fixed range and pre-forward it (caps agents)"]
-        p4["OR add/cancel -L at runtime via ssh control socket"]
+        p1["ports are a known bounded range (20000-20999)"]
+        p2["pre-forward the whole range: -L 20000..20999"]
+        p3["one -L per port — 1000-line forward config, scales with the pool"]
         p1 --> p2
         p2 --> p3
-        p2 --> p4
     end
-    subgraph socks["SOCKS -D — clean"]
+    subgraph socks["SOCKS -D — what the code uses"]
         direction TB
         s1["one -D 1080 proxy"]
         s2["destination resolved server-side"]
-        s3["reaches any 127.0.0.1:P, no per-port setup"]
+        s3["reaches any reserved 127.0.0.1:P with no per-port setup"]
         s1 --> s2
         s2 --> s3
     end
   </pre>
+  <p class="note">With a bounded pool, plain <code>-L</code> is viable but needs one forward
+  per reservable port. The single SOCKS <code>-D</code> proxy reaches every reserved port in
+  the range — including a port freshly assigned by <code>ReassignAsync</code> — with no
+  forward config to grow alongside the pool. That is the connectivity the code ships.</p>
 
   <h2>5. Resilience &amp; startup ordering</h2>
   <pre class="mermaid">
 flowchart LR
     key["SSH key auth — add your pubkey to authorized_keys"] --> tun
     boot["host boot / app launch"] --> tun["autossh / systemd tunnel unit"]
-    tun -->|"must be UP first"| orch["Orchestrator starts"]
+    orch["Orchestrator starts"] --> probe["reconciler probes daemon (Ping)"]
+    probe -->|"tunnel not up yet"| probe
+    probe -->|"reachable within DaemonProbeTimeout"| ready["provision containers"]
+    tun -.->|"all Docker + Postgres + container calls flow through"| orch
     tun -->|"connection drops"| reconnect["auto-reconnect"]
     reconnect --> tun
-    orch -.->|"all Docker + Postgres + container calls flow through"| tun
   </pre>
-  <p class="note">The tunnel becomes critical infrastructure: run it under
-  <strong>autossh</strong> or a <strong>systemd</strong> unit with auto-restart, started
-  <strong>before</strong> the Orchestrator; use <strong>SSH key auth</strong> (not the
-  password) for an unattended tunnel.</p>
+  <p class="note"><strong>Startup ordering is no longer strict.</strong> On boot the
+  reconciler pings the daemon and retries for up to <code>DaemonProbeTimeoutSeconds</code>
+  (default 60s, every <code>DaemonProbePollIntervalMs</code>), so the Orchestrator may start
+  before the tunnel is up. A daemon that stays unreachable surfaces as a typed
+  <code>LightRagDaemonUnavailableException</code> rather than a raw socket error. The tunnel
+  is still critical infrastructure: run it under <strong>autossh</strong> or a
+  <strong>systemd</strong> unit with auto-restart, and use <strong>SSH key auth</strong> (not
+  the password) for an unattended tunnel.</p>
 
-  <h2>6. Settings (implemented)</h2>
+  <h2>6. Container readiness &amp; idle lifecycle</h2>
+  <pre class="mermaid">
+flowchart LR
+    start["container started on reserved port"] --> gate["readiness gate: poll GET /health"]
+    gate -->|"healthy within ReadinessTimeout"| serve["endpoint returned to caller"]
+    gate -->|"budget exhausted"| notready["LightRagContainerNotReadyException"]
+    serve --> use["chat / upload traffic"]
+    use -->|"no request for IdleTimeoutMinutes"| stop["idle-shutdown stops container (RAM reclaimed)"]
+    stop -->|"next access: health miss"| reprov["factory re-provisions on the reserved port"]
+    reprov --> gate
+  </pre>
+  <p class="note">The published host port binds the instant Docker starts the container, but
+  the LightRAG ASGI app is still booting. <code>WaitUntilReadyAsync</code> polls
+  <code>GET /health</code> through the proxied client (a raw TCP connect cannot traverse
+  SOCKS) every <code>ReadinessPollIntervalMs</code> until it answers, up to
+  <code>ReadinessTimeoutSeconds</code>. Idle containers are stopped by
+  <code>LightRagContainerIdleShutdownService</code> after <code>IdleTimeoutMinutes</code>;
+  the next request misses the health fast path and <code>LightRagClientFactory</code>
+  transparently re-provisions the container on its same reserved port.</p>
+
+  <h2>7. Settings (implemented)</h2>
   <table>
-    <thead><tr><th>Setting</th><th>Value</th><th>Notes</th></tr></thead>
+    <thead><tr><th>Setting</th><th>Value / default</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td><code>DockerHost</code></td><td><code>tcp://localhost:2375</code></td><td>forwarded <code>ssh -L 2375:/var/run/docker.sock</code></td></tr>
-      <tr><td><code>SocksProxy</code></td><td><code>socks5://localhost:1080</code></td><td><code>ssh -D 1080</code>; routes the LightRAG <code>HttpClient</code> to the dynamic container ports</td></tr>
-      <tr><td><code>ServerHost</code></td><td><code>localhost</code> (default)</td><td>resolved server-side by SOCKS</td></tr>
-      <tr><td><code>PortBindHostIp</code></td><td><code>127.0.0.1</code> (default)</td><td>containers bind the server loopback</td></tr>
-      <tr><td><code>PostgresHost</code></td><td><code>localhost</code> (default → <code>ServerHost</code>)</td><td>forwarded <code>ssh -L 5432:127.0.0.1:5432</code></td></tr>
+      <tr><td><code>DockerHost</code></td><td><code>tcp://localhost:2375</code></td><td>forwarded <code>ssh -L 2375:/var/run/docker.sock</code>; empty ⇒ local socket</td></tr>
+      <tr><td><code>SocksProxy</code></td><td><code>socks5://localhost:1080</code></td><td><code>ssh -D 1080</code>; routes the LightRAG <code>HttpClient</code> to the reserved container ports; empty ⇒ direct</td></tr>
+      <tr><td><code>ServerHost</code></td><td><code>localhost</code></td><td>resolved server-side by SOCKS</td></tr>
+      <tr><td><code>PortBindHostIp</code></td><td><code>127.0.0.1</code></td><td>containers bind the server loopback</td></tr>
+      <tr><td><code>PostgresHost</code> / <code>PostgresPort</code></td><td><code>localhost</code> / <code>5432</code></td><td>reset path only; forwarded <code>ssh -L 5432:127.0.0.1:5432</code>; empty host ⇒ <code>ServerHost</code></td></tr>
+      <tr><td><code>PortRangeStart</code> / <code>PortRangeEnd</code></td><td><code>20000</code> / <code>20999</code></td><td>identity-bound reserved host-port pool; one permanent port per agent</td></tr>
+      <tr><td><code>ReadinessTimeoutSeconds</code> / <code>ReadinessPollIntervalMs</code></td><td><code>60</code> / <code>500</code></td><td><code>GET /health</code> gate before an endpoint is handed back</td></tr>
+      <tr><td><code>DaemonProbeTimeoutSeconds</code> / <code>DaemonProbePollIntervalMs</code></td><td><code>60</code> / <code>2000</code></td><td>startup daemon (tunnel) reachability wait — relaxes start ordering</td></tr>
+      <tr><td><code>IdleTimeoutMinutes</code> / <code>IdleCheckIntervalMinutes</code></td><td><code>30</code> / <code>5</code></td><td>stop idle containers to reclaim RAM; 0 or negative disables</td></tr>
     </tbody>
   </table>
-  <p class="note">The reachability probe is an HTTP request through the proxied client (a raw
-  TCP connect can't traverse SOCKS); any HTTP response means the container is up.</p>
+  <p class="note">Readiness and the client-factory fast path both use a <code>GET /health</code>
+  request through the proxied client — any healthy response means the container is serving.
+  A raw TCP connect cannot traverse SOCKS, so the probe is deliberately an HTTP request.</p>
 
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
