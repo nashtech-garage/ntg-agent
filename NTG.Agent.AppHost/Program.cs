@@ -6,7 +6,7 @@ using Aspire.Hosting.ApplicationModel;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var saPassword = builder.AddParameter("sql-sa-password", "Admin123_Strong!", secret: true);
+var saPassword = builder.AddParameter("sql-sa-password", secret: true);
 var githubToken = builder.AddParameter("github-token", secret: true);
 var kernelMemoryApiKey = builder.AddParameter("kernel-memory-api-key", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
@@ -28,7 +28,7 @@ var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: tr
 var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true); // 55432 over the tunnel
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
-				 .WithImageTag("2025-latest")
+				 .WithImageTag("2022-latest")
 				 .WithEndpoint("tcp", endpoint =>
 				 {
 					 endpoint.Port = 1433;
