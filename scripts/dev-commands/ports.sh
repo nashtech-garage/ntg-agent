@@ -2,9 +2,9 @@
 # desc: Show the ports this project uses and which are currently in use
 #
 # Lists the known fixed ports from NTG.Agent.AppHost (dashboard, OTLP, resource
-# service, SQL Server, Elasticsearch, Kibana) with their purpose and whether they
-# are currently listening. App services and per-agent LightRAG containers get
-# DYNAMIC ports from Aspire, so those listeners are shown separately.
+# service, SQL Server) with their purpose and whether they are currently
+# listening. App services and per-agent LightRAG containers get DYNAMIC ports
+# from Aspire, so those listeners are shown separately.
 #
 set -euo pipefail
 
@@ -20,8 +20,6 @@ KNOWN_PORTS=(
   "22084|Resource service endpoint (https)"
   "20185|Resource service endpoint (http)"
   "1433|SQL Server"
-  "9200|Elasticsearch"
-  "5601|Kibana"
 )
 
 is_listening() {
