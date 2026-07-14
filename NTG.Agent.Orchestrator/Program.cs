@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.KernelMemory;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
@@ -12,7 +11,6 @@ using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.Memory;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
@@ -29,7 +27,7 @@ const string ServiceName = "Orchestrator";
 var builder = WebApplication.CreateBuilder(args);
 
 // Endpoint to the Aspire Dashboard
-var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new ConfigurationException("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
+var endpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? throw new InvalidOperationException("OTEL_EXPORTER_OTLP_ENDPOINT configuration key is required but not found");
 
 var resourceBuilder = ResourceBuilder
     .CreateDefault()
@@ -76,7 +74,6 @@ builder.AddServiceDefaults();
 builder.Services.AddDbContext<AgentDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-builder.Services.Configure<LongTermMemorySettings>(builder.Configuration.GetSection("LongTermMemory"));
 builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.GetSection("Azure:DocumentIntelligence"));
 
 builder.Services.AddControllers();
@@ -96,7 +93,6 @@ builder.Services.AddScoped<AgentService>();
 // Request-scoped buffer shared by the outer agent and any inner agents it delegates to, used to
 // surface renderable server-side tool results (e.g. get_weather) to the browser. See RenderableToolCapture.
 builder.Services.AddScoped<RenderableToolCapture>();
-builder.Services.AddScoped<IUserMemoryService, UserMemoryService>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();
 builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
@@ -120,25 +116,9 @@ switch (knowledgeProvider)
         builder.Services.AddScoped<ILightRagAgentPortStore, LightRagEfAgentPortStore>();
         builder.Services.AddScoped<ILightRagIngestionStore, LightRagEfIngestionStore>();
         break;
-    case "KernelMemory":
-        builder.Services.AddScoped<IKnowledgeService, KernelMemoryKnowledge>();
-        builder.Services.AddScoped<IKnowledgeProvisioner, NoOpKnowledgeProvisioner>();
-        break;
     default:
-        throw new ConfigurationException($"Unknown Knowledge:Provider '{knowledgeProvider}'. Supported: LightRag, KernelMemory.");
+        throw new InvalidOperationException($"Unknown Knowledge:Provider '{knowledgeProvider}'. Supported: LightRag.");
 }
-
-builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
-{
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    var endpoint = Environment.GetEnvironmentVariable($"services__ntg-agent-kernel-memory__https__0") 
-                   ?? Environment.GetEnvironmentVariable($"services__ntg-agent-kernel-memory__http__0") 
-                   ?? throw new InvalidOperationException("KernelMemory Endpoint configuration is required");
-    var apiKey = configuration["KernelMemory:ApiKey"] 
-                ?? throw new InvalidOperationException("KernelMemory:ApiKey configuration is required");
-
-    return new MemoryWebClient(endpoint, apiKey);
-});
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {

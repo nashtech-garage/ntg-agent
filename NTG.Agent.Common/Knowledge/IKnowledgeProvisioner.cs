@@ -4,7 +4,7 @@ namespace NTG.Agent.Common.Knowledge;
 /// Provider-neutral hook for per-agent knowledge infrastructure lifecycle. Providers that
 /// allocate resources per agent (e.g. LightRAG's one-container-per-agent model) implement
 /// this to create/tear down those resources when an agent is created/deleted; providers
-/// with shared infrastructure (e.g. Kernel Memory) register a no-op.
+/// with shared infrastructure can register a no-op.
 /// </summary>
 public interface IKnowledgeProvisioner
 {
