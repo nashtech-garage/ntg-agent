@@ -15,8 +15,6 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" Version="13.4.6" />
-    <!-- Latest published Aspire.Hosting.Elasticsearch is 13.3.0 (no 13.4.x yet). -->
-    <PackageReference Include="Aspire.Hosting.Elasticsearch" Version="13.3.0" />
     <PackageReference Include="Aspire.Hosting.JavaScript" Version="13.4.6" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="13.4.6" />
     <PackageReference Include="Aspire.Hosting.SqlServer" Version="13.4.6" />
@@ -24,7 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NTG.Agent.Admin\NTG.Agent.Admin\NTG.Agent.Admin.csproj" />
-    <ProjectReference Include="..\NTG.Agent.KernelMemory\NTG.Agent.KernelMemory.csproj" />
     <ProjectReference Include="..\NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj" />
     <ProjectReference Include="..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" IsAspireProjectResource="false" />

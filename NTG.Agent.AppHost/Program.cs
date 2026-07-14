@@ -1,23 +1,15 @@
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Runtime.InteropServices;
-using System.Text;
-using Aspire.Hosting.ApplicationModel;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
 var saPassword = builder.AddParameter("sql-sa-password", secret: true);
 var githubToken = builder.AddParameter("github-token", secret: true);
-var kernelMemoryApiKey = builder.AddParameter("kernel-memory-api-key", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
-var azureOpenAiApiKey = builder.AddParameter("azure-openai-api-key", secret: true);
-var azureEmbeddingApiKey = builder.AddParameter("azure-embedding-api-key", secret: true);
 // Dedicated Azure key for LightRAG — used for BOTH its embedding and LLM bindings (the
-// hcm resource exposes one key for chat + embeddings). Kept separate from Kernel Memory's
-// azureOpenAiApiKey / azureEmbeddingApiKey so the two subsystems can target different resources.
+// hcm resource exposes one key for chat + embeddings).
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 
 // LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
@@ -40,55 +32,6 @@ if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 	sql.WithContainerRuntimeArgs("--platform", "linux/amd64");
 
 var db = sql.AddDatabase("NTGAgent");
-
-var elasticsearch = builder.AddElasticsearch("elasticsearch")
-						   .WithImageTag("8.15.0")
-						   .WithEndpoint("http", endpoint =>
-						   {
-							   endpoint.Port = 9200;
-							   endpoint.TargetPort = 9200;
-						   })
-						   .WithDataVolume("ntg-agent-local-dev-elasticsearch-data")
-						   // Disabled at startup: Elasticsearch backs only the Kernel Memory service.
-						   // It stays fully defined so it can be started manually from the dashboard.
-						   .WithExplicitStart();
-
-builder.Eventing.Subscribe<ResourceReadyEvent>(elasticsearch.Resource, async (evt, ct) =>
-{
-	var password = await elasticsearch.Resource.PasswordParameter.GetValueAsync(ct);
-	var endpoint = elasticsearch.GetEndpoint("http").Url;
-
-	using var http = new HttpClient { BaseAddress = new Uri(endpoint) };
-	http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-		"Basic",
-		Convert.ToBase64String(Encoding.UTF8.GetBytes($"elastic:{password}")));
-
-	for (var attempt = 0; attempt < 90; attempt++)
-	{
-		try
-		{
-			var response = await http.PostAsJsonAsync(
-				"/_security/user/kibana_system/_password",
-				new { password },
-				ct);
-			if (response.IsSuccessStatusCode) return;
-		}
-		catch (HttpRequestException) { }
-		await Task.Delay(TimeSpan.FromSeconds(2), ct);
-	}
-
-	throw new InvalidOperationException(
-		"Failed to set the kibana_system password on Elasticsearch after 180s.");
-});
-
-var kibana = builder.AddContainer("kibana", "docker.elastic.co/kibana/kibana", "8.15.0")
-	.WithHttpEndpoint(port: 5601, targetPort: 5601, name: "http")
-	.WithEnvironment("ELASTICSEARCH_HOSTS", "http://elasticsearch:9200")
-	.WithEnvironment("ELASTICSEARCH_USERNAME", "kibana_system")
-	.WithEnvironment("ELASTICSEARCH_PASSWORD", elasticsearch.Resource.PasswordParameter)
-	.WaitFor(elasticsearch)
-	// Disabled at startup alongside Elasticsearch (Kibana is only its UI).
-	.WithExplicitStart();
 
 var migrateAdmin = builder.AddExecutable(
 		"db-migrate-admin",
@@ -117,41 +60,14 @@ var mcpServer = builder.AddProject<Projects.NTG_Agent_MCP_Server>("ntg-agent-mcp
 	.WithEnvironment("Google__ApiKey", googleApiKey)
 	.WithEnvironment("Google__SearchEngineId", googleSearchId);
 
-var kernelMemory = builder.AddProject<Projects.NTG_Agent_KernelMemory>("ntg-agent-kernel-memory")
-	.WaitFor(db)
-	.WaitFor(elasticsearch)
-	.WithEnvironment("KernelMemory__Services__SqlServer__ConnectionString", db)
-	// KM long-term memory now runs on Azure OpenAI to avoid the GitHub Models 8k/RPM
-	// caps that were causing /search to time out via MemoryWebClient. Embeddings use
-	// text-embedding-3-large (1536-dim, truncated via MRL) on the dedicated embedding endpoint; text gen
-	// uses gpt-5.4-mini on the shared chat endpoint. Switching embedding dim requires
-	// wiping the Elasticsearch data volume so the index can be recreated. The OpenAI
-	// section in appsettings.Development.json is left as a dormant fallback (no key).
-	.WithEnvironment("KernelMemory__Services__AzureOpenAIEmbedding__Endpoint", "https://rmit-capstone-2026-ext-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("KernelMemory__Services__AzureOpenAIEmbedding__APIKey", azureEmbeddingApiKey)
-	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__Endpoint", "https://rmit-capstone-2026-resource.cognitiveservices.azure.com/")
-	.WithEnvironment("KernelMemory__Services__AzureOpenAIText__APIKey", azureOpenAiApiKey)
-	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey1", kernelMemoryApiKey)
-	.WithEnvironment("KernelMemory__ServiceAuthorization__AccessKey2", kernelMemoryApiKey)
-	.WithEnvironment("KernelMemory__Services__Elasticsearch__Endpoint", elasticsearch.GetEndpoint("http"))
-	.WithEnvironment("KernelMemory__Services__Elasticsearch__UserName", "elastic")
-	.WithEnvironment("KernelMemory__Services__Elasticsearch__Password", elasticsearch.Resource.PasswordParameter)
-	// Disabled at startup: the Orchestrator defaults to the LightRag knowledge backend, so
-	// Kernel Memory is dormant. The .WithReference(kernelMemory) below is intentionally kept
-	// so service-discovery config is still injected and the Orchestrator's IKernelMemory
-	// factory resolves without throwing. Start manually from the dashboard to re-enable.
-	.WithExplicitStart();
-
 var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agent-orchestrator")
 	.WithExternalHttpEndpoints()
 	.WithReference(mcpServer)
-	.WithReference(kernelMemory)
 	.WaitForCompletion(migrateOrchestrator)
 	// The Orchestrator spawns per-agent LightRAG containers on the remote Ubuntu
 	// Docker daemon (over the SSH tunnel) against the standalone Postgres there. That
 	// server is provisioned independently, so there is no local resource to wait on.
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
-	.WithEnvironment("KernelMemory__ApiKey", kernelMemoryApiKey)
 	.WithEnvironment("GitHub__Models__GitHubToken", githubToken)
 	// LightRAG per-agent container provisioning config (see LightRagSettings /
 	// LightRagContainerManager). These replace the old singleton "lightrag" container
