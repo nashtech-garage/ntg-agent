@@ -16,7 +16,7 @@ builder.Services.AddSingleton<WeatherService>(sp =>
 });
 
 builder.Services.AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport(options => options.Stateless = true)
     .WithToolsFromAssembly()
     .AddAiTool();
 

@@ -50,6 +50,17 @@ public class DocumentClient(HttpClient httpClient)
         var queryString = queryParams.Count != 0 ? "?" + string.Join("&", queryParams) : "";
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
+
+        // Upload is non-blocking: the orchestrator accepts each file (Success=true) and processes it
+        // in the background — the document then shows as "Uploading" in the list until the worker
+        // marks it Uploaded/Failed. Success=false here means the orchestrator couldn't even hand the
+        // file to LightRAG (e.g. container unreachable); surface that via the existing UI catch path.
+        var results = await response.Content.ReadFromJsonAsync<IReadOnlyList<UploadDocumentResult>>();
+        var failed = results?.FirstOrDefault(r => !r.Success);
+        if (failed != null)
+        {
+            throw new InvalidOperationException(failed.ErrorMessage ?? $"Upload failed for {failed.FileName}");
+        }
     }
 
     public async Task DeleteDocumentByIdAsync(Guid agentId, Guid documentId)

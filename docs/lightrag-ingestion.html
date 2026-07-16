@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LightRAG ingestion — how uploaded items are processed</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 5rem;
+      color: #1b1f24;
+      line-height: 1.55;
+    }
+    h1 { font-size: 1.9rem; border-bottom: 2px solid #eaecef; padding-bottom: .4rem; }
+    h2 { font-size: 1.35rem; margin-top: 2.5rem; border-bottom: 1px solid #eaecef; padding-bottom: .3rem; }
+    h3 { font-size: 1.08rem; margin-top: 1.8rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { border: 1px solid #d0d7de; padding: .45rem .7rem; text-align: left; vertical-align: top; }
+    th { background: #f6f8fa; }
+    code, pre.cmd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre.cmd { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: .8rem 1rem; overflow-x: auto; }
+    .mermaid {
+      background: #fbfcfd; border: 1px solid #eaecef; border-radius: 8px;
+      padding: 1rem; margin: 1rem 0; text-align: center;
+    }
+    .note { background: #fff8e6; border: 1px solid #f0d999; border-radius: 6px; padding: .6rem .9rem; font-size: .92rem; }
+    a { color: #0969da; }
+  </style>
+</head>
+<body>
+  <h1>LightRAG ingestion — how uploaded items are processed</h1>
+
+  <p>How an uploaded item (file, pasted text, or web page) travels from the HTTP request to a
+  queryable document in its agent's LightRAG workspace. The design is <strong>non-blocking</strong>:
+  the upload request returns as soon as LightRAG accepts the item and hands back a
+  <code>track_id</code>; a background worker then advances the document to
+  <code>Completed</code> or <code>Failed</code>.</p>
+
+  <p>Container provisioning (the per-agent LightRAG container reached over the SSH tunnel) is
+  covered separately in
+  <a href="lightrag-ssh-tunnel.html">LightRAG over an SSH tunnel — architecture</a>; this
+  document assumes <code>LightRagClientFactory.GetClientAsync</code> yields a client already
+  pointed at the agent's running container.</p>
+
+  <h2>1. The two phases at a glance</h2>
+  <pre class="mermaid">
+flowchart LR
+    subgraph sync["Phase 1 — begin (synchronous, per upload request)"]
+        u["client uploads item"] --> ctl["DocumentsController"]
+        ctl --> begin["IKnowledgeService.BeginImport*"]
+        begin --> lr1["POST to LightRAG → track_id"]
+        begin --> fs["save original bytes to file store"]
+        ctl --> row["Document row: Status = Processing, TrackId"]
+        row --> notify["IngestionStatusSignal.Notify()"]
+        ctl --> resp["200 OK returned immediately"]
+    end
+    subgraph async["Phase 2 — track (background, event-driven)"]
+        notify -.wakes.-> worker["LightRagIngestionStatusHostedService"]
+        worker --> poll["GET /documents/track_status/{trackId}"]
+        poll --> apply["update Document → Completed / Failed"]
+    end
+  </pre>
+  <p class="note"><strong>Why two phases.</strong> LightRAG's <code>/documents/upload</code> and
+  <code>/documents/text</code> are asynchronous — they return a <code>track_id</code> at once and
+  assign the real doc-id later while the extraction pipeline runs. Blocking the HTTP request on
+  that pipeline (chunking, embeddings, entity/relation extraction) would tie up the request for
+  1–2 minutes per large document, so the Orchestrator records the item as <code>Processing</code>
+  and polls for the outcome out of band.</p>
+
+  <h2>2. Phase 1 — the upload request (file)</h2>
+  <p>Entry point: <code>DocumentsController.UploadDocuments</code> →
+  <code>LightRagKnowledge.BeginImportDocumentAsync</code> → <code>LightRagClient.InsertFileAsync</code>.</p>
+  <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant U as Admin client
+    participant Ctl as DocumentsController
+    participant K as LightRagKnowledge
+    participant CF as LightRagClientFactory
+    participant FS as LightRagFileStore
+    participant LR as LightRAG container (/documents/upload)
+    participant DB as AgentDbContext
+    participant Sig as IngestionStatusSignal
+
+    U->>Ctl: POST /api/documents/upload/{agentId} (files)
+    loop for each file (length > 0)
+        Ctl->>K: BeginImportDocumentAsync(stream, name, agentId, documentId)
+        K->>CF: GetClientAsync(agentId)
+        CF-->>K: client for the agent's container
+        K->>K: buffer stream (read twice)
+        K->>FS: SaveAsync(agentId, documentId, name, bytes)
+        Note over FS: original bytes downloadable while extraction runs
+        K->>LR: POST /documents/upload (multipart)
+        LR-->>K: { track_id, status } (async accept)
+        K-->>Ctl: track_id
+        Ctl->>Ctl: build Document row (Status = Processing, TrackId)
+    end
+    Ctl->>DB: AddRange(documents, tags) + SaveChangesAsync
+    Ctl->>Sig: Notify() — wake the status worker
+    Ctl-->>U: 200 OK [ per-file results ]
+  </pre>
+  <p class="note">The <code>BeginImport*</code> call is wrapped per file in a try/catch: if
+  LightRAG is unreachable at accept time, that file gets <em>no</em> row and is reported
+  <code>Success = false</code> in the response, while the others still proceed. The
+  <code>Document</code> row is only written once a <code>track_id</code> comes back.</p>
+
+  <h3>Text and web-page variants</h3>
+  <p>The same two-phase shape applies; only the "begin" step differs:</p>
+  <table>
+    <thead><tr><th>Item</th><th>Begin method</th><th>LightRAG call</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>File</td><td><code>BeginImportDocumentAsync</code></td><td><code>POST /documents/upload</code> (multipart)</td><td>bytes buffered → file store + upload</td></tr>
+      <tr><td>Pasted text</td><td><code>BeginImportTextContentAsync</code></td><td><code>POST /documents/text</code></td><td>saved as <code>{title}.txt</code> in the file store</td></tr>
+      <tr><td>Web page</td><td><code>BeginImportWebPageAsync</code></td><td><code>POST /documents/text</code></td><td>SSRF guard on the URL, then download and insert page text (no <code>/documents/url</code> in v1.4.x)</td></tr>
+    </tbody>
+  </table>
+  <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Ctl as DocumentsController
+    participant K as LightRagKnowledge
+    participant DNS as DNS / target host
+    participant LR as LightRAG container (/documents/text)
+
+    Note over Ctl,K: web-page import
+    Ctl->>K: BeginImportWebPageAsync(url, agentId, documentId)
+    K->>DNS: resolve host
+    DNS-->>K: addresses
+    alt loopback / private / link-local
+        K-->>Ctl: reject (SSRF guard)
+    else public host
+        K->>DNS: GET page content
+        DNS-->>K: HTML / text
+        K->>LR: POST /documents/text (page text)
+        LR-->>K: track_id
+    end
+  </pre>
+
+  <h2>3. Phase 2 — background status tracking</h2>
+  <p><code>LightRagIngestionStatusHostedService</code> is <strong>event-driven</strong>: it parks on
+  the signal (no timer, no DB queries) while nothing is ingesting, wakes on
+  <code>Notify()</code>, then drains — polling every <code>PollIntervalSeconds</code> (default 3s)
+  while any document is still <code>Processing</code>.</p>
+  <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant Sig as IngestionStatusSignal
+    participant W as IngestionStatusHostedService
+    participant Store as ILightRagIngestionStore (EF)
+    participant K as LightRagKnowledge
+    participant LR as LightRAG container (/documents/track_status)
+
+    Note over W: startup drain pass also runs once (recovers leftovers)
+    W->>Sig: WaitAsync() — parked, no polling
+    Sig-->>W: woken by an upload's Notify()
+    loop while any document is Processing
+        W->>Store: GetProcessingDocumentsAsync()
+        Store-->>W: [ (documentId, agentId, trackId) ]
+        loop each pending document
+            W->>K: CheckIngestStatusAsync(agentId, trackId)
+            K->>LR: GET /documents/track_status/{trackId}
+            LR-->>K: { documents: [ { id, status, error_msg } ] }
+            alt status = PROCESSED
+                K-->>W: Completed (knowledgeDocId)
+            else status = FAILED
+                K-->>W: Failed (errorMessage)
+            else PENDING / PROCESSING / PREPROCESSED / none
+                K-->>W: Processing (keep for next pass)
+            end
+        end
+        W->>Store: ApplyUpdatesAsync(Completed / Failed)
+        Note over W: wait PollIntervalSeconds before the next pass
+    end
+    W->>Sig: WaitAsync() — park again
+  </pre>
+  <p class="note">A per-document failure to reach its container is caught and counted as
+  "still processing", so one agent's container being down never stalls the others — it is simply
+  retried on the next pass. Updates are written back to the <code>Document</code> rows in a single
+  batch via <code>ApplyUpdatesAsync</code>: <code>Status</code>, <code>KnowledgeDocId</code>,
+  and <code>ErrorMessage</code>.</p>
+
+  <h2>4. Inside the LightRAG container</h2>
+  <p>What the container does between accepting the upload and reporting <code>PROCESSED</code>.
+  All storage is the shared Postgres, scoped by the agent's <code>WORKSPACE</code>
+  (KV, vector, graph, and doc-status backends).</p>
+  <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant LR as LightRAG API
+    participant P as extraction pipeline
+    participant AOAI as Azure OpenAI
+    participant PG as Postgres (workspace-scoped)
+
+    LR->>PG: record doc-status = PENDING (track_id)
+    LR->>P: enqueue (returns track_id to caller)
+    P->>P: split into chunks (CHUNK_SIZE / CHUNK_OVERLAP)
+    P->>AOAI: embed chunks (text-embedding-3-large, dim = EMBEDDING_DIM)
+    AOAI-->>P: vectors
+    P->>AOAI: extract entities + relations (LLM)
+    AOAI-->>P: graph elements
+    P->>PG: upsert chunks + vectors (PGVectorStorage)
+    P->>PG: upsert entities + relations (PGGraphStorage)
+    P->>PG: upsert KV + doc-status = PROCESSED (assign doc-id)
+  </pre>
+  <p class="note">The status the Orchestrator polls (<code>track_status</code>) mirrors this
+  doc-status: <code>PENDING → PROCESSING → PROCESSED</code> on success, or <code>FAILED</code>
+  with an <code>error_msg</code>. Tuning knobs (<code>CHUNK_SIZE</code>,
+  <code>CHUNK_OVERLAP_SIZE</code>, <code>MAX_ASYNC</code>, <code>MAX_PARALLEL_INSERT</code>,
+  <code>EMBEDDING_FUNC_MAX_ASYNC</code>) are set as container env by the container manager.</p>
+
+  <h2>5. Document status lifecycle (Orchestrator side)</h2>
+  <pre class="mermaid">
+stateDiagram-v2
+    [*] --> Processing: row written after track_id returned
+    Processing --> Processing: track_status = PENDING / PROCESSING / PREPROCESSED
+    Processing --> Completed: track_status = PROCESSED (KnowledgeDocId set)
+    Processing --> Failed: track_status = FAILED (ErrorMessage set)
+    Completed --> [*]: queryable via SearchAsync (hybrid)
+    Failed --> [*]: surfaced in the documents list
+    note right of Processing
+        begin-step failure (backend
+        unreachable) → no row at all,
+        reported in the upload response
+    end note
+  </pre>
+  <p class="note"><strong>Delete while processing.</strong> Removing a document that never finished
+  (only a <code>track_id</code>, no <code>KnowledgeDocId</code> yet) resolves the doc-id from the
+  <code>track_id</code> first, so <code>/documents/delete_document</code> can clean up the item
+  once extraction completes — no orphan left in LightRAG. The on-disk file is always removed from
+  the file store.</p>
+
+  <h2>6. Key components</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Role in ingestion</th></tr></thead>
+    <tbody>
+      <tr><td><code>DocumentsController</code></td><td>Accepts uploads, writes the <code>Processing</code> row, calls <code>Notify()</code></td></tr>
+      <tr><td><code>LightRagKnowledge</code> (<code>IKnowledgeService</code>)</td><td>Begin-import per item type; maps <code>track_status</code> → <code>DocumentIngestResult</code>; search / delete / export</td></tr>
+      <tr><td><code>LightRagClient</code></td><td>Typed HTTP calls to the container: <code>/documents/upload</code>, <code>/documents/text</code>, <code>/documents/track_status</code>, <code>/documents/delete_document</code>, <code>/query</code></td></tr>
+      <tr><td><code>LightRagFileStore</code></td><td>Persists the original uploaded bytes (keyed by <code>documentId</code>) for later download</td></tr>
+      <tr><td><code>IngestionStatusSignal</code></td><td>Coalescing wake signal (semaphore, max 1) that lets the worker park while idle</td></tr>
+      <tr><td><code>LightRagIngestionStatusHostedService</code></td><td>Background worker: drains <code>Processing</code> docs, applies <code>Completed</code> / <code>Failed</code></td></tr>
+      <tr><td><code>ILightRagIngestionStore</code> (EF)</td><td>Reads <code>Processing</code> docs and writes status back to <code>Document</code> rows</td></tr>
+    </tbody>
+  </table>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+  </script>
+</body>
+</html>

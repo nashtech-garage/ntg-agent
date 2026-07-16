@@ -3,6 +3,7 @@
 @inject ILogger<DocumentsTab> Logger
 @inject DocumentClient DocumentClient
 @inject IJSRuntime JSRuntime
+@implements IDisposable
 
 <div class="tab-pane fade show active">
     <!-- Add Knowledge Button -->
@@ -44,7 +45,7 @@
                                 <i class="bi bi-calendar me-2"></i>Upload Date
                             </th>
                             <th style="width: 10%;" class="text-center">
-                                <i class="bi bi-hdd me-2"></i>Size
+                                <i class="bi bi-activity me-2"></i>Status
                             </th>
                             <th style="width: 10%;" class="text-center">
                                 <i class="bi bi-gear me-2"></i>Actions
@@ -86,15 +87,18 @@
                                     }
                                 </td>
                                 <td class="text-center">@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
-                                <td class="text-center"><span class="text-muted">--</span></td>
+                                <td class="text-center">@RenderStatus(doc)</td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
-                                            <i class="bi bi-download"></i>
-                                        </button>
-                                        <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
-                                            <i class="bi bi-eye"></i>
-                                        </button>
+                                        @if (doc.Status == DocumentStatus.Completed)
+                                        {
+                                            <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                        }
                                         <button class="btn btn-outline-danger" @onclick="() => RemoveDocument(doc)" title="Remove">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -142,16 +146,19 @@
                             <span class="text-muted">Uploaded:</span> @doc.UpdatedAt.ToString("MMM dd, yyyy")
                         </div>
                         <div class="mb-1">
-                            <span class="text-muted">Size:</span> <span class="text-muted">--</span>
+                            <span class="text-muted">Status:</span> @RenderStatus(doc)
                         </div>
                         <div class="mt-2">
                             <div class="btn-group btn-group-sm w-100" role="group">
-                                <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
-                                    <i class="bi bi-download"></i>
-                                </button>
-                                <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                @if (doc.Status == DocumentStatus.Completed)
+                                {
+                                    <button class="btn btn-outline-primary" @onclick="() => DownloadDocument(doc)" title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary" @onclick="() => ViewDocument(doc)" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                }
                                 <button class="btn btn-outline-danger" @onclick="() => RemoveDocument(doc)" title="Remove">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -280,13 +287,20 @@
             OpenAddKnowledgeDialogOnLoad = false;
         }
     }
-    private async Task LoadDocuments()
+    // Re-fetches the list every few seconds while any document is still "Uploading" so the UI
+    // reflects the background worker's progress without a manual refresh. Disposed when no
+    // document is processing or when the component is torn down.
+    private System.Threading.Timer? _pollTimer;
+    private const int PollIntervalMs = 3000;
+
+    private async Task LoadDocuments(bool showLoading = true)
     {
         try
         {
-            isLoading = true;
+            if (showLoading) isLoading = true;
             documents = await DocumentClient.GetDocumentsByAgentIdAsync(AgentId, FolderId);
             await UpdateDocumentCount();
+            EnsurePolling();
             StateHasChanged();
         }
         catch (Exception ex)
@@ -295,8 +309,37 @@
         }
         finally
         {
-            isLoading = false;
+            if (showLoading) isLoading = false;
         }
+    }
+
+    private void EnsurePolling()
+    {
+        var anyProcessing = documents.Any(d => d.Status == DocumentStatus.Processing);
+        if (anyProcessing && _pollTimer is null)
+        {
+            _pollTimer = new System.Threading.Timer(
+                _ => _ = InvokeAsync(() => LoadDocuments(showLoading: false)),
+                null, PollIntervalMs, PollIntervalMs);
+        }
+        else if (!anyProcessing && _pollTimer is not null)
+        {
+            _pollTimer.Dispose();
+            _pollTimer = null;
+        }
+    }
+
+    private RenderFragment RenderStatus(DocumentListItem doc) => doc.Status switch
+    {
+        DocumentStatus.Completed => @<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Uploaded</span>,
+        DocumentStatus.Failed => @<span class="badge bg-danger" title="@doc.ErrorMessage"><i class="bi bi-exclamation-circle me-1"></i>Failed to upload</span>,
+        _ => @<span class="badge bg-info text-dark"><span class="spinner-border spinner-border-sm me-1" style="width:.7rem;height:.7rem;"></span>Uploading</span>
+    };
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 
     private async Task UpdateDocumentCount()

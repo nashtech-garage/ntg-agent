@@ -19,7 +19,7 @@ public sealed class WebScraper : IWebScraper, IDisposable
         ILoggerFactory? loggerFactory = null)
     {
         _httpClient = httpClient ?? new HttpClient();
-        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Kernel-Memory");
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("NTG-Agent");
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 

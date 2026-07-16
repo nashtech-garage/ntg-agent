@@ -1,0 +1,4 @@
+\c "uploaded-documents"
+
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS age CASCADE;
