@@ -376,3 +376,5 @@ FodyWeavers.xsd
 
 # Language service cache files
 *.lscache
+
+.claude/
