@@ -17,7 +17,7 @@ This project aims to practice building a chatbot in C#
 - .NET Aspire
 - Blazor
 - Microsoft Agent Framework
-- Kernel Memory
+- LightRAG
 - Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
 
@@ -39,7 +39,7 @@ dotnet tool install --global dotnet-ef
 
 2. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
 
-   **Helper script** — prompts for any value not already provided via env var or `.env`, auto-generates the Kernel Memory key if missing, and writes everything to user-secrets:
+   **Helper script** — prompts for any value not already provided via env var or `.env`, auto-generates the LightRAG keys if missing, and writes everything to user-secrets:
    ```bash
    ./scripts/init-apphost-user-secrets.sh
    ```
@@ -52,11 +52,13 @@ dotnet tool install --global dotnet-ef
    **Manual equivalent** — if you prefer not to run the script:
    ```bash
    cd NTG.Agent.AppHost
-   dotnet user-secrets set "Parameters:sql-sa-password"         "Admin123_Strong!"
-   dotnet user-secrets set "Parameters:github-token"            "<your GitHub token>"
-   dotnet user-secrets set "Parameters:kernel-memory-api-key"   "<32+ char random string>"
-   dotnet user-secrets set "Parameters:google-api-key"          "<google CSE api key, or placeholder>"
-   dotnet user-secrets set "Parameters:google-search-engine-id" "<google CSE id, or placeholder>"
+   dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong!"
+   dotnet user-secrets set "Parameters:github-token"                "<your GitHub token>"
+   dotnet user-secrets set "Parameters:google-api-key"              "<google CSE api key, or placeholder>"
+   dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
+   dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"
+   dotnet user-secrets set "Parameters:lightrag-api-key"            "<32+ char random string>"
+   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for LightRAG>"
    ```
 
 3. Run the AppHost:
@@ -72,7 +74,7 @@ dotnet tool install --global dotnet-ef
 4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
    - `sqlserver` — SQL Server 2022 container with a persistent volume
    - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
-   - `ntg-agent-mcp-server`, `ntg-agent-knowledge`, `ntg-agent-orchestrator` — backend services
+   - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
@@ -120,23 +122,23 @@ The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
 Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
 
-## Long Term Memory Configuration
+## Knowledge providers
 
-The Long Term Memory (LTM) feature allows the chatbot to remember user-specific information across conversations. This feature can be controlled via configuration to manage token consumption:
+Document knowledge (upload, search, RAG) is served by a pluggable provider behind
+`IKnowledgeService` / `IKnowledgeProvisioner` (in `NTG.Agent.Common`). The Orchestrator
+selects the provider from configuration, so backends can be swapped without code changes:
 
 ```json
 {
-  "LongTermMemory": {
-    "Enabled": true,
-    "MinimumConfidenceThreshold": 0.3,
-    "MaxMemoriesToRetrieve": 20
+  "Knowledge": {
+    "Provider": "LightRag"
   }
 }
 ```
 
-- Set `Enabled: false` to disable memory extraction and retrieval, saving tokens
-- Adjust `MinimumConfidenceThreshold` to control quality of stored memories
-- Modify `MaxMemoriesToRetrieve` to balance context vs. token usage
+- `LightRag` (default) — one LightRAG container per agent, implemented in the
+  `NTG.Agent.LightRag` project. The Orchestrator only provides two small EF-backed
+  stores (agent port reservations, document ingestion status).
 
 ## Azure AI Document Intelligence Configuration (Optional)
 

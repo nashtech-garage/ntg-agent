@@ -1,7 +1,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using System.ComponentModel;
 
 namespace NTG.Agent.Orchestrator.Plugins;

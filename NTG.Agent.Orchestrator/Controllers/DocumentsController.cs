@@ -6,7 +6,7 @@ using NTG.Agent.Common.Dtos.Services;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Documents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Common.Logger;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using NTG.Agent.Common.Dtos.Documents;
@@ -118,11 +118,11 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        // Ingestion is non-blocking: BeginImportDocumentAsync hands the file to LightRAG, persists
-        // the original bytes, and returns a track_id immediately. The Document row is written right
-        // away as Processing; the background worker (LightRagIngestionStatusHostedService) polls
-        // LightRAG and flips it to Completed/Failed later. The per-file try/catch only guards the
-        // *begin* step (e.g. LightRAG unreachable) — those files get no row and are reported failed.
+        // Ingestion is non-blocking: BeginImportDocumentAsync hands the file to the knowledge
+        // backend and returns a tracking id immediately. The Document row is written right away
+        // as Processing; the provider's background worker polls the backend and flips it to
+        // Completed/Failed later. The per-file try/catch only guards the *begin* step (e.g.
+        // backend unreachable) — those files get no row and are reported failed.
         var documents = new List<Document>();
         var documentTags = new List<DocumentTag>();
         var results = new List<UploadDocumentResult>();

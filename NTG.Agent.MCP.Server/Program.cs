@@ -8,7 +8,12 @@ builder.AddServiceDefaults();
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<MonkeyService>();
-builder.Services.AddSingleton<WeatherService>();
+builder.Services.AddSingleton<WeatherService>(sp =>
+{
+    var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient();
+    var apiKey = sp.GetRequiredService<IConfiguration>()["WeatherApi:ApiKey"];
+    return new WeatherService(httpClient, apiKey);
+});
 
 builder.Services.AddMcpServer()
     .WithHttpTransport(options => options.Stateless = true)

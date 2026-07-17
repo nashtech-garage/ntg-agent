@@ -14,9 +14,9 @@ using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.Memory;
+using NTG.Agent.Common.Knowledge;
 using System.Text;
+using System.Text.Json;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -29,9 +29,9 @@ public class AgentService
     private readonly IAnonymousSessionService _anonymousSessionService;
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IUserMemoryService _memoryService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private readonly AgentAccessService _agentAccessService;
+    private readonly RenderableToolCapture _renderableToolCapture;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -42,9 +42,9 @@ public class AgentService
         IAnonymousSessionService anonymousSessionService,
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
-        IUserMemoryService memoryService,
         IDocumentAnalysisService documentAnalysisService,
         AgentAccessService agentAccessService,
+        RenderableToolCapture renderableToolCapture,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -53,10 +53,26 @@ public class AgentService
         _anonymousSessionService = anonymousSessionService;
         _ipAddressService = ipAddressService;
         _httpContextAccessor = httpContextAccessor;
-        _memoryService = memoryService;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
         _agentAccessService = agentAccessService;
+        _renderableToolCapture = renderableToolCapture;
+    }
+
+    // Turns tool results captured during the run (get_weather, possibly inside an inner agent)
+    // into ToolCall + ToolResult chunks the AG-UI controller forwards to the browser to render.
+    private IEnumerable<PromptResponse> DrainRenderableToolCalls()
+    {
+        foreach (var captured in _renderableToolCapture.DrainPending())
+        {
+            yield return new PromptResponse(
+                JsonSerializer.Serialize(new { callId = captured.CallId, name = captured.Name, arguments = captured.Arguments }),
+                PromptContentType.ToolCall);
+
+            yield return new PromptResponse(
+                JsonSerializer.Serialize(new { callId = captured.CallId, result = captured.Result }),
+                PromptContentType.ToolResult);
+        }
     }
 
     public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest, bool isAdmin = false)
@@ -112,6 +128,10 @@ public class AgentService
         // Track when the thinking phase begins and ends so we can persist the duration
         DateTime? thinkingStartedAt = null;
         DateTime? thinkingEndedAt = null;
+        // Accumulate renderable tool calls (e.g. get_weather) so the card can be rehydrated when the
+        // conversation is reloaded. Pair each ToolCall with its later ToolResult by call id.
+        var pendingToolCalls = new Dictionary<string, (string Name, string Arguments)>();
+        var toolRenderEnvelopes = new List<object>();
 
         await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin))
         {
@@ -120,6 +140,16 @@ public class AgentService
                 // Record the start timestamp on the first thinking chunk
                 thinkingStartedAt ??= DateTime.UtcNow;
                 thinkingMessageSb.Append(item.Content);
+            }
+            else if (item.ContentType == PromptContentType.ToolCall)
+            {
+                // Protocol payload, not persisted text. Remember the call so we can pair it with its result.
+                CollectToolCall(item.Content, pendingToolCalls);
+            }
+            else if (item.ContentType == PromptContentType.ToolResult)
+            {
+                var envelope = BuildToolRenderEnvelope(item.Content, pendingToolCalls);
+                if (envelope is not null) toolRenderEnvelopes.Add(envelope);
             }
             else
             {
@@ -131,6 +161,8 @@ public class AgentService
 
             yield return item;
         }
+
+        var toolRenderJson = toolRenderEnvelopes.Count > 0 ? JsonSerializer.Serialize(toolRenderEnvelopes) : null;
 
         var responseTime = DateTime.UtcNow - startTime;
         // Calculate thinking duration; falls back to end-of-stream if no non-thinking chunk followed
@@ -145,7 +177,8 @@ public class AgentService
                 agentMessageSb.ToString(),
                 thinkingMessageSb.Length > 0 ? thinkingMessageSb.ToString() : null,
                 thinkingDurationMs,
-                ocrDocuments);
+                ocrDocuments,
+                toolRenderJson);
 
             // Increment anonymous session counter after successful message
             if (!userId.HasValue)
@@ -160,11 +193,6 @@ public class AgentService
             var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || thinkingMessageSb.Length > 0;
             var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
             await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
-
-            if (userId is Guid userGuid)
-            {
-                await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
-            }
         }
         catch (Exception ex)
         {
@@ -219,7 +247,9 @@ public class AgentService
     private async Task<List<PChatMessage>> PrepareConversationHistory(Guid? userId, string? sessionId, Guid agentId, Conversation conversation)
     {
         var historyMessages = await _agentDbContext.ChatMessages
-            .Where(m => m.ConversationId == conversation.Id)
+            // Tool-role messages are UI-render payloads (e.g. the weather card), not part of the chat the
+            // model should see — excluding them keeps the history free of orphan tool results.
+            .Where(m => m.ConversationId == conversation.Id && m.Role != ChatRole.Tool)
             .OrderBy(m => m.UpdatedAt)
             .ToListAsync();
 
@@ -250,10 +280,14 @@ public class AgentService
             .ToList();
     }
 
-    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments, string? toolRenderJson = null)
     {
         // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
-        var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User };
+        // Stamp explicit, strictly increasing timestamps so reload order is deterministic:
+        // user question → tool render (weather card) → assistant text reply.
+        // UpdatedAt is aligned with CreatedAt because PrepareConversationHistory orders by UpdatedAt;
+        // leaving it at the constructor timestamp would let the assistant sort before the user message.
+        var now = DateTime.UtcNow;
         var assistantMessage = new PChatMessage
         {
             UserId = userId,
@@ -261,14 +295,71 @@ public class AgentService
             Content = assistantReply,
             ThinkingContent = thinkingContent,
             ThinkingDurationMs = thinkingDurationMs,
-            Role = ChatRole.Assistant
+            Role = ChatRole.Assistant,
+            CreatedAt = now.AddMilliseconds(2),
+            UpdatedAt = now.AddMilliseconds(2)
         };
 
-        _agentDbContext.ChatMessages.AddRange(userMessage, assistantMessage);
+        // Tool-result follow-up turns carry a synthetic acknowledgement prompt that the user
+        // never typed — persist only the assistant reply so it doesn't pollute the transcript.
+        if (promptRequest.PersistUserMessage)
+        {
+            var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User, CreatedAt = now, UpdatedAt = now };
+            _agentDbContext.ChatMessages.Add(userMessage);
+        }
+
+        // Persist renderable tool calls (e.g. get_weather) as a Tool-role message so the card can be
+        // rehydrated on reload. It is excluded from the AI history (see PrepareConversationHistory) and
+        // dated between the user question and the assistant reply so it renders ahead of the text.
+        if (!string.IsNullOrEmpty(toolRenderJson))
+        {
+            var toolMessage = new PChatMessage
+            {
+                UserId = userId,
+                Conversation = conversation,
+                Content = toolRenderJson,
+                Role = ChatRole.Tool,
+                CreatedAt = now.AddMilliseconds(1),
+                UpdatedAt = now.AddMilliseconds(1)
+            };
+            _agentDbContext.ChatMessages.Add(toolMessage);
+        }
+
+        _agentDbContext.ChatMessages.Add(assistantMessage);
 
         await _agentDbContext.SaveChangesAsync();
 
         return assistantMessage;
+    }
+
+    // Records a forwarded tool call (callId → name + raw-JSON arguments) so it can be paired with its result.
+    private static void CollectToolCall(string content, Dictionary<string, (string Name, string Arguments)> pending)
+    {
+        try
+        {
+            var el = JsonDocument.Parse(content).RootElement;
+            var callId = el.TryGetProperty("callId", out var c) ? c.GetString() : null;
+            var name = el.TryGetProperty("name", out var n) ? n.GetString() : null;
+            if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(name)) return;
+            var arguments = el.TryGetProperty("arguments", out var a) ? a.GetRawText() : "{}";
+            pending[callId] = (name, arguments);
+        }
+        catch (JsonException) { /* ignore malformed chunk */ }
+    }
+
+    // Builds a persisted envelope { callId, name, arguments, result } from a tool result chunk, if its
+    // call was previously recorded. Returns null for results we don't render (e.g. frontend tools).
+    private static object? BuildToolRenderEnvelope(string content, Dictionary<string, (string Name, string Arguments)> pending)
+    {
+        try
+        {
+            var el = JsonDocument.Parse(content).RootElement;
+            var callId = el.TryGetProperty("callId", out var c) ? c.GetString() : null;
+            if (string.IsNullOrEmpty(callId) || !pending.TryGetValue(callId, out var call)) return null;
+            var result = el.TryGetProperty("result", out var r) ? r.GetString() ?? string.Empty : string.Empty;
+            return new { callId, name = call.Name, arguments = call.Arguments, result };
+        }
+        catch (JsonException) { return null; }
     }
 
     private async IAsyncEnumerable<PromptResponse> InvokePromptStreamingInternalAsync(
@@ -314,9 +405,6 @@ public class AgentService
 
             var chatHistory = new List<ChatMessage>();
 
-            // Inject long-term memories for authenticated users
-            await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
-
             foreach (var msg in history.OrderBy(m => m.CreatedAt))
             {
                 chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
@@ -342,8 +430,37 @@ public class AgentService
                 Tools = tools
             };
 
-            await foreach (var update in agent!.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            // AG-UI frontend tools: declared to the LLM but executed in the browser.
+            // Declaration-only tools are not invocable, so the model's call surfaces below
+            // as FunctionCallContent instead of being executed server-side.
+            var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
             {
+                foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
+                {
+                    chatOptions.Tools.Add(tool);
+                    frontendToolNames.Add(tool.Name);
+                }
+            }
+
+            // A2UI: when the client's middleware has injected the render_a2ui tool, give the
+            // model the A2UI v0.9 component catalog so it can generate valid UI surfaces.
+            // (The middleware ships this guidance via the AG-UI context channel, which this
+            // backend does not forward — so we inject it as a leading system message here.)
+            if (frontendToolNames.Contains(A2uiPrompt.RenderToolName))
+            {
+                chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
+            }
+
+            await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+            {
+                // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
+                // including ones executed inside an inner agent — so the browser can render them.
+                foreach (var chunk in DrainRenderableToolCalls())
+                {
+                    yield return chunk;
+                }
+
                 foreach (var item in update.Contents)
                 {
                     if (item is TextReasoningContent reasoningContent)
@@ -354,8 +471,24 @@ public class AgentService
                     {
                         yield return new PromptResponse(textContent.Text);
                     }
+                    else if (item is FunctionCallContent functionCall && frontendToolNames.Contains(functionCall.Name))
+                    {
+                        var payload = JsonSerializer.Serialize(new
+                        {
+                            callId = functionCall.CallId,
+                            name = functionCall.Name,
+                            arguments = functionCall.Arguments
+                        });
+                        yield return new PromptResponse(payload, PromptContentType.ToolCall);
+                    }
                 }
                 ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
+            }
+
+            // Flush any tool captures that arrived during/after the final streamed update.
+            foreach (var chunk in DrainRenderableToolCalls())
+            {
+                yield return chunk;
             }
         }
     }
@@ -413,23 +546,9 @@ public class AgentService
                 yield return e.Data?.ToString() ?? string.Empty;
             }
         }
-        // Inject long-term memories for authenticated users
-        await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
         // TODO: Extract token usage from workflow run if possible
     }
 
-    private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)
-    {
-        if (userId is Guid userIdGuid)
-        {
-            var memoryMessage = await _memoryService.RetrieveAndFormatMemoriesForChatAsync(userIdGuid, userPrompt);
-
-            if (memoryMessage != null)
-            {
-                chatHistory.Add(memoryMessage);
-            }
-        }
-    }
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessage(ChatRole.User, prompt);
@@ -510,6 +629,11 @@ public class AgentService
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
         if (agentConfig == null) return;
+
+        // The ResponseTime column is a SQL `time` (00:00:00–23:59:59). Durations computed from
+        // DateTime.UtcNow can go negative when the clock is stepped backwards mid-request
+        // (common with WSL2 time sync) — clamp so telemetry never crashes the chat stream.
+        if (responseTime < TimeSpan.Zero) responseTime = TimeSpan.Zero;
 
         var sessionIdGuid = !userId.HasValue && Guid.TryParse(sessionId, out var sid) ? sid : (Guid?)null;
 

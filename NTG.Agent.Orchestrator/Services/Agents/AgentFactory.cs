@@ -11,7 +11,7 @@ using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Plugins;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using OpenAI;
 using OpenAI.Responses;
 using System.ClientModel;
@@ -25,16 +25,18 @@ public class AgentFactory : IAgentFactory
     private readonly AgentDbContext _agentDbContext;
     private readonly IKnowledgeService _knowledgeService;
     private readonly AgentAccessService _agentAccessService;
+    private readonly RenderableToolCapture _renderableToolCapture;
     public string ToolContext { get; set; } = string.Empty;
 
     private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
-    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService)
+    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService, RenderableToolCapture renderableToolCapture)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
+        _renderableToolCapture = renderableToolCapture ?? throw new ArgumentNullException(nameof(renderableToolCapture));
     }
 
     public async Task<AIAgent> CreateAgent(Guid agentId)
@@ -289,11 +291,23 @@ public class AgentFactory : IAgentFactory
             AIFunctionFactory.Create(DateTimeTools.GetCurrentDateTime)
         };
 
-        // 2. Add MCP tools (from remote MCP server)
+        // 2. Add MCP tools (from remote MCP server). Renderable tools (e.g. get_weather) are wrapped so
+        //    their result is captured for the browser to render — works whether this agent is the outer
+        //    agent or an inner agent the outer one delegates to.
         if (!string.IsNullOrEmpty(agent.McpServer?.Trim()))
         {
             var mcpTools = await GetMcpToolsAsync(agent.McpServer);
-            allTools.AddRange(mcpTools);
+            foreach (var tool in mcpTools)
+            {
+                if (tool is AIFunction fn && RenderableToolCapture.IsRenderable(fn.Name))
+                {
+                    allTools.Add(new CapturingAIFunction(fn, _renderableToolCapture));
+                }
+                else
+                {
+                    allTools.Add(tool);
+                }
+            }
         }
 
         return allTools;

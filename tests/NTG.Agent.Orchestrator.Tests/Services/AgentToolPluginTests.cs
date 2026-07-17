@@ -7,7 +7,7 @@ using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 
 namespace NTG.Agent.Orchestrator.Tests.Services;

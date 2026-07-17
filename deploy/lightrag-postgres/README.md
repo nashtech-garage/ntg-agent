@@ -13,7 +13,7 @@ Three channels ride one SSH connection:
 | Postgres (reset path) | `-L 55432:127.0.0.1:5432` | `ResetVectorSchemaAsync` connects directly |
 | Per-agent container ports | `-D 1080` (SOCKS5) | Reach any reserved `lightrag-agent` port (20000–20999) with no per-port setup |
 
-Server: `ntgagent@20.24.151.145` (has sudo; Docker already installed).
+Server: `ntgagent@4.193.109.6` (has sudo; Docker already installed).
 
 ---
 
@@ -37,7 +37,7 @@ Postgres binds to the VM's **loopback** (`127.0.0.1:5432`) only — nothing publ
 ```bash
 # on the Mac
 ssh-keygen -t ed25519 -f ~/.ssh/ntg-vm           # if you don't have a key
-ssh-copy-id -i ~/.ssh/ntg-vm.pub ntgagent@20.24.151.145
+ssh-copy-id -i ~/.ssh/ntg-vm.pub ntgagent@4.193.109.6
 ```
 
 ## 3. Open the tunnel (from the Mac)
@@ -48,7 +48,7 @@ ssh -i ~/.ssh/ntg-vm \
     -D 1080 \
     -L 2375:/var/run/docker.sock \
     -L 55432:127.0.0.1:5432 \
-    ntgagent@20.24.151.145
+    ntgagent@4.193.109.6
 ```
 
 `-o ExitOnForwardFailure=yes` makes a local-port collision fail loudly instead of
@@ -80,7 +80,7 @@ brew install autossh
 autossh -M 0 -f -N \
     -i ~/.ssh/ntg-vm -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 \
     -D 1080 -L 2375:/var/run/docker.sock -L 55432:127.0.0.1:5432 \
-    ntgagent@20.24.151.145
+    ntgagent@4.193.109.6
 ```
 
 ## 5. Orchestrator config (on the main machine)

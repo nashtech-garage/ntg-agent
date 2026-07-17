@@ -5,7 +5,7 @@ using NTG.Agent.Common.Dtos.Folders;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Documents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

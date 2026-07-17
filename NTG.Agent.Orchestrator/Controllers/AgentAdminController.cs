@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Agents;
@@ -19,25 +19,23 @@ public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
-    private readonly ILightRagContainerManager _containerManager;
-    private readonly ILightRagProvisioner _provisioner;
+    private readonly IKnowledgeProvisioner _knowledgeProvisioner;
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<AgentAdminController> _logger;
     private readonly AgentAccessService _agentAccessService;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
-        ILightRagContainerManager containerManager,
-        ILightRagProvisioner provisioner,
+        IKnowledgeProvisioner knowledgeProvisioner,
         IKnowledgeService knowledgeService,
         ILogger<AgentAdminController> logger,
         AgentAccessService agentAccessService
+
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
-        _containerManager = containerManager ?? throw new ArgumentNullException(nameof(containerManager));
-        _provisioner = provisioner ?? throw new ArgumentNullException(nameof(provisioner));
+        _knowledgeProvisioner = knowledgeProvisioner ?? throw new ArgumentNullException(nameof(knowledgeProvisioner));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
@@ -131,7 +129,8 @@ public class AgentAdminController : ControllerBase
             .FirstOrDefaultAsync(a => a.Id == id) ?? throw new ArgumentException($"Agent with ID '{id}' not found.");
 
         var availableTools = await _agentFactory.GetAvailableTools(agent);
-        List<AgentToolDto> tools = MergeAgentTools(agent, availableTools);
+        var mcpToolNames = await GetMcpToolNamesAsync(agent);
+        List<AgentToolDto> tools = MergeAgentTools(agent, availableTools, mcpToolNames);
 
         if (tools == null)
         {
@@ -140,7 +139,22 @@ public class AgentAdminController : ControllerBase
         return Ok(tools);
     }
 
-    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools)
+    // Names of the tools the agent's MCP server exposes, used to classify a tool as MCP vs built-in.
+    private async Task<HashSet<string>> GetMcpToolNamesAsync(Models.Agents.Agent agent)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(agent.McpServer))
+        {
+            var mcpTools = await _agentFactory.GetMcpToolsAsync(agent.McpServer);
+            foreach (var tool in mcpTools)
+            {
+                names.Add(tool.Name);
+            }
+        }
+        return names;
+    }
+
+    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools, ISet<string> mcpToolNames)
     {
         return availableTools
                 .Select(t =>
@@ -148,13 +162,16 @@ public class AgentAdminController : ControllerBase
                     var existing = agent.AgentTools
                         .FirstOrDefault(x => string.Equals(x.Name, t.Name, StringComparison.OrdinalIgnoreCase));
 
+                    // Classify by source: tools exposed by the MCP server are MCP, everything else is built-in.
+                    var toolType = mcpToolNames.Contains(t.Name) ? AgentToolType.MCP : AgentToolType.BuiltIn;
+
                     return new AgentToolDto
                     {
                         Id = existing?.Id ?? Guid.Empty,
                         AgentId = agent.Id,
                         Name = t.Name,
                         Description = t.Description ?? string.Empty,
-                        AgentToolType = existing?.AgentToolType ?? AgentToolType.BuiltIn,
+                        AgentToolType = toolType,
                         IsEnabled = existing?.IsEnabled ?? false,
                         CreatedAt = existing?.CreatedAt ?? DateTime.UtcNow,
                         UpdatedAt = existing?.UpdatedAt ?? DateTime.UtcNow
@@ -176,20 +193,39 @@ public class AgentAdminController : ControllerBase
         if (agent == null)
             return NotFound($"Agent with ID '{id}' not found.");
 
-        var existingTools = agent.AgentTools.ToList();
+        // Collapse any pre-existing duplicate rows (same name) down to one, keeping a single tracked row
+        // per tool. Self-heals agents whose tools were duplicated by earlier saves.
+        var byName = new Dictionary<string, Models.Agents.AgentTools>(StringComparer.OrdinalIgnoreCase);
+        foreach (var tool in agent.AgentTools.ToList())
+        {
+            if (byName.ContainsKey(tool.Name))
+            {
+                _agentDbContext.AgentTools.Remove(tool);
+            }
+            else
+            {
+                byName[tool.Name] = tool;
+            }
+        }
 
+        // Upsert each incoming tool exactly once (ignore duplicate names within the payload).
+        var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var toolDto in updatedTools)
         {
-            var existingTool = existingTools.FirstOrDefault(t => t.Name == toolDto.Name);
+            if (string.IsNullOrWhiteSpace(toolDto.Name) || !processed.Add(toolDto.Name))
+            {
+                continue;
+            }
 
-            if (existingTool != null)
+            if (byName.TryGetValue(toolDto.Name, out var existingTool))
             {
                 existingTool.IsEnabled = toolDto.IsEnabled;
+                existingTool.AgentToolType = toolDto.AgentToolType;
                 existingTool.UpdatedAt = DateTime.UtcNow;
             }
             else
             {
-                agent.AgentTools.Add(new Models.Agents.AgentTools
+                var added = new Models.Agents.AgentTools
                 {
                     AgentId = id,
                     Name = toolDto.Name,
@@ -198,7 +234,9 @@ public class AgentAdminController : ControllerBase
                     AgentToolType = toolDto.AgentToolType,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
-                });
+                };
+                agent.AgentTools.Add(added);
+                byName[toolDto.Name] = added;
             }
         }
 
@@ -222,9 +260,11 @@ public class AgentAdminController : ControllerBase
 
         if (!string.IsNullOrEmpty(endpoint.Trim()))
         {
-            var tools = await _agentFactory.GetMcpToolsAsync(endpoint);
+            var tools = (await _agentFactory.GetMcpToolsAsync(endpoint)).ToList();
+            // Everything from the MCP server is, by definition, an MCP tool.
+            var mcpToolNames = tools.Select(t => t.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            agentToolsDto = MergeAgentTools(agent, tools.ToList());
+            agentToolsDto = MergeAgentTools(agent, tools, mcpToolNames);
         }
 
         return agentToolsDto;
@@ -266,20 +306,20 @@ public class AgentAdminController : ControllerBase
         _agentDbContext.Agents.Add(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);
 
-        // Provision this agent's dedicated LightRAG container on its reserved port (the
-        // reservation is persisted by the provisioner). If provisioning fails, roll back
-        // the agent row so we never leave an agent without a knowledge backend.
+        // Provision this agent's knowledge backend (e.g. its dedicated LightRAG container).
+        // If provisioning fails, roll back the agent row so we never leave an agent without
+        // a knowledge backend.
         try
         {
-            await _provisioner.ProvisionAsync(agent.Id, cancellationToken);
+            await _knowledgeProvisioner.ProvisionAgentAsync(agent.Id, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to provision LightRAG container for agent {AgentId}; rolling back.", agent.Id);
+            _logger.LogError(ex, "Failed to provision the knowledge backend for agent {AgentId}; rolling back.", agent.Id);
             _agentDbContext.Agents.Remove(agent);
             await _agentDbContext.SaveChangesAsync(cancellationToken);
             return StatusCode(StatusCodes.Status500InternalServerError,
-                $"Failed to provision the agent's LightRAG container: {ex.Message}");
+                $"Failed to provision the agent's knowledge backend: {ex.Message}");
         }
 
         return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
@@ -437,10 +477,10 @@ public class AgentAdminController : ControllerBase
             _agentDbContext.AgentInnerAgents.RemoveRange(innerBindings);
         }
 
-        // Cascade-delete the agent's knowledge: remove each document from its LightRAG
-        // container (and the on-disk filestore) while the container is still alive, then
-        // drop the SQL rows, then tear the container down. Document removal is best-effort
-        // so a single LightRAG hiccup can't block deleting the agent.
+        // Cascade-delete the agent's knowledge: remove each document from the knowledge
+        // backend while it is still alive, then drop the SQL rows, then tear down the
+        // agent's backend resources. Document removal is best-effort so a single backend
+        // hiccup can't block deleting the agent.
         var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
         foreach (var doc in documents)
         {
@@ -450,12 +490,12 @@ public class AgentAdminController : ControllerBase
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to remove document {DocId} from LightRAG while deleting agent {AgentId}; continuing.", doc.Id, id);
+                _logger.LogWarning(ex, "Failed to remove document {DocId} from the knowledge backend while deleting agent {AgentId}; continuing.", doc.Id, id);
             }
         }
         _agentDbContext.Documents.RemoveRange(documents);
 
-        await _containerManager.StopAndRemoveContainerAsync(id, cancellationToken);
+        await _knowledgeProvisioner.DeprovisionAgentAsync(id, cancellationToken);
 
         _agentDbContext.Agents.Remove(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);

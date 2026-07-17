@@ -10,7 +10,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using System.Security.Claims;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 
@@ -62,8 +62,7 @@ public class AgentAdminControllerAccessTests
         _controller = new AgentAdminController(
             _context,
             Mock.Of<IAgentFactory>(),
-            Mock.Of<ILightRagContainerManager>(),
-            Mock.Of<ILightRagProvisioner>(),
+            Mock.Of<IKnowledgeProvisioner>(),
             Mock.Of<IKnowledgeService>(),
             NullLogger<AgentAdminController>.Instance,
             _accessService)
