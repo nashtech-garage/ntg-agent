@@ -7,6 +7,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Orchestrator.Services.Agents.Clients;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -88,6 +89,15 @@ builder.Services.AddDataProtection()
 
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
+
+// Provider-keyed chat-client factories (the provider axis of the agent factory). Each agent's
+// ProviderName selects the implementation; OpenAI-compatible providers share one factory, Anthropic
+// has its own. Stateless, so registered as singletons.
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("AzureOpenAI");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, AnthropicClientFactory>("Anthropic");
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
