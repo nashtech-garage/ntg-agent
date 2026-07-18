@@ -38,6 +38,13 @@ public class Agent
 
     public string? McpServer { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Host port of this agent's dedicated LightRAG container (lightrag-agent-{Id}).
+    /// Null until the container has been provisioned. Allocated dynamically at
+    /// agent creation and self-healed by <c>LightRagReconcilerHostedService</c> on restart.
+    /// </summary>
+    public int? LightRagPort { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

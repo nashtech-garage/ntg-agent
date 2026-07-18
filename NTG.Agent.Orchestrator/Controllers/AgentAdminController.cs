@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Skills;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -17,13 +18,22 @@ public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
+    private readonly IKnowledgeProvisioner _knowledgeProvisioner;
+    private readonly IKnowledgeService _knowledgeService;
+    private readonly ILogger<AgentAdminController> _logger;
 
     public AgentAdminController(AgentDbContext agentDbContext,
-        IAgentFactory agentFactory
+        IAgentFactory agentFactory,
+        IKnowledgeProvisioner knowledgeProvisioner,
+        IKnowledgeService knowledgeService,
+        ILogger<AgentAdminController> logger
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
+        _knowledgeProvisioner = knowledgeProvisioner ?? throw new ArgumentNullException(nameof(knowledgeProvisioner));
+        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -259,7 +269,7 @@ public class AgentAdminController : ControllerBase
     /// Creates a new agent with the specified configuration.
     /// </summary>
     [HttpPost]
-    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent)
+    public async Task<IActionResult> CreateAgent([FromBody] AgentDetail updatedAgent, CancellationToken cancellationToken = default)
     {
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
         if (updatedAgent == null)
@@ -289,7 +299,23 @@ public class AgentAdminController : ControllerBase
         };
 
         _agentDbContext.Agents.Add(agent);
-        await _agentDbContext.SaveChangesAsync();
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
+
+        // Provision this agent's knowledge backend (e.g. its dedicated LightRAG container).
+        // If provisioning fails, roll back the agent row so we never leave an agent without
+        // a knowledge backend.
+        try
+        {
+            await _knowledgeProvisioner.ProvisionAgentAsync(agent.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to provision the knowledge backend for agent {AgentId}; rolling back.", agent.Id);
+            _agentDbContext.Agents.Remove(agent);
+            await _agentDbContext.SaveChangesAsync(cancellationToken);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                $"Failed to provision the agent's knowledge backend: {ex.Message}");
+        }
 
         return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
     }
@@ -321,9 +347,9 @@ public class AgentAdminController : ControllerBase
     /// Deletes the agent with the specified identifier.
     /// </summary>
     [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteAgent(Guid id)
+    public async Task<IActionResult> DeleteAgent(Guid id, CancellationToken cancellationToken = default)
     {
-        var agent = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == id);
+        var agent = await _agentDbContext.Agents.FindAsync([id], cancellationToken);
         if (agent == null)
         {
             return NotFound();
@@ -334,24 +360,39 @@ public class AgentAdminController : ControllerBase
             return BadRequest("Default agent cannot be deleted.");
         }
 
-        if (agent.AgentKind == AgentKind.Inner)
+        // If this agent is linked as an inner agent of any outer agent, remove those
+        // bindings first — the InnerAgentId FK is Restrict (no cascade), so the delete
+        // would otherwise fail. OuterAgent bindings cascade automatically.
+        var innerBindings = await _agentDbContext.AgentInnerAgents
+            .Where(b => b.InnerAgentId == id)
+            .ToListAsync(cancellationToken);
+        if (innerBindings.Count > 0)
         {
-            var bindings = await _agentDbContext.AgentInnerAgents
-                .Where(b => b.InnerAgentId == id)
-                .ToListAsync();
-            _agentDbContext.AgentInnerAgents.RemoveRange(bindings);
-        }
-        else
-        {
-            var associatedDocs = await _agentDbContext.Documents.AnyAsync(d => d.AgentId == id);
-            if (associatedDocs)
-            {
-                return BadRequest("Agent cannot be deleted because it is associated with documents.");
-            }
+            _agentDbContext.AgentInnerAgents.RemoveRange(innerBindings);
         }
 
+        // Cascade-delete the agent's knowledge: remove each document from the knowledge
+        // backend while it is still alive, then drop the SQL rows, then tear down the
+        // agent's backend resources. Document removal is best-effort so a single backend
+        // hiccup can't block deleting the agent.
+        var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
+        foreach (var doc in documents)
+        {
+            try
+            {
+                await _knowledgeService.RemoveDocumentAsync(id, doc.Id, doc.KnowledgeDocId, doc.TrackId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to remove document {DocId} from the knowledge backend while deleting agent {AgentId}; continuing.", doc.Id, id);
+            }
+        }
+        _agentDbContext.Documents.RemoveRange(documents);
+
+        await _knowledgeProvisioner.DeprovisionAgentAsync(id, cancellationToken);
+
         _agentDbContext.Agents.Remove(agent);
-        await _agentDbContext.SaveChangesAsync();
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
 
         return NoContent();
     }

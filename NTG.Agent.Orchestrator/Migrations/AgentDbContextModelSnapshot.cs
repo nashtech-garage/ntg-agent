@@ -47,6 +47,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("bit");
 
+                    b.Property<int?>("LightRagPort")
+                        .HasColumnType("int");
+
                     b.Property<string>("McpServer")
                         .HasColumnType("nvarchar(max)");
 
@@ -411,6 +414,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<Guid?>("FolderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -419,6 +425,12 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TrackId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Type")

@@ -1,0 +1,46 @@
+# Standalone pgvector + Apache AGE Postgres for the LightRAG knowledge stack.
+#
+# This replaces the `lightrag-postgres` resource that used to live in the .NET
+# AppHost. It runs on the dedicated Ubuntu server and is reached by the
+# Orchestrator over an SSH tunnel (`ssh -L 5432:127.0.0.1:5432`). It reuses the
+# existing image and init SQL:
+#   build context: ../../scripts/lightrag-postgres  (pgvector + Apache AGE image)
+#   init scripts:  ../../scripts/lightrag-pg-init    (creates DB + extensions)
+#
+# Usage on the server:
+#   cp .env.example .env        # then set POSTGRES_PASSWORD
+#   docker compose up -d
+#
+# The container is deliberately named "lightrag-postgres" so the Orchestrator's
+# LightRagContainerManager can find it by name and attach it to the
+# `ntg-agent-lightrag` network. The Orchestrator owns that network (it creates
+# and connects it), so it is intentionally NOT declared here.
+
+services:
+  lightrag-postgres:
+    build:
+      context: ../../scripts/lightrag-postgres
+    image: lightrag-postgres:pg17-pgvector-age
+    container_name: lightrag-postgres
+    restart: unless-stopped
+    environment:
+      # Must match the Orchestrator's LightRag__PostgresPassword (the
+      # `lightrag-pg-password` AppHost parameter).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      # Publish ONLY on the server's loopback; the Orchestrator reaches it via an
+      # `ssh -L 5432:127.0.0.1:5432` forward — never on a public NIC.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - lightrag-postgres-data:/var/lib/postgresql/data
+      # First-init scripts: create the `uploaded-documents` DB and the
+      # vector + age extensions. Run only when the data volume is empty.
+      - ../../scripts/lightrag-pg-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lightrag-postgres-data:

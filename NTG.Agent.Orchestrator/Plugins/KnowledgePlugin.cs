@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.AI;
-using Microsoft.KernelMemory;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using System.ComponentModel;
 
 namespace NTG.Agent.Orchestrator.Plugins;
@@ -19,14 +19,14 @@ public sealed class KnowledgePlugin
     }
 
     [Description("Search knowledge base")]
-    public async Task<SearchResult> SearchAsync([Description("the value to search")]string query)
+    public async Task<KnowledgeSearchResponse> SearchAsync([Description("the value to search")]string query)
     {
-        var result =  await _knowledgeService.SearchAsync(query, _agentId, _tags);
+        var result = await _knowledgeService.SearchAsync(query, _agentId, _tags);
         return result;
     }
 
     public AITool AsAITool()
     {
-        return AIFunctionFactory.Create(this.SearchAsync, new AIFunctionFactoryOptions { Name = "memory"});
+        return AIFunctionFactory.Create(this.SearchAsync, new AIFunctionFactoryOptions { Name = "memory" });
     }
 }

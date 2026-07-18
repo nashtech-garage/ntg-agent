@@ -13,8 +13,7 @@ using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using NTG.Agent.Orchestrator.Services.Memory;
+using NTG.Agent.Common.Knowledge;
 using System.Text;
 using System.Text.Json;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
@@ -29,7 +28,6 @@ public class AgentService
     private readonly IAnonymousSessionService _anonymousSessionService;
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IUserMemoryService _memoryService;
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly ILogger<AgentService> _logger;
@@ -42,7 +40,6 @@ public class AgentService
         IAnonymousSessionService anonymousSessionService,
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
-        IUserMemoryService memoryService,
         IDocumentAnalysisService documentAnalysisService,
         RenderableToolCapture renderableToolCapture,
         ILogger<AgentService> logger)
@@ -53,7 +50,6 @@ public class AgentService
         _anonymousSessionService = anonymousSessionService;
         _ipAddressService = ipAddressService;
         _httpContextAccessor = httpContextAccessor;
-        _memoryService = memoryService;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
         _renderableToolCapture = renderableToolCapture;
@@ -193,12 +189,6 @@ public class AgentService
             var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || thinkingMessageSb.Length > 0;
             var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
             await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
-
-            // Skip memory extraction for tool-result follow-up turns (synthetic prompt).
-            if (userId is Guid userGuid && promptRequest.PersistUserMessage)
-            {
-                await _memoryService.ProcessAndStoreMemoriesAsync(promptRequest.Prompt, userGuid);
-            }
         }
         catch (Exception ex)
         {
@@ -389,9 +379,6 @@ public class AgentService
 
             var chatHistory = new List<ChatMessage>();
 
-            // Inject long-term memories for authenticated users
-            await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
-
             foreach (var msg in history.OrderBy(m => m.CreatedAt))
             {
                 chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
@@ -540,23 +527,9 @@ public class AgentService
                 yield return e.Data?.ToString() ?? string.Empty;
             }
         }
-        // Inject long-term memories for authenticated users
-        await InjectLongTermMemories(userId, chatHistory, promptRequest.Prompt);
         // TODO: Extract token usage from workflow run if possible
     }
 
-    private async Task InjectLongTermMemories(Guid? userId, List<ChatMessage> chatHistory, string userPrompt)
-    {
-        if (userId is Guid userIdGuid)
-        {
-            var memoryMessage = await _memoryService.RetrieveAndFormatMemoriesForChatAsync(userIdGuid, userPrompt);
-
-            if (memoryMessage != null)
-            {
-                chatHistory.Add(memoryMessage);
-            }
-        }
-    }
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)
     {
         var userMessage = new ChatMessage(ChatRole.User, prompt);

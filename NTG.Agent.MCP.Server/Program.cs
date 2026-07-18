@@ -25,7 +25,7 @@ builder.Services.AddDbContextFactory<SkillDbContext>(options =>
 builder.Services.AddControllers();
 
 builder.Services.AddMcpServer()
-    .WithHttpTransport()
+    .WithHttpTransport(options => options.Stateless = true)
     .WithToolsFromAssembly()
     .WithResourcesFromAssembly()
     .AddAiTool();
