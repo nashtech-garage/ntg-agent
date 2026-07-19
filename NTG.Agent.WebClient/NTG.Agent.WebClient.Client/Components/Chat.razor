@@ -186,7 +186,7 @@ else if (ConversationId.HasValue)
                     <input type="text" id="userInput" class="chat-input-field" @bind="userInput"
                             @bind:event="oninput" @bind:after="OnUserInputChanged" @onkeydown="HandleInputKeyDown"
                             autocomplete="off" spellcheck="false" autocorrect="off"
-                            autocapitalize="off" placeholder="Type your message, or /skill to use a skill..." />
+                            autocapitalize="off" placeholder="Type your message, or / to use a skill..." />
                     <SpeechToText Language="@Language" OnTranscription="HandleTranscription" />
                     <button class="chat-input-icon-btn" type="submit" aria-label="Send message" title="Send message">
                         <i class="bi bi-send"></i>
@@ -476,11 +476,14 @@ else
     private async Task OnUserInputChanged()
     {
         var text = userInput.TrimStart();
-        if (text.StartsWith("/skill", StringComparison.OrdinalIgnoreCase))
+        if (text.StartsWith('/'))
         {
-            skillFilter = text.Length > "/skill".Length
-                ? text["/skill".Length..].TrimStart(':', ' ')
-                : string.Empty;
+            // A lone "/" opens the picker with every enabled skill; whatever follows the
+            // slash (or the long-form "/skill" command) filters the list as the user types.
+            var filter = text.StartsWith("/skill", StringComparison.OrdinalIgnoreCase)
+                ? text["/skill".Length..]
+                : text[1..];
+            skillFilter = filter.TrimStart(':', ' ');
             showSkillPicker = true;
             await EnsureSkillsLoadedAsync();
         }
