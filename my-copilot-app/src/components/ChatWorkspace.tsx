@@ -7,6 +7,7 @@ import "@copilotkit/react-core/v2/styles.css"; // Ensure styles are imported
 import AgentSelector, { Agent } from "./AgentSelector";
 import AppHeader from "./AppHeader";
 import ConversationSidebar from "./ConversationSidebar";
+import { SkillPickerProvider, SkillAwareChatInput } from "./SkillPicker";
 import FrontendTools from "../tools";
 import { useAuth } from "../auth/AuthProvider";
 import { AGENT_ID } from "../constants";
@@ -117,15 +118,18 @@ export default function ChatWorkspace({
 
           <div className="flex-1 overflow-hidden p-4">
             <div className="mx-auto h-full w-full max-w-4xl">
-              <CopilotChat
-                agentId={AGENT_ID}
-                className="h-full w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-                labels={{
-                  modalHeaderTitle: selectedAgent.name,
-                  welcomeMessageText: `Xin chào! Tôi là ${selectedAgent.name}. Tôi có thể giúp gì cho bạn hôm nay?`,
-                  chatInputPlaceholder: `Nhắn tin với ${selectedAgent.name}…`,
-                }}
-              />
+              <SkillPickerProvider agentId={selectedAgent.id}>
+                <CopilotChat
+                  agentId={AGENT_ID}
+                  className="h-full w-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+                  input={SkillAwareChatInput}
+                  labels={{
+                    modalHeaderTitle: selectedAgent.name,
+                    welcomeMessageText: `Xin chào! Tôi là ${selectedAgent.name}. Tôi có thể giúp gì cho bạn hôm nay?`,
+                    chatInputPlaceholder: `Nhắn tin với ${selectedAgent.name}, hoặc gõ / để dùng skill…`,
+                  }}
+                />
+              </SkillPickerProvider>
             </div>
           </div>
         </div>

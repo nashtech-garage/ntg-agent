@@ -60,6 +60,19 @@ public class AgUiController : ControllerBase
         var conversationId = await GetOrCreateConversationAsync(userId, threadId);
 
         var prompt = ExtractPrompt(input.Messages);
+
+        // The CopilotKit client has no side channel for a picked Agent Skill (its runtime
+        // does not forward custom per-run properties), so the "/" picker sends the choice
+        // as a "/skill:<name> " message prefix. Strip it here and pass it via SkillName —
+        // the same field the Blazor web client uses; AgentService validates enablement.
+        string? skillName = null;
+        var skillMatch = SkillPrefixRegex.Match(prompt);
+        if (skillMatch.Success)
+        {
+            skillName = skillMatch.Groups[1].Value;
+            prompt = prompt[skillMatch.Length..].TrimStart();
+        }
+
         var frontendToolsJson = BuildFrontendToolsJson(input.Tools);
 
         // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
@@ -72,7 +85,8 @@ public class AgUiController : ControllerBase
             ConversationId: conversationId,
             SessionId: threadId,
             Documents: null,
-            AgentId: agentId)
+            AgentId: agentId,
+            SkillName: skillName)
         {
             FrontendToolsJson = frontendToolsJson,
             PersistUserMessage = !isToolResultTurn
@@ -227,6 +241,9 @@ public class AgUiController : ControllerBase
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    private static readonly System.Text.RegularExpressions.Regex SkillPrefixRegex =
+        new(@"^\s*/skill:([a-z0-9-]{1,64})\s*", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private static readonly JsonSerializerOptions _camelCase = new()
     {
