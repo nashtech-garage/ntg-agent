@@ -103,6 +103,12 @@ builder.Services.AddHttpContextAccessor();
 // ingestion worker through this regardless of which provider is configured.
 builder.Services.AddSingleton<IngestionStatusSignal>();
 
+// Agent-provisioning lifecycle: CreateAgent/reprovision persist an agent in Provisioning state and
+// signal this worker, which boots the knowledge backend in the background and flips the row to
+// Ready/Failed (so the create request never blocks on container boot).
+builder.Services.AddSingleton<AgentProvisioningSignal>();
+builder.Services.AddHostedService<AgentProvisioningHostedService>();
+
 // Knowledge provider selection — the Orchestrator only depends on IKnowledgeService /
 // IKnowledgeProvisioner; the provider behind them is chosen by configuration so backends
 // can be swapped without touching Orchestrator code.

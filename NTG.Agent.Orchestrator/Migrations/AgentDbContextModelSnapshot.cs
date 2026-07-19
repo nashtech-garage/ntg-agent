@@ -80,6 +80,15 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTime?>("ProvisionedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProvisioningError")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProvisioningStatus")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -112,6 +121,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                             ProviderEndpoint = "",
                             ProviderModelName = "",
                             ProviderName = "",
+                            ProvisioningStatus = 2,
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"
                         });

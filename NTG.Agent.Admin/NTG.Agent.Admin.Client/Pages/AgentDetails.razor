@@ -1,6 +1,7 @@
 ﻿@page "/agents/{id:guid}"
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@implements IDisposable
 @using NTG.Agent.Admin.Client.Components
 @using NTG.Agent.Common.Dtos.Agents
 @inject ILogger<AgentDetails> Logger
@@ -47,21 +48,46 @@
                         </div>
                         <div>
                             <h1 class="h3 h-md-2 mb-1">@agentDetail.Name</h1>
+                            @switch (agentDetail.ProvisioningStatus)
+                            {
+                                case AgentProvisioningStatus.Ready:
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ready</span>
+                                    break;
+                                case AgentProvisioningStatus.Failed:
+                                    <span class="badge bg-danger" title="@agentDetail.ProvisioningError"><i class="bi bi-exclamation-triangle me-1"></i>Provisioning failed</span>
+                                    <button class="btn btn-sm btn-outline-warning ms-1"
+                                            @onclick="RetryProvision" disabled="@retrying">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                                    </button>
+                                    break;
+                                default:
+                                    <span class="badge bg-info">
+                                        <span class="spinner-border spinner-border-sm me-1" style="width:0.7rem;height:0.7rem;" role="status"></span>
+                                        Provisioning
+                                    </span>
+                                    break;
+                            }
                             @if (agentDetail.IsPublished)
                             {
-                                <span class="badge bg-success">
+                                <span class="badge bg-success ms-1">
                                     <i class="bi bi-globe me-1"></i>
                                     Published
                                 </span>
                             }
                             else
                             {
-                                <span class="badge bg-secondary">
+                                <span class="badge bg-secondary ms-1">
                                     <i class="bi bi-lock me-1"></i>
                                     Draft
                                 </span>
                             }
                         </div>
+                        @if (agentDetail.ProvisioningStatus == AgentProvisioningStatus.Failed && !string.IsNullOrWhiteSpace(agentDetail.ProvisioningError))
+                        {
+                            <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small w-100" role="alert">
+                                <i class="bi bi-exclamation-circle me-1"></i>@agentDetail.ProvisioningError
+                            </div>
+                        }
                     </div>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-md-normal btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
@@ -284,9 +310,9 @@
 {
     <div class="position-fixed top-0 end-0 p-3" style="z-index: 11">
         <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="toast-header bg-success text-white">
-                <i class="bi bi-check-circle-fill me-2"></i>
-                <strong class="me-auto">Success</strong>
+            <div class="toast-header text-white @(publishStatusIsError ? "bg-danger" : "bg-success")">
+                <i class="bi @(publishStatusIsError ? "bi-exclamation-triangle-fill" : "bi-check-circle-fill") me-2"></i>
+                <strong class="me-auto">@(publishStatusIsError ? "Failed" : "Success")</strong>
                 <button type="button" class="btn-close btn-close-white" @onclick="ClearPublishMessage"></button>
             </div>
             <div class="toast-body">
@@ -315,6 +341,12 @@
     private DocumentsTab? documentsTabRef;
     private bool openAddKnowledgeDialog = false;
     private string? publishStatusMessage;
+    private bool publishStatusIsError;
+
+    // Poll the detail while the agent is still Provisioning so the header badge flips on its own.
+    private const int PollIntervalMs = 3000;
+    private System.Threading.Timer? _pollTimer;
+    private bool retrying;
 
     protected override async Task OnInitializedAsync()
     {
@@ -326,6 +358,7 @@
             {
                 Navigation.NavigateTo("/agents");
             }
+            EnsurePolling();
         }
         catch (Exception ex)
         {
@@ -335,6 +368,65 @@
         {
             isLoading = false;
         }
+    }
+
+    private async Task RetryProvision()
+    {
+        if (retrying) return;
+        retrying = true;
+        try
+        {
+            await AgentClient.ReprovisionAsync(Id);
+            agentDetail = await AgentClient.GetAgentDetails(Id);
+            EnsurePolling();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error re-provisioning agent");
+        }
+        finally
+        {
+            retrying = false;
+            StateHasChanged();
+        }
+    }
+
+    private void EnsurePolling()
+    {
+        var isProvisioning = agentDetail?.ProvisioningStatus == AgentProvisioningStatus.Provisioning;
+        if (isProvisioning && _pollTimer is null)
+        {
+            _pollTimer = new System.Threading.Timer(async _ => await PollAsync(), null, PollIntervalMs, PollIntervalMs);
+        }
+        else if (!isProvisioning)
+        {
+            _pollTimer?.Dispose();
+            _pollTimer = null;
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            var refreshed = await AgentClient.GetAgentDetails(Id);
+            await InvokeAsync(() =>
+            {
+                if (refreshed != null) agentDetail = refreshed;
+                EnsurePolling();
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+            // Transient fetch failure — keep polling; the next tick retries.
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 
     private void SetActiveTab(string tab)
@@ -381,8 +473,9 @@
             agentDetail.IsPublished = newPublishStatus;
             
             // Show success message
-            publishStatusMessage = newPublishStatus 
-                ? $"Agent '{agentDetail.Name}' has been successfully published." 
+            publishStatusIsError = false;
+            publishStatusMessage = newPublishStatus
+                ? $"Agent '{agentDetail.Name}' has been successfully published."
                 : $"Agent '{agentDetail.Name}' has been successfully unpublished.";
             
             StateHasChanged();
@@ -394,12 +487,20 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error updating agent publish status");
+            publishStatusIsError = true;
+            publishStatusMessage = agentDetail!.ProvisioningStatus != AgentProvisioningStatus.Ready
+                ? "This agent can't be published until provisioning is Ready."
+                : "Failed to update publish status. Please try again.";
+            StateHasChanged();
+            await Task.Delay(4000);
+            ClearPublishMessage();
         }
     }
 
     private void ClearPublishMessage()
     {
         publishStatusMessage = null;
+        publishStatusIsError = false;
         StateHasChanged();
     }
 

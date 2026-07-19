@@ -28,6 +28,12 @@ public class AgentDetail
     /// <summary>Determines whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
 
+    /// <summary>Where this agent is in its knowledge-backend provisioning lifecycle.</summary>
+    public AgentProvisioningStatus ProvisioningStatus { get; set; } = AgentProvisioningStatus.Ready;
+
+    /// <summary>Failure reason shown when <see cref="ProvisioningStatus"/> is Failed.</summary>
+    public string? ProvisioningError { get; set; }
+
     public string ToolCount { get; set; } = "0";
 
     public AgentDetail()

@@ -14,7 +14,11 @@ public class LightRagSettings
     // NOTE: Replace with Azure Blob Storage for production deployment.
     public string FileStorePath { get; set; } = "./lightrag-filestore";
 
-    public int TopK { get; set; } = 60;
+    public int TopK { get; set; } = 50;
+
+    // LightRAG /query retrieval mode: "naive" (vector only), "local" (entity graph),
+    // "global", "hybrid" (local + global), or "mix". Config-driven so it can be tuned
+    public string QueryMode { get; set; } = "hybrid";
 
     // How long to wait for LightRAG's async ingestion pipeline to finish before bailing.
     // Large docs at the current 8x parallelism finish in 1-2 min; 3 min default leaves headroom.

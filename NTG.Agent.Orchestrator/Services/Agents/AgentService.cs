@@ -375,6 +375,13 @@ public class AgentService
         }
         else
         {
+            // Speculative prefetch: start the knowledge search now, using the raw user prompt,
+            // so it runs concurrently with agent construction (incl. the MCP ListToolsAsync hop)
+            // and the first "decide to search" LLM call. KnowledgePlugin reuses this warm result
+            // when the model's memory-tool query matches the prompt, and falls back to a fresh
+            // query otherwise. If the model never searches, the task's result is simply discarded.
+            var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId, tags);
+
             var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
 
             var chatHistory = new List<ChatMessage>();
@@ -390,7 +397,7 @@ public class AgentService
 
             chatHistory.Add(userMessage);
 
-            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
+            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
 
             var chatOptions = new ChatOptions
             {

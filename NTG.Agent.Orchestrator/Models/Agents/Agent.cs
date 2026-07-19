@@ -45,6 +45,15 @@ public class Agent
     /// </summary>
     public int? LightRagPort { get; set; }
 
+    public AgentProvisioningStatus ProvisioningStatus { get; set; } = AgentProvisioningStatus.Provisioning;
+
+    /// <summary>Failure reason surfaced to the UI when <see cref="ProvisioningStatus"/> is
+    /// <see cref="AgentProvisioningStatus.Failed"/>.</summary>
+    public string? ProvisioningError { get; set; }
+
+    /// <summary>When the last provisioning transition to Ready/Failed occurred</summary>
+    public DateTime? ProvisionedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

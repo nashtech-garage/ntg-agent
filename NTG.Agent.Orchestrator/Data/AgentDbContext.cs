@@ -113,7 +113,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
             IsPublished = true,
-            AgentKind = Common.Dtos.Agents.AgentKind.Outer
+            AgentKind = Common.Dtos.Agents.AgentKind.Outer,
+            ProvisioningStatus = Common.Dtos.Agents.AgentProvisioningStatus.Ready
         });
 
         modelBuilder.Entity<Folder>().HasData(
