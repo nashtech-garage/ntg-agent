@@ -404,6 +404,15 @@ public class AgentFactory : IAgentFactory
         return new AgentSkillsProviderBuilder()
             .UseMcpSkills(mcpClient)
             .UseFilter((skill, _) => skill.Frontmatter.Name is { } name && enabled.Contains(name))
+            // The skill tools require human approval by default; this chat pipeline has no
+            // approval round-trip, so a load_skill call would stall the run and the agent
+            // would go silent. load/read only inject admin-curated text, so auto-approve
+            // them. Script execution (run_skill_script) keeps the default approval gate.
+            .UseOptions(o =>
+            {
+                o.DisableLoadSkillApproval = true;
+                o.DisableReadSkillResourceApproval = true;
+            })
             .Build();
     }
 

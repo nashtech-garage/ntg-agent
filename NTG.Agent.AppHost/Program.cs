@@ -20,6 +20,8 @@ var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: tr
 var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true); // 55432 over the tunnel
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
+				 // 2022-latest crash-loops on WSL2 kernel 6.6.x (SQLPAL fatal error in lsass at startup);
+				 // 2025-latest is required on this environment.
 				 .WithImageTag("2022-latest")
 				 .WithEndpoint("tcp", endpoint =>
 				 {
@@ -32,6 +34,9 @@ if (RuntimeInformation.OSArchitecture == Architecture.Arm64)
 	sql.WithContainerRuntimeArgs("--platform", "linux/amd64");
 
 var db = sql.AddDatabase("NTGAgent");
+
+// Separate database owned by the MCP server: the admin-uploaded Agent Skills catalog.
+var skillsDb = sql.AddDatabase("NTGAgentSkills");
 
 var migrateAdmin = builder.AddExecutable(
 		"db-migrate-admin",
@@ -56,9 +61,23 @@ var migrateOrchestrator = builder.AddExecutable(
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
 	.WaitForCompletion(migrateAdmin);
 
+// Chained after the other migrations so only one `dotnet ef` runs at a time.
+var migrateMcpServer = builder.AddExecutable(
+		"db-migrate-mcp-server",
+		"dotnet",
+		workingDirectory: "..",
+		"ef", "database", "update",
+		"--project", "NTG.Agent.MCP.Server/NTG.Agent.MCP.Server.csproj",
+		"--startup-project", "NTG.Agent.MCP.Server/NTG.Agent.MCP.Server.csproj",
+		"--context", "SkillDbContext")
+	.WithEnvironment("ConnectionStrings__DefaultConnection", skillsDb)
+	.WaitForCompletion(migrateOrchestrator);
+
 var mcpServer = builder.AddProject<Projects.NTG_Agent_MCP_Server>("ntg-agent-mcp-server")
 	.WithEnvironment("Google__ApiKey", googleApiKey)
-	.WithEnvironment("Google__SearchEngineId", googleSearchId);
+	.WithEnvironment("Google__SearchEngineId", googleSearchId)
+	.WithEnvironment("ConnectionStrings__DefaultConnection", skillsDb)
+	.WaitForCompletion(migrateMcpServer);
 
 var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agent-orchestrator")
 	.WithExternalHttpEndpoints()
