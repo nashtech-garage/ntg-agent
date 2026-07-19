@@ -378,3 +378,5 @@ FodyWeavers.xsd
 *.lscache
 
 .claude/
+
+.idea/
