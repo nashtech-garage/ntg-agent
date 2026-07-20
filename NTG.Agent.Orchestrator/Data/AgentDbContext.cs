@@ -21,6 +21,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
+    public DbSet<Models.Agents.Provider> Providers { get; set; } = null!;
+
     public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
 
     public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
@@ -102,6 +104,31 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Models.Agents.Provider>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Endpoint).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<Models.Agents.Agent>()
+            .HasOne(a => a.Provider)
+            .WithMany(p => p.Agents)
+            .HasForeignKey(a => a.ProviderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        var defaultProviderId = new Guid("00000000-0000-0000-0000-000000000001");
+
+        modelBuilder.Entity<Models.Agents.Provider>().HasData(new Models.Agents.Provider
+        {
+            Id = defaultProviderId,
+            Name = "Default Provider",
+            ProviderType = Common.Dtos.Agents.ProviderType.OpenAI,
+            DefaultModel = "gpt-4o",
+            CreatedAt = new DateTime(2025, 6, 24),
+            UpdatedAt = new DateTime(2025, 6, 24)
+        });
+
         modelBuilder.Entity<Models.Agents.Agent>().HasData(new Models.Agents.Agent
         {
             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
@@ -113,7 +140,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
             IsPublished = true,
-            AgentKind = Common.Dtos.Agents.AgentKind.Outer
+            AgentKind = Common.Dtos.Agents.AgentKind.Outer,
+            ProviderId = defaultProviderId
         });
 
         modelBuilder.Entity<Folder>().HasData(

@@ -6,6 +6,7 @@ using Microsoft.KernelMemory;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
@@ -101,6 +102,9 @@ builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddHttpClient("ModelDiscovery");
+builder.Services.AddScoped<ModelDiscoveryService>();
 
 builder.Services.AddScoped<IKernelMemory>(serviceProvider =>
 {

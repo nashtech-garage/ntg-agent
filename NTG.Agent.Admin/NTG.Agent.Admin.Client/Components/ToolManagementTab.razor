@@ -166,9 +166,13 @@
                                         <div>
                                             <strong>@innerAgent.Name</strong>
                                             <div class="text-muted">@innerAgent.Description</div>
-                                            @if (!string.IsNullOrWhiteSpace(innerAgent.ProviderModelName))
+                                            @if (!string.IsNullOrWhiteSpace(innerAgent.ModelOverride))
                                             {
-                                                <div class="text-muted">Model: @innerAgent.ProviderModelName</div>
+                                                <div class="text-muted">Model: @innerAgent.ModelOverride</div>
+                                            }
+                                            @if (!string.IsNullOrWhiteSpace(innerAgent.ProviderName))
+                                            {
+                                                <div class="text-muted small">Provider: @innerAgent.ProviderName</div>
                                             }
                                         </div>
                                         <div class="form-check form-switch">

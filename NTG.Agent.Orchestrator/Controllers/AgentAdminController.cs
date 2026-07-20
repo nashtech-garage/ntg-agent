@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
@@ -16,13 +17,16 @@ public class AgentAdminController : ControllerBase
 {
     private readonly AgentDbContext _agentDbContext;
     private readonly IAgentFactory _agentFactory;
+    private readonly ModelDiscoveryService _modelDiscoveryService;
 
     public AgentAdminController(AgentDbContext agentDbContext,
-        IAgentFactory agentFactory
+        IAgentFactory agentFactory,
+        ModelDiscoveryService modelDiscoveryService
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
+        _modelDiscoveryService = modelDiscoveryService ?? throw new ArgumentNullException(nameof(modelDiscoveryService));
     }
 
     /// <summary>
@@ -38,7 +42,7 @@ public class AgentAdminController : ControllerBase
         }
 
         var agents = await query
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind, x.Provider != null ? x.Provider.Name : null))
             .ToListAsync();
         return Ok(agents);
     }
@@ -52,9 +56,16 @@ public class AgentAdminController : ControllerBase
         var agent = await _agentDbContext.Agents
             .Where(x => x.Id == id)
             .Include(x => x.AgentTools)
-            .Select(x => new AgentDetail(x.Id, x.Name, x.Instructions, x.ProviderName, x.ProviderEndpoint, x.ProviderApiKey, x.ProviderModelName)
+            .Select(x => new AgentDetail
             {
+                Id = x.Id,
+                Name = x.Name,
                 Description = x.Description,
+                Instructions = x.Instructions,
+                ProviderId = x.ProviderId,
+                ProviderName = x.Provider != null ? x.Provider.Name : null,
+                ProviderType = x.Provider != null ? x.Provider.ProviderType.ToDisplayName() : null,
+                ModelOverride = x.ModelOverride,
                 McpServer = x.McpServer,
                 ToolCount = $"{x.AgentTools.Count(a => a.IsEnabled)}/{x.AgentTools.Count}",
                 IsDefault = x.IsDefault,
@@ -90,10 +101,8 @@ public class AgentAdminController : ControllerBase
         agent.Name = updatedAgent.Name;
         agent.Description = updatedAgent.Description;
         agent.Instructions = updatedAgent.Instructions ?? string.Empty;
-        agent.ProviderName = updatedAgent.ProviderName ?? string.Empty;
-        agent.ProviderEndpoint = updatedAgent.ProviderEndpoint ?? string.Empty;
-        agent.ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty;
-        agent.ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty;
+        agent.ProviderId = updatedAgent.ProviderId;
+        agent.ModelOverride = updatedAgent.ModelOverride;
         agent.McpServer = updatedAgent.McpServer;
         agent.Mode = updatedAgent.Mode;
         agent.UpdatedAt = DateTime.UtcNow;
@@ -272,11 +281,9 @@ public class AgentAdminController : ControllerBase
             Name = updatedAgent.Name,
             Description = updatedAgent.Description,
             Instructions = updatedAgent.Instructions ?? string.Empty,
-            ProviderName = updatedAgent.ProviderName ?? string.Empty,
+            ProviderId = updatedAgent.ProviderId,
+            ModelOverride = updatedAgent.ModelOverride,
             McpServer = updatedAgent.McpServer,
-            ProviderEndpoint = updatedAgent.ProviderEndpoint ?? string.Empty,
-            ProviderApiKey = updatedAgent.ProviderApiKey ?? string.Empty,
-            ProviderModelName = updatedAgent.ProviderModelName ?? string.Empty,
             Mode = updatedAgent.AgentKind == AgentKind.Inner ? AgentMode.Fast : updatedAgent.Mode,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
@@ -368,6 +375,7 @@ public class AgentAdminController : ControllerBase
         }
 
         var innerAgents = await _agentDbContext.Agents
+            .Include(a => a.Provider)
             .Where(a => a.AgentKind == AgentKind.Inner && a.IsPublished)
             .Select(a => new
             {
@@ -375,7 +383,8 @@ public class AgentAdminController : ControllerBase
                 a.Name,
                 a.Description,
                 a.Instructions,
-                a.ProviderModelName
+                ProviderName = a.Provider != null ? a.Provider.Name : null,
+                ModelOverride = a.ModelOverride ?? (a.Provider != null ? a.Provider.DefaultModel : null)
             })
             .ToListAsync();
 
@@ -390,7 +399,8 @@ public class AgentAdminController : ControllerBase
             InnerAgentId = agent.Id,
             Name = agent.Name,
             Description = string.IsNullOrWhiteSpace(agent.Description) ? agent.Instructions ?? string.Empty : agent.Description,
-            ProviderModelName = agent.ProviderModelName ?? string.Empty,
+            ProviderName = agent.ProviderName,
+            ModelOverride = agent.ModelOverride,
             IsEnabled = bindingMap.TryGetValue(agent.Id, out var enabled) && enabled
         }).ToList();
 
@@ -463,5 +473,162 @@ public class AgentAdminController : ControllerBase
         await _agentDbContext.SaveChangesAsync();
 
         return Ok("Inner agent bindings updated successfully.");
+    }
+
+    /// <summary>
+    /// Retrieves all providers.
+    /// </summary>
+    [HttpGet("providers")]
+    public async Task<IActionResult> GetProviders()
+    {
+        var providers = await _agentDbContext.Providers
+            .Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.ProviderType,
+                p.Endpoint,
+                p.ApiKey,
+                p.DefaultModel,
+                AgentCount = p.Agents.Count,
+                p.CreatedAt,
+                p.UpdatedAt
+            })
+            .ToListAsync();
+        var result = providers.Select(p => new ProviderDto
+        {
+            Id = p.Id,
+            Name = p.Name,
+            ProviderType = p.ProviderType,
+            Endpoint = p.Endpoint,
+            ApiKey = p.ApiKey != null && p.ApiKey.Length > 12
+                ? p.ApiKey[..6] + "***" + p.ApiKey[^4..]
+                : p.ApiKey,
+            DefaultModel = p.DefaultModel,
+            AgentCount = p.AgentCount,
+            CreatedAt = p.CreatedAt,
+            UpdatedAt = p.UpdatedAt
+        }).ToList();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves a specific provider by its ID.
+    /// </summary>
+    [HttpGet("providers/{id}")]
+    public async Task<IActionResult> GetProvider(Guid id)
+    {
+        var provider = await _agentDbContext.Providers
+            .Select(p => new ProviderDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                ProviderType = p.ProviderType,
+                Endpoint = p.Endpoint,
+                ApiKey = p.ApiKey,
+                DefaultModel = p.DefaultModel,
+                AgentCount = p.Agents.Count,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
+            })
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (provider == null) return NotFound();
+        return Ok(provider);
+    }
+
+    /// <summary>
+    /// Creates a new provider.
+    /// </summary>
+    [HttpPost("providers")]
+    public async Task<IActionResult> CreateProvider([FromBody] ProviderDto dto)
+    {
+        var provider = new Models.Agents.Provider
+        {
+            Id = Guid.NewGuid(),
+            Name = dto.Name,
+            ProviderType = dto.ProviderType,
+            Endpoint = dto.Endpoint,
+            ApiKey = dto.ApiKey,
+            DefaultModel = dto.DefaultModel,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _agentDbContext.Providers.Add(provider);
+        await _agentDbContext.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetProvider), new { id = provider.Id }, provider.Id);
+    }
+
+    /// <summary>
+    /// Updates an existing provider.
+    /// </summary>
+    [HttpPut("providers/{id}")]
+    public async Task<IActionResult> UpdateProvider(Guid id, [FromBody] ProviderDto dto)
+    {
+        var provider = await _agentDbContext.Providers.FindAsync(id);
+        if (provider == null) return NotFound();
+        provider.Name = dto.Name;
+        provider.ProviderType = dto.ProviderType;
+        provider.Endpoint = dto.Endpoint;
+        provider.ApiKey = dto.ApiKey;
+        provider.DefaultModel = dto.DefaultModel;
+        provider.UpdatedAt = DateTime.UtcNow;
+        await _agentDbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Deletes a provider if no agents are using it.
+    /// </summary>
+    [HttpDelete("providers/{id}")]
+    public async Task<IActionResult> DeleteProvider(Guid id)
+    {
+        var provider = await _agentDbContext.Providers
+            .Include(p => p.Agents)
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (provider == null) return NotFound();
+        if (provider.Agents.Count > 0)
+            return BadRequest($"Cannot delete provider '{provider.Name}': {provider.Agents.Count} agent(s) are using it.");
+        _agentDbContext.Providers.Remove(provider);
+        await _agentDbContext.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Tests connection to a provider by fetching models.
+    /// </summary>
+    [HttpPost("providers/{id}/test")]
+    public async Task<IActionResult> TestProviderConnection(Guid id)
+    {
+        var provider = await _agentDbContext.Providers.FindAsync(id);
+        if (provider == null) return NotFound();
+        try
+        {
+            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey);
+            return Ok(new TestConnectionResult { Success = true, ModelCount = models.Count, Models = models });
+        }
+        catch (Exception ex)
+        {
+            return Ok(new TestConnectionResult { Success = false, ErrorMessage = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Fetches available models for a provider.
+    /// </summary>
+    [HttpGet("providers/{id}/models")]
+    public async Task<IActionResult> GetProviderModels(Guid id)
+    {
+        var provider = await _agentDbContext.Providers.FindAsync(id);
+        if (provider == null) return NotFound();
+        try
+        {
+            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey);
+            return Ok(models);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ex.Message);
+        }
     }
 }

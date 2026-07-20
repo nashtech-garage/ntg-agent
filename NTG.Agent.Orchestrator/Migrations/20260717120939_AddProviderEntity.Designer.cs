@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260717120939_AddProviderEntity")]
+    partial class AddProviderEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -97,7 +100,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                             Mode = 0,
                             Name = "Default Agent",
                             OwnerUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
-                            ProviderId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"
                         });
@@ -196,17 +198,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Providers");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            DefaultModel = "gpt-4o",
-                            Name = "Default Provider",
-                            ProviderType = 0,
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.AnonymousSessions.AnonymousSession", b =>

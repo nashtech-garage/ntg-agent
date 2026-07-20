@@ -120,6 +120,10 @@
                                 <span class="badge @(isInnerKind ? "bg-success-subtle text-success" : "bg-info-subtle text-info")">
                                     @(isInnerKind ? "Inner Agent" : "Outer Agent")
                                 </span>
+                                @if (!string.IsNullOrEmpty(agent.ProviderName))
+                                {
+                                    <span class="badge bg-light text-dark ms-1">@agent.ProviderName</span>
+                                }
                             </div>
 
                             <div class="mb-3">

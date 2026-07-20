@@ -366,3 +366,5 @@ MigrationBackup/
 FodyWeavers.xsd
 # C# Dev Kit / Roslyn language server cache
 *.lscache
+
+.slim/deepwork/
