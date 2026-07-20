@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260717120939_AddProviderEntity")]
+    partial class AddProviderEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,9 +49,6 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<bool>("IsPublished")
                         .HasColumnType("bit");
-
-                    b.Property<int?>("LightRagPort")
-                        .HasColumnType("int");
 
                     b.Property<string>("McpServer")
                         .HasColumnType("nvarchar(max)");
@@ -100,37 +100,9 @@ namespace NTG.Agent.Orchestrator.Migrations
                             Mode = 0,
                             Name = "Default Agent",
                             OwnerUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
-                            ProviderId = new Guid("00000000-0000-0000-0000-000000000001"),
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             UpdatedByUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71"
                         });
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AgentId", "RoleId")
-                        .IsUnique();
-
-                    b.ToTable("AgentRoles");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>
@@ -226,17 +198,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Providers");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000001"),
-                            CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
-                            DefaultModel = "gpt-4o",
-                            Name = "Default Provider",
-                            ProviderType = 0,
-                            UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.AnonymousSessions.AnonymousSession", b =>
@@ -441,9 +402,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<Guid?>("FolderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -452,12 +410,6 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TrackId")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Type")
@@ -843,17 +795,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Provider");
 
                     b.Navigation("UpdatedByUser");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentRole", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
-                        .WithMany()
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Controllers;
@@ -24,6 +25,7 @@ public class AgentAdminControllerTests
     private Mock<IAgentFactory> _mockAgentFactory;
     private Mock<IKnowledgeProvisioner> _mockKnowledgeProvisioner;
     private Mock<IKnowledgeService> _mockKnowledgeService;
+    private ModelDiscoveryService _modelDiscoveryService;
 
     [SetUp]
     public void Setup()
@@ -38,6 +40,8 @@ public class AgentAdminControllerTests
         _mockAgentFactory = new();
         _mockKnowledgeProvisioner = new();
         _mockKnowledgeService = new();
+        var httpClientFactoryMock = new Mock<IHttpClientFactory>();
+        _modelDiscoveryService = new ModelDiscoveryService(httpClientFactoryMock.Object);
         // Mock the admin user principal
         var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
         [
@@ -49,7 +53,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
@@ -66,13 +70,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -198,7 +202,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
@@ -222,7 +226,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
@@ -269,15 +273,13 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenValidAgentProvided_ReturnsCreatedAtActionResult()
     {
         // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "New Test Agent",
-            "Test instructions",
-            "OpenAI",
-            "https://api.openai.com/v1",
-            "test-api-key",
-            "gpt-4"
-        );
+        var newAgent = new AgentDetail
+        {
+            Name = "New Test Agent",
+            Instructions = "Test instructions",
+            ProviderId = null,
+            ModelOverride = "gpt-4"
+        };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -300,10 +302,8 @@ public class AgentAdminControllerTests
             Assert.That(savedAgent.Id, Is.EqualTo(createdAgentId.Value));
             Assert.That(savedAgent.Name, Is.EqualTo("New Test Agent"));
             Assert.That(savedAgent.Instructions, Is.EqualTo("Test instructions"));
-            Assert.That(savedAgent.ProviderName, Is.EqualTo("OpenAI"));
-            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo("https://api.openai.com/v1"));
-            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo("test-api-key"));
-            Assert.That(savedAgent.ProviderModelName, Is.EqualTo("gpt-4"));
+            Assert.That(savedAgent.ProviderId, Is.Null);
+            Assert.That(savedAgent.ModelOverride, Is.EqualTo("gpt-4"));
             Assert.That(savedAgent.OwnerUserId, Is.EqualTo(_testAdminUserId));
             Assert.That(savedAgent.UpdatedByUserId, Is.EqualTo(_testAdminUserId));
         }
@@ -313,15 +313,12 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenValidAgentProvided_SavesAgentToDatabase()
     {
         // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "Database Test Agent",
-            "Instructions",
-            "AzureOpenAI",
-            "https://azure.openai.com",
-            "azure-key",
-            "gpt-4"
-        );
+        var newAgent = new AgentDetail
+        {
+            Name = "Database Test Agent",
+            Instructions = "Instructions",
+            ModelOverride = "gpt-4"
+        };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -339,7 +336,7 @@ public class AgentAdminControllerTests
         {
             Assert.That(savedAgent.Name, Is.EqualTo("Database Test Agent"));
             Assert.That(savedAgent.Instructions, Is.EqualTo("Instructions"));
-            Assert.That(savedAgent.ProviderName, Is.EqualTo("AzureOpenAI"));
+            Assert.That(savedAgent.ModelOverride, Is.EqualTo("gpt-4"));
         }
     }
 
@@ -347,8 +344,12 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_ProvisionsKnowledgeBackend()
     {
         // Arrange
-        var newAgent = new AgentDetail(Guid.Empty, "Container Agent", "Instructions",
-            "AzureOpenAI", "https://azure.openai.com", "azure-key", "gpt-4");
+        var newAgent = new AgentDetail
+        {
+            Name = "Container Agent",
+            Instructions = "Instructions",
+            ModelOverride = "gpt-4"
+        };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -370,8 +371,12 @@ public class AgentAdminControllerTests
         _mockKnowledgeProvisioner
             .Setup(m => m.ProvisionAgentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("docker down"));
-        var newAgent = new AgentDetail(Guid.Empty, "Doomed Agent", "Instructions",
-            "AzureOpenAI", "https://azure.openai.com", "azure-key", "gpt-4");
+        var newAgent = new AgentDetail
+        {
+            Name = "Doomed Agent",
+            Instructions = "Instructions",
+            ModelOverride = "gpt-4"
+        };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -408,10 +413,8 @@ public class AgentAdminControllerTests
         {
             Assert.That(savedAgent.Name, Is.EqualTo("Minimal Agent"));
             Assert.That(savedAgent.Instructions, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderName, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderModelName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderId, Is.Null);
+            Assert.That(savedAgent.ModelOverride, Is.Null);
         }
     }
 
@@ -419,15 +422,10 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenNullInstructionsProvided_CreatesAgentWithEmptyInstructions()
     {
         // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "Agent With Null Instructions",
-            null!,
-            null!,
-            null!,
-            null!,
-            null!
-        );
+        var newAgent = new AgentDetail
+        {
+            Name = "Agent With Null Instructions"
+        };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -444,10 +442,8 @@ public class AgentAdminControllerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(savedAgent.Instructions, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderName, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo(string.Empty));
-            Assert.That(savedAgent.ProviderModelName, Is.EqualTo(string.Empty));
+            Assert.That(savedAgent.ProviderId, Is.Null);
+            Assert.That(savedAgent.ModelOverride, Is.Null);
         }
     }
 
@@ -455,16 +451,11 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenMcpServerProvided_SavesMcpServerValue()
     {
         // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "Agent With MCP",
-            "Instructions",
-            "OpenAI",
-            "https://api.openai.com/v1",
-            "key",
-            "gpt-4"
-        )
+        var newAgent = new AgentDetail
         {
+            Name = "Agent With MCP",
+            Instructions = "Instructions",
+            ModelOverride = "gpt-4",
             McpServer = "https://mcp.example.com"
         };
 
@@ -500,8 +491,8 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_GeneratesNewGuid_ForAgentId()
     {
         // Arrange
-        var agent1 = new AgentDetail(Guid.Empty, "Agent 1", null!, null!, null!, null!, null!);
-        var agent2 = new AgentDetail(Guid.Empty, "Agent 2", null!, null!, null!, null!, null!);
+        var agent1 = new AgentDetail { Name = "Agent 1" };
+        var agent2 = new AgentDetail { Name = "Agent 2" };
 
         // Act
         var result1 = await _controller.CreateAgent(agent1);
@@ -525,14 +516,14 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal() }
             }
         };
-        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+        var newAgent = new AgentDetail { Name = "Test Agent" };
 
         // Act & Assert
         Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
@@ -550,7 +541,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
@@ -558,7 +549,7 @@ public class AgentAdminControllerTests
             }
         };
 
-        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+        var newAgent = new AgentDetail { Name = "Test Agent" };
 
         // Act
         var result = await controllerWithSpecificUser.CreateAgent(newAgent);
@@ -583,7 +574,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_ReturnsLocationHeader_WithNewAgentId()
     {
         // Arrange
-        var newAgent = new AgentDetail(Guid.Empty, "Test Agent", null!, null!, null!, null!, null!);
+        var newAgent = new AgentDetail { Name = "Test Agent" };
 
         // Act
         var result = await _controller.CreateAgent(newAgent);
@@ -601,16 +592,11 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WithCompleteData_PreservesAllFields()
     {
         // Arrange
-        var newAgent = new AgentDetail(
-            Guid.Empty,
-            "Complete Agent",
-            "Detailed instructions for the agent",
-            "GitHub Models",
-            "https://models.github.com",
-            "github-api-key-12345",
-            "gpt-4o"
-        )
+        var newAgent = new AgentDetail
         {
+            Name = "Complete Agent",
+            Instructions = "Detailed instructions for the agent",
+            ModelOverride = "gpt-4o",
             McpServer = "https://mcp-server.example.com/api"
         };
 
@@ -630,10 +616,7 @@ public class AgentAdminControllerTests
         {
             Assert.That(savedAgent.Name, Is.EqualTo("Complete Agent"));
             Assert.That(savedAgent.Instructions, Is.EqualTo("Detailed instructions for the agent"));
-            Assert.That(savedAgent.ProviderName, Is.EqualTo("GitHub Models"));
-            Assert.That(savedAgent.ProviderEndpoint, Is.EqualTo("https://models.github.com"));
-            Assert.That(savedAgent.ProviderApiKey, Is.EqualTo("github-api-key-12345"));
-            Assert.That(savedAgent.ProviderModelName, Is.EqualTo("gpt-4o"));
+            Assert.That(savedAgent.ModelOverride, Is.EqualTo("gpt-4o"));
             Assert.That(savedAgent.McpServer, Is.EqualTo("https://mcp-server.example.com/api"));
         }
     }
@@ -745,7 +728,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
         {
             ControllerContext = new ControllerContext
             {
@@ -1062,8 +1045,10 @@ public class AgentAdminControllerTests
     {
         // Arrange
         var agentId = await SeedSingleAgentData();
-        var updatedAgent = new AgentDetail(agentId, "Single Test Agent", null, null, null, null, null)
+        var updatedAgent = new AgentDetail
         {
+            Id = agentId,
+            Name = "Single Test Agent",
             Mode = AgentMode.Fast
         };
 
@@ -1082,8 +1067,10 @@ public class AgentAdminControllerTests
     {
         // Arrange
         var agentId = await SeedSingleAgentData();
-        var updatedAgent = new AgentDetail(agentId, "Single Test Agent", null, null, null, null, null)
+        var updatedAgent = new AgentDetail
         {
+            Id = agentId,
+            Name = "Single Test Agent",
             Mode = AgentMode.Thinking
         };
 

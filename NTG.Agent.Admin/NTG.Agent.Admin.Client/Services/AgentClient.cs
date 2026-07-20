@@ -100,4 +100,58 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/inner-agents", bindings);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task<IList<ProviderDto>> GetProvidersAsync()
+    {
+        var response = await httpClient.GetAsync("api/agentadmin/providers");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<IList<ProviderDto>>();
+        return result ?? [];
+    }
+
+    public async Task<ProviderDto?> GetProviderAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/providers/{id}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProviderDto>();
+    }
+
+    public async Task<Guid> CreateProviderAsync(ProviderDto provider)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/agentadmin/providers", provider);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>();
+    }
+
+    public async Task UpdateProviderAsync(ProviderDto provider)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/providers/{provider.Id}", provider);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteProviderAsync(Guid id)
+    {
+        var response = await httpClient.DeleteAsync($"api/agentadmin/providers/{id}");
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException(error);
+        }
+    }
+
+    public async Task<TestConnectionResult> TestProviderConnectionAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/agentadmin/providers/{id}/test", null);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<TestConnectionResult>();
+        return result ?? new TestConnectionResult { Success = false, ErrorMessage = "Empty response" };
+    }
+
+    public async Task<IList<ModelItem>> GetProviderModelsAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/providers/{id}/models");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<IList<ModelItem>>();
+        return result ?? [];
+    }
 }

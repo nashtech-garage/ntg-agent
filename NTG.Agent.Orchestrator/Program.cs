@@ -7,8 +7,8 @@ using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Agents.Clients;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -89,12 +89,6 @@ builder.Services.AddDataProtection()
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("AzureOpenAI");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, AnthropicClientFactory>("Anthropic");
-
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
 // Provider probing (test connection / list models) for the admin agent screens.
@@ -116,6 +110,9 @@ builder.Services.AddHttpContextAccessor();
 // Provider-neutral knowledge plumbing: the upload endpoints signal the active provider's
 // ingestion worker through this regardless of which provider is configured.
 builder.Services.AddSingleton<IngestionStatusSignal>();
+
+builder.Services.AddHttpClient("ModelDiscovery");
+builder.Services.AddScoped<ModelDiscoveryService>();
 
 // Knowledge provider selection — the Orchestrator only depends on IKnowledgeService /
 // IKnowledgeProvisioner; the provider behind them is chosen by configuration so backends

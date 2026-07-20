@@ -15,9 +15,9 @@ var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key",
 // LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
 // All three default to empty = plain local run (local Docker socket, localhost:5432);
 // set them in user-secrets to target the remote host instead.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
-var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true); // 55432 over the tunnel
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", value: "");      // e.g. tcp://localhost:2375 (ssh -L)
+var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", value: "");      // e.g. socks5://localhost:1080 (ssh -D)
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", value: "5432"); // 55432 over the tunnel
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest")

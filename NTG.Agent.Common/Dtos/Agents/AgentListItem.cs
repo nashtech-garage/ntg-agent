@@ -1,5 +1,4 @@
 ﻿namespace NTG.Agent.Common.Dtos.Agents;
 
-public record AgentListItem (Guid Id, string Name, string OwnerEmail, string UpdatedByEmail, DateTime UpdatedAt, bool IsDefault, bool IsPublished, AgentKind AgentKind = AgentKind.Outer);
+public record AgentListItem (Guid Id, string Name, string OwnerEmail, string UpdatedByEmail, DateTime UpdatedAt, bool IsDefault, bool IsPublished, AgentKind AgentKind = AgentKind.Outer, string? ProviderName = null);
 public record AgentListItemDto(Guid Id, string Name, bool IsDefault, AgentMode Mode = AgentMode.Fast);
-

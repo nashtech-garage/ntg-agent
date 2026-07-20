@@ -1,0 +1,318 @@
+@page "/providers"
+@attribute [Authorize]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+
+<PageTitle>Providers</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">
+            <i class="bi bi-cloud-fill me-2"></i>Providers
+        </h1>
+        <button class="btn btn-primary" @onclick="ShowCreateModal">
+            <i class="bi bi-plus-circle me-2"></i>Add Provider
+        </button>
+    </div>
+
+    @if (providers == null)
+    {
+        <div class="d-flex justify-content-center"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (providers.Count == 0)
+    {
+        <div class="alert alert-info">No providers configured. Add one to get started.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Endpoint</th>
+                        <th>API Key</th>
+                        <th>Default Model</th>
+                        <th>Agents</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in providers)
+                    {
+                        <tr>
+                            <td><strong>@p.Name</strong></td>
+                            <td><span class="badge bg-primary">@p.ProviderType.ToDisplayName()</span></td>
+                            <td><small class="text-muted">@(p.Endpoint ?? "—")</small></td>
+                            <td><code>@MaskApiKey(p.ApiKey)</code></td>
+                            <td>@(p.DefaultModel ?? "—")</td>
+                            <td><span class="badge bg-secondary">@p.AgentCount</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => ShowEditModal(p.Id)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => ShowDeleteModal(p)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (showFormModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(editingProvider?.Id != Guid.Empty ? "Edit Provider" : "Create Provider")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseFormModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="editingProvider!.Name" placeholder="e.g., My OpenAI" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Provider Type <span class="text-danger">*</span></label>
+                        <select class="form-select" value="@editingProvider!.ProviderType" @onchange="OnProviderTypeChanged">
+                            @foreach (ProviderType t in Enum.GetValues<ProviderType>())
+                            {
+                                <option value="@t">@t.ToDisplayName()</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Endpoint</label>
+                        <input type="text" class="form-control" @bind="editingProvider!.Endpoint"
+                               placeholder="@GetEndpointPlaceholder(editingProvider!.ProviderType)"
+                               readonly="@IsEndpointReadonly(editingProvider!.ProviderType)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">API Key</label>
+                        <div class="input-group">
+                            <input type="@(showKey ? "text" : "password")" class="form-control" @bind="editingProvider!.ApiKey"
+                                   placeholder="Enter API key" />
+                            <button class="btn btn-outline-secondary" type="button" @onclick="() => showKey = !showKey">
+                                <i class="bi @(showKey ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Default Model</label>
+                        <input type="text" class="form-control" @bind="editingProvider!.DefaultModel"
+                               placeholder="e.g., gpt-4o (optional)" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(formError))
+                    {
+                        <div class="alert alert-danger">@formError</div>
+                    }
+                    @if (testResult != null)
+                    {
+                        <div class="alert @(testResult.Success ? "alert-success" : "alert-danger")">
+                            @if (testResult.Success)
+                            {
+                                <span>✓ Connected successfully. @testResult.ModelCount models found.</span>
+                                if (testResult.Models.Count > 0)
+                                {
+                                    <div class="mt-2"><small>Models: @string.Join(", ", testResult.Models.Take(10).Select(m => m.Id))@(testResult.Models.Count > 10 ? "..." : "")</small></div>
+                                }
+                            }
+                            else
+                            {
+                                <span>✗ Connection failed: @testResult.ErrorMessage</span>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-info me-auto" @onclick="TestConnection" disabled="@isTesting">
+                        @if (isTesting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-plug"></i> Test Connection
+                    </button>
+                    <button class="btn btn-secondary" @onclick="CloseFormModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveProvider" disabled="@isSaving">
+                        @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal && deletingProvider != null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">Delete Provider</h5>
+                    <button type="button" class="btn-close" @onclick="() => { showDeleteModal = false; deletingProvider = null; }"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to delete <strong>@deletingProvider.Name</strong>?</p>
+                    @if (deletingProvider.AgentCount > 0)
+                    {
+                        <div class="alert alert-warning">This provider is used by @deletingProvider.AgentCount agent(s). It cannot be deleted until all agents are reassigned.</div>
+                    }
+                    <p class="text-muted">This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => { showDeleteModal = false; deletingProvider = null; }">Cancel</button>
+                    <button class="btn btn-danger" @onclick="DeleteProvider" disabled="@(deletingProvider.AgentCount > 0)">
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private IList<ProviderDto>? providers;
+    private ProviderDto? editingProvider;
+    private ProviderDto? deletingProvider;
+    private bool showFormModal;
+    private bool showDeleteModal;
+    private bool showKey;
+    private bool isSaving;
+    private bool isTesting;
+    private string? formError;
+    private TestConnectionResult? testResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProviders();
+    }
+
+    private async Task LoadProviders()
+    {
+        providers = await AgentClient.GetProvidersAsync();
+    }
+
+    private void ShowCreateModal()
+    {
+        editingProvider = new ProviderDto { ProviderType = ProviderType.OpenAI };
+        formError = null;
+        testResult = null;
+        showFormModal = true;
+    }
+
+    private async Task ShowEditModal(Guid id)
+    {
+        editingProvider = await AgentClient.GetProviderAsync(id);
+        formError = null;
+        testResult = null;
+        showFormModal = true;
+    }
+
+    private void ShowDeleteModal(ProviderDto p)
+    {
+        deletingProvider = p;
+        showDeleteModal = true;
+    }
+
+    private void CloseFormModal()
+    {
+        showFormModal = false;
+        editingProvider = null;
+        formError = null;
+        testResult = null;
+    }
+
+    private async Task SaveProvider()
+    {
+        if (string.IsNullOrWhiteSpace(editingProvider!.Name)) { formError = "Name is required."; return; }
+        isSaving = true; formError = null;
+        try
+        {
+            if (editingProvider.Id == Guid.Empty)
+                await AgentClient.CreateProviderAsync(editingProvider);
+            else
+                await AgentClient.UpdateProviderAsync(editingProvider);
+            CloseFormModal();
+            await LoadProviders();
+        }
+        catch (Exception ex) { formError = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private async Task DeleteProvider()
+    {
+        if (deletingProvider == null) return;
+        try
+        {
+            await AgentClient.DeleteProviderAsync(deletingProvider.Id);
+            showDeleteModal = false;
+            deletingProvider = null;
+            await LoadProviders();
+        }
+        catch (Exception) { /* handled by UI disabled state */ }
+    }
+
+    private async Task TestConnection()
+    {
+        if (editingProvider == null) return;
+        isTesting = true; testResult = null;
+        try
+        {
+            // Save first so we can test with stored credentials
+            if (editingProvider.Id == Guid.Empty)
+            {
+                var id = await AgentClient.CreateProviderAsync(editingProvider);
+                editingProvider.Id = id;
+            }
+            else
+            {
+                await AgentClient.UpdateProviderAsync(editingProvider);
+            }
+            testResult = await AgentClient.TestProviderConnectionAsync(editingProvider.Id);
+        }
+        catch (Exception ex) { testResult = new TestConnectionResult { Success = false, ErrorMessage = ex.Message }; }
+        finally { isTesting = false; }
+    }
+
+    private void OnProviderTypeChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<ProviderType>(e.Value?.ToString(), out var type))
+        {
+            editingProvider!.ProviderType = type;
+            editingProvider!.Endpoint = type switch
+            {
+                ProviderType.OpenAI => "https://api.openai.com/v1",
+                ProviderType.Anthropic => "https://api.anthropic.com/v1",
+                ProviderType.GoogleGemini => "https://generativelanguage.googleapis.com/v1beta",
+                _ => editingProvider.Endpoint
+            };
+            testResult = null;
+        }
+    }
+
+    private static string GetEndpointPlaceholder(ProviderType type) => type switch
+    {
+        ProviderType.OpenAI => "https://api.openai.com/v1",
+        ProviderType.AzureOpenAI => "https://{resource}.openai.azure.com",
+        ProviderType.Anthropic => "https://api.anthropic.com/v1",
+        ProviderType.GoogleGemini => "https://generativelanguage.googleapis.com/v1beta",
+        ProviderType.OpenAICompatible => "https://your-endpoint/v1",
+        _ => ""
+    };
+
+    private static bool IsEndpointReadonly(ProviderType type) => type is ProviderType.OpenAI or ProviderType.Anthropic;
+
+    private static string MaskApiKey(string? key)
+    {
+        if (string.IsNullOrEmpty(key)) return "—";
+        if (key.Length <= 12) return new string('*', key.Length);
+        return key[..6] + "***" + key[^4..];
+    }
+}

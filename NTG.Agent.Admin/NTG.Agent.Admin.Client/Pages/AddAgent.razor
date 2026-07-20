@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
 @using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Admin.Client.Components
 @inject AgentClient AgentClient
 @inject FolderClient FolderClient
 @inject NavigationManager Navigation
@@ -162,7 +163,7 @@
                             Provider Configuration
                         </h5>
 
-                        <ProviderConfigSection Agent="agentDetail" Disabled="isSubmitting" />
+                        <ProviderModelSelector @bind-ProviderId="agentDetail.ProviderId" @bind-ModelOverride="agentDetail.ModelOverride" IsInner="@isInner" />
 
                         <div class="mb-4">
                             <label for="mcpServer" class="form-label fw-semibold">
@@ -271,10 +272,8 @@
                     Name = $"{sourceAgent.Name} (Copy)",
                     Description = sourceAgent.Description,
                     Instructions = sourceAgent.Instructions,
-                    ProviderName = sourceAgent.ProviderName,
-                    ProviderEndpoint = sourceAgent.ProviderEndpoint,
-                    ProviderApiKey = sourceAgent.ProviderApiKey,
-                    ProviderModelName = sourceAgent.ProviderModelName,
+                    ProviderId = sourceAgent.ProviderId,
+                    ModelOverride = sourceAgent.ModelOverride,
                     McpServer = sourceAgent.McpServer,
                     Mode = sourceAgent.Mode,
                     AgentKind = sourceAgent.AgentKind

@@ -19,13 +19,11 @@ public class Agent
 
     public string Instructions { get; set; } = string.Empty;
 
-    public string ProviderName { get; set; } = string.Empty;
+    public Guid? ProviderId { get; set; }
 
-    public string ProviderModelName { get; set; } = string.Empty;
+    public string? ModelOverride { get; set; }
 
-    public string ProviderEndpoint { get; set; } = string.Empty;
-
-    public string ProviderApiKey { get; set; } = string.Empty;
+    public Provider? Provider { get; set; }
 
     public bool IsPublished { get; set; }
 

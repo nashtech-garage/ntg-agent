@@ -385,3 +385,4 @@ FodyWeavers.xsd
 .env.example
 
 .claude/
+.slim/deepwork/

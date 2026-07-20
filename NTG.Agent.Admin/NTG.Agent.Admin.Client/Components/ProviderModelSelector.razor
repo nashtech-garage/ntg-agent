@@ -1,0 +1,116 @@
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-semibold">Provider <span class="text-muted">(Optional)</span></label>
+        <select class="form-select" @bind="SelectedProviderId" @bind:after="OnProviderChanged">
+            <option value="">Select a provider...</option>
+            @if (providers != null)
+            {
+                @foreach (var p in providers)
+                {
+                    <option value="@p.Id">@p.Name (@p.ProviderType.ToDisplayName())</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-semibold">Model <span class="text-muted">(Optional)</span></label>
+        @if (isLoadingModels)
+        {
+            <div class="form-control text-muted">
+                <span class="spinner-border spinner-border-sm me-2"></span>Loading models...
+            </div>
+        }
+        else if (models != null && models.Count > 0)
+        {
+            <select class="form-select" @bind="SelectedModel">
+                <option value="">Use default@(defaultModel != null ? $" ({defaultModel})" : "")</option>
+                @foreach (var m in models)
+                {
+                    <option value="@m.Id">@m.Id@(m.DisplayName != null ? $" — {m.DisplayName}" : "")</option>
+                }
+            </select>
+        }
+        else
+        {
+            <input type="text" class="form-control" @bind="SelectedModel"
+                   placeholder="@(IsInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" />
+        }
+        @if (modelError != null)
+        {
+            <div class="text-danger small mt-1">@modelError</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid? ProviderId { get; set; }
+    [Parameter] public EventCallback<Guid?> ProviderIdChanged { get; set; }
+    [Parameter] public string? ModelOverride { get; set; }
+    [Parameter] public EventCallback<string?> ModelOverrideChanged { get; set; }
+    [Parameter] public bool IsInner { get; set; }
+
+    private IList<ProviderDto>? providers;
+    private IList<ModelItem>? models;
+    private bool isLoadingModels;
+    private string? modelError;
+    private string? defaultModel;
+
+    private Guid? SelectedProviderId
+    {
+        get => ProviderId;
+        set => _ = SetProviderId(value);
+    }
+
+    private string? SelectedModel
+    {
+        get => ModelOverride;
+        set => _ = SetModel(value);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        providers = await AgentClient.GetProvidersAsync();
+        if (ProviderId.HasValue)
+        {
+            await LoadModels(ProviderId.Value);
+        }
+    }
+
+    private async Task SetProviderId(Guid? value)
+    {
+        ProviderId = value;
+        await ProviderIdChanged.InvokeAsync(value);
+        await LoadModels(value);
+    }
+
+    private async Task SetModel(string? value)
+    {
+        ModelOverride = string.IsNullOrWhiteSpace(value) ? null : value;
+        await ModelOverrideChanged.InvokeAsync(ModelOverride);
+    }
+
+    private async Task OnProviderChanged()
+    {
+        if (ProviderId.HasValue)
+            await LoadModels(ProviderId.Value);
+        else
+            models = null;
+    }
+
+    private async Task LoadModels(Guid? providerId)
+    {
+        if (!providerId.HasValue) { models = null; return; }
+        isLoadingModels = true; modelError = null;
+        try
+        {
+            models = await AgentClient.GetProviderModelsAsync(providerId.Value);
+            var provider = await AgentClient.GetProviderAsync(providerId.Value);
+            defaultModel = provider?.DefaultModel;
+        }
+        catch (Exception ex) { modelError = ex.Message; models = null; }
+        finally { isLoadingModels = false; }
+    }
+}
