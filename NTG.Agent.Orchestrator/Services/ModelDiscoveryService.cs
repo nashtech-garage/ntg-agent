@@ -40,7 +40,14 @@ public class ModelDiscoveryService
     private static async Task<List<ModelItem>> GetAzureOpenAIModelsAsync(HttpClient client, string? endpoint, string? apiKey)
     {
         var baseUrl = endpoint?.TrimEnd('/') ?? throw new ArgumentException("Endpoint is required for Azure OpenAI.");
-        var url = $"{baseUrl}/openai/models?api-version=2024-10-21";
+        // Strip any trailing /openai/v1 or /openai suffix so we can construct the correct discovery URL
+        if (baseUrl.EndsWith("/openai/v1", StringComparison.OrdinalIgnoreCase))
+            baseUrl = baseUrl[..^"/v1".Length];
+        else if (baseUrl.EndsWith("/openai", StringComparison.OrdinalIgnoreCase))
+            baseUrl = baseUrl;
+        else
+            baseUrl = $"{baseUrl}/openai";
+        var url = $"{baseUrl}/models?api-version=2024-10-21";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("api-key", apiKey);
         var response = await client.SendAsync(request);
@@ -75,7 +82,10 @@ public class ModelDiscoveryService
     private static async Task<List<ModelItem>> GetOpenAICompatModelsAsync(HttpClient client, string? endpoint, string? apiKey)
     {
         var baseUrl = endpoint?.TrimEnd('/') ?? throw new ArgumentException("Endpoint is required for OpenAI Compatible providers.");
-        var url = $"{baseUrl}/v1/models";
+        // If the endpoint already ends with /v1, just append /models; otherwise append /v1/models
+        var url = baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            ? $"{baseUrl}/models"
+            : $"{baseUrl}/v1/models";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (!string.IsNullOrWhiteSpace(apiKey))
             request.Headers.Add("Authorization", $"Bearer {apiKey}");
