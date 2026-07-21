@@ -1,0 +1,151 @@
+﻿@using Microsoft.AspNetCore.Components.Web
+
+<div class="container-fluid h-100 d-flex justify-content-center align-items-center"
+     tabindex="0" @ref="pageRef"
+     @onkeydown="HandleKeyDown"
+     @onkeyup="HandleKeyUp">
+    <div id="inputChatContainer" class="col-lg-8 col-xl-7">
+
+        <div class="text-center mb-5">
+
+            <div class="display-3 mb-2">
+                🎤
+            </div>
+
+            <h2 class="fw-bold">
+                Welcome to English Coach
+            </h2>
+
+            <p class="lead mt-2">
+                Hi! I'm your personal English Coach.
+            </p>
+
+            <p class="text-secondary">
+                We'll practice English through natural conversations.
+                I'll help improve your grammar, pronunciation, vocabulary and fluency while we chat.
+            </p>
+
+        </div>
+
+        <div class="card border-primary shadow-sm">
+
+            <div class="card-body text-center p-5">
+
+                @if (!IsListening)
+                {
+                    <div class="display-3 mb-3">
+                        🎙️
+                    </div>
+
+                    <h3>
+                        Press <kbd>Space</kbd> to Speak
+                    </h3>
+
+                    <p class="text-secondary mt-3">
+                        When you're ready, hold the <strong>Space</strong> key and start speaking.
+                    </p>
+
+                    <button class="btn btn-primary btn-lg mt-3" disabled>
+                        Waiting...
+                    </button>
+                }
+                else
+                {
+                    <div class="display-3 mb-3 text-danger">
+                        🔴
+                    </div>
+
+                    <h3>
+                        Listening...
+                    </h3>
+
+                    <p class="text-secondary mt-3">
+                        Speak naturally.
+                        Release <strong>Space</strong> when you're finished.
+                    </p>
+
+                    <button class="btn btn-danger btn-lg mt-3" disabled>
+                        Listening...
+                    </button>
+                }
+
+            </div>
+
+        </div>
+
+        <div class="card shadow-sm border-0 mb-4">
+
+            <div class="card-body p-4">
+
+                <h4 class="mb-4">
+                    What I can help you with
+                </h4>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+                        ✅ Grammar correction
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        ✅ Vocabulary improvement
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        ✅ Pronunciation guidance
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        ✅ More natural English
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        
+
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public Guid? ConversationId { get; set; }
+
+    [Parameter]
+    public string? Language { get; set; } = "en-US";
+
+    [Parameter]
+    public EventCallback ExitExperience { get; set; }
+
+    private bool IsListening;
+    private ElementReference pageRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await pageRef.FocusAsync();
+        }
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Code == "Space")
+        {
+            IsListening = true;
+        }
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Code == "Space")
+        {
+            IsListening = false;
+        }
+    }
+
+}
