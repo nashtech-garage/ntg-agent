@@ -17,9 +17,6 @@ public interface ILightRagAgentPortStore
     /// <summary>Agents that currently hold a port reservation (used by idle shutdown).</summary>
     Task<IReadOnlyList<(Guid AgentId, int Port)>> GetAssignedPortsAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Ports reserved by any agent other than <paramref name="excludeAgentId"/>.</summary>
-    Task<IReadOnlyList<int>> GetReservedPortsAsync(Guid excludeAgentId, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Persists the agent's port reservation. Throws <see cref="InvalidOperationException"/>
     /// when the agent does not exist.

@@ -40,8 +40,13 @@ public class Agent
 
     /// <summary>
     /// Host port of this agent's dedicated LightRAG container (lightrag-agent-{Id}).
-    /// Null until the container has been provisioned. Allocated dynamically at
-    /// agent creation and self-healed by <c>LightRagReconcilerHostedService</c> on restart.
+    /// Null until the container has been provisioned.
+    /// <para>
+    /// This is a local <b>cache</b> of the authoritative reservation held in the shared Postgres
+    /// ledger (<c>agent_port_reservations</c>), which is what prevents developers sharing one Docker
+    /// host from being handed the same port. Caching it here keeps the chat hot path free of a
+    /// cross-database round-trip; it is refreshed whenever the port is reserved or reassigned.
+    /// </para>
     /// </summary>
     public int? LightRagPort { get; set; }
 

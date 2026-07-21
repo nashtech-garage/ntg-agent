@@ -31,43 +31,114 @@ public class PortReservationServiceTests
         return id;
     }
 
+    private static PortReservationService NewService(AgentDbContext db, FakeLedger ledger, int start = 20000, int end = 20999)
+        => new(new LightRagEfAgentPortStore(db), ledger, Options(start, end));
+
+    /// <summary>
+    /// In-memory stand-in for the shared Postgres ledger, mirroring the SQL semantics: one port per
+    /// agent, globally unique ports, lowest-free allocation, and exhaustion when the range is full.
+    /// </summary>
+    private sealed class FakeLedger : ILightRagPortReservationStore
+    {
+        private readonly Dictionary<Guid, int> _byAgent = [];
+
+        public int CallCount { get; private set; }
+
+        public void Seed(Guid agentId, int port) => _byAgent[agentId] = port;
+
+        public Task<int?> GetReservedPortAsync(Guid agentId, CancellationToken cancellationToken = default)
+            => Task.FromResult(_byAgent.TryGetValue(agentId, out var p) ? p : (int?)null);
+
+        public Task<int> GetOrReserveAsync(Guid agentId, int rangeStart, int rangeEnd, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            if (_byAgent.TryGetValue(agentId, out var existing)) return Task.FromResult(existing);
+
+            var port = LowestFree(rangeStart, rangeEnd, avoid: null)
+                ?? throw new PortPoolExhaustedException(rangeStart, rangeEnd);
+            _byAgent[agentId] = port;
+            return Task.FromResult(port);
+        }
+
+        public Task<int> ReassignAsync(Guid agentId, int rangeStart, int rangeEnd, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            var current = _byAgent.TryGetValue(agentId, out var c) ? c : (int?)null;
+            _byAgent.Remove(agentId);
+
+            var port = LowestFree(rangeStart, rangeEnd, avoid: current)
+                ?? throw new PortPoolExhaustedException(rangeStart, rangeEnd);
+            _byAgent[agentId] = port;
+            return Task.FromResult(port);
+        }
+
+        public Task ReleaseAsync(Guid agentId, CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            _byAgent.Remove(agentId);
+            return Task.CompletedTask;
+        }
+
+        private int? LowestFree(int start, int end, int? avoid)
+        {
+            var taken = _byAgent.Values.ToHashSet();
+            for (var p = start; p <= end; p++)
+                if (p != avoid && !taken.Contains(p)) return p;
+            return null;
+        }
+    }
+
     [Test]
-    public async Task GetOrReserveAsync_ReturnsExistingReservation_WhenAlreadySet()
+    public async Task GetOrReserveAsync_ReturnsCachedPort_WithoutConsultingLedger()
     {
         await using var db = NewContext();
         var agentId = await SeedAgentAsync(db, port: 20007);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var ledger = new FakeLedger();
+        var svc = NewService(db, ledger);
 
         var port = await svc.GetOrReserveAsync(agentId);
 
-        Assert.That(port, Is.EqualTo(20007));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(port, Is.EqualTo(20007));
+            // Hot path stays local: a cached port must not cost a cross-database round-trip.
+            Assert.That(ledger.CallCount, Is.Zero);
+        }
+    }
+
+    [Test]
+    public async Task GetOrReserveAsync_ReservesFromLedger_AndCachesPortLocally()
+    {
+        await using var db = NewContext();
+        var agentId = await SeedAgentAsync(db, port: null);
+        var svc = NewService(db, new FakeLedger());
+
+        var port = await svc.GetOrReserveAsync(agentId);
+
+        var saved = await db.Agents.FindAsync(agentId);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(port, Is.EqualTo(20000));
+            Assert.That(saved!.LightRagPort, Is.EqualTo(port));
+        }
     }
 
     [Test]
     public async Task GetOrReserveAsync_AllocatesLowestFreePortInRange()
     {
         await using var db = NewContext();
-        await SeedAgentAsync(db, port: 20000);
         var agentId = await SeedAgentAsync(db, port: null);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var ledger = new FakeLedger();
+        // Ports already held by other developers' agents in the shared ledger.
+        ledger.Seed(Guid.NewGuid(), 20000);
+        ledger.Seed(Guid.NewGuid(), 20001);
+        ledger.Seed(Guid.NewGuid(), 20002);
+        ledger.Seed(Guid.NewGuid(), 20004);
+        var svc = NewService(db, ledger);
 
         var port = await svc.GetOrReserveAsync(agentId);
 
-        Assert.That(port, Is.EqualTo(20001));
-    }
-
-    [Test]
-    public async Task GetOrReserveAsync_NeverReturnsAnotherAgentsPort()
-    {
-        await using var db = NewContext();
-        foreach (var p in new[] { 20000, 20001, 20002, 20004 })
-            await SeedAgentAsync(db, port: p);
-        var agentId = await SeedAgentAsync(db, port: null);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
-
-        var port = await svc.GetOrReserveAsync(agentId);
-
-        // Lowest gap is 20003; must not collide with any existing reservation.
+        // Lowest gap is 20003 — and critically, it never collides with another developer's agent.
         Assert.That(port, Is.EqualTo(20003));
     }
 
@@ -77,7 +148,8 @@ public class PortReservationServiceTests
         await using var db = NewContext();
         var a = await SeedAgentAsync(db, port: null);
         var b = await SeedAgentAsync(db, port: null);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var ledger = new FakeLedger();
+        var svc = NewService(db, ledger);
 
         var portA = await svc.GetOrReserveAsync(a);
         var portB = await svc.GetOrReserveAsync(b);
@@ -86,58 +158,46 @@ public class PortReservationServiceTests
     }
 
     [Test]
-    public async Task GetOrReserveAsync_ConcurrentDifferentAgents_GetDistinctPorts()
-    {
-        Guid a, b;
-        await using (var seed = NewContext())
-        {
-            a = await SeedAgentAsync(seed, port: null);
-            b = await SeedAgentAsync(seed, port: null);
-        }
-
-        // Separate contexts (sharing the same in-memory database) exercise the static
-        // allocation gate that serialises cross-scope reservations.
-        await using var ctx1 = NewContext();
-        await using var ctx2 = NewContext();
-        var svc1 = new PortReservationService(new LightRagEfAgentPortStore(ctx1), Options(20000, 20999));
-        var svc2 = new PortReservationService(new LightRagEfAgentPortStore(ctx2), Options(20000, 20999));
-
-        var ports = await Task.WhenAll(svc1.GetOrReserveAsync(a), svc2.GetOrReserveAsync(b));
-
-        Assert.That(ports[0], Is.Not.EqualTo(ports[1]));
-    }
-
-    [Test]
     public async Task GetOrReserveAsync_Throws_WhenPoolExhausted()
     {
         await using var db = NewContext();
-        await SeedAgentAsync(db, port: 20000);
-        await SeedAgentAsync(db, port: 20001);
         var agentId = await SeedAgentAsync(db, port: null);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20001));
+        var ledger = new FakeLedger();
+        ledger.Seed(Guid.NewGuid(), 20000);
+        ledger.Seed(Guid.NewGuid(), 20001);
+        var svc = NewService(db, ledger, start: 20000, end: 20001);
 
         Assert.ThrowsAsync<PortPoolExhaustedException>(() => svc.GetOrReserveAsync(agentId));
     }
 
     [Test]
-    public async Task ReassignAsync_ReturnsDifferentPort_ThanCurrent()
+    public async Task ReassignAsync_ReturnsDifferentPort_AndPersistsCache()
     {
         await using var db = NewContext();
         var agentId = await SeedAgentAsync(db, port: 20000);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var ledger = new FakeLedger();
+        ledger.Seed(agentId, 20000);
+        var svc = NewService(db, ledger);
 
         var port = await svc.ReassignAsync(agentId);
 
-        Assert.That(port, Is.Not.EqualTo(20000));
+        var saved = await db.Agents.FindAsync(agentId);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(port, Is.Not.EqualTo(20000));
+            Assert.That(saved!.LightRagPort, Is.EqualTo(port));
+        }
     }
 
     [Test]
     public async Task ReassignAsync_NeverReturnsAnotherAgentsPort()
     {
         await using var db = NewContext();
-        await SeedAgentAsync(db, port: 20001);
         var agentId = await SeedAgentAsync(db, port: 20000);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var ledger = new FakeLedger();
+        ledger.Seed(agentId, 20000);
+        ledger.Seed(Guid.NewGuid(), 20001);   // another developer's agent
+        var svc = NewService(db, ledger);
 
         var port = await svc.ReassignAsync(agentId);
 
@@ -146,15 +206,19 @@ public class PortReservationServiceTests
     }
 
     [Test]
-    public async Task ReassignAsync_PersistsNewPort()
+    public async Task ReleaseAsync_ReturnsPortToPool_ForReuseByANewAgent()
     {
         await using var db = NewContext();
-        var agentId = await SeedAgentAsync(db, port: 20000);
-        var svc = new PortReservationService(new LightRagEfAgentPortStore(db), Options(20000, 20999));
+        var deleted = await SeedAgentAsync(db, port: null);
+        var newcomer = await SeedAgentAsync(db, port: null);
+        var ledger = new FakeLedger();
+        var svc = NewService(db, ledger);
 
-        var port = await svc.ReassignAsync(agentId);
+        var released = await svc.GetOrReserveAsync(deleted);   // takes 20000
+        await svc.ReleaseAsync(deleted);                        // agent deleted -> port freed
+        var reused = await svc.GetOrReserveAsync(newcomer);
 
-        var saved = await db.Agents.FindAsync(agentId);
-        Assert.That(saved!.LightRagPort, Is.EqualTo(port));
+        // Deleting an agent must return its port to the pool, otherwise the range leaks over time.
+        Assert.That(reused, Is.EqualTo(released));
     }
 }

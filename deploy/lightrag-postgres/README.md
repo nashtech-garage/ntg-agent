@@ -95,7 +95,31 @@ The other LightRAG host settings default correctly for the tunnel (`ServerHost=l
 `PortBindHostIp=127.0.0.1`, `PostgresHost`→`ServerHost`, `PostgresPort=55432`), so they
 need no override. (Leave the two params empty for a plain all-local dev run.)
 
-## 6. Remove stale agents before starting the NTG system because these agents' lightrag ports may be out-of-range: 20000–20999 (on the main machine)
+## 6. Apply the port-reservation migration (once per shared database)
+
+Every developer's Orchestrator reserves LightRAG host ports from a **single shared ledger** in this
+Postgres, so two people can never be handed the same port on the shared Docker host. Allocating from
+each developer's own local SQL Server used to cause exactly that collision (two agents both assigned
+`20001`, second `docker start` fails with "port is already allocated").
+
+The table is deliberately **not** created by the application — apply it once:
+
+```bash
+# from the Mac, over the `ssh -L 55432:127.0.0.1:5432` forward
+psql -h localhost -p 55432 -U postgres -d uploaded-documents \
+     -f deploy/lightrag-postgres/migrations/001_create_agent_port_reservations.sql
+```
+
+(On the VM itself, use `-p 5432`.) Verify it landed:
+
+```bash
+psql -h localhost -p 55432 -U postgres -d uploaded-documents -c '\d agent_port_reservations'
+```
+
+Only **one** person needs to run this — the table is shared by the whole team. If it is missing,
+agent provisioning fails with a message pointing back to this script.
+
+## 7. Remove stale agents before starting the NTG system because these agents' lightrag ports may be out-of-range: 20000–20999 (on the main machine)
 
 ```bash
 # find the SQL Server container name first:
@@ -109,7 +133,7 @@ docker exec <sqlserver-container> /opt/mssql-tools18/bin/sqlcmd \
 
 ```
 
-## 7. Start the NTG-Agent as usual (on the main machine)
+## 8. Start the NTG-Agent as usual (on the main machine)
 
 On first run the Orchestrator pulls `ghcr.io/hkuds/lightrag` on the remote daemon and
 spawns `lightrag-agent-*` containers there, each on its reserved port (20000–20999),
@@ -122,5 +146,6 @@ reached through the SOCKS proxy.
 - [ ] `ntgagent` in the `docker` group (re-logged in)
 - [ ] `docker compose up -d`; `\dx` shows `vector` + `age`
 - [ ] tunnel up; `docker -H tcp://localhost:2375 info` works from the Mac
+- [ ] port-reservation migration applied (`\d agent_port_reservations` succeeds)
 - [ ] AppHost params set (`lightrag-docker-host`, `lightrag-socks-proxy`, `lightrag-pg-password`)
 - [ ] Orchestrator spawns a `lightrag-agent-*` on the VM (`docker -H tcp://localhost:2375 ps`)

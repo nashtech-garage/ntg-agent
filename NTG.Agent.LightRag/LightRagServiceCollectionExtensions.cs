@@ -90,6 +90,10 @@ public static class LightRagServiceCollectionExtensions
         // cross-agent misrouting when a freed port would otherwise be recycled. The provisioner
         // centralises the reserve->ensure->reassign flow used by the factory, reconciler, and
         // agent creation.
+        // Allocation is arbitrated by the shared Postgres ledger rather than the local database, so
+        // developers sharing one Docker host cannot hand out the same port (see
+        // deploy/lightrag-postgres/migrations/001_create_agent_port_reservations.sql).
+        services.AddScoped<ILightRagPortReservationStore, LightRagPgPortReservationStore>();
         services.AddScoped<PortReservationService>();
         services.AddScoped<ILightRagProvisioner, LightRagProvisioner>();
         services.AddScoped<LightRagClientFactory>();
