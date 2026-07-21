@@ -148,4 +148,4 @@ Single "Agent Management" entry pointing to `/`. The dashboard tabs handle filte
 
 6. **Bindings, not hierarchy** — Inner agents are not "children" of outer agents. They are reusable tools that any outer agent can bind to. The `AgentInnerAgents` join table enables many-to-many relationships with per-binding enable/disable.
 
-7. **Inner agents support document upload** — The knowledge base (documents, folders, Kernel Memory) is fully available to inner agents. The `DocumentsController`, `FoldersController`, and `KnowledgeService` operate by `AgentId` with no `AgentKind` restrictions. The Knowledge Base tab appears on the detail page for all agent kinds, and default folders are created for inner agents at creation time.
+7. **Inner agents support document upload** — The knowledge base (documents, folders, LightRAG) is fully available to inner agents. The `DocumentsController`, `FoldersController`, and `KnowledgeService` operate by `AgentId` with no `AgentKind` restrictions. The Knowledge Base tab appears on the detail page for all agent kinds, and default folders are created for inner agents at creation time.

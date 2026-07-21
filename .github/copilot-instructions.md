@@ -125,7 +125,7 @@ public class ExampleEntity
 - Handle AI service errors gracefully
 
 ### RAG Implementation
-- Use Kernel Memory for document ingestion and retrieval
+- Use LightRAG (one container per agent) for document ingestion and retrieval
 - Implement semantic search with embeddings
 - Provide context-aware responses using retrieved documents
 - Handle document upload and processing asynchronously

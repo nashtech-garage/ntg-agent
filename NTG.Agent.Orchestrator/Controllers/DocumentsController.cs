@@ -6,7 +6,7 @@ using NTG.Agent.Common.Dtos.Services;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Documents;
-using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Common.Logger;
 using NTG.Agent.ServiceDefaults.Logging.Metrics;
 using NTG.Agent.Common.Dtos.Documents;
@@ -22,13 +22,15 @@ public class DocumentsController : ControllerBase
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<DocumentsController> _logger;
     private readonly IMetricsCollector _metrics;
+    private readonly IngestionStatusSignal _ingestionSignal;
 
-    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, ILogger<DocumentsController> logger, IMetricsCollector metrics)
+    public DocumentsController(AgentDbContext agentDbContext, IKnowledgeService knowledgeService, ILogger<DocumentsController> logger, IMetricsCollector metrics, IngestionStatusSignal ingestionSignal)
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _ingestionSignal = ingestionSignal ?? throw new ArgumentNullException(nameof(ingestionSignal));
     }
 
     /// <summary>
@@ -65,7 +67,9 @@ public class DocumentsController : ControllerBase
                     x.Name,
                     x.CreatedAt,
                     x.UpdatedAt,
-                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
+                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
+                    x.Status,
+                    x.ErrorMessage))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
@@ -78,7 +82,9 @@ public class DocumentsController : ControllerBase
             x.Name,
             x.CreatedAt,
             x.UpdatedAt,
-            x.DocumentTags.Select(dt => dt.Tag.Name).ToList()))
+            x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
+            x.Status,
+            x.ErrorMessage))
         .ToListAsync();
 
         _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
@@ -112,36 +118,54 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        // Ingestion is non-blocking: BeginImportDocumentAsync hands the file to the knowledge
+        // backend and returns a tracking id immediately. The Document row is written right away
+        // as Processing; the provider's background worker polls the backend and flips it to
+        // Completed/Failed later. The per-file try/catch only guards the *begin* step (e.g.
+        // backend unreachable) — those files get no row and are reported failed.
         var documents = new List<Document>();
         var documentTags = new List<DocumentTag>();
+        var results = new List<UploadDocumentResult>();
         foreach (var file in files)
         {
-            if (file.Length > 0)
+            if (file.Length <= 0) continue;
+
+            var document = new Document
             {
-                var knowledgeDocId = await _knowledgeService.ImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, tags);
-                var document = new Document
-                {
-                    Id = Guid.NewGuid(),
-                    Name = file.FileName,
-                    AgentId = agentId,
-                    KnowledgeDocId = knowledgeDocId,
-                    FolderId = folderId,
-                    CreatedByUserId = userId,
-                    UpdatedByUserId = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    Type = DocumentType.File
-                };
+                Id = Guid.NewGuid(),
+                Name = file.FileName,
+                AgentId = agentId,
+                FolderId = folderId,
+                CreatedByUserId = userId,
+                UpdatedByUserId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Type = DocumentType.File,
+                Status = DocumentStatus.Processing
+            };
+
+            try
+            {
+                document.TrackId = await _knowledgeService.BeginImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, document.Id, tags);
                 documents.Add(document);
                 foreach (var tag in tags)
                 {
-                    var documentTag = new DocumentTag
+                    documentTags.Add(new DocumentTag
                     {
                         DocumentId = document.Id,
                         TagId = new Guid(tag)
-                    };
-                    documentTags.Add(documentTag);
+                    });
                 }
+                results.Add(new UploadDocumentResult(file.FileName, Success: true, ErrorMessage: null, DocumentId: document.Id));
+            }
+            catch (OperationCanceledException)
+            {
+                throw; // Propagate cancellation — don't swallow it as an upload error.
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error importing {FileName} (agentId={AgentId})", file.FileName, agentId);
+                results.Add(new UploadDocumentResult(file.FileName, Success: false, ErrorMessage: $"Unexpected error: {ex.Message}", DocumentId: null));
             }
         }
 
@@ -150,9 +174,10 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.AddRange(documents);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track these Processing docs
         }
 
-        return Ok(new { message = "Files uploaded successfully." });
+        return Ok(results);
     }
     /// <summary>
     /// Deletes a document with the specified identifier.
@@ -183,10 +208,10 @@ public class DocumentsController : ControllerBase
             return NotFound();
         }
 
-        if (document.KnowledgeDocId != null)
-        {
-            await _knowledgeService.RemoveDocumentAsync(document.KnowledgeDocId, agentId);
-        }
+        // Always call through so the on-disk file is removed and any LightRAG doc is deleted —
+        // including for still-Processing docs (no KnowledgeDocId yet), where the service resolves
+        // the doc-id from the track_id to avoid leaving an orphan once extraction finishes.
+        await _knowledgeService.RemoveDocumentAsync(agentId, document.Id, document.KnowledgeDocId, document.TrackId);
 
         _agentDbContext.Documents.Remove(document);
         await _agentDbContext.SaveChangesAsync();
@@ -217,22 +242,22 @@ public class DocumentsController : ControllerBase
 
         try
         {
-            var documentId = await _knowledgeService.ImportWebPageAsync(request.Url, agentId, request.Tags);
-
             var document = new Document
             {
                 Id = Guid.NewGuid(),
                 Name = request.Url,
                 AgentId = agentId,
-                KnowledgeDocId = documentId,
                 FolderId = request.FolderId,
                 Url = request.Url,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Type = DocumentType.WebPage
+                Type = DocumentType.WebPage,
+                Status = DocumentStatus.Processing
             };
+
+            document.TrackId = await _knowledgeService.BeginImportWebPageAsync(request.Url, agentId, document.Id, request.Tags);
 
             var documentTags = new List<DocumentTag>();
             foreach (var tag in request.Tags)
@@ -248,8 +273,9 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.Add(document);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
-            return Ok(documentId);
+            return Ok(document.Id.ToString());
         }
         catch (Exception ex)
         {
@@ -283,21 +309,22 @@ public class DocumentsController : ControllerBase
         try
         {
             var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
-            var knowledgeDocId = await _knowledgeService.ImportTextContentAsync(request.Content, fileName, agentId, request.Tags);
 
             var document = new Document
             {
                 Id = Guid.NewGuid(),
                 Name = fileName,
                 AgentId = agentId,
-                KnowledgeDocId = knowledgeDocId,
                 FolderId = request.FolderId,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
-                Type = DocumentType.Text
+                Type = DocumentType.Text,
+                Status = DocumentStatus.Processing
             };
+
+            document.TrackId = await _knowledgeService.BeginImportTextContentAsync(request.Content, fileName, agentId, document.Id, request.Tags);
 
             var documentTags = new List<DocumentTag>();
             foreach (var tag in request.Tags)
@@ -313,6 +340,7 @@ public class DocumentsController : ControllerBase
             _agentDbContext.Documents.Add(document);
             _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
+            _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
             return Ok(document.Id.ToString());
         }
@@ -361,17 +389,17 @@ public class DocumentsController : ControllerBase
 
     private async Task<IActionResult> HandleKnowledgeFileDownloadAsync(Document document, Guid agentId, CancellationToken ct)
     {
-        if (document.KnowledgeDocId is null) return NotFound("No knowledge document id.");
         var fileName = FileTypeService.SanitizeFileName(document.Name);
 
-        var contentType = FileTypeService.GetContentType(fileName);
-
-        var content = await _knowledgeService.ExportDocumentAsync(document.KnowledgeDocId, fileName, agentId, ct);
-
-        if (content is null) return NotFound();
-
-        var stream = await content.GetStreamAsync();
-        return File(stream, contentType, fileName);
+        try
+        {
+            var content = await _knowledgeService.ExportDocumentAsync(agentId, document.Id, document.KnowledgeDocId, fileName, ct);
+            return File(content.Content, content.ContentType, content.FileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     private async Task<IActionResult> HandleWebPageDownloadAsync(Document document, CancellationToken ct)
