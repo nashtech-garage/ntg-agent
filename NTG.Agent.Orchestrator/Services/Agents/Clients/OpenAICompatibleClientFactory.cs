@@ -8,19 +8,11 @@ namespace NTG.Agent.Orchestrator.Services.Agents.Clients;
 
 /// <summary>
 /// Chat-client factory for every provider reachable through an OpenAI-compatible v1 surface:
-/// standard OpenAI, GitHub Models, Google Gemini, and Azure OpenAI.
+/// standard OpenAI, GitHub Models, Google Gemini, and Azure OpenAI. Azure is handled here — not
+/// via <c>AzureOpenAIClient</c> — because its <c>/openai/v1</c> surface accepts the plain client
+/// with the key as a Bearer token, while <c>AzureOpenAIClient</c> only targets the legacy
+/// api-version deployment API.
 /// </summary>
-/// <remarks>
-/// These providers all speak the same wire protocol via <see cref="OpenAIClient"/>; they differ
-/// only in whether a custom endpoint is supplied (OpenAI is optional, the others require one).
-/// Azure is included here — not routed through <c>AzureOpenAIClient</c> — because its
-/// OpenAI-compatible <c>/openai/v1</c> surface accepts the plain client with the key as a Bearer
-/// token, whereas <c>AzureOpenAIClient</c> targets the legacy api-version deployment API and
-/// cannot address <c>/openai/v1</c>.
-///
-/// The reasoning surface is chosen centrally by <see cref="ReasoningSurfaceResolver"/>, so a
-/// DeepSeek model routes to Chat-Completions reasoning no matter which of these providers hosts it.
-/// </remarks>
 public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
 {
     /// <inheritdoc />
@@ -29,14 +21,11 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
         var client = CreateOpenAIClient(agent);
         var surface = enableThinking ? ReasoningSurfaceResolver.Resolve(agent) : ReasoningSurface.None;
 
-        // The reasoning surfaces use OpenAI experimental APIs (Responses client, ChatCompletionOptions
-        // reasoning effort), both gated behind the OPENAI001 evaluation diagnostic.
+        // Both reasoning surfaces use OpenAI experimental APIs gated behind OPENAI001.
 #pragma warning disable OPENAI001
         switch (surface)
         {
             case ReasoningSurface.ResponsesApi:
-                // gpt-5.x / o-series: Responses API (/v1/responses) with reasoning.effort.
-                // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
                 return client.GetResponsesClient()
                     .AsIChatClient(agent.ProviderModelName)
                     .BuildStandard(o => o.RawRepresentationFactory = _ => new CreateResponseOptions
@@ -49,10 +38,8 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
                     });
 
             case ReasoningSurface.ChatCompletionsEffort:
-                // DeepSeek family: Chat Completions with a top-level reasoning_effort. The
-                // chain-of-thought returns as reasoning_content, which Microsoft.Extensions.AI maps
-                // to TextReasoningContent — the same type the Responses path emits, so the
-                // streaming/UI layer is unchanged.
+                // The chain-of-thought returns as reasoning_content, which Microsoft.Extensions.AI
+                // maps to the same TextReasoningContent type the Responses path emits.
                 return client.GetChatClient(agent.ProviderModelName)
                     .AsIChatClient()
                     .BuildStandard(o => o.RawRepresentationFactory = _ => new ChatCompletionOptions
@@ -61,7 +48,6 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
                     });
 
             default:
-                // Plain chat completions (/v1/chat/completions).
                 return client.GetChatClient(agent.ProviderModelName)
                     .AsIChatClient()
                     .BuildStandard();
@@ -70,8 +56,8 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
     }
 
     /// <summary>
-    /// Builds the underlying <see cref="OpenAIClient"/>, applying a custom endpoint when the agent
-    /// configuration supplies one (required for GitHub Models / Gemini / Azure, optional for OpenAI).
+    /// Builds the underlying <see cref="OpenAIClient"/>, applying the agent's custom endpoint when
+    /// supplied (required for GitHub Models / Gemini / Azure, optional for OpenAI).
     /// </summary>
     private static OpenAIClient CreateOpenAIClient(Models.Agents.Agent agent)
     {

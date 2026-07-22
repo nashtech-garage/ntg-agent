@@ -89,9 +89,7 @@ builder.Services.AddDataProtection()
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
-// Provider-keyed chat-client factories (the provider axis of the agent factory). Each agent's
-// ProviderName selects the implementation; OpenAI-compatible providers share one factory, Anthropic
-// has its own. Stateless, so registered as singletons.
+// Chat-client factories, keyed by the agent's ProviderName. Stateless, so singletons.
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");

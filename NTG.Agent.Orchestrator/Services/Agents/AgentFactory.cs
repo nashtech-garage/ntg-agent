@@ -28,13 +28,6 @@ public class AgentFactory : IAgentFactory
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
 
-    /// <summary>
-    /// Resolves the provider-keyed <see cref="IAgentClientFactory"/> for a provider name, preserving
-    /// the previous clear error when a provider is unknown.
-    /// </summary>
-    /// <param name="providerName">The agent's <c>ProviderName</c> (the DI key).</param>
-    /// <returns>The registered client factory for that provider.</returns>
-    /// <exception cref="NotSupportedException">No factory is registered for <paramref name="providerName"/>.</exception>
     private IAgentClientFactory ResolveClientFactory(string providerName) =>
         _serviceProvider.GetKeyedService<IAgentClientFactory>(providerName)
             ?? throw new NotSupportedException($"Agent provider '{providerName}' is not supported.");
@@ -55,8 +48,8 @@ public class AgentFactory : IAgentFactory
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == DefaultAgentId) ?? throw new ArgumentException($"Agent with ID '{DefaultAgentId}' not found.");
 
-        // Basic (naming/summarization) agent: no tools, and enableThinking:false so it never incurs
-        // reasoning cost regardless of the default agent's configured mode.
+        // enableThinking:false so this agent never incurs reasoning cost regardless of the
+        // default agent's configured mode.
         var chatClient = ResolveClientFactory(agentConfig.ProviderName).CreateChatClient(agentConfig, enableThinking: false);
         return new ChatClientAgent(chatClient, instructions: instructions);
     }
@@ -125,9 +118,6 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateAgentFromConfigAsync(Models.Agents.Agent agent)
     {
-        // Provider selection + reasoning-surface routing now live in the keyed client factories
-        // (provider axis) and ReasoningSurfaceResolver (reasoning axis). enableThinking:true lets
-        // reasoning-capable models use their reasoning surface when the agent is in Thinking mode.
         var chatClient = ResolveClientFactory(agent.ProviderName).CreateChatClient(agent, enableThinking: true);
         var tools = await GetAgentToolsByAgentId(agent);
         return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
