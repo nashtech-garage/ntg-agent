@@ -26,7 +26,8 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
                         ReasoningOptions = new ResponseReasoningOptions
                         {
                             ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
-                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                            // Summary support varies per model; Auto selects the best available.
+                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Auto,
                         }
                     });
 
