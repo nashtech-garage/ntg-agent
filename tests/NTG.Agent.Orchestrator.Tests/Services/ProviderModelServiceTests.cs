@@ -127,6 +127,34 @@ public class ProviderModelServiceTests
     }
 
     [Test]
+    public void FetchModelsAsync_NonJsonBody_ThrowsFriendlyMessage()
+    {
+        // Arrange — 200 OK but a non-JSON body (e.g. a proxy login page). Must surface as
+        // ProviderProbeException, not a raw JsonException that becomes a 500.
+        var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "<html>not json</html>")));
+
+        // Act + Assert
+        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+            service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "key")));
+        Assert.That(ex!.Message, Is.EqualTo("Provider returned an unexpected (non-JSON) response."));
+    }
+
+    [Test]
+    public async Task TestConnectionAsync_NonJsonBody_ReturnsFailureWithFriendlyMessage()
+    {
+        // Arrange — same malformed-body case through the test-connection path: the friendly
+        // exception must be converted into a failed ProviderTestResult, not propagate.
+        var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "<html>not json</html>")));
+
+        // Act
+        var result = await service.TestConnectionAsync(new ProviderProbeRequest("OpenAI", null, "key"));
+
+        // Assert
+        Assert.That(result.Success, Is.False);
+        Assert.That(result.Message, Is.EqualTo("Provider returned an unexpected (non-JSON) response."));
+    }
+
+    [Test]
     public void FetchModelsAsync_UnknownProvider_Throws()
     {
         // Arrange

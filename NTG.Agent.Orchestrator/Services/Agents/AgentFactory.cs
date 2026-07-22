@@ -48,11 +48,21 @@ public class AgentFactory : IAgentFactory
         return await CreateAgentFromConfigAsync(agentConfig);
     }
 
+    /// <summary>
+    /// Creates a published <b>Outer</b> agent the caller is allowed to use (owner, admin,
+    /// or granted via a role in <c>AgentRoles</c>). Exists for the user-facing chat path,
+    /// where <paramref name="agentId"/> is user-supplied: inner agents are tool-only and
+    /// must never be directly chattable, so — like the <see cref="CreateAgent(Guid)"/>
+    /// overload — this filters to <see cref="AgentKind.Outer"/> and throws
+    /// <see cref="AgentAccessDeniedException"/> when the agent is missing, unpublished,
+    /// inner, or not accessible to the caller.
+    /// </summary>
     public async Task<AIAgent> CreateAgent(Guid agentId, Guid? userId, bool isAdmin)
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
             a.Id == agentId
             && a.IsPublished
+            && a.AgentKind == AgentKind.Outer // inner agents are tool-only, never directly chattable
             && (a.OwnerUserId == userId || isAdmin
                 || _agentDbContext.AgentRoles.Any(ar =>
                     ar.AgentId == a.Id

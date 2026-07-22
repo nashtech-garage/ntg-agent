@@ -9,7 +9,7 @@
 <div class="@(Compact ? "" : "row")">
     <div class="@(Compact ? "mb-3" : "col-md-6 mb-3")">
         <label class="form-label @LabelClass">Provider Name</label>
-        <select class="form-select @ControlSizeClass" @bind="Agent.ProviderName" @bind:after="OnProviderChanged" disabled="@Disabled">
+        <select class="form-select @SelectSizeClass" @bind="Agent.ProviderName" @bind:after="OnProviderChanged" disabled="@Disabled">
             <option value="">Select a provider...</option>
             <option value="GitHubModel">GitHub Models</option>
             <option value="AzureOpenAI">Azure Open AI</option>
@@ -21,7 +21,7 @@
 
     <div class="@(Compact ? "mb-3" : "col-md-6 mb-3")">
         <label class="form-label @LabelClass">Model Name</label>
-        <input class="form-control @ControlSizeClass" list="@_modelDatalistId" @bind="Agent.ProviderModelName"
+        <input class="form-control @InputSizeClass" list="@_modelDatalistId" @bind="Agent.ProviderModelName"
                placeholder="e.g., gpt-4o, claude-sonnet-4-6" disabled="@Disabled" />
         <datalist id="@_modelDatalistId">
             @foreach (var model in _models)
@@ -38,14 +38,14 @@
 
 <div class="mb-3">
     <label class="form-label @LabelClass">Provider Endpoint</label>
-    <input class="form-control @ControlSizeClass" @bind="Agent.ProviderEndpoint"
+    <input class="form-control @InputSizeClass" @bind="Agent.ProviderEndpoint"
            placeholder="@EndpointPlaceholder" disabled="@Disabled" />
 </div>
 
 <div class="mb-3">
     <label class="form-label @LabelClass">Provider API Key</label>
     <div class="input-group">
-        <input type="@(_showApiKey ? "text" : "password")" class="form-control @ControlSizeClass" @bind="Agent.ProviderApiKey"
+        <input type="@(_showApiKey ? "text" : "password")" class="form-control @InputSizeClass" @bind="Agent.ProviderApiKey"
                placeholder="Enter the API Key..." disabled="@Disabled" />
         <button class="btn btn-outline-secondary" type="button" @onclick="() => _showApiKey = !_showApiKey"
                 title="@(_showApiKey ? "Hide API key" : "Show API key")" disabled="@Disabled">
@@ -124,7 +124,9 @@
         !string.IsNullOrWhiteSpace(Agent.ProviderApiKey);
 
     private string LabelClass => Compact ? "small" : "fw-semibold";
-    private string ControlSizeClass => Compact ? "form-select-sm" : "";
+    // Bootstrap sizes selects and inputs with different classes — one property per control type.
+    private string SelectSizeClass => Compact ? "form-select-sm" : "";
+    private string InputSizeClass => Compact ? "form-control-sm" : "";
     private string ButtonSizeClass => Compact ? "btn-sm" : "";
 
     // Endpoint prefilled when a provider is selected. Blank => use the SDK default

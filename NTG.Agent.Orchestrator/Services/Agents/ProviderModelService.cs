@@ -99,7 +99,18 @@ public class ProviderModelService : IProviderModelService
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            return ParseModelIds(json);
+            try
+            {
+                return ParseModelIds(json);
+            }
+            catch (JsonException ex)
+            {
+                // A 200 with a non-JSON body (proxy login page, HTML error) must still surface
+                // as a friendly ProviderProbeException, not a 500 — same contract as the
+                // network-error catch above. Never log the body: it could echo request details.
+                _logger.LogWarning(ex, "Provider probe for {Provider} returned unparseable JSON", request.ProviderName);
+                throw new ProviderProbeException("Provider returned an unexpected (non-JSON) response.");
+            }
         }
     }
 
