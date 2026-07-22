@@ -6,6 +6,15 @@
 /key/
 ntgfilestore/
 
+# .md for AIs
+CLAUDE.md
+
+# file-store in development phase
+**/lightrag-filestore/
+
+# Local environment file (often contains secrets)
+.env
+
 # User-specific files
 *.rsuser
 *.suo
@@ -364,9 +373,12 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-# C# Dev Kit / Roslyn language server cache
+
+# Language service cache files
 *.lscache
 
 # Local environment files (contain secrets — never commit)
 .env
 .env.example
+
+.claude/

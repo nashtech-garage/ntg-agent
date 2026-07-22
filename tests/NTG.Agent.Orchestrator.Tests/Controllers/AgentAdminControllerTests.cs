@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
@@ -19,6 +21,8 @@ public class AgentAdminControllerTests
     private Guid _testUserId;
     private Guid _testAdminUserId;
     private Mock<IAgentFactory> _mockAgentFactory;
+    private Mock<IKnowledgeProvisioner> _mockKnowledgeProvisioner;
+    private Mock<IKnowledgeService> _mockKnowledgeService;
 
     [SetUp]
     public void Setup()
@@ -30,20 +34,26 @@ public class AgentAdminControllerTests
         _testUserId = Guid.NewGuid();
         _testAdminUserId = Guid.NewGuid();
         _mockAgentFactory = new();
+        _mockKnowledgeProvisioner = new();
+        _mockKnowledgeService = new();
         // Mock the admin user principal
         var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.NameIdentifier, _testAdminUserId.ToString()),
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
-        _controller = new AgentAdminController(_context, _mockAgentFactory.Object)
+        _controller = NewController(adminUser);
+    }
+
+    // Builds a controller wired with the in-memory context and mocked dependencies.
+    private AgentAdminController NewController(ClaimsPrincipal user) =>
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext { User = adminUser }
+                HttpContext = new DefaultHttpContext { User = user }
             }
         };
-    }
     [TearDown]
     public void TearDown()
     {
@@ -54,13 +64,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -186,7 +196,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -210,7 +220,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -329,6 +339,45 @@ public class AgentAdminControllerTests
             Assert.That(savedAgent.Instructions, Is.EqualTo("Instructions"));
             Assert.That(savedAgent.ProviderName, Is.EqualTo("AzureOpenAI"));
         }
+    }
+
+    [Test]
+    public async Task CreateAgent_ProvisionsKnowledgeBackend()
+    {
+        // Arrange
+        var newAgent = new AgentDetail(Guid.Empty, "Container Agent", "Instructions",
+            "AzureOpenAI", "https://azure.openai.com", "azure-key", "gpt-4");
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert — the knowledge provisioner was asked to provision the agent's backend.
+        var createdResult = result as CreatedAtActionResult;
+        Assert.That(createdResult, Is.Not.Null);
+        var createdAgentId = (createdResult.Value as Guid?)!.Value;
+
+        _mockKnowledgeProvisioner.Verify(
+            m => m.ProvisionAgentAsync(createdAgentId, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenContainerProvisioningFails_RollsBackAgentRow()
+    {
+        // Arrange — provisioning throws, so the just-created agent row must be removed.
+        _mockKnowledgeProvisioner
+            .Setup(m => m.ProvisionAgentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("docker down"));
+        var newAgent = new AgentDetail(Guid.Empty, "Doomed Agent", "Instructions",
+            "AzureOpenAI", "https://azure.openai.com", "azure-key", "gpt-4");
+
+        // Act
+        var result = await _controller.CreateAgent(newAgent);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That((result as ObjectResult)!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
+        Assert.That(await _context.Agents.AnyAsync(a => a.Name == "Doomed Agent"), Is.False);
     }
 
     [Test]
@@ -474,7 +523,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -499,7 +548,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -694,7 +743,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -788,11 +837,11 @@ public class AgentAdminControllerTests
     }
 
     [Test]
-    public async Task DeleteAgent_WhenAgentHasAssociatedDocuments_ReturnsBadRequest()
+    public async Task DeleteAgent_WhenAgentHasAssociatedDocuments_CascadeDeletesDocumentsAndRemovesContainer()
     {
         // Arrange
         var agentId = await SeedSingleAgentData();
-        
+
         // Add a document associated with the agent
         var document = new NTG.Agent.Orchestrator.Models.Documents.Document
         {
@@ -800,6 +849,7 @@ public class AgentAdminControllerTests
             AgentId = agentId,
             Name = "Test Document",
             Url = "https://example.com/test.pdf",
+            KnowledgeDocId = "doc-123",
             CreatedByUserId = _testUserId,
             UpdatedByUserId = _testUserId,
             CreatedAt = DateTime.UtcNow,
@@ -811,15 +861,22 @@ public class AgentAdminControllerTests
         // Act
         var result = await _controller.DeleteAgent(agentId);
 
-        // Assert
-        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
-        var badRequestResult = result as BadRequestObjectResult;
-        Assert.That(badRequestResult, Is.Not.Null);
-        Assert.That(badRequestResult.Value, Does.Contain("associated with documents"));
+        // Assert — the agent is now deleted (the old "has documents" guard is gone),
+        // its document is removed from LightRAG and SQL, and its container is torn down.
+        Assert.That(result, Is.TypeOf<NoContentResult>());
 
-        // Verify agent still exists
         var agent = await _context.Agents.FindAsync(agentId);
-        Assert.That(agent, Is.Not.Null);
+        Assert.That(agent, Is.Null);
+
+        var remainingDocs = await _context.Documents.AnyAsync(d => d.AgentId == agentId);
+        Assert.That(remainingDocs, Is.False);
+
+        _mockKnowledgeService.Verify(
+            k => k.RemoveDocumentAsync(agentId, document.Id, "doc-123", It.IsAny<string?>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+        _mockKnowledgeProvisioner.Verify(
+            m => m.DeprovisionAgentAsync(agentId, It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Test]

@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+#
+# ntg — developer shortcut launcher for the ntg-agent project.
+#
+# Usage:
+#   ./ntg                 Show an interactive menu of available commands (names only).
+#   ./ntg help            List available commands WITH their descriptions.
+#   ./ntg <name> [args]   Run a specific command, forwarding any extra args.
+#   ./ntg new <name>      Scaffold a new command at scripts/dev-commands/<name>.sh.
+#
+# Adding a shortcut is intentionally trivial: run `./ntg new <name>`, edit the
+# generated file, and it shows up in the menu automatically. Each command is a
+# standalone bash file in scripts/dev-commands/ whose `# desc:` line is its menu
+# description. Files starting with `_` are helpers/templates and are hidden.
+#
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CMD_DIR="$ROOT/scripts/dev-commands"
+
+# Print the one-line description from a command file's `# desc:` header.
+desc_of() {
+  local file="$1"
+  sed -n 's/^# desc:[[:space:]]*//p' "$file" | head -n 1
+}
+
+# Echo the list of command names (basename without .sh), skipping `_*` helpers.
+list_names() {
+  local file name
+  for file in "$CMD_DIR"/*.sh; do
+    [ -e "$file" ] || continue
+    name="$(basename "$file" .sh)"
+    case "$name" in _*) continue ;; esac
+    printf '%s\n' "$name"
+  done
+}
+
+run_command() {
+  local name="$1"; shift
+  local file="$CMD_DIR/$name.sh"
+  if [ ! -f "$file" ]; then
+    printf 'Unknown command: %s\n\n' "$name" >&2
+    cmd_help >&2
+    exit 1
+  fi
+  exec bash "$file" "$@"
+}
+
+# `help` — list commands with descriptions, no execution.
+cmd_help() {
+  printf 'ntg — developer shortcuts for ntg-agent\n\n'
+  printf 'Usage: ./ntg [command] [args]   (no command = interactive menu)\n\n'
+  printf 'Commands:\n'
+  local name
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    printf '  %-16s %s\n' "$name" "$(desc_of "$CMD_DIR/$name.sh")"
+  done < <(list_names)
+  printf '\nMeta:\n'
+  printf '  %-16s %s\n' "help" "Show this list with descriptions"
+  printf '  %-16s %s\n' "new <name>" "Scaffold a new command in scripts/dev-commands/"
+}
+
+# `new <name>` — scaffold a new command from the template.
+cmd_new() {
+  local name="${1:-}"
+  if [ -z "$name" ]; then
+    printf 'Usage: ./ntg new <name>\n' >&2
+    exit 1
+  fi
+  local file="$CMD_DIR/$name.sh"
+  if [ -e "$file" ]; then
+    printf 'Command already exists: %s\n' "$file" >&2
+    exit 1
+  fi
+  cp "$CMD_DIR/_template.sh" "$file"
+  chmod +x "$file"
+  printf 'Created %s\n' "$file"
+  printf 'Now edit it (update the "# desc:" line and add your commands), then run: ./ntg %s\n' "$name"
+}
+
+# Interactive menu — names only, no descriptions.
+menu() {
+  local names=()
+  local name
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    names+=("$name")
+  done < <(list_names)
+
+  if [ "${#names[@]}" -eq 0 ]; then
+    printf 'No commands found in %s\n' "$CMD_DIR" >&2
+    exit 1
+  fi
+
+  printf 'ntg commands:\n'
+  local i
+  for i in "${!names[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${names[$i]}"
+  done
+  printf 'Choose a number (or q to quit): '
+
+  local choice
+  read -r choice
+  case "$choice" in
+    q | Q | "") exit 0 ;;
+  esac
+  if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#names[@]}" ]; then
+    printf 'Invalid choice: %s\n' "$choice" >&2
+    exit 1
+  fi
+  run_command "${names[$((choice - 1))]}"
+}
+
+main() {
+  if [ "$#" -eq 0 ]; then
+    menu
+    return
+  fi
+  local cmd="$1"; shift
+  case "$cmd" in
+    help | -h | --help | list) cmd_help ;;
+    new) cmd_new "$@" ;;
+    *) run_command "$cmd" "$@" ;;
+  esac
+}
+
+main "$@"

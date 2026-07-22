@@ -17,7 +17,7 @@ This project aims to practice building a chatbot in C#
 - .NET Aspire
 - Blazor
 - Microsoft Agent Framework
-- Kernel Memory
+- LightRAG
 - Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
 
@@ -26,49 +26,88 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 
 ## Getting started
 
-- Setup [GitHub models](https://docs.github.com/en/github-models/use-github-models/prototyping-with-ai-models) (free): Create your Fine-grained personal access tokens in GitHub https://github.com/settings/personal-access-tokens. The token needs to have **models:read** permissions.
-- Update file secrets.json for the NTG.Agent.Knowledge with content below Or run the cli command `dotnet user-secrets set "KernelMemory:Services:OpenAI:APIKey" "<your_token_here>"`. Read [this link](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) if you don't know how to set the secrets
+Run the project **locally with .NET Aspire**.
 
+The AppHost orchestrates everything: it starts a SQL Server container, runs EF migrations for Admin and Orchestrator, then launches all 5 services with service discovery and config wiring. No local SQL Server install required.
 
-```json
-{
-  "KernelMemory": {
-    "Services": {
-      "OpenAI": {
-        "APIKey": "your GitHub token"
-      }
-    }
-  }
-}
+Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Docker (used by Aspire to run the SQL Server container), and the `dotnet-ef` global tool:
+```bash
+dotnet tool install --global dotnet-ef
 ```
 
-- In the NTG.Agent.MCP.Server project, add your Google SearchEngineId and ApiKey
-following https://developers.google.com/custom-search/docs/tutorial/creatingcse in the secrets.json as below
+1. Create a [GitHub fine-grained personal access token](https://github.com/settings/personal-access-tokens) with **models:read** permission.
 
-```json
-{
-    "Google": {
-      "ApiKey": "<your google cse Api Key>",
-      "SearchEngineId": "<your google cse Search EngineID>"
-    }
-}
+2. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
+
+   **Helper script** — prompts for any value not already provided via env var or `.env`, auto-generates the LightRAG keys if missing, and writes everything to user-secrets:
+   ```bash
+   ./scripts/init-apphost-user-secrets.sh
+   ```
+   Resolution per value: exported env var → interactive prompt (TTY only) → `$REPO_ROOT/.env` → default. Non-interactive example (skips all prompts):
+   ```bash
+   GITHUB_TOKEN=ghp_xxx ./scripts/init-apphost-user-secrets.sh
+   ```
+   Useful flags: `--dry-run` to preview without writing, `--help` for details.
+
+   **Manual equivalent** — if you prefer not to run the script:
+   ```bash
+   cd NTG.Agent.AppHost
+   dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong!"
+   dotnet user-secrets set "Parameters:github-token"                "<your GitHub token>"
+   dotnet user-secrets set "Parameters:google-api-key"              "<google CSE api key, or placeholder>"
+   dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
+   dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"
+   dotnet user-secrets set "Parameters:lightrag-api-key"            "<32+ char random string>"
+   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for LightRAG>"
+   ```
+
+3. Run the AppHost:
+   ```bash
+   dotnet run --project NTG.Agent.AppHost
+   ```
+   Or use the dev shortcut, which also opens the Aspire dashboard in your browser
+   automatically (see [Dev shortcuts](#dev-shortcuts-ntg) below):
+   ```bash
+   ./ntg run
+   ```
+
+4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
+   - `sqlserver` — SQL Server 2022 container with a persistent volume
+   - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
+   - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
+   - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
+   - `ntg-agent-admin` — admin dashboard
+
+5. In the Admin dashboard, open **Agent Management > Agent Default** and set the GitHub Model provider using the token from step 1:
+   - Provider Name: `GitHub Model`
+   - Provider Endpoint: `https://models.github.ai/inference`
+   - Provider API Key: your GitHub token
+   - Model Name: `openai/gpt-4.1` (or another model your token supports)
+
+## Dev shortcuts (`ntg`)
+
+`./ntg` is a small launcher for the commands you run all the time, so you don't have to
+memorize or retype them. No installation required (pure bash).
+
+```bash
+./ntg            # interactive menu of available commands
+./ntg help       # list commands with descriptions
+./ntg run        # dotnet run the AppHost AND auto-open the Aspire dashboard
+./ntg ports      # show which project ports are in use
+./ntg lightrag-dashboard # pick a running agent and open its LightRAG WebUI in the browser
 ```
 
-- The default database connection string is `Server=.;Database=NTGAgent;Trusted_Connection=True;TrustServerCertificate=true;MultipleActiveResultSets=true` which connects to the local SQL server instance using Windows Authentication. If your environment is different, update the connection string in appsettings.Development.json files of three projects: NTG.Agent.Admin, NTG.Agent.Orchestrator, NTG.Agent.Knowledge
+**Adding your own shortcut** is meant to be trivial:
 
-- In the NTG.Agent.Admin project, open the terminal and run `dotnet ef database update`. Repeat the same for the NTG.Agent.Orchestrator project.
+```bash
+./ntg new <name>           # creates scripts/dev-commands/<name>.sh from a template
+# edit that file: update the "# desc:" line and add your commands
+./ntg <name>               # run it — it also shows up in `./ntg` and `./ntg help` automatically
+```
 
-- Run the NTG.Agent.AppHost, in the Aspire Dashboard you will see resource as below:
-  - NTG.Agent.WebClient is the website for end users
-  - NTG.Agent.Admin is the website for administrators. The default admin account is admin@ntgagent.com / Ntg@123
-  - NTG.Agent.Orchestrator is the backend API
-  - NTG.Agent.Knowledge is the service responsible for ingesting documents. It extracts the content of uploaded files, generates embeddings, and stores them in a vector database. It also provides an API to search for relevant documents
-
-- Open the NTG.Agent.Admin --> Agent Management --> Agent Default and update the Agent Provider with GitHub Model information that you created earlier. 
-  - Provider Name: GitHub Model
-  - Provider Endpoint: https://models.github.ai/inference
-  - Provider API Key: Your GitHub token
-  - Model Name: openai/gpt-4.1 or other model that GitHub model supports
+Each command is a standalone bash file in `scripts/dev-commands/`; the filename is the
+command name and its `# desc:` header is the menu description. Files starting with `_` are
+hidden helpers.
 
 ## Using other LLM models
 NTG Agent supports multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
@@ -83,23 +122,23 @@ The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
 To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
 Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
 
-## Long Term Memory Configuration
+## Knowledge providers
 
-The Long Term Memory (LTM) feature allows the chatbot to remember user-specific information across conversations. This feature can be controlled via configuration to manage token consumption:
+Document knowledge (upload, search, RAG) is served by a pluggable provider behind
+`IKnowledgeService` / `IKnowledgeProvisioner` (in `NTG.Agent.Common`). The Orchestrator
+selects the provider from configuration, so backends can be swapped without code changes:
 
 ```json
 {
-  "LongTermMemory": {
-    "Enabled": true,
-    "MinimumConfidenceThreshold": 0.3,
-    "MaxMemoriesToRetrieve": 20
+  "Knowledge": {
+    "Provider": "LightRag"
   }
 }
 ```
 
-- Set `Enabled: false` to disable memory extraction and retrieval, saving tokens
-- Adjust `MinimumConfidenceThreshold` to control quality of stored memories
-- Modify `MaxMemoriesToRetrieve` to balance context vs. token usage
+- `LightRag` (default) — one LightRAG container per agent, implemented in the
+  `NTG.Agent.LightRag` project. The Orchestrator only provides two small EF-backed
+  stores (agent port reservations, document ingestion status).
 
 ## Azure AI Document Intelligence Configuration (Optional)
 
