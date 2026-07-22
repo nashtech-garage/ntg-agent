@@ -21,4 +21,7 @@ paths = [
   '''\.env\.test-ntg''',
   '''bin''',
   '''obj''',
+  # EF Core migrations are generated code; seed data contains GUIDs
+  # (identity role Ids / concurrency stamps) that trip the generic-api-key rule.
+  '''Migrations/''',
 ]
