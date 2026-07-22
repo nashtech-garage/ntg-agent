@@ -48,8 +48,6 @@ public class AgentFactory : IAgentFactory
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == DefaultAgentId) ?? throw new ArgumentException($"Agent with ID '{DefaultAgentId}' not found.");
 
-        // enableThinking:false so this agent never incurs reasoning cost regardless of the
-        // default agent's configured mode.
         var chatClient = ResolveClientFactory(agentConfig.ProviderName).CreateChatClient(agentConfig, enableThinking: false);
         return new ChatClientAgent(chatClient, instructions: instructions);
     }

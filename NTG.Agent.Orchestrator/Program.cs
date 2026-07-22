@@ -89,7 +89,6 @@ builder.Services.AddDataProtection()
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
-// Chat-client factories, keyed by the agent's ProviderName. Stateless, so singletons.
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
 builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");
