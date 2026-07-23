@@ -2,6 +2,7 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -29,6 +30,7 @@ public class AgentService
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IDocumentAnalysisService _documentAnalysisService;
+    private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
@@ -41,6 +43,7 @@ public class AgentService
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
         IDocumentAnalysisService documentAnalysisService,
+        AgentAccessService agentAccessService,
         RenderableToolCapture renderableToolCapture,
         ILogger<AgentService> logger)
     {
@@ -52,6 +55,7 @@ public class AgentService
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
+        _agentAccessService = agentAccessService;
         _renderableToolCapture = renderableToolCapture;
     }
 
@@ -71,7 +75,7 @@ public class AgentService
         }
     }
 
-    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest)
+    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest, bool isAdmin = false)
     {
         var startTime = DateTime.UtcNow;
         var anonymousSessionId = Guid.Empty;
@@ -129,7 +133,7 @@ public class AgentService
         var pendingToolCalls = new Dictionary<string, (string Name, string Arguments)>();
         var toolRenderEnvelopes = new List<object>();
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin))
         {
             if (item.ContentType == PromptContentType.Thinking)
             {
@@ -364,18 +368,40 @@ public class AgentService
         List<string> tags,
         List<string> ocrDocuments,
         TokenUsageInfo tokenUsageInfo,
-        Guid? userId)
+        Guid? userId,
+        bool isAdmin = false)
     {
         if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
         {
-            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId))
+            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId, isAdmin))
             {
                 yield return new PromptResponse(response);
             }
         }
         else
         {
-            var agent = await _agentFactory.CreateAgent(promptRequest.AgentId);
+            // Build the agent up front. A misconfigured agent (e.g. no model provider
+            // selected) throws here; catch it so we can stream a friendly message
+            // instead of letting the exception corrupt the JSON response stream — a
+            // mid-stream throw surfaces on the client as a confusing deserialization
+            // error rather than the real cause.
+            AIAgent? agent = null;
+            string? configError = null;
+            try
+            {
+                agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+            }
+            catch (NotSupportedException)
+            {
+                // C# disallows yield inside a catch, so record the message and emit it below.
+                configError = "This agent has no model provider configured. Open the agent settings and select a provider, model, and API key before chatting.";
+            }
+
+            if (configError is not null)
+            {
+                yield return new PromptResponse(configError);
+                yield break;
+            }
 
             var chatHistory = new List<ChatMessage>();
 
@@ -392,9 +418,16 @@ public class AgentService
 
             AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
 
+            // The outer agent's own knowledge tool is attached per-request here; inner-agent
+            // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory
+            // (GetInnerAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
+            // CreateAgent above. Each inner agent is wrapped by AgentToolPlugin, which re-checks
+            // access at call time and scopes the child to its own LightRAG workspace.
+            var tools = new List<AITool> { memorySearch };
+
             var chatOptions = new ChatOptions
             {
-                Tools = [memorySearch]
+                Tools = tools
             };
 
             // AG-UI frontend tools: declared to the LLM but executed in the browser.
@@ -479,11 +512,12 @@ public class AgentService
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
         List<string> tags,
-        Guid? userId)
+        Guid? userId,
+        bool isAdmin = false)
     {
-        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId);
-        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA")); // Gemini Agent ID
-        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F")); // Azure OpenAI Agent ID
+        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA"), userId, isAdmin); // Gemini Agent ID
+        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F"), userId, isAdmin); // Azure OpenAI Agent ID
         
         // Suppress MAAIW001 as CreateHandoffBuilderWith is marked for evaluation purposes
         #pragma warning disable MAAIW001

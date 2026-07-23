@@ -374,6 +374,9 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
+# Playwright MCP run artifacts (snapshots, console logs)
+.playwright-mcp/
+
 # Language service cache files
 *.lscache
 

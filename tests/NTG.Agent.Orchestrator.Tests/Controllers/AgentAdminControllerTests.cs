@@ -18,6 +18,7 @@ public class AgentAdminControllerTests
 {
     private AgentDbContext _context;
     private AgentAdminController _controller;
+    private AgentAccessService _accessService;
     private Guid _testUserId;
     private Guid _testAdminUserId;
     private Mock<IAgentFactory> _mockAgentFactory;
@@ -31,6 +32,7 @@ public class AgentAdminControllerTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _context = new AgentDbContext(options);
+        _accessService = new AgentAccessService(_context);
         _testUserId = Guid.NewGuid();
         _testAdminUserId = Guid.NewGuid();
         _mockAgentFactory = new();
@@ -47,7 +49,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -64,13 +66,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -196,7 +198,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -220,7 +222,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -523,7 +525,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -548,7 +550,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -743,7 +745,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {

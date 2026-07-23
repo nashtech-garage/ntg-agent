@@ -7,6 +7,8 @@ using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
+using NTG.Agent.Orchestrator.Models.Agents;
+using NTG.Agent.Common.Dtos.Tags;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 
@@ -20,12 +22,15 @@ public class AgentAdminController : ControllerBase
     private readonly IKnowledgeProvisioner _knowledgeProvisioner;
     private readonly IKnowledgeService _knowledgeService;
     private readonly ILogger<AgentAdminController> _logger;
+    private readonly AgentAccessService _agentAccessService;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
         IKnowledgeProvisioner knowledgeProvisioner,
         IKnowledgeService knowledgeService,
-        ILogger<AgentAdminController> logger
+        ILogger<AgentAdminController> logger,
+        AgentAccessService agentAccessService
+
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
@@ -33,6 +38,7 @@ public class AgentAdminController : ControllerBase
         _knowledgeProvisioner = knowledgeProvisioner ?? throw new ArgumentNullException(nameof(knowledgeProvisioner));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
     }
 
     /// <summary>
@@ -341,6 +347,107 @@ public class AgentAdminController : ControllerBase
 
         return Ok(new { message = $"Agent successfully {(isPublished ? "published" : "unpublished")}.", isPublished = agent.IsPublished });
     }
+
+    /// <summary>
+    /// Lists all role grants for a specific agent.
+    /// </summary>
+    [HttpGet("{agentId}/access")]
+    public async Task<IActionResult> GetAgentAccess(Guid agentId)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(agentId);
+        if (agent == null) return NotFound($"Agent with ID '{agentId}' not found.");
+
+        var grants = await _agentDbContext.AgentRoles
+            .Where(ar => ar.AgentId == agentId)
+            .Join(_agentDbContext.Roles,
+                ar => ar.RoleId,
+                r => r.Id,
+                (ar, r) => new AgentRoleGrantDto(ar.RoleId, r.Name, ar.CreatedAt))
+            .ToListAsync();
+
+        return Ok(grants);
+    }
+
+    /// <summary>
+    /// Grants a role access to an agent. Idempotent: returns 200 with existing grant if already exists.
+    /// </summary>
+    [HttpPost("{agentId}/access")]
+    public async Task<IActionResult> GrantAgentAccess(Guid agentId, [FromBody] GrantAgentAccessRequest request)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(agentId);
+        if (agent == null) return NotFound($"Agent with ID '{agentId}' not found.");
+
+        var roleExists = await _agentDbContext.Roles.AnyAsync(r => r.Id == request.RoleId);
+        if (!roleExists) return BadRequest($"Role with ID '{request.RoleId}' not found.");
+
+        var existingGrant = await _agentDbContext.AgentRoles
+            .FirstOrDefaultAsync(ar => ar.AgentId == agentId && ar.RoleId == request.RoleId);
+
+        if (existingGrant != null)
+        {
+            var existingRole = await _agentDbContext.Roles.FirstAsync(r => r.Id == request.RoleId);
+            return Ok(new AgentRoleGrantDto(existingGrant.RoleId, existingRole.Name, existingGrant.CreatedAt));
+        }
+
+        var grant = new AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agentId,
+            RoleId = request.RoleId
+        };
+
+        _agentDbContext.AgentRoles.Add(grant);
+
+        try
+        {
+            await _agentDbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Race condition: another request inserted the same row
+            var existing = await _agentDbContext.AgentRoles
+                .FirstOrDefaultAsync(ar => ar.AgentId == agentId && ar.RoleId == request.RoleId);
+            var existingRole = await _agentDbContext.Roles.FirstAsync(r => r.Id == request.RoleId);
+            return Ok(new AgentRoleGrantDto(existing!.RoleId, existingRole.Name, existing!.CreatedAt));
+        }
+
+        var role = await _agentDbContext.Roles.FirstAsync(r => r.Id == request.RoleId);
+        return Ok(new AgentRoleGrantDto(grant.RoleId, role.Name, grant.CreatedAt));
+    }
+
+    /// <summary>
+    /// Revokes a role's access to an agent. Idempotent: returns 204 whether or not the grant existed.
+    /// </summary>
+    [HttpDelete("{agentId}/access/{roleId}")]
+    public async Task<IActionResult> RevokeAgentAccess(Guid agentId, Guid roleId)
+    {
+        var agent = await _agentDbContext.Agents.FindAsync(agentId);
+        if (agent == null) return NotFound($"Agent with ID '{agentId}' not found.");
+
+        var grant = await _agentDbContext.AgentRoles
+            .FirstOrDefaultAsync(ar => ar.AgentId == agentId && ar.RoleId == roleId);
+
+        if (grant != null)
+        {
+            _agentDbContext.AgentRoles.Remove(grant);
+            await _agentDbContext.SaveChangesAsync();
+        }
+
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Lists all available roles for access management.
+    /// </summary>
+    [HttpGet("roles")]
+    public async Task<IActionResult> GetRoles()
+    {
+        var roles = await _agentDbContext.Roles
+            .Select(r => new RoleDto(r.Id, r.Name))
+            .ToListAsync();
+        return Ok(roles);
+    }
+
 
     /// <summary>
     /// Deletes the agent with the specified identifier.

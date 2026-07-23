@@ -15,10 +15,12 @@ public class AgentsController : ControllerBase
 {
     private readonly AgentService _agentService;
     private readonly AgentDbContext _agentDbContext;
-    public AgentsController(AgentService agentService, AgentDbContext agentDbContext)
+    private readonly AgentAccessService _agentAccessService;
+    public AgentsController(AgentService agentService, AgentDbContext agentDbContext, AgentAccessService agentAccessService)
     {
         _agentService = agentService ?? throw new ArgumentNullException(nameof(agentService));
         _agentDbContext = agentDbContext;
+        _agentAccessService = agentAccessService;
     }
 
     /// <summary>
@@ -33,7 +35,13 @@ public class AgentsController : ControllerBase
     public async IAsyncEnumerable<PromptResponse> ChatAsync([FromForm] PromptRequestForm promptRequest)
     {
         Guid? userId = User.GetUserId();
-        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest))
+        bool isAdmin = User.IsInRole("Admin");
+        if (!await _agentAccessService.HasAccessAsync(promptRequest.AgentId, userId, isAdmin))
+        {
+            yield return new PromptResponse("You do not have access to this agent.", PromptContentType.Text);
+            yield break;
+        }
+        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest, isAdmin))
         {
             yield return response;
         }
@@ -50,8 +58,10 @@ public class AgentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAgents()
     {
-        var agents = await _agentDbContext.Agents
-            .Where(a => a.IsPublished && a.AgentKind == AgentKind.Outer)
+        Guid? userId = User.GetUserId();
+        bool isAdmin = User.IsInRole("Admin");
+        var agents = await _agentAccessService.AccessibleAgentsQuery(userId, isAdmin)
+            .Where(a => a.AgentKind == AgentKind.Outer)
             .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);

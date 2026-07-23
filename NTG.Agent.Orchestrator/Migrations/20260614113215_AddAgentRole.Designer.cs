@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260614113215_AddAgentRole")]
+    partial class AddAgentRole
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -27,9 +30,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("AgentKind")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -99,7 +99,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                         new
                         {
                             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
-                            AgentKind = 0,
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
                             IsDefault = true,
@@ -142,30 +141,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .IsUnique();
 
                     b.ToTable("AgentRoles");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>
-                {
-                    b.Property<Guid>("OuterAgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("InnerAgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("OuterAgentId", "InnerAgentId");
-
-                    b.HasIndex("InnerAgentId");
-
-                    b.ToTable("AgentInnerAgents");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
@@ -814,25 +789,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Agent");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentInnerAgent", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "InnerAgent")
-                        .WithMany("OuterAgentBindings")
-                        .HasForeignKey("InnerAgentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "OuterAgent")
-                        .WithMany("InnerAgentBindings")
-                        .HasForeignKey("OuterAgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("InnerAgent");
-
-                    b.Navigation("OuterAgent");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
@@ -915,10 +871,6 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Agent", b =>
                 {
                     b.Navigation("AgentTools");
-
-                    b.Navigation("InnerAgentBindings");
-
-                    b.Navigation("OuterAgentBindings");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>

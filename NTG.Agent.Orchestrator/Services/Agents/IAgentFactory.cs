@@ -7,6 +7,7 @@ public interface IAgentFactory
     string ToolContext { get; set; }
 
     Task<AIAgent> CreateAgent(Guid agentId);
+    Task<AIAgent> CreateAgent(Guid agentId, Guid? userId, bool isAdmin);
     Task<AIAgent> CreateBasicAgent(string instructions);
     Task<List<AITool>> GetAvailableTools(Models.Agents.Agent agent);
     Task<IEnumerable<AITool>> GetMcpToolsAsync(string endpoint);
