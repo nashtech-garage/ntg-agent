@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Knowledge;
@@ -32,7 +33,8 @@ public class AgentFactoryTests
             _context,
             new Mock<IKnowledgeService>().Object,
             new AgentAccessService(_context),
-            new RenderableToolCapture());
+            new RenderableToolCapture(),
+            new ServiceCollection().BuildServiceProvider());
 
         _userId = Guid.NewGuid();
         _roleId = Guid.NewGuid();
