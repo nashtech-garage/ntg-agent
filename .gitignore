@@ -377,4 +377,8 @@ FodyWeavers.xsd
 # Language service cache files
 *.lscache
 
+# Local environment files (contain secrets — never commit)
+.env
+.env.example
+
 .claude/
