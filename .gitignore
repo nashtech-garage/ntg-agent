@@ -367,4 +367,8 @@ FodyWeavers.xsd
 # C# Dev Kit / Roslyn language server cache
 *.lscache
 
-.slim/deepwork/
+# Local-only environment and setup files
+.env
+setup-secrets.sh
+start-local.sh
+local-appsettings-setup.md
