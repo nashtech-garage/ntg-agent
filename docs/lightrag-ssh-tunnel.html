@@ -30,6 +30,14 @@
 <body>
   <h1>LightRAG over an SSH tunnel — architecture</h1>
 
+  <p class="note"><strong>Superseded — kept as a fallback reference.</strong> The stack now
+  reaches the VM directly over TLS (Docker on <code>:2376</code> with a client certificate,
+  the agent containers and Postgres over their own TLS listeners). See
+  <code>deploy/lightrag-postgres/README.md</code> for the current setup. This document remains
+  because the tunnel is still the answer when NSG ports cannot be opened — the
+  <code>LightRag:SocksProxy</code> setting is retained in the code for exactly that case — but it
+  no longer describes how the system is deployed.</p>
+
   <p>The <strong>SSH-tunnel</strong> connectivity option for relocating LightRAG and its
   Postgres to the Azure Ubuntu VM, for the case where we <strong>cannot open an Azure NSG
   port</strong> but already have working SSH access.</p>

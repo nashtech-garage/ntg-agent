@@ -12,12 +12,16 @@ var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
 // hcm resource exposes one key for chat + embeddings).
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 
-// LightRAG + its Postgres can live on a dedicated Ubuntu server reached over an SSH tunnel.
-// All three default to empty = plain local run (local Docker socket, localhost:5432);
-// set them in user-secrets to target the remote host instead.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);      // e.g. tcp://localhost:2375 (ssh -L)
-var lightragSocksProxy = builder.AddParameter("lightrag-socks-proxy", secret: true);      // e.g. socks5://localhost:1080 (ssh -D)
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true); // 55432 over the tunnel
+// LightRAG + its Postgres live on a dedicated Ubuntu server reached directly over TLS.
+// All default to empty = plain local run (local Docker socket, localhost:5432); set them
+// in user-secrets to target the remote host instead.
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);          // e.g. https://4.193.109.6:2376
+var lightragCertPath = builder.AddParameter("lightrag-docker-cert-path", secret: true);       // path to client.pfx
+var lightragCertPassword = builder.AddParameter("lightrag-docker-cert-password", secret: true);
+var lightragServerHost = builder.AddParameter("lightrag-server-host", secret: true);          // e.g. 4.193.109.6
+var lightragCertDirectory = builder.AddParameter("lightrag-server-cert-dir", secret: true);   // e.g. /home/ntgagent/docker-certs
+var lightragPortBindIp = builder.AddParameter("lightrag-port-bind-host-ip", secret: true);    // 0.0.0.0 remote; empty => 127.0.0.1
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);      // 5432 direct
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest")
@@ -78,11 +82,17 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__PostgresHostAlias", "lightrag-postgres")
 	.WithEnvironment("LightRag__PostgresPassword", pgPassword)
 	.WithEnvironment("LightRag__PostgresDatabase", "uploaded-documents")
-	// Remote Ubuntu server (over the SSH tunnel): drive its Docker daemon via the
-	// forwarded socket and reach the per-agent container ports through the SOCKS proxy.
-	// Both default to empty for a plain local run.
+	// Remote Ubuntu server, reached directly over TLS: the Docker daemon on :2376 with a
+	// client certificate, and each per-agent container's HTTPS port on ServerHost. Containers
+	// publish on 0.0.0.0 so they are dialable; inbound access is gated by the Azure NSG rules.
+	// ServerCertDirectory is a path on the SERVER — mounted read-only into every container so
+	// LightRAG can serve HTTPS. All default to empty for a plain local run.
 	.WithEnvironment("LightRag__DockerHost", lightragDockerHost)
-	.WithEnvironment("LightRag__SocksProxy", lightragSocksProxy)
+	.WithEnvironment("LightRag__DockerCertPath", lightragCertPath)
+	.WithEnvironment("LightRag__DockerCertPassword", lightragCertPassword)
+	.WithEnvironment("LightRag__ServerHost", lightragServerHost)
+	.WithEnvironment("LightRag__PortBindHostIp", lightragPortBindIp)
+	.WithEnvironment("LightRag__ServerCertDirectory", lightragCertDirectory)
 	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
 	.WithEnvironment("LightRag__LlmModel", "gpt-5.1")
 	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-hcm--resource.openai.azure.com/")

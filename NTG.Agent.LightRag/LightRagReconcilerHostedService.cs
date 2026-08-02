@@ -35,15 +35,16 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
     {
         try
         {
-            // The daemon is reached over an SSH tunnel; if the app booted before the tunnel was
-            // up the daemon is momentarily unreachable. Wait for it (up to the budget) instead of
+            // The daemon is remote, so it can be momentarily unreachable at boot — a restarting
+            // server, or a firewall rule not yet applied. Wait for it (up to the budget) instead of
             // failing on the single startup attempt — otherwise no containers are reconciled until
             // a full app restart. Give up with a clear failure once the budget expires.
             if (!await WaitForDaemonAsync(stoppingToken))
             {
                 _logger.LogError(
                     "LightRAG reconciler: Docker daemon at '{DockerHost}' still unreachable after {Timeout}s — " +
-                    "is the SSH tunnel (ssh -L 2375:/var/run/docker.sock) up? Skipping startup reconciliation; " +
+                    "check the server is up, that inbound 2376 is allowed from this machine, and that the " +
+                    "client certificate is valid. Skipping startup reconciliation; " +
                     "containers will be provisioned on demand once the daemon is reachable.",
                     string.IsNullOrWhiteSpace(_settings.DockerHost) ? "local socket" : _settings.DockerHost,
                     Math.Max(1, _settings.DaemonProbeTimeoutSeconds));

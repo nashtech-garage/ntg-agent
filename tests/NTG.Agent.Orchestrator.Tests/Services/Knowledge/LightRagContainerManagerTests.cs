@@ -116,6 +116,56 @@ public class LightRagContainerManagerTests
     }
 
     [Test]
+    public async Task EnsureContainerAsync_WhenCertDirectoryConfigured_MountsCertsAndEnablesSsl()
+    {
+        // LightRAG terminates TLS itself, so each container needs the SSL_* vars plus a
+        // read-only mount of the cert directory the paths resolve against.
+        var (docker, containers) = BuildDocker([PgContainer()]);
+        containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CreateContainerResponse { ID = "new" });
+        containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
+
+        var settings = new LightRagSettings { ServerCertDirectory = "/home/ntgagent/docker-certs" };
+        var manager = NewManager(docker.Object, settings);
+
+        await manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort);
+
+        containers.Verify(c => c.CreateContainerAsync(
+            It.Is<CreateContainerParameters>(p =>
+                p.Env.Contains("SSL=true")
+                && p.Env.Contains("SSL_CERTFILE=/certs/server-cert.pem")
+                && p.Env.Contains("SSL_KEYFILE=/certs/server-key.pem")
+                && p.HostConfig.Binds.Contains("/home/ntgagent/docker-certs:/certs:ro")),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task EnsureContainerAsync_WhenNoCertDirectory_ServesPlainHttpWithoutMounts()
+    {
+        // The all-local path: no certificate configured, so no mount and no SSL vars.
+        var (docker, containers) = BuildDocker([PgContainer()]);
+        containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CreateContainerResponse { ID = "new" });
+        containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
+
+        var manager = NewManager(docker.Object);
+
+        await manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort);
+
+        containers.Verify(c => c.CreateContainerAsync(
+            It.Is<CreateContainerParameters>(p =>
+                !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))
+                && p.HostConfig.Binds == null),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
     public void EnsureContainerAsync_ThrowsPortReservationConflict_AndRemovesContainer_OnPortConflict()
     {
         var (docker, containers) = BuildDocker([PgContainer()]);

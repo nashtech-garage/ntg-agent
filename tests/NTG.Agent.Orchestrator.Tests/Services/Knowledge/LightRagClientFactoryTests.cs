@@ -59,9 +59,9 @@ public class LightRagClientFactoryTests
         _db.Dispose();
     }
 
-    private LightRagClientFactory NewFactory() =>
+    private LightRagClientFactory NewFactory(LightRagSettings? settings = null) =>
         new(new LightRagEfAgentPortStore(_db), _httpFactory.Object, _provisioner.Object, _healthProbe.Object,
-            new LightRagContainerAccessTracker(), Options.Create(new LightRagSettings()), NullLoggerFactory.Instance);
+            new LightRagContainerAccessTracker(), Options.Create(settings ?? new LightRagSettings()), NullLoggerFactory.Instance);
 
     private async Task<Guid> SeedAgentAsync(int? port)
     {
@@ -80,7 +80,7 @@ public class LightRagClientFactoryTests
         await factory.GetClientAsync(agentId);
 
         _provisioner.Verify(p => p.ProvisionAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:{ReservedPort}")));
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"https://localhost:{ReservedPort}")));
     }
 
     [Test]
@@ -95,7 +95,20 @@ public class LightRagClientFactoryTests
         await factory.GetClientAsync(agentId);
 
         _provisioner.Verify(p => p.ProvisionAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:{ReservedPort}")));
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"https://localhost:{ReservedPort}")));
+    }
+
+    [Test]
+    public async Task GetClientAsync_WhenServerHostConfigured_TargetsThatHostOverHttps()
+    {
+        // The remote server is dialled directly over TLS, so the configured host must reach the
+        // client rather than the "localhost" fallback that the SSH-tunnel setup relied on.
+        var agentId = await SeedAgentAsync(port: null);
+        var factory = NewFactory(new LightRagSettings { ServerHost = "4.193.109.6" });
+
+        await factory.GetClientAsync(agentId);
+
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"https://4.193.109.6:{ReservedPort}")));
     }
 
     [Test]

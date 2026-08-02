@@ -64,10 +64,10 @@ public sealed class LightRagClientFactory
         }
 
         // Named client inherits the standard resilience handler with the LightRAGClient
-        // overrides (2-min attempt timeout, no retries) and the SOCKS proxy configured in
-        // AddLightRagKnowledge (so the container is reached through the SSH tunnel when set).
+        // overrides (2-min attempt timeout, no retries) and the TLS settings configured in
+        // AddLightRagKnowledge (the container's certificate is accepted unvalidated).
         var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-        http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
+        http.BaseAddress = new Uri($"https://{ResolveHost()}:{port}");
         if (!string.IsNullOrEmpty(_settings.ApiKey))
             http.DefaultRequestHeaders.Add("X-API-Key", _settings.ApiKey);
 

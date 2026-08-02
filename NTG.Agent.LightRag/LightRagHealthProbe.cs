@@ -28,7 +28,7 @@ public sealed class LightRagHealthProbe : ILightRagHealthProbe
         try
         {
             var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-            http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
+            http.BaseAddress = new Uri($"https://{ResolveHost()}:{port}");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(ProbeTimeout);
             using var _ = await http.GetAsync("health", HttpCompletionOption.ResponseHeadersRead, cts.Token);

@@ -41,8 +41,12 @@ public sealed class LightRagPgPortReservationStore : ILightRagPortReservationSto
     private string BuildConnectionString()
     {
         var host = string.IsNullOrWhiteSpace(_settings.PostgresHost) ? _settings.ServerHost : _settings.PostgresHost;
+        // TLS in transit; the server certificate is signed by a private CA we hold no root for,
+        // so it is accepted unvalidated (encrypted, server unauthenticated) — matching the
+        // Docker and LightRAG channels. Inbound access is gated by the cloud firewall.
         return $"Host={host};Port={_settings.PostgresPort};Username=postgres;" +
-               $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase}";
+               $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase};" +
+               "SSL Mode=Require;Trust Server Certificate=true";
     }
 
     private async Task<NpgsqlConnection> OpenAsync(CancellationToken ct)

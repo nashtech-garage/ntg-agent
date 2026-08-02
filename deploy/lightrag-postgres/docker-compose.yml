@@ -2,14 +2,25 @@
 #
 # This replaces the `lightrag-postgres` resource that used to live in the .NET
 # AppHost. It runs on the dedicated Ubuntu server and is reached by the
-# Orchestrator over an SSH tunnel (`ssh -L 5432:127.0.0.1:5432`). It reuses the
-# existing image and init SQL:
+# Orchestrator directly over TLS on 5432. It reuses the existing image and init SQL:
 #   build context: ../../scripts/lightrag-postgres  (pgvector + Apache AGE image)
 #   init scripts:  ../../scripts/lightrag-pg-init    (creates DB + extensions)
 #
 # Usage on the server:
-#   cp .env.example .env        # then set POSTGRES_PASSWORD
+#   cp .env.example .env        # then set POSTGRES_PASSWORD and PG_CERT_DIR
 #   docker compose up -d
+#
+# TLS: Postgres refuses to start if its key file is group/world readable or is not
+# owned by the user the server runs as (uid 999 in this image). The certificates in
+# ~/docker-certs are owned by the SSH user, so stage a copy for Postgres first:
+#
+#   mkdir -p ~/docker-certs/pg
+#   cp ~/docker-certs/server-cert.pem ~/docker-certs/server-key.pem ~/docker-certs/pg/
+#   sudo chown 999:999 ~/docker-certs/pg/*
+#   sudo chmod 600 ~/docker-certs/pg/server-key.pem
+#
+# `ssl=on` is additive: pg_hba.conf keeps its default `host ... scram-sha-256` rules, so
+# the per-agent containers reaching Postgres over the Docker bridge are unaffected.
 #
 # The container is deliberately named "lightrag-postgres" so the Orchestrator's
 # LightRagContainerManager can find it by name and attach it to the
@@ -27,15 +38,22 @@ services:
       # Must match the Orchestrator's LightRag__PostgresPassword (the
       # `lightrag-pg-password` AppHost parameter).
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    # Serve TLS. The Orchestrator connects with `SSL Mode=Require`
+    command: >
+      -c ssl=on
+      -c ssl_cert_file=/certs/server-cert.pem
+      -c ssl_key_file=/certs/server-key.pem
     ports:
-      # Publish ONLY on the server's loopback; the Orchestrator reaches it via an
-      # `ssh -L 5432:127.0.0.1:5432` forward — never on a public NIC.
-      - "127.0.0.1:5432:5432"
+      # Published on all interfaces so the Orchestrator can reach it directly. Inbound
+      # access is restricted to the team's source IPs by the Azure's NSG rules.
+      - "5432:5432"
     volumes:
       - lightrag-postgres-data:/var/lib/postgresql/data
       # First-init scripts: create the `uploaded-documents` DB and the
       # vector + age extensions. Run only when the data volume is empty.
       - ../../scripts/lightrag-pg-init:/docker-entrypoint-initdb.d:ro
+      # Staged certificate copy, owned by uid 999 (see the header note).
+      - ${PG_CERT_DIR:?set PG_CERT_DIR in .env}:/certs:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s

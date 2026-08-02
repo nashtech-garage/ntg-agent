@@ -58,7 +58,13 @@ Sets NTG.Agent.AppHost user secrets. Per value:
 Env/.env keys: GITHUB_TOKEN,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
-LIGHTRAG_EMBEDDING_API_KEY.
+LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
+LIGHTRAG_SERVER_HOST, LIGHTRAG_SERVER_CERT_DIR, LIGHTRAG_PORT_BIND_HOST_IP,
+LIGHTRAG_POSTGRES_PORT.
+
+Leave the LIGHTRAG_DOCKER_* / LIGHTRAG_SERVER_* values empty for a plain
+all-local run against the local Docker socket.
 EOF
 }
 
@@ -247,12 +253,85 @@ if [[ -z "$LIGHTRAG_EMBEDDING_API_KEY" ]]; then
   exit 1
 fi
 
+# --- Remote LightRAG server (TLS) -------------------------------------------------
+# All optional: leave every value empty for a plain all-local run against the local
+# Docker socket. Set them to drive the dedicated Ubuntu server over TLS instead.
+
+resolve_field LIGHTRAG_DOCKER_HOST \
+  "Remote Docker daemon URL (e.g. https://4.193.109.6:2376) [Enter to skip]: " \
+  0 \
+  "LIGHTRAG_DOCKER_HOST" \
+  "LIGHTRAG_DOCKER_HOST" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_DOCKER_CERT_PATH \
+  "Path to the Docker client certificate (client.pfx) [Enter to skip]: " \
+  0 \
+  "LIGHTRAG_DOCKER_CERT_PATH" \
+  "LIGHTRAG_DOCKER_CERT_PATH" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_DOCKER_CERT_PASSWORD \
+  "Password for that client certificate [Enter to skip]: " \
+  1 \
+  "LIGHTRAG_DOCKER_CERT_PASSWORD" \
+  "LIGHTRAG_DOCKER_CERT_PASSWORD" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_SERVER_HOST \
+  "LightRAG server host (e.g. 4.193.109.6) [Enter to skip]: " \
+  0 \
+  "LIGHTRAG_SERVER_HOST" \
+  "LIGHTRAG_SERVER_HOST" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_SERVER_CERT_DIR \
+  "Cert directory ON THE SERVER, mounted into containers [Enter to skip]: " \
+  0 \
+  "LIGHTRAG_SERVER_CERT_DIR" \
+  "LIGHTRAG_SERVER_CERT_DIR" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_PORT_BIND_HOST_IP \
+  "IP the agent containers publish on (0.0.0.0 remote) [Enter for 127.0.0.1]: " \
+  0 \
+  "LIGHTRAG_PORT_BIND_HOST_IP" \
+  "LIGHTRAG_PORT_BIND_HOST_IP" \
+  "__EMPTY__"
+
+resolve_field LIGHTRAG_POSTGRES_PORT \
+  "LightRAG Postgres port [Enter for 5432]: " \
+  0 \
+  "LIGHTRAG_POSTGRES_PORT" \
+  "LIGHTRAG_POSTGRES_PORT" \
+  "5432"
+
+# A cert path is useless without the daemon URL and vice versa — fail early rather than
+# letting the Orchestrator start and throw on the first container operation.
+if [[ -n "$LIGHTRAG_DOCKER_HOST" && -z "$LIGHTRAG_DOCKER_CERT_PATH" ]]; then
+  echo "error: LIGHTRAG_DOCKER_HOST is set but LIGHTRAG_DOCKER_CERT_PATH is empty." >&2
+  echo "The remote daemon runs with tlsverify and requires a client certificate." >&2
+  exit 1
+fi
+
+if [[ -n "$LIGHTRAG_DOCKER_CERT_PATH" && ! -f "$LIGHTRAG_DOCKER_CERT_PATH" ]]; then
+  echo "error: client certificate not found at '$LIGHTRAG_DOCKER_CERT_PATH'." >&2
+  exit 1
+fi
+
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
 set_secret "Parameters:lightrag-embedding-api-key" "$LIGHTRAG_EMBEDDING_API_KEY"
+set_secret "Parameters:lightrag-docker-host" "$LIGHTRAG_DOCKER_HOST"
+set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
+set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"
+set_secret "Parameters:lightrag-server-host" "$LIGHTRAG_SERVER_HOST"
+set_secret "Parameters:lightrag-server-cert-dir" "$LIGHTRAG_SERVER_CERT_DIR"
+set_secret "Parameters:lightrag-port-bind-host-ip" "$LIGHTRAG_PORT_BIND_HOST_IP"
+set_secret "Parameters:lightrag-postgres-port" "$LIGHTRAG_POSTGRES_PORT"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Dry run finished; no secrets were written."

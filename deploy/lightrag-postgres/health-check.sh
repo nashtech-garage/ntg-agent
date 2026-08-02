@@ -2,11 +2,11 @@
 # desc: On-server health check for the LightRAG Ubuntu VM (OS + Docker + Postgres)
 #
 # Run this ON the dedicated Azure Ubuntu VM (ntgagent@4.193.109.6), not on the
-# Mac — it inspects OS-level resources (disk/memory/OOM) that the SSH tunnel can't
-# see, plus the Docker daemon, the lightrag-postgres + lightrag-agent-* containers,
-# and Postgres itself.
+# Mac — it inspects OS-level resources (disk/memory/OOM) that the remote Docker API
+# doesn't expose, plus the Docker daemon, the lightrag-postgres + lightrag-agent-*
+# containers, and Postgres itself.
 #
-#   ssh -i ~/.ssh/ntg-vm ntgagent@4.193.109.6
+#   ssh ntgagent@4.193.109.6
 #   cd ntg-agent/deploy/lightrag-postgres && ./health-check.sh
 #
 # It is read-only: it changes nothing, and every check degrades gracefully so a

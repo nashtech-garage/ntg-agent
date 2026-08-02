@@ -331,7 +331,33 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         return SharedNetwork;
     }
 
-    private List<string> BuildEnv(Guid agentId) =>
+    private List<string> BuildEnv(Guid agentId)
+    {
+        var env = BuildBaseEnv(agentId);
+
+        // LightRAG's API server terminates TLS itself when handed these three vars, so each
+        // container serves HTTPS directly on its published port — no reverse proxy involved.
+        // The files come from the read-only mount configured in BuildCertBinds.
+        if (!string.IsNullOrWhiteSpace(_settings.ServerCertDirectory))
+        {
+            var mount = _settings.CertMountPath.TrimEnd('/');
+            env.Add("SSL=true");
+            env.Add($"SSL_CERTFILE={mount}/{_settings.ServerCertFileName}");
+            env.Add($"SSL_KEYFILE={mount}/{_settings.ServerKeyFileName}");
+        }
+
+        return env;
+    }
+
+    // Bind-mounts the server's certificate directory read-only, so LightRAG can read the cert
+    // and key named by SSL_CERTFILE / SSL_KEYFILE. Null when TLS is not configured — Docker
+    // treats an empty Binds list and null alike, but null keeps the container spec clean.
+    private IList<string>? BuildCertBinds() =>
+        string.IsNullOrWhiteSpace(_settings.ServerCertDirectory)
+            ? null
+            : [$"{_settings.ServerCertDirectory.TrimEnd('/')}:{_settings.CertMountPath.TrimEnd('/')}:ro"];
+
+    private List<string> BuildBaseEnv(Guid agentId) =>
     [
         "LIGHTRAG_KV_STORAGE=PGKVStorage",
         "LIGHTRAG_VECTOR_STORAGE=PGVectorStorage",
@@ -424,8 +450,8 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                 NetworkMode = network,
                 PortBindings = new Dictionary<string, IList<PortBinding>>
                 {
-                    // Publish on the server's loopback (PortBindHostIp) so the Orchestrator
-                    // reaches it through the SSH SOCKS proxy, never on a public interface.
+                    // Published on PortBindHostIp — "0.0.0.0" so the Orchestrator can dial the
+                    // port directly over TLS, with inbound access gated by the cloud firewall.
                     [ContainerPort] = new List<PortBinding>
                     {
                         new()
@@ -435,6 +461,9 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
                         }
                     }
                 },
+                // Read-only mount of the server's TLS certificate + key, which LightRAG serves
+                // HTTPS with (see the SSL_* vars in BuildEnv). Empty => no mount, plain HTTP.
+                Binds = BuildCertBinds(),
                 RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
             },
             // Explicitly attach to the shared network at creation. Relying on NetworkMode
@@ -457,6 +486,9 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         "EMBEDDING_DIM", "EMBEDDING_SEND_DIM", "EMBEDDING_MODEL", "EMBEDDING_BINDING_HOST",
         "CHUNK_SIZE", "CHUNK_OVERLAP_SIZE", "MAX_ASYNC", "MAX_PARALLEL_INSERT",
         "LLM_MODEL", "LLM_BINDING_HOST",
+        // Tracked so switching a container between HTTP and HTTPS forces a recreate — the
+        // Orchestrator dials https:// unconditionally, so a stale plain-HTTP container is unusable.
+        "SSL", "SSL_CERTFILE", "SSL_KEYFILE",
     ];
 
     // Returns the set of env key names where current and desired values differ.
@@ -483,13 +515,13 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     private async Task ResetVectorSchemaAsync(Guid agentId, CancellationToken ct)
     {
         var workspace = Workspace(agentId);
-        // The standalone server Postgres publishes 5432 on the server loopback (reached via
-        // an ssh -L forward), so the endpoint is configured (PostgresHost/PostgresPort),
-        // not discovered from the daemon.
+        // The standalone server Postgres is reached directly over TLS, so the endpoint is
+        // configured (PostgresHost/PostgresPort), not discovered from the daemon.
         var pgHost = string.IsNullOrWhiteSpace(_settings.PostgresHost) ? _settings.ServerHost : _settings.PostgresHost;
         var pgEndpoint = $"{pgHost}:{_settings.PostgresPort}";
         var connStr = $"Host={pgHost};Port={_settings.PostgresPort};Username=postgres;" +
-                      $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase}";
+                      $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase};" +
+                      "SSL Mode=Require;Trust Server Certificate=true";
         try
         {
             await using var conn = new NpgsqlConnection(connStr);
