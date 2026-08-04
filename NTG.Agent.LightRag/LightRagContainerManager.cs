@@ -407,9 +407,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         "SSL",
     ];
 
-    // Returns the set of env key names where current and desired values differ — including
-    // tracked keys only the running container carries (e.g. a stale SSL=true from before the
-    // gateway, which would make it serve HTTPS the gateway cannot proxy).
+    // Returns the set of env key names where current and desired values differ. Only keys in
+    // the DESIRED env are compared generally: inspect.Config.Env also carries keys baked into
+    // the image via Dockerfile ENV, and counting those as drift would force a recreate on
+    // every ensure (a recreate cannot remove an image-baked key, so it would loop forever).
+    // One exception: a stale SSL=true only the container carries makes it serve HTTPS the
+    // gateway cannot proxy, so it forces a recreate; SSL=false is inert and ignored.
     private static HashSet<string> FindEnvDrift(IList<string> current, IList<string> desired)
     {
         static Dictionary<string, string> Parse(IEnumerable<string> envList) =>
@@ -422,12 +425,14 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         var cur = Parse(current);
         var des = Parse(desired);
         var drifted = new HashSet<string>();
-        foreach (var key in cur.Keys.Union(des.Keys))
+        foreach (var (key, desiredVal) in des)
         {
-            if (!cur.TryGetValue(key, out var currentVal) || !des.TryGetValue(key, out var desiredVal)
-                || currentVal != desiredVal)
+            if (!cur.TryGetValue(key, out var currentVal) || currentVal != desiredVal)
                 drifted.Add(key);
         }
+        if (!des.ContainsKey("SSL") && cur.TryGetValue("SSL", out var ssl)
+            && ssl.Equals("true", StringComparison.OrdinalIgnoreCase))
+            drifted.Add("SSL");
         return drifted;
     }
 
@@ -441,11 +446,13 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
             : !string.IsNullOrWhiteSpace(_settings.ServerHost) ? _settings.ServerHost
             : "localhost";
         var pgEndpoint = $"{pgHost}:{_settings.PostgresPort}";
-        // Prefer: TLS when the server offers it (the remote Postgres), plaintext against a
-        // local Postgres without ssl=on. Certificate validation (VerifyCA) is a follow-up.
+        // Prefer would silently send the password in cleartext if a remote server's TLS were
+        // ever misconfigured off, so it is only acceptable on loopback (where a local Postgres
+        // without ssl=on must still work). Certificate validation (VerifyCA) is a follow-up.
+        var sslMode = pgHost is "localhost" or "127.0.0.1" or "::1" ? "Prefer" : "Require";
         var connStr = $"Host={pgHost};Port={_settings.PostgresPort};Username=postgres;" +
                       $"Password={_settings.PostgresPassword};Database={_settings.PostgresDatabase};" +
-                      "SSL Mode=Prefer;Trust Server Certificate=true";
+                      $"SSL Mode={sslMode};Trust Server Certificate=true";
         try
         {
             await using var conn = new NpgsqlConnection(connStr);

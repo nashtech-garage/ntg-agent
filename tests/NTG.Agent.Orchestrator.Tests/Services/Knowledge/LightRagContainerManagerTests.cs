@@ -170,6 +170,27 @@ public class LightRagContainerManagerTests
     }
 
     [Test]
+    public async Task EnsureContainerAsync_ReusesContainer_WhenImageBakesInertSsl()
+    {
+        // inspect.Config.Env includes keys baked into the image via Dockerfile ENV. A future
+        // image release baking SSL=false must NOT count as drift — a recreate cannot remove an
+        // image-baked key, so flagging it would recreate the container on every ensure, forever.
+        var agentId = Guid.NewGuid();
+        var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
+        var settings = new LightRagSettings();
+        var bakedEnv = TrackedEnv(settings).Concat(["SSL=false", "PATH=/usr/bin"]).ToList();
+        containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: bakedEnv));
+
+        var manager = NewManager(docker.Object, settings);
+        await manager.EnsureContainerAsync(agentId);
+
+        containers.Verify(c => c.RemoveContainerAsync("agent-cid", It.IsAny<ContainerRemoveParameters>(), It.IsAny<CancellationToken>()), Times.Never);
+        containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
     public async Task EnsureContainerAsync_WaitsForReadiness_BeforeReturning()
     {
         // The container is present/healthy in Docker but its app is not serving for the first
