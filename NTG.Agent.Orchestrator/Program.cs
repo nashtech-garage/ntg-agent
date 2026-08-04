@@ -8,6 +8,7 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
 using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Orchestrator.Services.Agents.Clients;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
@@ -88,8 +89,21 @@ builder.Services.AddDataProtection()
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("AzureOpenAI");
+builder.Services.AddKeyedSingleton<IAgentClientFactory, AnthropicClientFactory>("Anthropic");
+
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<AgentService>();
+// Provider probing (test connection / list models) for the admin agent screens.
+// Uses a typed HttpClient so the standard ServiceDefaults resilience pipeline applies.
+builder.Services.AddHttpClient<IProviderModelService, ProviderModelService>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(30);
+});
+builder.Services.AddScoped<AgentAccessService>();
 // Request-scoped buffer shared by the outer agent and any inner agents it delegates to, used to
 // surface renderable server-side tool results (e.g. get_weather) to the browser. See RenderableToolCapture.
 builder.Services.AddScoped<RenderableToolCapture>();

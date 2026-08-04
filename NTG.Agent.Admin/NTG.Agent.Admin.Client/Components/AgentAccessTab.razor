@@ -1,0 +1,119 @@
+@using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Common.Dtos.Tags
+@attribute [Authorize(Roles = "Admin")]
+@inject AgentAccessClient AccessClient
+@inject RoleClient RoleClient
+
+<div class="card">
+    <div class="card-body">
+        <h5>Manage Access</h5>
+        <p class="text-muted">
+            Users in granted roles can chat with this agent.
+            Owners and Admins always have access.
+        </p>
+
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-6">
+                <label class="form-label">Grant a role</label>
+                <select class="form-select" @bind="selectedRoleId">
+                    <option value="">Select role…</option>
+                    @foreach (var r in availableRoles)
+                    {
+                        <option value="@r.Id">@r.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary" @onclick="Grant"
+                        disabled="@(string.IsNullOrEmpty(selectedRoleId) || isBusy)">
+                    @if (isBusy)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    Grant
+                </button>
+            </div>
+        </div>
+
+        @if (errorMessage is not null)
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Role</th>
+                    <th>Granted at</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (grants.Count == 0)
+                {
+                    <tr><td colspan="3" class="text-muted text-center">No roles granted yet.</td></tr>
+                }
+                @foreach (var g in grants)
+                {
+                    <tr>
+                        <td><span class="badge bg-secondary">@g.RoleName</span></td>
+                        <td>@g.GrantedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => Revoke(g.RoleId)">
+                                Revoke
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid AgentId { get; set; }
+
+    private List<AgentRoleGrantDto> grants = new();
+    private List<RoleDto> availableRoles = new();
+    private string? selectedRoleId;
+    private bool isBusy;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        grants = await AccessClient.ListAsync(AgentId);
+        var allRoles = await RoleClient.GetAllAsync();
+        availableRoles = allRoles
+            .Where(r => !grants.Any(g => g.RoleId == r.Id))
+            .ToList();
+    }
+
+    private async Task Grant()
+    {
+        if (!Guid.TryParse(selectedRoleId, out var roleId)) return;
+        try
+        {
+            isBusy = true; errorMessage = null;
+            await AccessClient.GrantAsync(AgentId, roleId);
+            selectedRoleId = null;
+            await Reload();
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally { isBusy = false; }
+    }
+
+    private async Task Revoke(Guid roleId)
+    {
+        try
+        {
+            await AccessClient.RevokeAsync(AgentId, roleId);
+            await Reload();
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+    }
+}

@@ -1,0 +1,214 @@
+@using NTG.Agent.Common.Dtos.Agents
+@inject ProviderProbeClient ProviderProbeClient
+
+@* Shared provider configuration block used by both the create page (AddAgent) and
+   the edit tab (AgentSettingsTab). Binds directly to the passed AgentDetail and adds
+   endpoint prefill, Test Connection, and Fetch Models. Set Compact=true for the
+   smaller styling used on the settings tab. *@
+
+<div class="@(Compact ? "" : "row")">
+    <div class="@(Compact ? "mb-3" : "col-md-6 mb-3")">
+        <label class="form-label @LabelClass">Provider Name</label>
+        <select class="form-select @SelectSizeClass" @bind="Agent.ProviderName" @bind:after="OnProviderChanged" disabled="@Disabled">
+            <option value="">Select a provider...</option>
+            <option value="GitHubModel">GitHub Models</option>
+            <option value="AzureOpenAI">Azure Open AI</option>
+            <option value="GoogleGemini">Google Gemini</option>
+            <option value="OpenAI">OpenAI</option>
+            <option value="Anthropic">Anthropic</option>
+        </select>
+    </div>
+
+    <div class="@(Compact ? "mb-3" : "col-md-6 mb-3")">
+        <label class="form-label @LabelClass">Model Name</label>
+        <input class="form-control @InputSizeClass" list="@_modelDatalistId" @bind="Agent.ProviderModelName"
+               placeholder="e.g., gpt-4o, claude-sonnet-4-6" disabled="@Disabled" />
+        <datalist id="@_modelDatalistId">
+            @foreach (var model in _models)
+            {
+                <option value="@model"></option>
+            }
+        </datalist>
+        @if (_models.Count > 0)
+        {
+            <div class="form-text"><i class="bi bi-list-check me-1"></i>@_models.Count model(s) fetched — pick one or type your own.</div>
+        }
+    </div>
+</div>
+
+<div class="mb-3">
+    <label class="form-label @LabelClass">Provider Endpoint</label>
+    <input class="form-control @InputSizeClass" @bind="Agent.ProviderEndpoint"
+           placeholder="@EndpointPlaceholder" disabled="@Disabled" />
+</div>
+
+<div class="mb-3">
+    <label class="form-label @LabelClass">Provider API Key</label>
+    <div class="input-group">
+        <input type="@(_showApiKey ? "text" : "password")" class="form-control @InputSizeClass" @bind="Agent.ProviderApiKey"
+               placeholder="Enter the API Key..." disabled="@Disabled" />
+        <button class="btn btn-outline-secondary" type="button" @onclick="() => _showApiKey = !_showApiKey"
+                title="@(_showApiKey ? "Hide API key" : "Show API key")" disabled="@Disabled">
+            <i class="bi @(_showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+        </button>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-2">
+    <button type="button" class="btn btn-outline-primary @ButtonSizeClass" @onclick="TestConnection" disabled="@(!CanProbe || _busy)">
+        @if (_isTesting)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <i class="bi bi-plug me-1"></i>
+        }
+        Test Connection
+    </button>
+    <button type="button" class="btn btn-outline-secondary @ButtonSizeClass" @onclick="FetchModels" disabled="@(!CanProbe || _busy)">
+        @if (_isFetching)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+        }
+        else
+        {
+            <i class="bi bi-cloud-download me-1"></i>
+        }
+        Fetch Models
+    </button>
+</div>
+
+@if (_testResult is not null)
+{
+    <div class="alert @(_testResult.Success ? "alert-success" : "alert-danger") d-flex align-items-center py-2" role="alert">
+        <i class="@(_testResult.Success ? "bi bi-check-circle-fill" : "bi bi-exclamation-triangle-fill") me-2"></i>
+        <div class="small">@_testResult.Message</div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_fetchError))
+{
+    <div class="alert alert-danger d-flex align-items-center py-2" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <div class="small">@_fetchError</div>
+    </div>
+}
+
+@code {
+    /// <summary>The agent whose provider fields this component reads and writes.</summary>
+    [Parameter, EditorRequired]
+    public AgentDetail Agent { get; set; } = null!;
+
+    /// <summary>Disables every control (e.g. while the parent form is submitting).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Renders the smaller styling used by the settings tab.</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    private readonly string _modelDatalistId = $"models-{Guid.NewGuid():N}";
+    private List<string> _models = [];
+    private bool _showApiKey;
+    private bool _isTesting;
+    private bool _isFetching;
+    private ProviderTestResult? _testResult;
+    private string? _fetchError;
+
+    private bool _busy => _isTesting || _isFetching;
+
+    private bool CanProbe =>
+        !Disabled &&
+        !string.IsNullOrWhiteSpace(Agent.ProviderName) &&
+        !string.IsNullOrWhiteSpace(Agent.ProviderApiKey);
+
+    private string LabelClass => Compact ? "small" : "fw-semibold";
+    // Bootstrap sizes selects and inputs with different classes — one property per control type.
+    private string SelectSizeClass => Compact ? "form-select-sm" : "";
+    private string InputSizeClass => Compact ? "form-control-sm" : "";
+    private string ButtonSizeClass => Compact ? "btn-sm" : "";
+
+    // Endpoint prefilled when a provider is selected. Blank => use the SDK default
+    // (Anthropic) or a resource-specific URL the admin must supply (Azure).
+    private static readonly Dictionary<string, string> EndpointDefaults = new()
+    {
+        ["OpenAI"] = "https://api.openai.com/v1",
+        ["GitHubModel"] = "https://models.github.ai/inference",
+        ["GoogleGemini"] = "https://generativelanguage.googleapis.com/v1beta/openai/",
+        ["Anthropic"] = "",
+        ["AzureOpenAI"] = "",
+    };
+
+    private string EndpointPlaceholder => Agent.ProviderName switch
+    {
+        "AzureOpenAI" => "https://<resource>.openai.azure.com/",
+        "Anthropic" => "(optional — leave blank for the SDK default)",
+        _ => "https://api.openai.com/v1",
+    };
+
+    // Only prefill when the endpoint is empty or still equals a known default, so a
+    // user's custom endpoint is never clobbered.
+    private void OnProviderChanged()
+    {
+        // A provider change invalidates the previous probe results.
+        _testResult = null;
+        _fetchError = null;
+        _models = [];
+
+        var current = Agent.ProviderEndpoint?.Trim() ?? string.Empty;
+        var isEmptyOrKnownDefault = current.Length == 0 || EndpointDefaults.Values.Contains(current);
+        if (isEmptyOrKnownDefault &&
+            !string.IsNullOrEmpty(Agent.ProviderName) &&
+            EndpointDefaults.TryGetValue(Agent.ProviderName, out var prefill) &&
+            prefill.Length > 0)
+        {
+            Agent.ProviderEndpoint = prefill;
+        }
+    }
+
+    private ProviderProbeRequest BuildRequest() =>
+        new(Agent.ProviderName ?? string.Empty, Agent.ProviderEndpoint, Agent.ProviderApiKey ?? string.Empty);
+
+    private async Task TestConnection()
+    {
+        _testResult = null;
+        _fetchError = null;
+        _isTesting = true;
+        try
+        {
+            _testResult = await ProviderProbeClient.TestConnectionAsync(BuildRequest());
+        }
+        catch (Exception ex)
+        {
+            _testResult = new ProviderTestResult(false, $"Connection test failed: {ex.Message}");
+        }
+        finally
+        {
+            _isTesting = false;
+        }
+    }
+
+    private async Task FetchModels()
+    {
+        _testResult = null;
+        _fetchError = null;
+        _isFetching = true;
+        try
+        {
+            _models = await ProviderProbeClient.FetchModelsAsync(BuildRequest());
+            if (_models.Count == 0)
+            {
+                _fetchError = "No models were returned by the provider.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _fetchError = ex.Message;
+        }
+        finally
+        {
+            _isFetching = false;
+        }
+    }
+}

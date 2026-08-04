@@ -19,44 +19,7 @@
                             <div class="form-text mb-2">
                                 The AI model that powers your agent. Choose based on your needs for performance, cost, and capabilities.
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Provider Name</label>
-                                <select class="form-select form-select-sm" @bind="AgentDetail.ProviderName">
-                                    <option value="GitHubModel">GitHub Models</option>
-                                    <option value="AzureOpenAI">Azure Open AI</option>
-                                    <option value="GoogleGemini">Google Gemini</option>
-                                    <option value="OpenAI">OpenAI</option>
-                                    <option value="Anthropic">Anthropic</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Provider Endpoint</label>
-                                <InputText id="providerEndpoint"
-                                           @bind-Value="AgentDetail.ProviderEndpoint"
-                                           class="form-control" 
-                                           placeholder="Enter the API endpoint URL..." />
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Provider API Key</label>
-                                <div class="input-group">
-                                    <InputText id="providerAccessKey"
-                                               @bind-Value="AgentDetail.ProviderApiKey"
-                                               type="@(showApiKey ? "text" : "password")"
-                                               class="form-control"
-                                               placeholder="Enter the API Key..." />
-                                    <button class="btn btn-outline-secondary" type="button" @onclick="() => showApiKey = !showApiKey"
-                                            title="@(showApiKey ? "Hide API key" : "Show API key")">
-                                        <i class="bi @(showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label small">Provider Model Name</label>
-                                <InputText id="providerModelName"
-                                           @bind-Value="AgentDetail.ProviderModelName"
-                                           class="form-control"
-                                           placeholder="Enter the Model Name..." />
-                            </div>
+                            <ProviderConfigSection Agent="AgentDetail" Compact="true" />
                             <label for="description" class="form-label fw-semibold">
                                 <i class="bi bi-info-square me-2"></i>Description
                             </label>
@@ -216,8 +179,7 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     private string statusMessage = string.Empty;
     private bool isSaving = false;
     private bool isSuccess = false;
-    private bool showApiKey = false;
-    
+
     // Advanced settings
     private double temperature = 0.7;
     private int maxTokens = 500;
