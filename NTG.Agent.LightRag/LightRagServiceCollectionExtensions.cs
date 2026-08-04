@@ -13,9 +13,8 @@ namespace NTG.Agent.LightRag;
 /// <summary>
 /// Single entry point for hosting the LightRAG knowledge provider. The host only calls
 /// <see cref="AddLightRagKnowledge"/> and implements the two persistence seams
-/// (<see cref="ILightRagAgentPortStore"/>, <see cref="ILightRagIngestionStore"/>);
-/// everything else — per-agent containers, port reservations, HTTP clients, background
-/// workers — is wired here.
+/// (<see cref="ILightRagAgentStore"/>, <see cref="ILightRagIngestionStore"/>);
+/// everything else — per-agent containers, HTTP clients, background workers — is wired here.
 /// </summary>
 public static class LightRagServiceCollectionExtensions
 {
@@ -48,14 +47,14 @@ public static class LightRagServiceCollectionExtensions
             });
 
         // Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
-        // LightRagClientFactory (each agent has its own container endpoint), so we only
-        // configure the timeout here. The resilience override above is keyed on this name.
-        // Each container serves HTTPS with the server's certificate; like the daemon channel
-        // it is signed by a private CA we hold no root for, so the certificate is accepted
+        // LightRagClientFactory (each agent is dialed via the gateway's /agents/{id}/ path),
+        // so we only configure the timeout here. The resilience override above is keyed on
+        // this name. The remote gateway serves HTTPS with the server's certificate; it is
+        // signed by a private CA we hold no root for, so the certificate is accepted
         // unvalidated — encrypted, but the server is unauthenticated. Requests remain gated by
         // the X-API-Key header, and inbound access by the cloud firewall (Azure NSG) rules.
         // When LightRag:SocksProxy is set, route through that SOCKS5 proxy instead (`ssh -D`),
-        // so a developer can tunnel rather than open the port range; empty => direct.
+        // so a developer can tunnel rather than open the gateway port; empty => direct.
         services.AddHttpClient(nameof(LightRagClient), c =>
         {
             c.Timeout = TimeSpan.FromMinutes(5);
@@ -63,7 +62,7 @@ public static class LightRagServiceCollectionExtensions
         .ConfigurePrimaryHttpMessageHandler(sp =>
         {
             var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-#pragma warning disable CA5359 // Deliberate: the container certificate is signed by a private CA
+#pragma warning disable CA5359 // Deliberate: the gateway certificate is signed by a private CA
             // whose root is not distributed to clients, so there is no trust anchor to validate
             // against. Traffic is encrypted but the server is unauthenticated; requests are gated
             // by X-API-Key and inbound access by the cloud firewall (Azure NSG) rules.
@@ -101,16 +100,6 @@ public static class LightRagServiceCollectionExtensions
         services.AddSingleton<ILightRagHealthProbe, LightRagHealthProbe>();
         services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
         services.AddSingleton<LightRagContainerAccessTracker>();
-        // Identity-bound host-port reservations (one permanent port per agent) — prevents
-        // cross-agent misrouting when a freed port would otherwise be recycled. The provisioner
-        // centralises the reserve->ensure->reassign flow used by the factory, reconciler, and
-        // agent creation.
-        // Allocation is arbitrated by the shared Postgres ledger rather than the local database, so
-        // developers sharing one Docker host cannot hand out the same port (see
-        // deploy/lightrag-postgres/migrations/001_create_agent_port_reservations.sql).
-        services.AddScoped<ILightRagPortReservationStore, LightRagPgPortReservationStore>();
-        services.AddScoped<PortReservationService>();
-        services.AddScoped<ILightRagProvisioner, LightRagProvisioner>();
         services.AddScoped<LightRagClientFactory>();
         services.AddHostedService<LightRagReconcilerHostedService>();
         services.AddHostedService<LightRagContainerIdleShutdownService>();

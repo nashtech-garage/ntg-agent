@@ -15,10 +15,12 @@ public class LightRagClient
         _logger = logger;
     }
 
+    // Request paths are relative (no leading slash): BaseAddress carries the gateway's
+    // /agents/{agentId}/ prefix, which a leading slash would discard.
     public async Task<string> InsertTextAsync(string text, string? fileSource = null, CancellationToken ct = default)
     {
         var body = new InsertTextRequest(text, fileSource);
-        var response = await _http.PostAsJsonAsync("/documents/text", body, ct);
+        var response = await _http.PostAsJsonAsync("documents/text", body, ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<InsertResponse>(ct);
         _logger.LogInformation("LightRagClient.InsertTextAsync: trackId={TrackId} status={Status}", result!.TrackId, result.Status);
@@ -30,7 +32,7 @@ public class LightRagClient
         using var form = new MultipartFormDataContent();
         var streamContent = new StreamContent(content);
         form.Add(streamContent, "file", fileName);
-        var response = await _http.PostAsync("/documents/upload", form, ct);
+        var response = await _http.PostAsync("documents/upload", form, ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<InsertResponse>(ct);
         _logger.LogInformation("LightRagClient.InsertFileAsync: file={FileName} trackId={TrackId} status={Status}", fileName, result!.TrackId, result.Status);
@@ -39,7 +41,7 @@ public class LightRagClient
 
     public async Task DeleteDocumentAsync(string docId, CancellationToken ct = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Delete, "/documents/delete_document")
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "documents/delete_document")
         {
             Content = JsonContent.Create(new DeleteDocumentRequest([docId]))
         };
@@ -51,7 +53,7 @@ public class LightRagClient
     public async Task<string> QueryAsync(string query, int topK = 60, string mode = "hybrid", bool onlyNeedContext = true, CancellationToken ct = default)
     {
         var body = new QueryRequest(query, mode, onlyNeedContext, topK, 4000, 4000, 4000);
-        var response = await _http.PostAsJsonAsync("/query", body, ct);
+        var response = await _http.PostAsJsonAsync("query", body, ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<QueryResponse>(ct);
         return result!.Response;
@@ -62,7 +64,7 @@ public class LightRagClient
     // resolve the doc-id and final status (PROCESSED / FAILED / PENDING / PROCESSING / PREPROCESSED).
     public async Task<TrackStatusResponse> GetTrackStatusAsync(string trackId, CancellationToken ct = default)
     {
-        using var response = await _http.GetAsync($"/documents/track_status/{trackId}", ct);
+        using var response = await _http.GetAsync($"documents/track_status/{trackId}", ct);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<TrackStatusResponse>(ct);
         return result ?? new TrackStatusResponse(trackId, Array.Empty<TrackDocStatus>(), 0, new Dictionary<string, int>());

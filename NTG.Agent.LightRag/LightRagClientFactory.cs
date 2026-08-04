@@ -5,20 +5,20 @@ namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Resolves a <see cref="LightRagClient"/> pointed at a specific agent's dedicated
-/// container (<c>http://localhost:{port}</c> from the agent's port reservation). This is what
-/// scopes every chat/upload call to the agent's own LightRAG workspace instead of a shared
-/// endpoint. Scoped: caches resolved clients for the lifetime of the request scope.
+/// container via the nginx gateway (<c>{GatewayUrl}/agents/{agentId}/</c>). The gateway
+/// proxies that path to the <c>lightrag-agent-{agentId}</c> container by name on the Docker
+/// network, which is what scopes every chat/upload call to the agent's own LightRAG
+/// workspace. Scoped: caches resolved clients for the lifetime of the request scope.
 /// <para>
 /// If the container is not running (e.g. stopped by idle shutdown), this factory will
-/// restart it via <see cref="ILightRagContainerManager.EnsureContainerAsync"/> and update
-/// the stored port before creating the client.
+/// restart it via <see cref="ILightRagContainerManager.EnsureContainerAsync"/> before
+/// creating the client.
 /// </para>
 /// </summary>
 public sealed class LightRagClientFactory
 {
-    private readonly ILightRagAgentPortStore _portStore;
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILightRagProvisioner _provisioner;
+    private readonly ILightRagContainerManager _containerManager;
     private readonly ILightRagHealthProbe _healthProbe;
     private readonly LightRagContainerAccessTracker _accessTracker;
     private readonly LightRagSettings _settings;
@@ -26,17 +26,15 @@ public sealed class LightRagClientFactory
     private readonly Dictionary<Guid, LightRagClient> _cache = [];
 
     public LightRagClientFactory(
-        ILightRagAgentPortStore portStore,
         IHttpClientFactory httpClientFactory,
-        ILightRagProvisioner provisioner,
+        ILightRagContainerManager containerManager,
         ILightRagHealthProbe healthProbe,
         LightRagContainerAccessTracker accessTracker,
         IOptions<LightRagSettings> settings,
         ILoggerFactory loggerFactory)
     {
-        _portStore = portStore;
         _httpClientFactory = httpClientFactory;
-        _provisioner = provisioner;
+        _containerManager = containerManager;
         _healthProbe = healthProbe;
         _accessTracker = accessTracker;
         _settings = settings.Value;
@@ -51,23 +49,22 @@ public sealed class LightRagClientFactory
             return cached;
         }
 
-        var port = await _portStore.GetPortAsync(agentId, cancellationToken);
-
-        // Fast path: the port is identity-bound (reserved exclusively to this agent), so if
-        // something answers on it, it is provably this agent's own container — never another
-        // agent's. On a miss (no reservation yet, or stopped by idle shutdown) ensure the
-        // container is running on the agent's reserved port. ProvisionAsync only returns once
-        // the container is serving (its readiness gate), so the client below is safe to use.
-        if (port is not > 0 || !await _healthProbe.IsHealthyAsync(port.Value, cancellationToken))
+        // Fast path: the gateway routes by container name, so a healthy answer on the agent's
+        // path is provably this agent's own container — never another agent's. On a miss
+        // (no container yet, or stopped by idle shutdown) ensure the container is running.
+        // EnsureContainerAsync only returns once the container is serving (its readiness
+        // gate), so the client below is safe to use.
+        if (!await _healthProbe.IsHealthyAsync(agentId, cancellationToken))
         {
-            port = await _provisioner.ProvisionAsync(agentId, cancellationToken);
+            await _containerManager.EnsureContainerAsync(agentId, cancellationToken);
         }
 
         // Named client inherits the standard resilience handler with the LightRAGClient
         // overrides (2-min attempt timeout, no retries) and the TLS settings configured in
-        // AddLightRagKnowledge (the container's certificate is accepted unvalidated).
+        // AddLightRagKnowledge. The trailing slash keeps the /agents/{id} prefix when the
+        // client's relative request paths are resolved against it.
         var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-        http.BaseAddress = new Uri($"https://{ResolveHost()}:{port}");
+        http.BaseAddress = new Uri($"{_settings.ResolveGatewayUrl()}/agents/{agentId}/");
         if (!string.IsNullOrEmpty(_settings.ApiKey))
             http.DefaultRequestHeaders.Add("X-API-Key", _settings.ApiKey);
 
@@ -76,6 +73,4 @@ public sealed class LightRagClientFactory
         _accessTracker.Touch(agentId);
         return client;
     }
-
-    private string ResolveHost() => string.IsNullOrWhiteSpace(_settings.ServerHost) ? "localhost" : _settings.ServerHost;
 }

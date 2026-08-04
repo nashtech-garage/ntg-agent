@@ -4,7 +4,7 @@ public class LightRagSettings
 {
     // ---- Legacy single-endpoint field ---------------------------------------
     // Retained for backwards-compatibility / tooling, but the orchestrator now
-    // resolves a per-agent endpoint (http://localhost:{Agent.LightRagPort}) via
+    // resolves a per-agent endpoint ({GatewayUrl}/agents/{agentId}/) via
     // LightRagClientFactory instead of talking to one shared endpoint.
     public string Endpoint { get; set; } = string.Empty;
 
@@ -35,11 +35,12 @@ public class LightRagSettings
     public string ImageTag { get; set; } = "v1.4.16";
 
     // ---- Remote Docker host (TLS) -------------------------------------------
-    // The LightRAG stack (Postgres + the per-agent containers) lives on a separate
-    // Ubuntu server, reached directly over TLS — no SSH tunnel. Three channels:
+    // The LightRAG stack (Postgres + the nginx gateway + the per-agent containers) lives on
+    // a separate Ubuntu server, reached directly over TLS — no SSH tunnel. Three channels:
     //   * the Docker daemon on :2376, authenticated with a client certificate (mutual TLS);
-    //   * each per-agent container's HTTPS port in the reserved range;
-    //   * Postgres on :5432 with SSL Mode=Require.
+    //   * the nginx gateway on :443, which routes /agents/{agentId}/* to that agent's
+    //     container by name over the Docker network (containers publish no host ports);
+    //   * Postgres on :5432.
     // Empty / loopback defaults preserve the original all-local behaviour.
 
     // Docker daemon endpoint the manager drives. Empty => local socket
@@ -55,45 +56,27 @@ public class LightRagSettings
     // Password protecting DockerCertPath. Secret — supply via user-secrets, never appsettings.
     public string DockerCertPassword { get; set; } = string.Empty;
 
-    // Host the Orchestrator dials to reach a container's published HTTPS port (and,
-    // by fallback, Postgres). The server's public address, e.g. "4.193.109.6".
+    // Base URL of the nginx gateway fronting the per-agent containers. Every agent's LightRAG
+    // API is dialed as {GatewayUrl}/agents/{agentId}/. Remote example: "https://4.193.109.6";
+    // empty/whitespace => the local gateway ("http://localhost:8080", deploy/lightrag-local).
+    public string GatewayUrl { get; set; } = string.Empty;
+
+    // Fallback Postgres host when PostgresHost is not set. The server's public
+    // address, e.g. "4.193.109.6".
     public string ServerHost { get; set; } = "localhost";
 
-    // IP the container's port is published on (HostConfig.PortBindings HostIP).
-    // "0.0.0.0" publishes on every interface so the Orchestrator can dial the port
-    // directly; inbound access is gated by the cloud firewall (Azure NSG) rules.
-    public string PortBindHostIp { get; set; } = "127.0.0.1";
-
-    // Directory on the SERVER holding the TLS certificate and key the per-agent containers
-    // serve HTTPS with. Bind-mounted read-only into each container at CertMountPath. Empty
-    // => containers serve plain HTTP (local dev).
-    public string ServerCertDirectory { get; set; } = string.Empty;
-
-    // Mount point for ServerCertDirectory inside each spawned container. The SSL_CERTFILE /
-    // SSL_KEYFILE paths handed to LightRAG are resolved against it.
-    public string CertMountPath { get; set; } = "/certs";
-
-    // Certificate and key filenames within CertMountPath, as seen inside the container.
-    public string ServerCertFileName { get; set; } = "server-cert.pem";
-    public string ServerKeyFileName { get; set; } = "server-key.pem";
-
     // Optional SOCKS5 proxy for the LightRAG HTTP client. Retained so a developer can still
-    // tunnel (`ssh -D 1080` => "socks5://localhost:1080") instead of opening the port range.
+    // tunnel (`ssh -D 1080` => "socks5://localhost:1080") instead of opening the gateway port.
     // Empty => direct connection, which is the TLS default.
     public string SocksProxy { get; set; } = string.Empty;
+
+    internal string ResolveGatewayUrl()
+        => (string.IsNullOrWhiteSpace(GatewayUrl) ? "http://localhost:8080" : GatewayUrl).TrimEnd('/');
 
     // Direct Postgres connection used by ResetVectorSchemaAsync and the port-reservation
     // ledger. Empty PostgresHost => fall back to ServerHost.
     public string PostgresHost { get; set; } = string.Empty;
     public int PostgresPort { get; set; } = 5432;
-
-    // ---- Reserved host-port pool (identity-bound ports) ---------------------
-    // Each agent permanently owns one host port from this inclusive range; a port
-    // is never recycled to a different agent, so a reachable reserved port is
-    // provably that agent's own container. This prevents cross-agent misrouting
-    // when idle-shutdown frees a port and a recreate would otherwise reuse it.
-    public int PortRangeStart { get; set; } = 20000;
-    public int PortRangeEnd { get; set; } = 20999;
 
     // Network alias of the shared Postgres container on the Docker network.
     // Used internally by the spawned containers (POSTGRES_HOST) — unchanged by

@@ -1,0 +1,55 @@
+# All-local LightRAG stack: the shared pgvector + Apache AGE Postgres and the nginx
+# gateway, both on loopback and without TLS. Mirrors deploy/lightrag-postgres (the
+# remote server stack) minus the certificates.
+#
+# Usage:
+#   echo 'POSTGRES_PASSWORD=<value>' > .env   # gitignored; see the note below
+#   docker compose up -d
+#   ./start-local-lightrag.sh                 # from the repo root
+#
+# POSTGRES_PASSWORD must match the AppHost's `lightrag-pg-password` parameter
+# (user-secrets), and the gateway's 8080 matches the Orchestrator's default
+# LightRag:GatewayUrl (http://localhost:8080).
+#
+# The containers are deliberately named "lightrag-postgres" / "lightrag-gateway" so
+# the Orchestrator's LightRagContainerManager can find them by name and attach them
+# to the `ntg-agent-lightrag` network it owns.
+
+services:
+  lightrag-postgres:
+    build:
+      context: ../../scripts/lightrag-postgres
+    image: lightrag-postgres:pg17-pgvector-age
+    container_name: lightrag-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - lightrag-postgres-data:/var/lib/postgresql/data
+      # First-init scripts: create the `uploaded-documents` DB and the
+      # vector + age extensions. Run only when the data volume is empty.
+      - ../../scripts/lightrag-pg-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  lightrag-gateway:
+    image: nginx:1.28-alpine
+    container_name: lightrag-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/gateway-health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  lightrag-postgres-data:
