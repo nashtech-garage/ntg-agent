@@ -10,6 +10,8 @@ cd "$(dirname "$0")"
 # exported via `env` because bash identifiers cannot contain hyphens
 exec env \
   "Parameters__lightrag-docker-host= " \
+  "Parameters__lightrag-docker-cert-path= " \
+  "Parameters__lightrag-docker-cert-password= " \
   "Parameters__lightrag-gateway-url= " \
   "Parameters__lightrag-server-host= " \
   "Parameters__lightrag-socks-proxy= " \
