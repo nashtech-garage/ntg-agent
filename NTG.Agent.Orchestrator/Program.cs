@@ -130,10 +130,10 @@ var knowledgeProvider = builder.Configuration["Knowledge:Provider"] ?? "LightRag
 switch (knowledgeProvider)
 {
     case "LightRag":
-        // Self-contained provider package (containers, port reservations, HTTP clients,
-        // background workers). The EF adapters below are its only touch points with our DB.
+        // Self-contained provider package (containers, HTTP clients, background workers).
+        // The EF adapters below are its only touch points with our DB.
         builder.Services.AddLightRagKnowledge(builder.Configuration);
-        builder.Services.AddScoped<ILightRagAgentPortStore, LightRagEfAgentPortStore>();
+        builder.Services.AddScoped<ILightRagAgentStore, LightRagEfAgentStore>();
         builder.Services.AddScoped<ILightRagIngestionStore, LightRagEfIngestionStore>();
         break;
     default:

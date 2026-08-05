@@ -7,7 +7,7 @@ namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// On startup, pulls the LightRAG image once and ensures every agent has a running
-/// dedicated container, back-filling/repairing its port reservation.
+/// dedicated container.
 /// Runs as a background service so it does not block app startup (the first-run image
 /// pull can take minutes); <see cref="ILightRagContainerManager.EnsureContainerAsync"/>
 /// also self-pulls, so agent creation works even before this finishes.
@@ -54,17 +54,14 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
             await _containerManager.EnsureImagePulledAsync(stoppingToken);
 
             using var scope = _serviceProvider.CreateScope();
-            var portStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentPortStore>();
-            var provisioner = scope.ServiceProvider.GetRequiredService<ILightRagProvisioner>();
-            var agentIds = await portStore.GetAgentIdsAsync(stoppingToken);
+            var agentStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentStore>();
+            var agentIds = await agentStore.GetAgentIdsAsync(stoppingToken);
 
             foreach (var agentId in agentIds)
             {
                 try
                 {
-                    // Reserve the agent's identity-bound port and ensure its container runs
-                    // on it (reassign + retry once on external port conflict).
-                    await provisioner.ProvisionAsync(agentId, stoppingToken);
+                    await _containerManager.EnsureContainerAsync(agentId, stoppingToken);
                 }
                 catch (Exception ex)
                 {

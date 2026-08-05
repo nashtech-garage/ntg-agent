@@ -1,5 +1,3 @@
-using System.Net;
-using System.Net.Http;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,14 +10,12 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Knowledge;
 [TestFixture]
 public class LightRagContainerManagerTests
 {
-    private const int ReservedPort = 20005;
-
     // A probe that always reports the container is serving, so the readiness gate returns on
     // the first poll. Tests that exercise the not-ready path supply their own probe.
     private static ILightRagHealthProbe HealthyProbe()
     {
         var probe = new Mock<ILightRagHealthProbe>();
-        probe.Setup(p => p.IsHealthyAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        probe.Setup(p => p.IsHealthyAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         return probe.Object;
     }
 
@@ -28,6 +24,9 @@ public class LightRagContainerManagerTests
 
     private static ContainerListResponse PgContainer() =>
         new() { ID = "pg", Names = new List<string> { "/lightrag-postgres" } };
+
+    private static ContainerListResponse GatewayContainer() =>
+        new() { ID = "gw", Names = new List<string> { "/lightrag-gateway" } };
 
     // Builds a mocked Docker client whose image/network bootstrap succeeds and whose
     // container list is supplied by the test. Returns the container-operations mock so
@@ -62,7 +61,7 @@ public class LightRagContainerManagerTests
         return (docker, containers);
     }
 
-    private static ContainerInspectResponse BuildInspect(bool running, bool onNetwork, int port, IList<string> env) =>
+    private static ContainerInspectResponse BuildInspect(bool running, bool onNetwork, IList<string> env) =>
         new()
         {
             State = new ContainerState { Running = running },
@@ -71,11 +70,7 @@ public class LightRagContainerManagerTests
             {
                 Networks = onNetwork
                     ? new Dictionary<string, EndpointSettings> { ["ntg-agent-lightrag"] = new EndpointSettings() }
-                    : new Dictionary<string, EndpointSettings>(),
-                Ports = new Dictionary<string, IList<PortBinding>>
-                {
-                    ["9621/tcp"] = new List<PortBinding> { new() { HostPort = port.ToString() } }
-                }
+                    : new Dictionary<string, EndpointSettings>()
             }
         };
 
@@ -96,164 +91,134 @@ public class LightRagContainerManagerTests
     ];
 
     [Test]
-    public async Task EnsureContainerAsync_CreatesContainerBoundToReservedPort()
+    public async Task EnsureContainerAsync_CreatesContainer_WithoutHostPortsOrSsl()
     {
-        var (docker, containers) = BuildDocker([PgContainer()]);
+        // The gateway reaches the container by name over the network, so the container must
+        // publish no host ports and serve plain HTTP (no SSL_* vars, no cert mounts).
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer()]);
         containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CreateContainerResponse { ID = "new" });
         containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
 
         var manager = NewManager(docker.Object);
-        var port = await manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort);
-
-        Assert.That(port, Is.EqualTo(ReservedPort));
-        containers.Verify(c => c.CreateContainerAsync(
-            It.Is<CreateContainerParameters>(p => p.HostConfig.PortBindings["9621/tcp"][0].HostPort == ReservedPort.ToString()),
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
-    public async Task EnsureContainerAsync_WhenCertDirectoryConfigured_MountsCertsAndEnablesSsl()
-    {
-        // LightRAG terminates TLS itself, so each container needs the SSL_* vars plus a
-        // read-only mount of the cert directory the paths resolve against.
-        var (docker, containers) = BuildDocker([PgContainer()]);
-        containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CreateContainerResponse { ID = "new" });
-        containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
-
-        var settings = new LightRagSettings { ServerCertDirectory = "/home/ntgagent/docker-certs" };
-        var manager = NewManager(docker.Object, settings);
-
-        await manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort);
+        await manager.EnsureContainerAsync(Guid.NewGuid());
 
         containers.Verify(c => c.CreateContainerAsync(
             It.Is<CreateContainerParameters>(p =>
-                p.Env.Contains("SSL=true")
-                && p.Env.Contains("SSL_CERTFILE=/certs/server-cert.pem")
-                && p.Env.Contains("SSL_KEYFILE=/certs/server-key.pem")
-                && p.HostConfig.Binds.Contains("/home/ntgagent/docker-certs:/certs:ro")),
+                p.HostConfig.PortBindings == null
+                && p.HostConfig.Binds == null
+                && !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))),
             It.IsAny<CancellationToken>()), Times.Once);
+        containers.Verify(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Test]
-    public async Task EnsureContainerAsync_WhenNoCertDirectory_ServesPlainHttpWithoutMounts()
+    public void EnsureContainerAsync_Throws_WhenGatewayContainerMissing()
     {
-        // The all-local path: no certificate configured, so no mount and no SSL vars.
+        // Without the gateway, agent containers are unreachable — fail with a clear pointer
+        // to the compose stack instead of timing out in the readiness gate.
         var (docker, containers) = BuildDocker([PgContainer()]);
-        containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CreateContainerResponse { ID = "new" });
-        containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
-        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
 
         var manager = NewManager(docker.Object);
 
-        await manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort);
-
-        containers.Verify(c => c.CreateContainerAsync(
-            It.Is<CreateContainerParameters>(p =>
-                !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))
-                && p.HostConfig.Binds == null),
-            It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
-    public void EnsureContainerAsync_ThrowsPortReservationConflict_AndRemovesContainer_OnPortConflict()
-    {
-        var (docker, containers) = BuildDocker([PgContainer()]);
-        containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CreateContainerResponse { ID = "new" });
-        containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new DockerApiException(HttpStatusCode.InternalServerError,
-                "driver failed programming external connectivity: port is already allocated"));
-
-        var manager = NewManager(docker.Object);
-
-        Assert.ThrowsAsync<PortReservationConflictException>(
-            () => manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort));
-        containers.Verify(c => c.RemoveContainerAsync("new", It.IsAny<ContainerRemoveParameters>(), It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [Test]
-    public async Task EnsureContainerAsync_ReusesHealthyContainer_OnReservedPort()
-    {
-        var agentId = Guid.NewGuid();
-        var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
-        var (docker, containers) = BuildDocker([PgContainer(), agentContainer]);
-        var settings = new LightRagSettings();
-        containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: TrackedEnv(settings)));
-
-        var manager = NewManager(docker.Object, settings);
-        var port = await manager.EnsureContainerAsync(agentId, ReservedPort);
-
-        Assert.That(port, Is.EqualTo(ReservedPort));
+        var ex = Assert.ThrowsAsync<InvalidOperationException>(
+            () => manager.EnsureContainerAsync(Guid.NewGuid()));
+        Assert.That(ex!.Message, Does.Contain("lightrag-gateway"));
         containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
-    public async Task EnsureContainerAsync_RecreatesContainer_WhenRunningOnWrongPort()
+    public async Task EnsureContainerAsync_ReusesHealthyContainer()
     {
         var agentId = Guid.NewGuid();
         var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
-        var (docker, containers) = BuildDocker([PgContainer(), agentContainer]);
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
         var settings = new LightRagSettings();
-        // Existing container is healthy on the WRONG port (20009) — must be recreated on 20005.
         containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: 20009, env: TrackedEnv(settings)));
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: TrackedEnv(settings)));
+
+        var manager = NewManager(docker.Object, settings);
+        await manager.EnsureContainerAsync(agentId);
+
+        containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task EnsureContainerAsync_RecreatesContainer_WhenStaleSslEnvPresent()
+    {
+        // A container created before the gateway carries SSL=true and serves HTTPS, which the
+        // gateway cannot proxy — it must be detected as drifted and recreated, even though the
+        // desired env no longer contains any SSL key.
+        var agentId = Guid.NewGuid();
+        var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
+        var settings = new LightRagSettings();
+        var staleEnv = TrackedEnv(settings).Concat(["SSL=true"]).ToList();
+        containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: staleEnv));
         containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CreateContainerResponse { ID = "new" });
         containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        containers.Setup(c => c.InspectContainerAsync("new", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: []));
 
         var manager = NewManager(docker.Object, settings);
-        var port = await manager.EnsureContainerAsync(agentId, ReservedPort);
+        await manager.EnsureContainerAsync(agentId);
 
-        Assert.That(port, Is.EqualTo(ReservedPort));
         containers.Verify(c => c.RemoveContainerAsync("agent-cid", It.IsAny<ContainerRemoveParameters>(), It.IsAny<CancellationToken>()), Times.Once);
         containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task EnsureContainerAsync_ReusesContainer_WhenImageBakesInertSsl()
+    {
+        // inspect.Config.Env includes keys baked into the image via Dockerfile ENV. A future
+        // image release baking SSL=false must NOT count as drift — a recreate cannot remove an
+        // image-baked key, so flagging it would recreate the container on every ensure, forever.
+        var agentId = Guid.NewGuid();
+        var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
+        var settings = new LightRagSettings();
+        var bakedEnv = TrackedEnv(settings).Concat(["SSL=false", "PATH=/usr/bin"]).ToList();
+        containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: bakedEnv));
+
+        var manager = NewManager(docker.Object, settings);
+        await manager.EnsureContainerAsync(agentId);
+
+        containers.Verify(c => c.RemoveContainerAsync("agent-cid", It.IsAny<ContainerRemoveParameters>(), It.IsAny<CancellationToken>()), Times.Never);
+        containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
     public async Task EnsureContainerAsync_WaitsForReadiness_BeforeReturning()
     {
         // The container is present/healthy in Docker but its app is not serving for the first
-        // two probes — EnsureContainerAsync must not return until /health answers.
+        // two probes — EnsureContainerAsync must not return until the health probe answers.
         var agentId = Guid.NewGuid();
         var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
-        var (docker, containers) = BuildDocker([PgContainer(), agentContainer]);
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
         var settings = new LightRagSettings { ReadinessPollIntervalMs = 10 };
         containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: TrackedEnv(settings)));
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: TrackedEnv(settings)));
 
         var probeCalls = 0;
         var probe = new Mock<ILightRagHealthProbe>();
-        probe.Setup(p => p.IsHealthyAsync(ReservedPort, It.IsAny<CancellationToken>()))
+        probe.Setup(p => p.IsHealthyAsync(agentId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => ++probeCalls >= 3); // not-ready for the first two polls, then serving
 
         var manager = NewManager(docker.Object, settings, probe.Object);
-        var port = await manager.EnsureContainerAsync(agentId, ReservedPort);
+        await manager.EnsureContainerAsync(agentId);
 
-        Assert.That(port, Is.EqualTo(ReservedPort));
         Assert.That(probeCalls, Is.EqualTo(3));
     }
 
     [Test]
     public void EnsureContainerAsync_ThrowsDaemonUnavailable_WhenDaemonUnreachable()
     {
-        // The SSH tunnel is down: the pre-flight daemon ping fails. The manager must surface a
-        // clean typed exception and never attempt any container work.
-        var (docker, containers) = BuildDocker([PgContainer()]);
+        // The pre-flight daemon ping fails. The manager must surface a clean typed exception
+        // and never attempt any container work.
+        var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer()]);
         var system = new Mock<ISystemOperations>();
         system.Setup(s => s.PingAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Connection refused"));
@@ -262,14 +227,14 @@ public class LightRagContainerManagerTests
         var manager = NewManager(docker.Object);
 
         Assert.ThrowsAsync<LightRagDaemonUnavailableException>(
-            () => manager.EnsureContainerAsync(Guid.NewGuid(), ReservedPort));
+            () => manager.EnsureContainerAsync(Guid.NewGuid()));
         containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Test]
     public async Task IsDaemonReachableAsync_ReturnsFalse_WhenPingThrows()
     {
-        var (docker, _) = BuildDocker([PgContainer()]);
+        var (docker, _) = BuildDocker([PgContainer(), GatewayContainer()]);
         var system = new Mock<ISystemOperations>();
         system.Setup(s => s.PingAsync(It.IsAny<CancellationToken>()))
             .ThrowsAsync(new HttpRequestException("Connection refused"));
@@ -283,21 +248,23 @@ public class LightRagContainerManagerTests
     [Test]
     public void EnsureContainerAsync_ThrowsNotReady_WhenAppNeverServes()
     {
-        // Docker reports the container up, but its app never answers /health — the readiness
-        // gate must give up after the budget and throw rather than hand back a dead endpoint.
+        // Docker reports the container up, but its app never answers the health probe — the
+        // readiness gate must give up after the budget and throw rather than hand back a dead
+        // endpoint.
         var agentId = Guid.NewGuid();
         var agentContainer = new ContainerListResponse { ID = "agent-cid", Names = new List<string> { $"/lightrag-agent-{agentId}" } };
-        var (docker, containers) = BuildDocker([PgContainer(), agentContainer]);
+        var (docker, _) = BuildDocker([PgContainer(), GatewayContainer(), agentContainer]);
         var settings = new LightRagSettings { ReadinessTimeoutSeconds = 1, ReadinessPollIntervalMs = 10 };
-        containers.Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, port: ReservedPort, env: TrackedEnv(settings)));
+        var containers = docker.Object.Containers;
+        Mock.Get(containers).Setup(c => c.InspectContainerAsync("agent-cid", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(BuildInspect(running: true, onNetwork: true, env: TrackedEnv(settings)));
 
         var probe = new Mock<ILightRagHealthProbe>();
-        probe.Setup(p => p.IsHealthyAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        probe.Setup(p => p.IsHealthyAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
 
         var manager = NewManager(docker.Object, settings, probe.Object);
 
         Assert.ThrowsAsync<LightRagContainerNotReadyException>(
-            () => manager.EnsureContainerAsync(agentId, ReservedPort));
+            () => manager.EnsureContainerAsync(agentId));
     }
 }

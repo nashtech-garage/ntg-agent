@@ -60,11 +60,11 @@ GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
 LIGHTRAG_EMBEDDING_API_KEY,
 LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
-LIGHTRAG_SERVER_HOST, LIGHTRAG_SERVER_CERT_DIR, LIGHTRAG_PORT_BIND_HOST_IP,
+LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL,
 LIGHTRAG_POSTGRES_PORT.
 
-Leave the LIGHTRAG_DOCKER_* / LIGHTRAG_SERVER_* values empty for a plain
-all-local run against the local Docker socket.
+Leave the LIGHTRAG_DOCKER_* / LIGHTRAG_SERVER_* / LIGHTRAG_GATEWAY_* values empty
+for a plain all-local run (local Docker socket + the deploy/lightrag-local stack).
 EOF
 }
 
@@ -285,18 +285,11 @@ resolve_field LIGHTRAG_SERVER_HOST \
   "LIGHTRAG_SERVER_HOST" \
   "__EMPTY__"
 
-resolve_field LIGHTRAG_SERVER_CERT_DIR \
-  "Cert directory ON THE SERVER, mounted into containers [Enter to skip]: " \
+resolve_field LIGHTRAG_GATEWAY_URL \
+  "LightRAG gateway URL (e.g. https://4.193.109.6) [Enter for http://localhost:8080]: " \
   0 \
-  "LIGHTRAG_SERVER_CERT_DIR" \
-  "LIGHTRAG_SERVER_CERT_DIR" \
-  "__EMPTY__"
-
-resolve_field LIGHTRAG_PORT_BIND_HOST_IP \
-  "IP the agent containers publish on (0.0.0.0 remote) [Enter for 127.0.0.1]: " \
-  0 \
-  "LIGHTRAG_PORT_BIND_HOST_IP" \
-  "LIGHTRAG_PORT_BIND_HOST_IP" \
+  "LIGHTRAG_GATEWAY_URL" \
+  "LIGHTRAG_GATEWAY_URL" \
   "__EMPTY__"
 
 resolve_field LIGHTRAG_POSTGRES_PORT \
@@ -329,8 +322,7 @@ set_secret "Parameters:lightrag-docker-host" "$LIGHTRAG_DOCKER_HOST"
 set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
 set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"
 set_secret "Parameters:lightrag-server-host" "$LIGHTRAG_SERVER_HOST"
-set_secret "Parameters:lightrag-server-cert-dir" "$LIGHTRAG_SERVER_CERT_DIR"
-set_secret "Parameters:lightrag-port-bind-host-ip" "$LIGHTRAG_PORT_BIND_HOST_IP"
+set_secret "Parameters:lightrag-gateway-url" "$LIGHTRAG_GATEWAY_URL"
 set_secret "Parameters:lightrag-postgres-port" "$LIGHTRAG_POSTGRES_PORT"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then

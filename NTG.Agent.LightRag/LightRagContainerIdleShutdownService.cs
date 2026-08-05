@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,20 +12,17 @@ namespace NTG.Agent.LightRag;
 /// </summary>
 public sealed class LightRagContainerIdleShutdownService : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
     private readonly ILightRagContainerManager _containerManager;
     private readonly LightRagContainerAccessTracker _accessTracker;
     private readonly LightRagSettings _settings;
     private readonly ILogger<LightRagContainerIdleShutdownService> _logger;
 
     public LightRagContainerIdleShutdownService(
-        IServiceProvider serviceProvider,
         ILightRagContainerManager containerManager,
         LightRagContainerAccessTracker accessTracker,
         IOptions<LightRagSettings> settings,
         ILogger<LightRagContainerIdleShutdownService> logger)
     {
-        _serviceProvider = serviceProvider;
         _containerManager = containerManager;
         _accessTracker = accessTracker;
         _settings = settings.Value;
@@ -79,25 +75,16 @@ public sealed class LightRagContainerIdleShutdownService : BackgroundService
 
     private async Task ShutdownIdleContainersAsync(CancellationToken ct)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var portStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentPortStore>();
-
-        // Agents without a port reservation have no container yet, so only assigned ports matter.
-        var assigned = await portStore.GetAssignedPortsAsync(ct);
+        // Only agents with tracked access are candidates — an untracked agent might have been
+        // just created or reconciled, so its container is left alone.
+        var tracked = _accessTracker.Snapshot();
         var timeout = TimeSpan.FromMinutes(_settings.IdleTimeoutMinutes);
         var now = DateTime.UtcNow;
         var shutdownCount = 0;
 
-        foreach (var (agentId, _) in assigned)
+        foreach (var (agentId, lastAccess) in tracked)
         {
-            var lastAccess = _accessTracker.GetLastAccess(agentId);
-
-            // If we've never tracked access for this agent, don't shut it down —
-            // it might have been just created or reconciled.
-            if (lastAccess is null)
-                continue;
-
-            var idleDuration = now - lastAccess.Value;
+            var idleDuration = now - lastAccess;
             if (idleDuration < timeout)
                 continue;
 

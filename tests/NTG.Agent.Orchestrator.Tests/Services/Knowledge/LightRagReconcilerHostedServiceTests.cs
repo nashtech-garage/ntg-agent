@@ -22,17 +22,13 @@ public class LightRagReconcilerHostedServiceTests
         IServiceProvider sp, ILightRagContainerManager manager, LightRagSettings settings) =>
         new(sp, manager, Options.Create(settings), NullLogger<LightRagReconcilerHostedService>.Instance);
 
-    // Builds the root provider the reconciler creates a scope from. The two seams are optional
+    // Builds the root provider the reconciler creates a scope from. The seam is optional
     // because the "daemon never reachable" path returns before it ever resolves a scope.
-    private static IServiceProvider RootProvider(
-        ILightRagAgentPortStore? portStore = null,
-        ILightRagProvisioner? provisioner = null)
+    private static IServiceProvider RootProvider(ILightRagAgentStore? agentStore = null)
     {
         var collection = new ServiceCollection();
-        if (portStore is not null)
-            collection.AddSingleton(portStore);
-        if (provisioner is not null)
-            collection.AddSingleton(provisioner);
+        if (agentStore is not null)
+            collection.AddSingleton(agentStore);
         return collection.BuildServiceProvider();
     }
 
@@ -61,13 +57,12 @@ public class LightRagReconcilerHostedServiceTests
             .ReturnsAsync(() => ++pings >= 3);
         manager.Setup(m => m.EnsureImagePulledAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        var portStore = new Mock<ILightRagAgentPortStore>();
-        portStore.Setup(p => p.GetAgentIdsAsync(It.IsAny<CancellationToken>()))
+        var agentStore = new Mock<ILightRagAgentStore>();
+        agentStore.Setup(p => p.GetAgentIdsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid>)Array.Empty<Guid>());
-        var provisioner = new Mock<ILightRagProvisioner>();
 
         var settings = new LightRagSettings { DaemonProbeTimeoutSeconds = 5, DaemonProbePollIntervalMs = 10 };
-        var svc = NewReconciler(RootProvider(portStore.Object, provisioner.Object), manager.Object, settings);
+        var svc = NewReconciler(RootProvider(agentStore.Object), manager.Object, settings);
 
         await RunOnceAsync(svc);
 

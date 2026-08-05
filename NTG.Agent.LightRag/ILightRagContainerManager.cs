@@ -18,16 +18,12 @@ public interface ILightRagContainerManager
     Task EnsureImagePulledAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Idempotently ensures the agent's container exists and is running, bound to the
-    /// agent's reserved <paramref name="hostPort"/>, and returns that port. A healthy
-    /// container already running on the reserved port is reused; otherwise it is
-    /// (re)created on the reserved port.
+    /// Idempotently ensures the agent's container exists, is running, and is serving
+    /// through the gateway. A healthy running container is reused; otherwise it is
+    /// (re)created. Containers publish no host ports — the gateway reaches them by
+    /// name over the shared Docker network.
     /// </summary>
-    /// <exception cref="PortReservationConflictException">
-    /// The reserved port is held on the host by an external process; the caller should
-    /// reassign a new reserved port and retry.
-    /// </exception>
-    Task<int> EnsureContainerAsync(Guid agentId, int hostPort, CancellationToken cancellationToken = default);
+    Task EnsureContainerAsync(Guid agentId, CancellationToken cancellationToken = default);
 
     /// <summary>Stops and removes the agent's container. No-op if it does not exist.</summary>
     Task StopAndRemoveContainerAsync(Guid agentId, CancellationToken cancellationToken = default);

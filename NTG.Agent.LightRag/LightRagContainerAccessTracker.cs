@@ -40,4 +40,13 @@ public sealed class LightRagContainerAccessTracker
             _lastAccess.Remove(agentId);
         }
     }
+
+    /// <summary>Point-in-time copy of all tracked agents and their last access times.</summary>
+    public IReadOnlyList<KeyValuePair<Guid, DateTime>> Snapshot()
+    {
+        lock (_lock)
+        {
+            return _lastAccess.ToList();
+        }
+    }
 }

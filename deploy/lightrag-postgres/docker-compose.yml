@@ -1,13 +1,19 @@
-# Standalone pgvector + Apache AGE Postgres for the LightRAG knowledge stack.
+# LightRAG knowledge stack for the dedicated Ubuntu server: the standalone
+# pgvector + Apache AGE Postgres, plus the nginx gateway that fronts the
+# per-agent LightRAG containers.
 #
-# This replaces the `lightrag-postgres` resource that used to live in the .NET
-# AppHost. It runs on the dedicated Ubuntu server and is reached by the
-# Orchestrator directly over TLS on 5432. It reuses the existing image and init SQL:
+# Postgres replaces the `lightrag-postgres` resource that used to live in the .NET
+# AppHost. It is reached by the Orchestrator directly over TLS on 5432. It reuses
+# the existing image and init SQL:
 #   build context: ../../scripts/lightrag-postgres  (pgvector + Apache AGE image)
 #   init scripts:  ../../scripts/lightrag-pg-init    (creates DB + extensions)
 #
+# The gateway (gateway/nginx.conf) terminates TLS on 443 and routes
+# /agents/{agentId}/* to that agent's container by name over the Docker network;
+# agent containers publish no host ports.
+#
 # Usage on the server:
-#   cp .env.example .env        # then set POSTGRES_PASSWORD and PG_CERT_DIR
+#   cp .env.example .env        # then set POSTGRES_PASSWORD, PG_CERT_DIR, GATEWAY_CERT_DIR
 #   docker compose up -d
 #
 # TLS: Postgres refuses to start if its key file is group/world readable or is not
@@ -22,10 +28,10 @@
 # `ssl=on` is additive: pg_hba.conf keeps its default `host ... scram-sha-256` rules, so
 # the per-agent containers reaching Postgres over the Docker bridge are unaffected.
 #
-# The container is deliberately named "lightrag-postgres" so the Orchestrator's
-# LightRagContainerManager can find it by name and attach it to the
-# `ntg-agent-lightrag` network. The Orchestrator owns that network (it creates
-# and connects it), so it is intentionally NOT declared here.
+# The containers are deliberately named "lightrag-postgres" / "lightrag-gateway" so
+# the Orchestrator's LightRagContainerManager can find them by name and attach them
+# to the `ntg-agent-lightrag` network. The Orchestrator owns that network (it
+# creates and connects it), so it is intentionally NOT declared here.
 
 services:
   lightrag-postgres:
@@ -56,6 +62,25 @@ services:
       - ${PG_CERT_DIR:?set PG_CERT_DIR in .env}:/certs:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  lightrag-gateway:
+    image: nginx:1.28-alpine
+    container_name: lightrag-gateway
+    restart: unless-stopped
+    ports:
+      # Published on all interfaces so the Orchestrator can reach it directly. Inbound
+      # access is restricted to the team's source IPs by the Azure NSG rules.
+      - "443:443"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # Server certificate + key (same pair Postgres serves). nginx runs as root in the
+      # container, so no ownership staging is needed — mount ~/docker-certs directly.
+      - ${GATEWAY_CERT_DIR:?set GATEWAY_CERT_DIR in .env}:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:80/gateway-health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
