@@ -1,0 +1,56 @@
+{
+  "surfaceId": "trip-search",
+  "components": [
+    { "id": "root", "component": "Column", "children": ["title", "hint", "destination", "depart", "return", "travellers", "style", "submit"] },
+
+    { "id": "title", "component": "Text", "text": "Plan your trip", "variant": "h4" },
+    { "id": "hint", "component": "Text", "text": "Tell us the basics and we'll put three options together.", "variant": "caption" },
+
+    { "id": "destination", "component": "TextField", "label": "Where to?", "value": { "path": "/trip/destination" }, "variant": "shortText" },
+    { "id": "depart", "component": "DateTimeInput", "label": "Departing", "value": { "path": "/trip/departDate" }, "enableDate": true, "enableTime": false },
+    { "id": "return", "component": "DateTimeInput", "label": "Returning", "value": { "path": "/trip/returnDate" }, "enableDate": true, "enableTime": false },
+    { "id": "travellers", "component": "Slider", "label": "Travellers", "value": { "path": "/trip/travellers" }, "min": 1, "max": 8 },
+
+    {
+      "id": "style",
+      "component": "ChoicePicker",
+      "label": "Trip style",
+      "variant": "mutuallyExclusive",
+      "value": { "path": "/trip/style" },
+      "options": [
+        { "label": "Budget — keep it cheap", "value": "budget" },
+        { "label": "Balanced — good value", "value": "balanced" },
+        { "label": "Comfort — treat myself", "value": "comfort" }
+      ]
+    },
+
+    {
+      "id": "submit",
+      "component": "Button",
+      "variant": "primary",
+      "child": "submit-label",
+      "action": {
+        "event": {
+          "name": "trip_search_submit",
+          "context": {
+            "destination": { "path": "/trip/destination" },
+            "departDate": { "path": "/trip/departDate" },
+            "returnDate": { "path": "/trip/returnDate" },
+            "travellers": { "path": "/trip/travellers" },
+            "style": { "path": "/trip/style" }
+          }
+        }
+      }
+    },
+    { "id": "submit-label", "component": "Text", "text": "Find trips" }
+  ],
+  "data": {
+    "trip": {
+      "destination": "",
+      "departDate": "",
+      "returnDate": "",
+      "travellers": 2,
+      "style": ["balanced"]
+    }
+  }
+}
