@@ -109,8 +109,16 @@ The `render_a2ui` tool itself flows through the existing frontend-tool path with
 
 - **Reload rehydration** — A2UI surfaces render live but are not persisted/replayed on conversation
   reload (the weather card is). Future work: persist the `render_a2ui` call and replay it.
-- **Binding consistency** still depends partly on the model; the Button's `formData` payload is the
-  safety net that makes the round-trip work regardless.
+- **Binding consistency** — ~~depends partly on the model~~ **corrected.** This was not model
+  variance. The original `RenderGuide` named props that do not exist in the v0.9 basic catalog
+  (`TextField.text`, `CheckBox.checked`, `ChoicePicker.selections`, `Slider.minValue`/`maxValue`,
+  `ChoicePicker.maxAllowedSelections`, and Button variants `secondary`/`text`), so data-model
+  bindings never actually bound. It went unnoticed because `interactiveCatalog.tsx` keeps local
+  React state — inputs stay typeable — and mirrors every change to `/__inputs/<id>`, so answers
+  still reached the agent. The visible symptom was that seeding `data` never pre-filled a field.
+  `A2uiPrompt.RenderGuide` now uses schema-verified names (every input binds through `value`);
+  see `docs/Agent-Skills-Implementation-Plan.md` § "Two findings that shape the design". The
+  Button's `formData` payload remains as defence in depth.
 - `deleteSurface` and streaming partial-update "heal" are not specifically exercised.
 
 ## Verification

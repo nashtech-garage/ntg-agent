@@ -35,15 +35,18 @@ public static class A2uiPrompt
         object { "path": "/key" } that reads/writes the data model at that path.
 
         ## CRITICAL — making inputs interactive
-        Every editable input (TextField, CheckBox, Slider, DateTimeInput, ChoicePicker) MUST
-        bind its value prop to a data-model path with { "path": "/..." }, AND you MUST seed that
-        path in the `data` argument. An input whose value is a literal (or missing) is FROZEN —
-        the user cannot type or toggle it. The bindable prop per component:
-        - TextField  → "text":       { "path": "/form/<field>" }   (label stays a literal string)
-        - CheckBox   → "checked":    { "path": "/form/<field>" }
-        - Slider     → "value":      { "path": "/form/<field>" }
-        - DateTimeInput → "value":   { "path": "/form/<field>" }
-        - ChoicePicker  → "selections": { "path": "/form/<field>" }
+        Every editable input (TextField, CheckBox, Slider, DateTimeInput, ChoicePicker) binds
+        through the SAME prop — always "value" — to a data-model path with { "path": "/..." },
+        AND you MUST seed that path in the `data` argument. An input whose value is a literal
+        (or missing) is FROZEN: the user cannot type or toggle it, and nothing you put in `data`
+        will pre-fill it.
+        - TextField     → "value": { "path": "/form/<field>" }   (label stays a literal string)
+        - CheckBox      → "value": { "path": "/form/<field>" }
+        - Slider        → "value": { "path": "/form/<field>" }
+        - DateTimeInput → "value": { "path": "/form/<field>" }
+        - ChoicePicker  → "value": { "path": "/form/<field>" }   (stores an ARRAY)
+        There is no "text", "checked" or "selections" prop on these components. Those names are
+        not in the catalog and the binding fails silently.
         Seed every bound path in `data`, e.g. { "form": { "name": "", "subscribe": false } }.
         A Button reads those values when clicked via its action context (see the form example).
 
@@ -60,24 +63,29 @@ public static class A2uiPrompt
         - Prefer a single primary Button (variant "primary"); give secondary actions variant
           "secondary" or "text". Don't crowd a surface — a few well-chosen fields beat a long form.
 
-        ## Available components (basic catalog) — use ONLY these names
-        Content: Text { text, variant?: h1|h2|h3|h4|h5|caption|body }, Image { url, fit?, variant? },
-          Icon { name }, Divider { axis? }.
+        ## Available components (basic catalog) — use ONLY these names and props
+        Content: Text { text, variant?: h1|h2|h3|h4|h5|caption|body },
+          Image { url, description?, fit?, variant? }, Icon { name },
+          Divider { axis?: horizontal|vertical }.
         Layout: Column { children, justify?, align? }, Row { children, justify?, align? },
-          List { children, direction? }, Card { child }.
-        Interactive (value prop must be a { path } binding — see CRITICAL above):
-          Button { child, action: { event: { name, context? } }, variant?: primary|secondary|text },
-          TextField { label, text: {path}, textFieldType?: shortText|longText|number|date|obscured },
-          CheckBox { label, checked: {path} }, Slider { value: {path}, minValue?, maxValue? },
-          DateTimeInput { value: {path}, enableDate?, enableTime? },
-          ChoicePicker { options: [{ label, value }], selections: {path}, maxAllowedSelections? }.
+          List { children, direction?, align? }, Card { child }.
+          justify: start|center|end|spaceBetween|spaceAround|spaceEvenly|stretch
+          align:   start|center|end|stretch
+        Interactive (the "value" prop must be a { path } binding — see CRITICAL above):
+          Button { child, action: { event: { name, context? } }, variant?: default|primary|borderless },
+          TextField { label, value: {path}, variant?: shortText|longText|number|obscured },
+          CheckBox { label, value: {path} },
+          Slider { value: {path}, max, min?, label? }              -- "max" is REQUIRED
+          DateTimeInput { value: {path}, enableDate?, enableTime?, label?, min?, max? },
+          ChoicePicker { options: [{ label, value }], value: {path}, label?,
+                         variant?: mutuallyExclusive|multipleSelection, displayStyle?, filterable? }.
+        Any prop not listed here is rejected by the catalog — do not invent props.
 
         ## Example — a simple (non-interactive) info card
         render_a2ui({
           "surfaceId": "welcome-card",
           "components": [
-            { "id": "root", "component": "Card", "child": "col" },
-            { "id": "col", "component": "Column", "children": ["title", "body"] },
+            { "id": "root", "component": "Column", "children": ["title", "body"] },
             { "id": "title", "component": "Text", "text": "Welcome", "variant": "h3" },
             { "id": "body", "component": "Text", "text": "This surface was generated by the agent." }
           ]
@@ -87,15 +95,14 @@ public static class A2uiPrompt
         render_a2ui({
           "surfaceId": "signup-form",
           "components": [
-            { "id": "root", "component": "Card", "child": "col" },
-            { "id": "col", "component": "Column", "children": ["title", "name", "subscribe", "submit"] },
+            { "id": "root", "component": "Column", "children": ["title", "name", "subscribe", "submit"] },
             { "id": "title", "component": "Text", "text": "Sign up", "variant": "h4" },
-            { "id": "name", "component": "TextField", "label": "Your name", "text": { "path": "/form/name" } },
-            { "id": "subscribe", "component": "CheckBox", "label": "Email me updates", "checked": { "path": "/form/subscribe" } },
+            { "id": "name", "component": "TextField", "label": "Your name", "value": { "path": "/form/name" } },
+            { "id": "subscribe", "component": "CheckBox", "label": "Email me updates", "value": { "path": "/form/subscribe" } },
             { "id": "submit", "component": "Button", "child": "submitText", "variant": "primary",
               "action": { "event": { "name": "submit_signup",
                 "context": { "name": { "path": "/form/name" }, "subscribe": { "path": "/form/subscribe" } } } } },
-            { "id": "submitText", "component": "Text", "text": "Submit" }
+            { "id": "submitText", "component": "Text", "text": "Create account" }
           ],
           "data": { "form": { "name": "", "subscribe": false } }
         })
@@ -111,11 +118,14 @@ public static class A2uiPrompt
 
         ## Choices / multi-select
         For "pick one or several from these options", use ONE ChoicePicker (not separate
-        CheckBoxes) — it stores the picks as an array. Bind it and reference the SAME path from the
-        submit button:
-          { "id": "opinion", "component": "ChoicePicker", "selections": { "path": "/form/opinion" },
+        CheckBoxes) — it stores the picks as an ARRAY. Bind it and reference the SAME path from
+        the submit button:
+          { "id": "opinion", "component": "ChoicePicker", "value": { "path": "/form/opinion" },
+            "variant": "multipleSelection",
             "options": [ { "label": "Option A", "value": "a" }, { "label": "Option B", "value": "b" } ] }
           submit button context: { "opinion": { "path": "/form/opinion" } }
-        Seed it in data: { "form": { "opinion": [] } }. Use variant "mutuallyExclusive" for single-choice.
+        Seed it in `data` as an empty ARRAY — { "form": { "opinion": [] } } — even for pick-one.
+        Always set variant explicitly: "mutuallyExclusive" to pick one, "multipleSelection" to
+        pick several. Omitting it does not reliably give you either.
         """;
 }
