@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Agents;
+using NTG.Agent.Orchestrator.Models.Skills;
 using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
@@ -27,6 +28,12 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
 
     public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
+
+    public DbSet<Skill> Skills { get; set; } = null!;
+
+    public DbSet<SkillAsset> SkillAssets { get; set; } = null!;
+
+    public DbSet<AgentSkill> AgentSkills { get; set; } = null!;
 
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
@@ -232,6 +239,51 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 .WithMany(a => a.OuterAgentBindings)
                 .HasForeignKey(x => x.InnerAgentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Agent Skills (https://agentskills.io). Name is unique so re-importing a package with the
+        // same name replaces the existing skill rather than creating a second one; SQL Server's
+        // default case-insensitive collation also blocks near-duplicates such as "Travel"/"travel",
+        // which the spec forbids anyway (names are lowercase-only).
+        modelBuilder.Entity<Skill>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(64);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Description).IsRequired().HasMaxLength(1024);
+            e.Property(x => x.Compatibility).HasMaxLength(500);
+            e.Property(x => x.License).HasMaxLength(256);
+            e.Property(x => x.Version).HasMaxLength(64);
+            e.Property(x => x.SourceFileName).HasMaxLength(260);
+
+            e.HasMany(x => x.Assets)
+                .WithOne(a => a.Skill)
+                .HasForeignKey(a => a.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // The unique (SkillId, RelativePath) index is defence in depth: duplicate entry names in a
+        // crafted archive fail at the database even if importer validation is bypassed or regressed.
+        modelBuilder.Entity<SkillAsset>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RelativePath).IsRequired().HasMaxLength(512);
+            e.HasIndex(x => new { x.SkillId, x.RelativePath }).IsUnique();
+        });
+
+        modelBuilder.Entity<AgentSkill>(e =>
+        {
+            e.HasKey(x => new { x.AgentId, x.SkillId });
+
+            e.HasOne(x => x.Agent)
+                .WithMany(a => a.SkillBindings)
+                .HasForeignKey(x => x.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Skill)
+                .WithMany(s => s.AgentBindings)
+                .HasForeignKey(x => x.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // UserPreference configuration
