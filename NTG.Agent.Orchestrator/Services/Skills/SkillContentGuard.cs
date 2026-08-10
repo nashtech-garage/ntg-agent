@@ -46,6 +46,14 @@ internal static class SkillContentGuard
     private static readonly char[] ZeroWidth = ['\u200B', '\u200C', '\u200D', ByteOrderMark];
 
     /// <summary>
+    /// Unicode line and paragraph separators. Not control characters and not zero-width, so they
+    /// slip past both of the checks above \u2014 while many consumers, including LLM tokenizers, treat
+    /// them as line breaks. That makes them a way to forge a new line inside a value whose whole
+    /// defence is that it cannot contain one.
+    /// </summary>
+    private static readonly char[] LineSeparators = ['\u0085', '\u2028', '\u2029'];
+
+    /// <summary>
     /// Substrings that must never appear in <c>name</c> or <c>description</c>. Tier-1 metadata is
     /// concatenated into a single system message and injected on <em>every</em> run for every
     /// bound skill, with no activation step — so it has the widest blast radius of anything here.
@@ -110,6 +118,15 @@ internal static class SkillContentGuard
             if (Array.IndexOf(ZeroWidth, c) >= 0)
             {
                 Report("zero-width", $"{location}: contains zero-width character U+{(int)c:X4} at index {i}");
+                continue;
+            }
+
+            if (Array.IndexOf(LineSeparators, c) >= 0)
+            {
+                Report(
+                    "line-separator",
+                    $"{location}: contains Unicode line separator U+{(int)c:X4} at index {i} — "
+                    + "use an ordinary newline");
             }
         }
 
@@ -141,7 +158,7 @@ internal static class SkillContentGuard
     {
         CheckBody(field, value, errors);
 
-        if (value.Contains('\n') || value.Contains('\r'))
+        if (value.Contains('\n') || value.Contains('\r') || value.Any(c => Array.IndexOf(LineSeparators, c) >= 0))
         {
             errors.Add($"{field}: must be a single line — a newline lets it forge a separate "
                        + "instruction in the skill catalog");
@@ -185,7 +202,8 @@ internal static class SkillContentGuard
 
             if ((c < 0x20 && c is not '\t' and not '\r' and not '\n')
                 || Array.IndexOf(BidiOverrides, c) >= 0
-                || Array.IndexOf(ZeroWidth, c) >= 0)
+                || Array.IndexOf(ZeroWidth, c) >= 0
+                || Array.IndexOf(LineSeparators, c) >= 0)
             {
                 builder.Append(CultureInfo.InvariantCulture, $"<U+{(int)c:X4}>");
                 continue;

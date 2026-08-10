@@ -192,6 +192,52 @@ public sealed class SkillRegistry(
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken);
 
+    /// <summary>One bound, enabled skill as seen by a running agent.</summary>
+    public sealed record ActiveSkill(Guid Id, string Name, string Description);
+
+    /// <summary>
+    /// The skills an agent may use in a run: bound <em>and</em> enabled, name and description only.
+    /// </summary>
+    /// <remarks>
+    /// Bodies are excluded on purpose. This is tier 1 of the spec's progressive disclosure — the
+    /// catalog is injected on every run for every bound skill, so putting bodies here would spend
+    /// the entire context budget on instructions the model has not asked for and may not need.
+    /// </remarks>
+    public async Task<IReadOnlyList<ActiveSkill>> GetActiveSkillsAsync(
+        Guid agentId, CancellationToken cancellationToken = default) =>
+        await _dbContext.AgentSkills
+            .Where(b => b.AgentId == agentId && b.IsEnabled)
+            .OrderBy(b => b.Skill.Name)
+            .Select(b => new ActiveSkill(b.SkillId, b.Skill.Name, b.Skill.Description))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// The <c>SKILL.md</c> body of a bound, enabled skill, or <see langword="null"/>. Tier 2 —
+    /// fetched only when the model activates the skill.
+    /// </summary>
+    public async Task<string?> GetActiveSkillBodyAsync(
+        Guid agentId, string skillName, CancellationToken cancellationToken = default) =>
+        await _dbContext.AgentSkills
+            .Where(b => b.AgentId == agentId && b.IsEnabled && b.Skill.Name == skillName)
+            .Select(b => b.Skill.Body)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// A named asset belonging to a bound, enabled skill, or <see langword="null"/>.
+    /// </summary>
+    /// <remarks>
+    /// The binding is re-checked here rather than trusted from the caller: this is what stops a
+    /// model from naming a skill that was never bound to the agent it is running as.
+    /// </remarks>
+    public async Task<byte[]?> GetActiveSkillAssetAsync(
+        Guid agentId, string skillName, string relativePath, CancellationToken cancellationToken = default) =>
+        await _dbContext.AgentSkills
+            .Where(b => b.AgentId == agentId && b.IsEnabled && b.Skill.Name == skillName)
+            .SelectMany(b => b.Skill.Assets)
+            .Where(a => a.RelativePath == relativePath)
+            .Select(a => a.Content)
+            .FirstOrDefaultAsync(cancellationToken);
+
     /// <summary>
     /// Every skill in the system, each flagged with whether it is bound and enabled for
     /// <paramref name="agentId"/>.
