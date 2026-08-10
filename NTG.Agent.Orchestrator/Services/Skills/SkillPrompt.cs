@@ -71,15 +71,25 @@ public static class SkillPrompt
             + "skill's name to read its full instructions, then follow them. Load a skill before "
             + "acting on it — the description alone is not enough to work from.");
         builder.AppendLine();
+
+        // The instruction that has to win. A skill's body is never persisted into the conversation
+        // history, so on the turn after a surface submission the model holds the catalog and
+        // nothing else. Observed failure: it skipped the flow's final surface and narrated the raw
+        // data-model paths back to the user — both things the skill it was no longer holding
+        // forbids. Stated immediately after the load rule, and before any rule that could read as
+        // a reason to skip it.
         builder.AppendLine(
-            "Load at most one skill per request unless the task genuinely spans two. If no skill "
-            + "matches, answer normally and do not mention that skills exist.");
+            $"**A loaded skill lasts only for the current reply.** Its instructions are not carried "
+            + $"into later turns. Whenever you continue a task you began under a skill — above all "
+            + $"when the user has just submitted a surface you rendered — call `{LoadToolName}` for "
+            + "that skill again, first, before doing anything else. Never continue such a task from "
+            + "memory of an earlier turn.");
         builder.AppendLine();
         builder.AppendLine(
-            $"A loaded skill lasts only for the current reply. When you continue a task you started "
-            + $"under a skill — including after the user submits a surface you rendered — call "
-            + $"`{LoadToolName}` again to re-read its instructions before acting. Do not work from "
-            + "memory of a previous turn.");
+            "Use one skill at a time unless a task genuinely spans two. That is a limit on how many "
+            + $"*different* skills you use, not on how often you call `{LoadToolName}` — reloading "
+            + "the same skill on a later turn is expected and correct. If no skill matches, answer "
+            + "normally and do not mention that skills exist.");
         builder.AppendLine();
         builder.AppendLine(
             $"Skills may instruct you to call `{RenderToolName}` to draw an interactive surface in "

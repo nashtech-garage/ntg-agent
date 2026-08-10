@@ -169,6 +169,35 @@ public class SkillPromptTests
         });
     }
 
+    /// <summary>
+    /// Regression from a live run. A skill body is never persisted into conversation history, so on
+    /// the turn after a surface submission the model holds the catalog and nothing else. An earlier
+    /// version put "load at most one skill per request" ahead of the reload rule; the model read it
+    /// as a reason not to reload, and on turn three it skipped the flow's final surface and narrated
+    /// raw data-model paths back to the user — both forbidden by the skill it was no longer holding.
+    /// The reload rule must come first, and nothing before it may read as a cap on reloading.
+    /// </summary>
+    [Test]
+    public void BuildCatalog_StatesTheReloadRuleBeforeAnyLimitOnSkillCount()
+    {
+        var catalog = BuildCatalog(Travel);
+
+        var reloadRule = catalog.IndexOf("lasts only for the current reply", StringComparison.Ordinal);
+        var countLimit = catalog.IndexOf("one skill at a time", StringComparison.OrdinalIgnoreCase);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reloadRule, Is.GreaterThan(-1), "the catalog must tell the model a skill does not persist");
+            Assert.That(countLimit, Is.GreaterThan(-1));
+            Assert.That(
+                reloadRule, Is.LessThan(countLimit),
+                "the reload rule must be stated before any limit on how many skills are used");
+            Assert.That(
+                catalog, Does.Not.Contain("at most one skill per request"),
+                "that phrasing reads as a cap on reloading the same skill, which is expected and correct");
+        });
+    }
+
     // ---------------------------------------------------------------- containment
 
     /// <summary>
