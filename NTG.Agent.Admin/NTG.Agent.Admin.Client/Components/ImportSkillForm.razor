@@ -118,7 +118,11 @@
         {
             var skill = await SkillClient.ImportAsync(file);
 
-            generalMessage = $"Imported \"{skill.Name}\" (v{skill.Version}) successfully.";
+            // Replacement is destructive — the previous body and every asset are gone — so it must
+            // read differently from a first import rather than both saying "Imported".
+            generalMessage = skill.Replaced
+                ? $"Replaced the existing \"{skill.Name}\" skill with v{skill.Version}. Agent bindings were kept."
+                : $"Imported \"{skill.Name}\" (v{skill.Version}) successfully.";
             isError = false;
             StateHasChanged();
 

@@ -149,6 +149,37 @@ public class SkillsControllerTests
         Assert.That(payload.Errors.Any(e => e.Contains("SKILL.md", StringComparison.Ordinal)), Is.True);
     }
 
+    /// <summary>
+    /// Replacement is destructive — the previous body and every asset are discarded — so the
+    /// response has to distinguish it from a first import. Without this the two are visually
+    /// identical in the UI, which is the silent side effect the plan forbids.
+    /// </summary>
+    [Test]
+    public async Task ImportSkill_OverAnExistingSkill_ReportsThatItReplaced()
+    {
+        var first = await ImportAsync();
+        var second = await ImportAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(first.Replaced, Is.False, "a first import must not claim to have replaced anything");
+            Assert.That(second.Replaced, Is.True);
+            Assert.That(second.Id, Is.EqualTo(first.Id), "replacement keeps the id so agent bindings survive");
+        });
+    }
+
+    /// <summary>The flag is only meaningful on import; a plain read must not assert it.</summary>
+    [Test]
+    public async Task GetSkill_DoesNotReportReplacement()
+    {
+        var imported = await ImportAsync();
+
+        var result = await _controller.GetSkill(imported.Id, CancellationToken.None);
+        var detail = ((OkObjectResult)result.Result!).Value as SkillDetail;
+
+        Assert.That(detail!.Replaced, Is.False);
+    }
+
     [Test]
     public async Task ImportSkill_NoFile_Returns400RatherThanThrowing()
     {

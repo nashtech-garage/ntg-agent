@@ -126,7 +126,7 @@ public class SkillsController(SkillRegistry skillRegistry, ILogger<SkillsControl
             return Rejected("The skill was imported but could not be read back.");
         }
 
-        return Ok(ToDetail(detail));
+        return Ok(ToDetail(detail, outcome.Replaced));
     }
 
     /// <summary>
@@ -207,7 +207,7 @@ public class SkillsController(SkillRegistry skillRegistry, ILogger<SkillsControl
     private BadRequestObjectResult Rejected(params string[] errors) =>
         BadRequest(new SkillImportErrorResponse(errors.ToList()));
 
-    private static SkillDetail ToDetail(SkillRegistry.SkillDetailView detail) =>
+    private static SkillDetail ToDetail(SkillRegistry.SkillDetailView detail, bool replaced = false) =>
         new(
             detail.Id,
             detail.Name,
@@ -217,7 +217,8 @@ public class SkillsController(SkillRegistry skillRegistry, ILogger<SkillsControl
             detail.CreatedAt,
             detail.AssetCount,
             detail.Body,
-            detail.Assets.Select(a => new SkillAssetDto(a.RelativePath, a.SizeBytes)).ToList());
+            detail.Assets.Select(a => new SkillAssetDto(a.RelativePath, a.SizeBytes)).ToList(),
+            replaced);
 
     /// <summary>
     /// Reassembles <c>SKILL.md</c> from the stored frontmatter fields and body. Values are written
