@@ -202,6 +202,15 @@ declared size *up* fails safe and forging it *down* truncates the attacker's own
 cheap `sum(entry.Length)` precheck is therefore sound on this runtime — but it depends on
 undocumented clamping, so the **streaming byte counter is the actual guarantee**.
 
+> **Confirmed in implementation (Phase 2).** The clamping is real, and it has a consequence worth
+> recording: the streaming counter is *unreachable* on .NET 10. A 21 MB zero-bomb declaring its
+> true size is stopped by the precheck before a byte is decompressed; the same bomb declaring 64
+> bytes is clamped to 64 bytes on read, so the counter never trips. Both cases are covered by
+> `SkillPackageImporterTests`, and the second is asserted on *rejection*, not on the mechanism —
+> an earlier version of that test asserted the counter fired and failed, which is how the
+> behaviour was pinned down. The counter stays as the control that survives the clamping
+> changing; it is dead code today and should not be deleted on that basis.
+
 #### Container controls
 
 | Control | Rule |
