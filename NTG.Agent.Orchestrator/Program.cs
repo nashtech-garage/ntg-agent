@@ -12,6 +12,7 @@ using NTG.Agent.Orchestrator.Services.Agents.Clients;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Skills;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
@@ -112,6 +113,11 @@ builder.Services.AddScoped<ITokenTrackingService, TokenTrackingService>();
 builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
+
+// Agent Skills import. The importer is stateless and holds no dependencies, so it is a singleton;
+// the registry takes the request-scoped DbContext. See docs/Agent-Skills-Implementation-Plan.md.
+builder.Services.AddSingleton<SkillPackageImporter>();
+builder.Services.AddScoped<SkillRegistry>();
 
 // Provider-neutral knowledge plumbing: the upload endpoints signal the active provider's
 // ingestion worker through this regardless of which provider is configured.
