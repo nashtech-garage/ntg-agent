@@ -301,6 +301,31 @@ public class AgUiController : ControllerBase
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name))
                 ?? "unknown_tool";
             var resultText = lastNonSystem.Content ?? "";
+
+            // A submitted surface is not an approval, and must not be prompted like one.
+            //
+            // The acknowledgement wording below was written for human-in-the-loop tools, where the
+            // right response really is "confirm what changed and don't call the tool again". Applied
+            // to a surface submission it does the opposite of what is needed: it asks for a
+            // text-only confirmation and discourages rendering the next step. And because this text
+            // lands in the *user* turn — the most recent, highest-salience position — it outranks
+            // any system-message guidance telling the model to continue a multi-step flow.
+            //
+            // Observed: step 2 of the travel skill survived (a search submission has no "approval"
+            // reading), while step 3 did not — "the user picked option 2" maps exactly onto "if
+            // approved, briefly confirm what changed", so the model confirmed in prose and stopped,
+            // one surface short of finishing. Sending the identical text as an ordinary user message
+            // rendered the final surface correctly, which is what isolated this to the prompt rather
+            // than to the model or the skill.
+            if (string.Equals(toolName, A2uiPrompt.EventToolName, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"[The user submitted a rendered surface. The event was: {resultText}] " +
+                    "Read the values they submitted and continue from wherever this leaves the task. " +
+                    "If you are following a skill, re-read its instructions first and carry out the " +
+                    "next step it defines — including rendering the next surface, if it defines one. " +
+                    "Do not simply restate what they chose.";
+            }
+
             return $"[The user responded to the \"{toolName}\" request with: {resultText}] " +
                 "Acknowledge the outcome appropriately: if approved, briefly confirm what changed; " +
                 "if denied or different from what you proposed, ask what they'd like instead. " +

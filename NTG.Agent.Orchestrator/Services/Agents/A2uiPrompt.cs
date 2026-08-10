@@ -13,6 +13,12 @@ public static class A2uiPrompt
     /// <summary>Tool name the AG-UI A2UI middleware injects (RENDER_A2UI_TOOL_NAME).</summary>
     public const string RenderToolName = "render_a2ui";
 
+    /// <summary>
+    /// The tool call the client sends back when a user submits a rendered surface. Named here
+    /// because the follow-up prompt for it has to differ from the one for an approval tool.
+    /// </summary>
+    public const string EventToolName = "log_a2ui_event";
+
     public const string RenderGuide = """
         You can render rich, interactive UI surfaces in the user's browser by calling the
         `render_a2ui` tool (A2UI v0.9). Prefer it when a visual layout — a card, form, list,
