@@ -1,0 +1,144 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using NTG.Agent.Common.Dtos.Skills
+@inject SkillClient SkillClient
+@inject ILogger<ImportSkillForm> Logger
+
+<div class="row">
+    <div class="col-12">
+
+        <!-- Trust Notice -->
+        <div class="alert alert-warning d-flex align-items-start" role="alert">
+            <i class="bi bi-shield-exclamation me-2 mt-1"></i>
+            <div>
+                <strong>A skill injects instructions into the agent.</strong>
+                Its <code>SKILL.md</code> is loaded directly into the agent's context and can change how the
+                agent behaves and what it says. Only import skill packages from a source you trust.
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="mb-4">
+            <h6 class="mb-3">
+                <i class="bi bi-file-earmark-zip me-2"></i>Upload Skill Package
+            </h6>
+            <div class="border border-dashed border-2 rounded p-4 text-center bg-light">
+                <div class="mb-3">
+                    <i class="bi bi-cloud-upload display-4 text-muted"></i>
+                </div>
+                <h6 class="mb-2">Drag and drop a .zip file here or click to browse</h6>
+                <p class="text-muted small mb-3">
+                    A package containing a <code>SKILL.md</code> file, optionally with <code>assets/</code> and
+                    <code>references/</code> folders.
+                </p>
+                <InputFile OnChange="HandleFileUpload"
+                           class="form-control"
+                           accept=".zip"
+                           id="skillUpload"
+                           disabled="@isUploading" />
+            </div>
+        </div>
+
+        <!-- Upload Status -->
+        @if (isUploading)
+        {
+            <div class="card mb-3">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Importing...</span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="fw-medium">@selectedFileName</div>
+                            <small class="text-muted">Validating and importing...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Validation Errors: every line-item message from the API, not a generic failure -->
+        @if (importErrors.Count > 0)
+        {
+            <div class="alert alert-danger" role="alert">
+                <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>The skill package was rejected (@importErrors.Count issue@(importErrors.Count == 1 ? "" : "s")):</strong>
+                </div>
+                <ul class="mb-0 ps-4">
+                    @foreach (var error in importErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(generalMessage))
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success") d-flex align-items-center" role="alert">
+                <i class="@(isError ? "bi bi-exclamation-triangle-fill" : "bi bi-check-circle-fill") me-2"></i>
+                <div>@generalMessage</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback OnImportCompleted { get; set; }
+
+    private bool isUploading;
+    private string selectedFileName = string.Empty;
+    private List<string> importErrors = new();
+    private string generalMessage = string.Empty;
+    private bool isError;
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        importErrors.Clear();
+        generalMessage = string.Empty;
+        isError = false;
+
+        if (!file.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            generalMessage = "Only .zip files are supported.";
+            isError = true;
+            return;
+        }
+
+        isUploading = true;
+        selectedFileName = file.Name;
+        StateHasChanged();
+
+        try
+        {
+            var skill = await SkillClient.ImportAsync(file);
+
+            generalMessage = $"Imported \"{skill.Name}\" (v{skill.Version}) successfully.";
+            isError = false;
+            StateHasChanged();
+
+            await Task.Delay(800);
+            await OnImportCompleted.InvokeAsync();
+        }
+        catch (SkillImportException ex)
+        {
+            importErrors = ex.Errors.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error importing skill package {FileName}", file.Name);
+            generalMessage = $"Import failed: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isUploading = false;
+            StateHasChanged();
+        }
+    }
+}

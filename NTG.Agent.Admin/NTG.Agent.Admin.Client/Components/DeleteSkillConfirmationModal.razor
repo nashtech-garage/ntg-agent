@@ -1,0 +1,145 @@
+@* Component for confirming skill deletion with error handling *@
+@using NTG.Agent.Admin.Client.Services
+@inject SkillClient SkillClient
+@inject ILogger<DeleteSkillConfirmationModal> Logger
+
+@if (showConfirmation)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Confirm Deletion
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CancelDelete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        Are you sure you want to delete the skill <strong>"@skillName"</strong>?
+                    </p>
+                    <p class="text-danger mt-2 mb-0">
+                        <i class="bi bi-info-circle me-1"></i>
+                        This action cannot be undone. Any agents bound to this skill will no longer be able to load it.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger" @onclick="ConfirmDelete">
+                        <i class="bi bi-trash me-2"></i>
+                        Delete Skill
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showError)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-circle-fill me-2"></i>
+                        Deletion Failed
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseErrorDialog"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-0" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @errorMessage
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CloseErrorDialog">
+                        <i class="bi bi-check-circle me-2"></i>
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public EventCallback OnDeleted { get; set; }
+
+    // Set by ShowDeleteConfirmation, never by the parent. Declaring these as [Parameter] and then
+    // mutating them internally is a Blazor anti-pattern: the framework may overwrite them on any
+    // re-render of the parent. SkillName was also dead — the template reads skillName.
+    private Guid? skillId;
+
+    private bool showConfirmation;
+    private bool showError;
+    private string? skillName;
+    private string? errorMessage;
+
+    public void ShowDeleteConfirmation(Guid skillId, string name)
+    {
+        this.skillId = skillId;
+        skillName = name;
+        showConfirmation = true;
+        errorMessage = null;
+        showError = false;
+        StateHasChanged();
+    }
+
+    private void CancelDelete()
+    {
+        skillId = null;
+        skillName = null;
+        showConfirmation = false;
+        errorMessage = null;
+        showError = false;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (skillId == null)
+            return;
+
+        try
+        {
+            await SkillClient.DeleteAsync(skillId.Value);
+            showConfirmation = false;
+            skillId = null;
+            skillName = null;
+            errorMessage = null;
+            showError = false;
+
+            // Notify parent that deletion was successful
+            await OnDeleted.InvokeAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Error deleting skill");
+
+            errorMessage = "An error occurred while deleting the skill. Please try again.";
+            showError = true;
+            showConfirmation = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting skill");
+            errorMessage = "An unexpected error occurred. Please try again.";
+            showError = true;
+            showConfirmation = false;
+        }
+    }
+
+    private void CloseErrorDialog()
+    {
+        showError = false;
+        errorMessage = null;
+        skillId = null;
+        skillName = null;
+    }
+}
