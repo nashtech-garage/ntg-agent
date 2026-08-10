@@ -14,6 +14,7 @@ using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
+using NTG.Agent.Orchestrator.Services.Skills;
 using NTG.Agent.Common.Knowledge;
 using System.Text;
 using System.Text.Json;
@@ -32,6 +33,7 @@ public class AgentService
     private readonly IDocumentAnalysisService _documentAnalysisService;
     private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
+    private readonly SkillRegistry _skillRegistry;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -45,6 +47,7 @@ public class AgentService
         IDocumentAnalysisService documentAnalysisService,
         AgentAccessService agentAccessService,
         RenderableToolCapture renderableToolCapture,
+        SkillRegistry skillRegistry,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -57,6 +60,7 @@ public class AgentService
         _documentAnalysisService = documentAnalysisService;
         _agentAccessService = agentAccessService;
         _renderableToolCapture = renderableToolCapture;
+        _skillRegistry = skillRegistry;
     }
 
     // Turns tool results captured during the run (get_weather, possibly inside an inner agent)
@@ -111,14 +115,26 @@ public class AgentService
             ocrDocuments = await _documentAnalysisService.ExtractDocumentData(promptRequest.Documents);
         }
 
+        // Naming is cosmetic and runs before the reply, so a failure here must not take the whole
+        // run with it. Unguarded, an unreachable provider surfaced to the user as a bare
+        // INTERNAL_ERROR with no answer at all — and only on the first message of a conversation,
+        // which made it look like an intermittent chat fault rather than a configuration one.
         if (conversation.Name == "New Conversation")
         {
-            var nameTokenUsage = new TokenUsageInfo();
-            var nameStart = DateTime.UtcNow;
-            conversation.Name = await GenerateConversationName(promptRequest.Prompt, nameTokenUsage);
-            _agentDbContext.Conversations.Update(conversation);
-            await _agentDbContext.SaveChangesAsync();
-            await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameTokenUsage, DateTime.UtcNow - nameStart);
+            try
+            {
+                var nameTokenUsage = new TokenUsageInfo();
+                var nameStart = DateTime.UtcNow;
+                conversation.Name = await GenerateConversationName(promptRequest.Prompt, nameTokenUsage);
+                _agentDbContext.Conversations.Update(conversation);
+                await _agentDbContext.SaveChangesAsync();
+                await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), null, OperationTypes.GenerateName, nameTokenUsage, DateTime.UtcNow - nameStart);
+            }
+            catch (Exception ex)
+            {
+                // Left as "New Conversation"; the user can rename it, and the chat proceeds.
+                _logger.LogWarning(ex, "Could not generate a name for conversation {ConversationId}", conversation.Id);
+            }
         }
 
         // Track text and thinking content separately — thinking is persisted but excluded from AI history
@@ -425,6 +441,31 @@ public class AgentService
             // access at call time and scopes the child to its own LightRAG workspace.
             var tools = new List<AITool> { memorySearch };
 
+            // Agent Skills. Gated by the AgentSkills bindings rather than the AgentTools table that
+            // GetAgentToolsByAgentId filters on, so they are attached here alongside the knowledge
+            // tool rather than baked in by AgentFactory. An agent with no bound skills gets neither
+            // the tools nor the catalog message, leaving its runs byte-identical to before.
+            // Guarded for the same reason conversation naming is: this runs before the first
+            // yield of an async iterator, so an exception escapes ChatStreamingAsync entirely and
+            // surfaces as RUN_ERROR with no answer — for every agent, including the ones with no
+            // skills bound. Skills are decoration on a run; they degrade, they do not abort it.
+            IReadOnlyList<SkillRegistry.ActiveSkill> activeSkills = [];
+            try
+            {
+                activeSkills = await _skillRegistry.GetActiveSkillsAsync(promptRequest.AgentId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not load skills for agent {AgentId}; running without them", promptRequest.AgentId);
+            }
+
+            if (activeSkills.Count > 0)
+            {
+                tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, promptRequest.AgentId, _logger));
+                tools.Add(SkillTools.CreateRenderSurface(
+                    _skillRegistry, _renderableToolCapture, promptRequest.AgentId, _logger));
+            }
+
             var chatOptions = new ChatOptions
             {
                 Tools = tools
@@ -436,8 +477,25 @@ public class AgentService
             var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (!string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
             {
+                // FrontendToolsJson comes from the request body, so a client can declare any tool
+                // name it likes — including one already registered server-side. Providers reject
+                // duplicate function names outright, which would turn a crafted request into a
+                // failed run for that user. Server-side tools win; a collision is dropped, not
+                // added, and logged rather than silently ignored.
+                var serverToolNames = chatOptions.Tools
+                    .OfType<AIFunction>()
+                    .Select(t => t.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
                 {
+                    if (!serverToolNames.Add(tool.Name))
+                    {
+                        _logger.LogWarning(
+                            "Frontend tool '{ToolName}' collides with a server-side tool and was ignored", tool.Name);
+                        continue;
+                    }
+
                     chatOptions.Tools.Add(tool);
                     frontendToolNames.Add(tool.Name);
                 }
@@ -447,6 +505,20 @@ public class AgentService
             // model the A2UI v0.9 component catalog so it can generate valid UI surfaces.
             // (The middleware ships this guidance via the AG-UI context channel, which this
             // backend does not forward — so we inject it as a leading system message here.)
+            // Tier 1 of the skill spec's progressive disclosure: names and descriptions only. The
+            // bodies stay in the database until the model calls load_skill, so binding ten skills
+            // to an agent costs ten lines of context per run rather than ten documents.
+            //
+            // Inserted BEFORE the render guide so that, after both Insert(0, …) calls, the final
+            // order is [render guide, skill catalog, …history…]. Each insert pushes the previous
+            // one further from the user's turn, so writing them in the intuitive order would bury
+            // the catalog behind 131 lines of A2UI guidance.
+            var skillCatalog = SkillPrompt.BuildCatalog(activeSkills);
+            if (skillCatalog is not null)
+            {
+                chatHistory.Insert(0, new ChatMessage(ChatRole.System, skillCatalog));
+            }
+
             if (frontendToolNames.Contains(A2uiPrompt.RenderToolName))
             {
                 chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
