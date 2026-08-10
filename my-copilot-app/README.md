@@ -97,6 +97,12 @@ services__ntg_agent_orchestrator__https__0="https://localhost:7093"
 
 # Manual override
 ORCHESTRATOR_URL="https://localhost:7093"
+
+# Freeform A2UI. Unset (or anything other than 0/false/off) declares `render_a2ui`, letting the
+# model hand-author a surface; the orchestrator then also prepends its A2uiPrompt.RenderGuide.
+# Set to 0 for a deployment whose agents render only through Agent Skills' render_skill_surface —
+# skill surfaces and A2UI rendering keep working either way.
+A2UI_FREEFORM_TOOL="0"
 ```
 
 TLS verification is relaxed in development (`NODE_TLS_REJECT_UNAUTHORIZED=0`) to allow self-signed certificates over HTTPS.

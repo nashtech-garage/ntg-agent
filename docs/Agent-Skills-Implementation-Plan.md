@@ -1,6 +1,50 @@
 # Agent Skills Implementation
 
-> Status: Planned · Branch: `feature/agent-skill`
+> Status: Built · Branch: `feature/agent-skill`
+
+## Status
+
+| Phase | State | Commits |
+|---|---|---|
+| 0 — Correct `A2uiPrompt.RenderGuide` | Done | `843f711`; standing regression check `f2d28d2` |
+| 1 — Storage | Done | `2b61da8` |
+| 2 / 2b — ZIP import and its security controls | Done | `13279d0`; surface validator `6e51e1e`, `b2cc9c9` |
+| 3 — Runtime (three tiers) | Done | `292194b`, wired into the chat path in `8244027` |
+| 4 — Admin UI | Done | API `418785b`, Blazor `d33e8b6` |
+| 5 — Demo packages | Partial | `6d32bce` ships `travel-planning` and the packer; no startup seeder, no `ticket-booking` |
+| 6 — Tests | Done | `b2cc9c9`, `418785b`, `382655d` |
+
+### Still open
+
+- **No rehydration renderer for `render_skill_surface`.** The call *is* persisted and
+  `agentMessages.ts` rebuilds it on reload, but only `get_weather` has a frontend renderer, and the
+  A2UI middleware only sees the live SSE stream. A reloaded conversation drops the surface silently.
+- **`render_a2ui` is declared on every run of every agent**, so `A2uiPrompt.RenderGuide` — ~130
+  lines telling the model to hand-author a component tree — is prepended even when the agent has a
+  skill bound that owns the surface, competing with the skill catalog. `route.ts` now reads
+  `A2UI_FREEFORM_TOOL` so a deployment can turn the declaration off, but that switch is
+  per-deployment: the route knows the agent id and nothing else, skill bindings are server state,
+  and the only endpoint exposing them is Admin-only. The per-agent fix belongs in `AgentService`,
+  which holds `activeSkills` and the `frontendToolNames.Contains(A2uiPrompt.RenderToolName)` gate a
+  few lines apart. Note the middleware only *declares* the tool — it recognises and renders a
+  `render_a2ui` call regardless of who declared it (`a2uiToolNames` defaults to `["render_a2ui"]`),
+  so the declaration can move server-side without touching the frontend.
+- **No import-time cap on the `SKILL.md` body.** `name` and `description` are bounded; the body is
+  bounded only by the 5 MB package / 20 MB uncompressed caps, which is not a context budget.
+- **`values` can still freeze an input.** `SurfaceRenderFunction.Merge` replaces wholesale for
+  anything that is not an object-into-object, so `{"form": "text"}` overwrites a seeded `/form`
+  object with a scalar and every path under it stops resolving. That is the unseeded-path failure
+  the surface validator exists to prevent, reintroduced at run time by the model, past the point
+  validation reaches. Garbage `values` are covered by tests; a *well-formed* value of the wrong
+  shape is not.
+- **Skill tests all use `UseInMemoryDatabase`.** `GetActiveSkillAssetAsync` runs a `SelectMany`
+  from `AgentSkills` through `Skill.Assets` filtered on `RelativePath`; its SQL Server translation
+  is unproven.
+- **`SkillContentGuard.EscapeForDisplay` has no caller.** The Phase 2b control "render the body in
+  the confirm dialog with invisible characters escaped" is written but not wired to the UI.
+- **Replacement is logged but not confirmed.** `ImportOutcome.Replaced` is computed and never
+  reaches the client, so re-importing over an existing skill looks identical to a first import —
+  the silent side effect the Known limitations section says it must not be.
 
 ## Context
 
@@ -20,7 +64,7 @@ swapped without a rebuild.
 Scope is a demonstration: skills fabricate plausible data, no real APIs are called, nothing
 is booked.
 
-## Two findings that shape the design
+## Three findings that shape the design
 
 ### 1. A server-side tool can render A2UI directly
 
@@ -73,8 +117,8 @@ This matters now because the travel flow pre-fills step 1 from what the user alr
 renders a summary in step 3 — both need real binding.
 
 > The "Known limitations" note in `A2UI-Implementation-Plan.md` ("binding consistency still
-> depends partly on the model") understates this. It is not model variance; the prop names are
-> wrong. That doc should be corrected alongside Phase 0.
+> depends partly on the model") understated this. It is not model variance; the prop names are
+> wrong. That doc was corrected alongside Phase 0 in `843f711`.
 
 ### 3. Surfaces do not update in place
 
@@ -83,7 +127,9 @@ The middleware keys activity messages as `` `a2ui-surface-${surfaceId}-${outerCa
 card**. Multi-step flows stack. This is accepted, not fought: the flow is designed to read as
 a visible wizard trail.
 
-## Architecture (as planned)
+## Architecture
+
+Planned before Phase 1 and unchanged by implementation, so it is left as written.
 
 ```
 Admin uploads travel-planning.zip
@@ -274,22 +320,57 @@ pre-parse byte cap → content character filters and frontmatter injection → s
 compression-method → the rest. The importer returns **all** line-item errors, not the first,
 matching the surface validator.
 
-### Phase 3 — Surface render tool
+### Phase 3 — Runtime: three tiers, not one
 
-`Services/Skills/SurfaceRenderFunction.cs` — a custom `AIFunction`, deliberately **not**
-`CapturingAIFunction`. Signature `render_skill_surface(skill, surface, values)`:
+This phase was written as a single work item — the render tool — which was an error of omission
+rather than of design: the architecture diagram above already shows three tiers, and progressive
+disclosure does not work with any of them missing. All three shipped.
 
-1. load `assets/<surface>.json` from `SkillAssets`
+**Tier 1 — the catalog.** `SkillPrompt.BuildCatalog` renders the bound skills' names and
+descriptions into one system message; `AgentService` inserts it at the head of the history and
+attaches the two skill tools — all of it only when the agent has at least one skill bound and
+enabled. An agent with none gets nothing, so its runs are byte-identical to before.
+
+Two things about the insert are load-bearing. It goes in *before* the `A2uiPrompt` render guide,
+because both use `Insert(0, …)` and each insert pushes the previous one further from the user's
+turn — writing them in the intuitive order buries the catalog behind 131 lines of A2UI guidance.
+And the whole block is wrapped in a `try`: this runs before the first yield of an async iterator,
+so an exception escapes `ChatStreamingAsync` entirely and surfaces as `RUN_ERROR` with no answer at
+all. Skills are decoration on a run; they degrade, they do not abort it.
+
+This is also the widest blast radius in the feature, exactly as the Phase 2b content table
+predicted: descriptions come from uploaded packages, are concatenated into one system message, and
+are injected on every run with no activation step anyone can decline. `SkillContentGuard` rejects
+newlines and structural markers at import; `BuildCatalog` fences the list on both sides and
+sanitizes each entry regardless, so the property holds for rows stored before that check existed.
+
+**Tier 2 — `load_skill`.** Returns the full `SKILL.md` body. `SkillTools` closes over the agent id
+at construction rather than accepting it as a tool parameter, and
+`SkillRegistry` re-checks the binding on every lookup — so a model that invents or remembers a
+skill name belonging to another agent gets a refusal, not a body.
+
+**Tier 3 — `render_skill_surface`.** `Services/Skills/SurfaceRenderFunction.cs`, a custom
+`AIFunction`, deliberately **not** `CapturingAIFunction`:
+
+1. load `assets/<surface>.json` from `SkillAssets`, scoped to the agent's own bindings
 2. deep-merge `values` into the template's `data`
 3. write the full `{"a2ui_operations": [createSurface, updateComponents, updateDataModel]}`
    into `RenderableToolCapture`
-4. return a short ack (`{"status":"rendered"}`) to the model
+4. return a short ack to the model
 
 Step 4 is why `CapturingAIFunction` cannot be reused: it returns the full result to the model,
 which would dump the entire surface JSON back into context. The ops go to the browser; the
 model gets a receipt.
 
-Add `render_skill_surface` to the frozen set in `RenderableToolCapture`.
+Failures return as text rather than throwing, for the same reason the tier-1 injection is guarded:
+a throw aborts the run, a message lets the model correct the surface name or fall back to prose.
+
+**`RenderableToolCapture` is deliberately left unchanged.** The plan said to add
+`render_skill_surface` to its frozen set. That set has exactly one consumer — `AgentFactory`, which
+uses `IsRenderable` to decide whether to wrap an *MCP* tool in `CapturingAIFunction`.
+`SurfaceRenderFunction` writes to the capture itself and is never wrapped, so an entry there would
+change no behaviour while reading, to the next person, as though it were what makes the surface
+render. Dead configuration that looks live is worse than none.
 
 ### Phase 4 — Admin UI
 
@@ -303,10 +384,16 @@ Following existing Blazor conventions in `NTG.Agent.Admin`:
 
 ### Phase 5 — Demo packages
 
-`travel-planning.zip` and `ticket-booking.zip` committed as seed artifacts, imported at
-startup if absent.
+`travel-planning.zip` is committed under `seed/skills/`, built by `scripts/pack-skills.py` from
+the checked-in source tree so the zip and its sources cannot drift (`--check` fails CI when they
+have). The zips are byte-reproducible — sorted entries, pinned timestamps — so repacking an
+unchanged skill produces no git churn.
 
-`travel-planning` (drafted, pending the `assets/` move):
+Neither the startup seeder nor `ticket-booking` shipped: the package is imported through the Admin
+UI like any other. The seeder is worth having for the reason originally given — it exercises the
+same importer on every cold start — but nothing depends on it.
+
+`travel-planning`:
 
 | Step | Surface | Agent calls | User submits |
 |---|---|---|---|
@@ -336,26 +423,75 @@ per turn, then stop*; without it the model renders all three steps in one go.
   - *Content* — Unicode tag characters, bidi overrides, zero-width, control chars, HTML
     comments, frontmatter injection via `description`, homoglyph `name`
   - *Other* — symlink entry, encrypted entry, unsupported compression method, partial-import
-    rollback, malformed archive returns a typed error not a 500, seeder shares the importer
-- `SurfaceValidatorTests` — including the guide's own broken example as a regression anchor,
-  plus a deeply-nested JSON case (`JsonSerializerOptions.MaxDepth`)
+    rollback, malformed archive returns a typed error not a 500
+- `SurfaceValidatorTests` — including one case per dead prop name from the old render guide as a
+  regression anchor, plus a deeply-nested JSON case (`JsonSerializerOptions.MaxDepth`)
 - `SkillRegistryTests` — catalog scoping by `AgentSkills`, lenient-vs-strict validation rules
+- `SkillPromptTests` / `SurfaceRenderFunctionTests` — added with the runtime. The ones worth
+  knowing about assert *absences*: no bound skills produces no catalog and no tools, and garbage
+  `values` leave the template's defaults in place rather than throwing
+- `A2uiCatalogDriftTests` — not in the original plan. `A2uiCatalog` is a hand-flattened snapshot of
+  `basic_catalog.json`, which lives in the frontend's `node_modules` where the Orchestrator cannot
+  reach it. This test re-derives the catalog from the schema, resolving the `allOf`/`$ref`
+  composition, and fails on divergence — so bumping the npm package surfaces here rather than as a
+  mystery import rejection months later
 
 Do **not** write a test asserting that a forged `entry.Length` lets extra bytes through — .NET
 clamps, the test fails, and the likely "fix" is deleting the assertion. Test the streaming
 counter instead; it is the control that survives a runtime change.
 
+All skill tests use `UseInMemoryDatabase`, which is the gap noted under "Still open": the LINQ
+compiles and runs, but its SQL Server translation is untested.
+
+## Corrections found during implementation
+
+Each of these contradicts or sharpens something written above, and each is documented at its site
+in the code.
+
+- **The dead A2UI prop names are upstream, not ours.** Finding 2 reads as though the render guide
+  was written carelessly. It was not. `@ag-ui/a2ui-middleware` ships its own catalog block inside
+  its bundled prompt, and that block names `text`, `textFieldType`, `checked`, `selections`,
+  `minValue`/`maxValue` and `maxAllowedSelections` — the same seven dead props, still wrong in
+  `dist/index.mjs` at v0.0.6. Anyone writing a guide from the middleware's own text lands on
+  exactly this set. **The wrong copy never reaches a model here, though** — verified against
+  v0.0.6: `A2UI_PROMPT` is exported but referenced nowhere inside the package, and the guidance the
+  middleware *does* inject (`RENDER_A2UI_TOOL_GUIDELINES`, ~2 KB, correct as far as it goes) is
+  written to `RunAgentInput.context`, which `AgUiRunRequest` does not bind. `A2uiPrompt.RenderGuide`
+  is the only A2UI guidance on the wire, which is what the comments on `A2uiPrompt` and
+  `AgentService` already say. An earlier revision of this bullet claimed the wrong prompt was
+  injected on every run; it is not.
+- **`SurfaceValidator` could not validate `Tabs`.** `Tabs.tabs` is an array of `{ title, child }`
+  objects, so its reference sits one level below every other component's, and the traversal only
+  looked at top-level reference properties. It was wrong in both directions at once: a *valid* Tabs
+  surface was rejected with every pane reported as an orphan that "will not render", while a
+  genuinely dangling `child` produced no error at all. Tabs was unusable in a skill package until
+  `b2cc9c9`. The same commit made the walk iterate the component array rather than the id map, so a
+  duplicated id no longer hides the shadowed copy's own defects.
+- **Re-import updates `Skill` in place rather than delete-and-insert.** `AgentSkill` rows key off
+  `Skill.Id`, so replacing the row would silently unbind the skill from every agent using it —
+  turning "re-upload a fixed version" into "re-upload, then remember to re-bind everywhere", which
+  is the step someone forgets before a demo.
+- **The content guard's newline defence had a hole.** `U+0085`, `U+2028` and `U+2029` are above
+  `0x20`, so they cleared the control-character check, and they are not zero-width, so they cleared
+  that one too — while tokenizers and markdown renderers alike still treat them as line breaks.
+  That is a way to forge a new line inside a value whose entire defence is that it cannot contain
+  one. The guard rejects them at import, and `SkillPrompt.Sanitize` now asks Unicode what a
+  character *is* (`LineSeparator`, `ParagraphSeparator`, `Control`) rather than checking it against
+  a hand-maintained list of known offenders, which closes the class instead of three members of it.
+- **The streaming byte counter is unreachable on .NET 10** — see the blockquote in Phase 2b. Kept
+  deliberately as the control that survives the clamping changing.
+
 ## Decisions
 
-| Decision | Recommendation | Rationale |
+| Decision | Outcome | Rationale |
 |---|---|---|
-| Storage: SQL vs disk | **SQL** | Per-agent binding needs a table regardless; disk would mean two sources of truth plus a writable volume under Aspire |
-| `scripts/` support | **Out of v1** | Arbitrary code execution from an uploaded archive needs a sandbox story we do not have; the demo needs only templates and instructions |
+| Storage: SQL vs disk | **SQL — settled** | Per-agent binding needs a table regardless; disk would mean two sources of truth plus a writable volume under Aspire |
+| `scripts/` support | **Out of v1 — settled** | Arbitrary code execution from an uploaded archive needs a sandbox story we do not have; the extension allowlist admits no executable type, so this is enforced rather than merely intended |
 | Surface template location | **`assets/`** | Spec-conventional and one level deep from `SKILL.md`; supersedes the `surfaces/` directory used in the first draft |
 | Skill activation | **Dedicated `load_skill` tool** | The spec's "dedicated tool activation" pattern; maps cleanly onto the existing `AITool` plumbing |
-| Catalog gating | **Presence of `render_a2ui`**, as `A2uiPrompt` does today | No admin config step for the demo; per-agent `AgentTools` opt-in is the productionization path |
+| Catalog gating | **Per-agent `AgentSkills` bindings** | Changed during Phase 3. Gating on the presence of `render_a2ui` would have put every skill in front of every A2UI-capable agent; binding is an explicit admin action, is what the Admin UI already exposes, and makes "no skills bound" a genuine no-op rather than a smaller prompt |
 
-Both of the first two are reversible and open to challenge before Phase 2 starts.
+The first two were the reversible ones, and neither was reversed.
 
 ## Sequencing
 
@@ -365,16 +501,19 @@ demoable by a human clicking buttons. **5** and **6** are packaging and safety n
 ## Known limitations / not done
 
 - **No reload rehydration** — inherited from the A2UI implementation; surfaces render live but
-  are not replayed on conversation reload. Do not refresh mid-demo.
+  are not replayed on conversation reload. Do not refresh mid-demo. The gap is narrower than it
+  looks: the `render_skill_surface` call is persisted and rebuilt into the message list on reload,
+  so what is missing is only a frontend renderer for it. See "Still open".
 - **Surfaces stack per step** — see Finding 3. Intended, presented as a wizard trail.
 - **No `scripts/` execution** — see Decisions.
 - **No real APIs** — itineraries and prices are fabricated by the model. Skills are instructed
   to fabricate freely but never to produce a booking reference, PNR or payment confirmation.
-- **No skill versioning or update-in-place** — re-importing a skill of the same name replaces
-  it. Version history is out of scope, but the SHA-256 of each imported body is recorded so an
-  incident can still be traced to specific content. Replacement must be an explicit, logged,
-  confirmed action rather than a silent side effect: an admin upload can otherwise replace a
-  bundled seed skill without anyone noticing.
+- **No skill versioning** — re-importing a skill of the same name overwrites its body and assets
+  in place, keeping the row (see Corrections). Version history is out of scope, but the SHA-256 of
+  each imported body is logged so an incident can still be traced to specific content.
+  Replacement is explicit and logged; it is **not yet confirmed** in the UI, which is the one part
+  of this bullet that is still an open defect rather than an accepted limit — an admin upload can
+  currently replace a bundled skill without anyone noticing.
 - **Content-level injection is not defended, only bounded** — see Phase 2b § "What validation
   cannot defend". This is accepted for a demo with admin-only import.
 
