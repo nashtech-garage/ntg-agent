@@ -36,9 +36,17 @@ public static class A2uiCatalog
     public static readonly FrozenSet<string> LayoutComponents =
         new[] { "Column", "Row", "Card", "List" }.ToFrozenSet(StringComparer.Ordinal);
 
-    /// <summary>Props that reference other components by id, and so must resolve.</summary>
+    /// <summary>
+    /// Props that reference other components by id, and so must resolve.
+    /// </summary>
+    /// <remarks>
+    /// <c>tabs</c> is the odd one out: it is an array of <c>{ title, child }</c> objects rather than
+    /// ids or an id list, so the reference sits one level down. It is listed here because omitting
+    /// it does not fail loudly — unreferenced panes are reported as orphans while a genuinely
+    /// dangling <c>child</c> goes unreported, which is wrong in both directions.
+    /// </remarks>
     public static readonly FrozenSet<string> ChildReferenceProperties =
-        new[] { "child", "children", "content", "trigger" }.ToFrozenSet(StringComparer.Ordinal);
+        new[] { "child", "children", "content", "trigger", "tabs" }.ToFrozenSet(StringComparer.Ordinal);
 
     public static readonly FrozenDictionary<string, ComponentSpec> Components = BuildCatalog();
 

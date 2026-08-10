@@ -84,16 +84,28 @@ public static class SurfaceValidator
 
             var referenced = new HashSet<string>(StringComparer.Ordinal);
 
-            foreach (var (id, component) in byId)
+            // Walk the array rather than the id map. A duplicate id keeps the first definition, so
+            // iterating the map would leave the shadowed copy's own defects unreported — the author
+            // fixes the id, re-uploads, and gets a fresh round of errors, which is exactly the
+            // round-trip this validator's report-everything design exists to avoid.
+            foreach (var component in components.EnumerateArray())
             {
-                ValidateComponent(surfaceName, id, component, byId, referenced, data, errors);
+                if (component.ValueKind == JsonValueKind.Object
+                    && component.TryGetProperty("id", out var idElement)
+                    && idElement.ValueKind == JsonValueKind.String
+                    && idElement.GetString() is { Length: > 0 } id)
+                {
+                    ValidateComponent(surfaceName, id, component, byId, referenced, data, errors);
+                }
             }
 
             ValidateRoot(surfaceName, byId, errors);
             ValidateReachability(surfaceName, byId, referenced, errors);
         }
 
-        return errors;
+        // Validating shadowed duplicates can restate an identical complaint; the caller wants the
+        // distinct list of what is wrong, not one line per occurrence.
+        return errors.Distinct(StringComparer.Ordinal).ToList();
     }
 
     private static void ValidateSurfaceId(string surfaceName, JsonElement root, List<string> errors)
@@ -223,6 +235,13 @@ public static class SurfaceValidator
                     if (child.ValueKind == JsonValueKind.String)
                     {
                         Reference(child.GetString()!);
+                    }
+                    // Tabs: each entry is { title, child }, so the reference is one level down.
+                    else if (child.ValueKind == JsonValueKind.Object
+                             && child.TryGetProperty("child", out var nested)
+                             && nested.ValueKind == JsonValueKind.String)
+                    {
+                        Reference(nested.GetString()!);
                     }
                     else
                     {
