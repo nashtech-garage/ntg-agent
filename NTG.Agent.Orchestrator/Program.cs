@@ -118,6 +118,10 @@ builder.Services.AddHttpContextAccessor();
 // the registry takes the request-scoped DbContext. See docs/Agent-Skills-Implementation-Plan.md.
 builder.Services.AddSingleton<SkillPackageImporter>();
 builder.Services.AddScoped<SkillRegistry>();
+// Imports seed/skills/*.zip on startup through that same registry, skipping any skill name already
+// stored so an admin's edits are never overwritten. Repo-only by default (the seed tree does not
+// ship in a published build) and contained so it can never prevent startup — see SkillSeeder.
+builder.Services.AddHostedService<SkillSeeder>();
 
 // Provider-neutral knowledge plumbing: the upload endpoints signal the active provider's
 // ingestion worker through this regardless of which provider is configured.
