@@ -42,7 +42,14 @@ public class SurfaceRenderFunctionTests
 
     private static readonly string[] OperationKinds = ["createSurface", "updateComponents", "updateDataModel"];
 
-    private static readonly string[] TravelSurfaces = ["trip-search", "trip-results", "trip-confirm"];
+    /// <summary>
+    /// The shipped package is a single tabbed surface now, not three. Its surfaceId ("trip-wizard")
+    /// deliberately differs from the file name, so re-rendering it replaces one card rather than
+    /// stacking three.
+    /// </summary>
+    private static readonly string[] TravelSurfaces = ["trip-planner"];
+
+    private const string TravelSurfaceId = "trip-wizard";
 
     private const string PanelSurface = """
         {
@@ -185,10 +192,41 @@ public class SurfaceRenderFunctionTests
     }
 
     private static JsonObject Operation(JsonArray operations, string kind) =>
-        (JsonObject)operations.Single(o => o?[kind] is not null)![kind]!;
+        (JsonObject)operations.First(o => o?[kind] is not null)![kind]!;
 
-    private static JsonObject DataModel(JsonArray operations) =>
-        (JsonObject)Operation(operations, "updateDataModel")["value"]!;
+    /// <summary>
+    /// Reassembles the data model from the per-branch <c>updateDataModel</c> writes.
+    /// </summary>
+    /// <remarks>
+    /// The renderer emits one write per top-level key rather than a single write to "/", because a
+    /// root write replaces the whole model — including the <c>/__inputs</c> mirrors that carry the
+    /// user's own answers back to the agent. Tests still want to assert against the model as a
+    /// whole, so it is rebuilt here.
+    /// </remarks>
+    private static JsonObject DataModel(JsonArray operations)
+    {
+        var model = new JsonObject();
+
+        foreach (var operation in operations)
+        {
+            if (operation?["updateDataModel"] is not JsonObject update)
+            {
+                continue;
+            }
+
+            var path = update["path"]!.GetValue<string>();
+            Assert.That(path, Does.StartWith("/"), "a data-model path must be rooted");
+            Assert.That(path, Is.Not.EqualTo("/"), "a root write would discard /__inputs");
+
+            model[path.TrimStart('/')] = update["value"]?.DeepClone();
+        }
+
+        return model;
+    }
+
+    /// <summary>createSurface + updateComponents + one updateDataModel per top-level data key.</summary>
+    private static int ExpectedOperationCount(JsonArray operations) =>
+        2 + operations.Count(o => o?["updateDataModel"] is not null);
 
     private async Task<JsonArray> RenderAndCaptureAsync(string skill, string surface, object? values = null)
     {
@@ -230,7 +268,7 @@ public class SurfaceRenderFunctionTests
     {
         var operations = await RenderAndCaptureAsync("demo-skill", "panel");
 
-        Assert.That(operations, Has.Count.EqualTo(3));
+        Assert.That(operations, Has.Count.EqualTo(ExpectedOperationCount(operations)));
         Assert.Multiple(() =>
         {
             for (var i = 0; i < OperationKinds.Length; i++)
@@ -298,9 +336,47 @@ public class SurfaceRenderFunctionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(updateDataModel["path"]!.GetValue<string>(), Is.EqualTo("/"));
             Assert.That(updateDataModel["value"], Is.Not.Null);
-            Assert.That(updateDataModel.ContainsKey("contents"), Is.False);
+            Assert.That(updateDataModel.ContainsKey("contents"), Is.False, "the schema names it 'value'");
+        });
+    }
+
+    /// <summary>
+    /// The data model is written one top-level branch at a time, never at the root.
+    /// </summary>
+    /// <remarks>
+    /// A write to "/" replaces the entire model. The model holds more than this template seeds —
+    /// the catalog overrides mirror every input the user touches to <c>/__inputs/&lt;componentId&gt;</c>,
+    /// and that is what a Button's formData carries back to the agent. So a root write on a
+    /// re-render discards the user's own answers while the inputs on screen still display them:
+    /// a surface that looks correct and has silently lost its data. That only bites once a surface
+    /// is rendered more than once, which is exactly what the single-surface flow does.
+    /// </remarks>
+    [Test]
+    public async Task Render_WritesEachDataBranchSeparatelyRatherThanReplacingTheRoot()
+    {
+        var operations = await RenderAndCaptureAsync("demo-skill", "panel");
+
+        var writes = operations
+            .Where(o => o?["updateDataModel"] is not null)
+            .Select(o => (JsonObject)o!["updateDataModel"]!)
+            .ToList();
+
+        Assert.That(writes, Is.Not.Empty);
+        Assert.Multiple(() =>
+        {
+            foreach (var write in writes)
+            {
+                var path = write["path"]!.GetValue<string>();
+
+                Assert.That(path, Is.Not.EqualTo("/"), "a root write would discard /__inputs");
+                Assert.That(path, Does.StartWith("/"));
+                Assert.That(path.Trim('/'), Does.Not.Contain("/"), "one write per top-level branch");
+            }
+
+            // The panel template seeds exactly one top-level key, "form".
+            Assert.That(writes, Has.Count.EqualTo(1));
+            Assert.That(writes[0]["path"]!.GetValue<string>(), Is.EqualTo("/form"));
         });
     }
 
@@ -596,9 +672,7 @@ public class SurfaceRenderFunctionTests
     /// takes. The synthetic fixture above proves the mechanics; this proves the templates people
     /// will actually see still render.
     /// </summary>
-    [TestCase("trip-search")]
-    [TestCase("trip-results")]
-    [TestCase("trip-confirm")]
+    [TestCase("trip-planner")]
     public async Task Render_SeededTravelPlanningSurface_Renders(string surface)
     {
         if (!await TryImportTravelPlanningAsync())
@@ -613,14 +687,18 @@ public class SurfaceRenderFunctionTests
 
         var operations = Operations(captured[0]);
 
-        Assert.That(operations, Has.Count.EqualTo(3));
+        Assert.That(operations, Has.Count.EqualTo(ExpectedOperationCount(operations)));
+
+        // Asserted against the surfaceId, not the file name. They differ on purpose: the id is
+        // what the middleware keys the chat card on, so re-rendering "trip-planner" replaces the
+        // one "trip-wizard" card instead of appending another.
         Assert.That(
             Operation(operations, "createSurface")["surfaceId"]!.GetValue<string>(),
-            Is.EqualTo(surface));
+            Is.EqualTo(TravelSurfaceId));
     }
 
     [Test]
-    public async Task Render_SeededTripSearch_MergesValuesOverTheShippedDefaults()
+    public async Task Render_SeededTripPlanner_MergesValuesOverTheShippedDefaults()
     {
         if (!await TryImportTravelPlanningAsync())
         {
@@ -629,7 +707,7 @@ public class SurfaceRenderFunctionTests
 
         await RenderAsync(
             "travel-planning",
-            "trip-search",
+            "trip-planner",
             JsonNode.Parse("""{ "trip": { "destination": "Kyoto" } }"""));
 
         var captured = Captured();
@@ -645,8 +723,92 @@ public class SurfaceRenderFunctionTests
         });
     }
 
+    /// <summary>
+    /// The shape guard, against the real shipped package.
+    /// </summary>
+    /// <remarks>
+    /// `{"trip": "Kyoto"}` is well-formed JSON and a plausible thing for a model to send — the
+    /// skill documents the nesting in prose, and prose is not a contract. Before the guard it
+    /// replaced the seeded `/trip` object wholesale, so `/trip/destination`, `/departDate`,
+    /// `/travellers` and `/style` all stopped resolving and every input in the form rendered
+    /// frozen. That is the unseeded-path failure `SurfaceValidator` exists to prevent, recreated
+    /// at run time past the point validation reaches — and it looks like a working form that
+    /// ignores the user, which is the worst possible failure mode.
+    /// </remarks>
     [Test]
-    public async Task Render_SeededPackage_ExposesOnlyItsThreeSurfaces()
+    public async Task Render_ValuesThatWouldFlattenASeededObject_AreRefused()
+    {
+        if (!await TryImportTravelPlanningAsync())
+        {
+            return;
+        }
+
+        var result = await RenderAsync(
+            "travel-planning", "trip-planner", JsonNode.Parse("""{ "trip": "Kyoto" }"""));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Captured(), Is.Empty, "nothing may render when the shape is wrong");
+            Assert.That(result, Does.Contain("/trip"), "the message must name the offending path");
+            Assert.That(
+                result, Does.Contain("destination"),
+                "and list the expected keys, so the model can correct itself rather than guess");
+        });
+    }
+
+    /// <summary>
+    /// The array case. ChoicePicker binds an array even in single-select mode, so a bare string
+    /// leaves it unable to resolve its own selection.
+    /// </summary>
+    [Test]
+    public async Task Render_ValuesThatWouldReplaceASeededArray_AreRefused()
+    {
+        if (!await TryImportTravelPlanningAsync())
+        {
+            return;
+        }
+
+        var result = await RenderAsync(
+            "travel-planning", "trip-planner", JsonNode.Parse("""{ "trip": { "style": "balanced" } }"""));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Captured(), Is.Empty);
+            Assert.That(result, Does.Contain("/trip/style"));
+            Assert.That(result, Does.Contain("array"));
+        });
+    }
+
+    /// <summary>
+    /// The guard must not over-reach: replacing a scalar with a scalar is the ordinary case that
+    /// makes the whole feature work, and a partially-specified object must still merge.
+    /// </summary>
+    [Test]
+    public async Task Render_ValuesOfTheRightShape_StillMerge()
+    {
+        if (!await TryImportTravelPlanningAsync())
+        {
+            return;
+        }
+
+        var operations = await RenderAndCaptureAsync(
+            "travel-planning",
+            "trip-planner",
+            JsonNode.Parse("""{ "trip": { "destination": "Kyoto", "travellers": 4, "style": ["comfort"] } }"""));
+
+        var trip = DataModel(operations)["trip"]!;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(trip["destination"]!.GetValue<string>(), Is.EqualTo("Kyoto"));
+            Assert.That(trip["travellers"]!.GetValue<int>(), Is.EqualTo(4));
+            Assert.That(((JsonArray)trip["style"]!)[0]!.GetValue<string>(), Is.EqualTo("comfort"));
+            Assert.That(trip["departDate"], Is.Not.Null, "untouched seeds must survive");
+        });
+    }
+
+    [Test]
+    public async Task Render_SeededPackage_ExposesOnlyItsOwnSurfaces()
     {
         if (!await TryImportTravelPlanningAsync())
         {

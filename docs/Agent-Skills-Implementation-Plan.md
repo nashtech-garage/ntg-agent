@@ -14,11 +14,16 @@
 | 5 — Demo packages | Partial | `6d32bce` ships `travel-planning` and the packer; no startup seeder, no `ticket-booking` |
 | 6 — Tests | Done | `b2cc9c9`, `418785b`, `382655d` |
 
+### Closed since this table was written
+
+- Rehydration renderer for `render_skill_surface` — `23bcf08`.
+- Replacement is now reported to the client rather than only logged — `9c240bf`.
+- Surface submissions were prompted like human-in-the-loop approvals, which stopped a multi-step
+  skill one surface short of finishing — `595af0f`. `scripts/check-skill-flow.py` drives the full
+  three-turn travel flow against a running app and guards it.
+
 ### Still open
 
-- **No rehydration renderer for `render_skill_surface`.** The call *is* persisted and
-  `agentMessages.ts` rebuilds it on reload, but only `get_weather` has a frontend renderer, and the
-  A2UI middleware only sees the live SSE stream. A reloaded conversation drops the surface silently.
 - **`render_a2ui` is declared on every run of every agent**, so `A2uiPrompt.RenderGuide` — ~130
   lines telling the model to hand-author a component tree — is prepended even when the agent has a
   skill bound that owns the surface, competing with the skill catalog. `route.ts` now reads
@@ -42,9 +47,6 @@
   is unproven.
 - **`SkillContentGuard.EscapeForDisplay` has no caller.** The Phase 2b control "render the body in
   the confirm dialog with invisible characters escaped" is written but not wired to the UI.
-- **Replacement is logged but not confirmed.** `ImportOutcome.Replaced` is computed and never
-  reaches the client, so re-importing over an existing skill looks identical to a first import —
-  the silent side effect the Known limitations section says it must not be.
 
 ## Context
 

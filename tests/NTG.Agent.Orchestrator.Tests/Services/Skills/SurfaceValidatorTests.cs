@@ -816,10 +816,8 @@ public class SurfaceValidatorTests
     /// the rules fire; these prove the rules do not fire on the templates the demo renders, which is
     /// the half that a stricter validator quietly breaks.
     /// </summary>
-    [TestCase("trip-search.json")]
-    [TestCase("trip-results.json")]
-    [TestCase("trip-confirm.json")]
-    public void Validate_SeededTravelPlanningSurface_IsClean(string fileName)
+    [TestCase("trip-planner.json")]
+            public void Validate_SeededTravelPlanningSurface_IsClean(string fileName)
     {
         var path = FindRepositoryFile(Path.Combine(SeedSurfaceDirectory, fileName));
         if (path is null)

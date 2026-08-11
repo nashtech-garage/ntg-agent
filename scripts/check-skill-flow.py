@@ -89,6 +89,7 @@ TRIP = {
     "travellers": 2,
     "style": ["balanced"],
 }
+SURFACE_ID = "trip-wizard"
 CHOICE = "o2"
 
 # The A2UI tool @ag-ui/a2ui-middleware injects into every browser run (its RENDER_A2UI_TOOL).
@@ -279,12 +280,27 @@ class Stream:
 
 
 def rendered_data_model(call: ToolCall) -> dict | None:
-    """The data model a render_skill_surface result installed, or None."""
+    """
+    The data model a render_skill_surface result installed, or None.
+
+    The renderer emits one updateDataModel per TOP-LEVEL branch rather than a single write to
+    "/", so that a re-render leaves /__inputs — the user's own typed answers — untouched. Reading
+    only the first write would therefore return whichever branch happened to come first.
+    """
+    model: dict = {}
+    found = False
+
     for operation in operations_of(call):
         update = operation.get("updateDataModel")
-        if isinstance(update, dict) and isinstance(update.get("value"), dict):
-            return update["value"]
-    return None
+        if not isinstance(update, dict):
+            continue
+        path = update.get("path")
+        if not isinstance(path, str) or path == "/":
+            continue
+        model[path.strip("/")] = update.get("value")
+        found = True
+
+    return model if found else None
 
 
 def operations_of(call: ToolCall) -> list[dict]:
@@ -399,40 +415,45 @@ def submission_messages(action: dict) -> list[dict]:
 
 
 def search_submission(previous_model: dict | None) -> dict:
-    """The userAction for clicking "Find trips" on trip-search."""
+    """The userAction for clicking "Find trips" on the wizard's first tab."""
     form_data = copy.deepcopy(previous_model) if isinstance(previous_model, dict) else {}
     trip = dict(form_data.get("trip") or {})
     trip.update(TRIP)
     form_data["trip"] = trip
     # The interactive catalog mirrors every input to /__inputs/<componentId> on each keystroke,
-    # regardless of binding, and the skill is told to read it as a fallback. Ids are trip-search's.
+    # regardless of binding, and the skill reads it as a fallback. These are the wizard's ids.
+    # "wizard" is the Tabs component, which reports {index, title} rather than a bare value.
     form_data["__inputs"] = {
-        "destination": TRIP["destination"],
-        "depart": TRIP["departDate"],
-        "return": TRIP["returnDate"],
-        "travellers": TRIP["travellers"],
-        "style": TRIP["style"],
+        "trip-destination": TRIP["destination"],
+        "trip-depart": TRIP["departDate"],
+        "trip-return": TRIP["returnDate"],
+        "trip-travellers": TRIP["travellers"],
+        "trip-style": TRIP["style"],
+        "wizard": {"index": 0, "title": "1. Trip"},
     }
     return {
         "name": "trip_search_submit",
-        "surfaceId": "trip-search",
-        "sourceComponentId": "submit",
+        "surfaceId": SURFACE_ID,
+        "sourceComponentId": "trip-submit",
         "context": {**TRIP, "formData": form_data},
         "timestamp": "2026-09-01T00:00:00.000Z",
     }
 
 
 def option_submission(previous_model: dict | None) -> dict:
-    """The userAction for clicking "Continue to review" on trip-results."""
+    """The userAction for clicking "Continue to review" on the wizard's second tab."""
     form_data = copy.deepcopy(previous_model) if isinstance(previous_model, dict) else {}
-    results = dict(form_data.get("results") or {})
-    results["choice"] = [CHOICE]
-    form_data["results"] = results
-    form_data["__inputs"] = {"picker": [CHOICE]}
+    options = dict(form_data.get("options") or {})
+    options["choice"] = [CHOICE]
+    form_data["options"] = options
+    form_data["__inputs"] = {
+        "options-picker": [CHOICE],
+        "wizard": {"index": 1, "title": "2. Options"},
+    }
     return {
         "name": "trip_option_selected",
-        "surfaceId": "trip-results",
-        "sourceComponentId": "submit",
+        "surfaceId": SURFACE_ID,
+        "sourceComponentId": "options-submit",
         "context": {"choice": [CHOICE], "formData": form_data},
         "timestamp": "2026-09-01T00:01:00.000Z",
     }
@@ -464,6 +485,7 @@ def assert_turn(
     agent_id: str,
     log: OrchestratorLog,
     check_destination: bool,
+    expected_tab: int,
 ) -> ToolCall | None:
     """Runs every per-turn assertion. Returns the render call, when there was one."""
     print(f"  tools called: {', '.join(stream.tool_names()) or '(none)'}", flush=True)
@@ -515,9 +537,29 @@ def assert_turn(
         report.note((call.result or "")[:200] or "(no result on the stream)")
         return call
 
-    report.check(len(operations) == 3, f"a2ui_operations carries 3 operations (got {len(operations)})")
+    writes = [o for o in operations if "updateDataModel" in o]
+    expected = 2 + len(writes)
+    report.check(
+        len(operations) == expected,
+        f"a2ui_operations carries createSurface + updateComponents + {len(writes)} data writes "
+        f"(got {len(operations)})")
+    report.check(
+        all(o["updateDataModel"].get("path") not in ("/", "", None) for o in writes),
+        "every data write targets a branch, never the root (a root write would discard /__inputs)")
     for kind in ("createSurface", "updateComponents", "updateDataModel"):
         report.check(any(kind in op for op in operations), f"a2ui_operations includes {kind}")
+
+    # The tab index is how a single surface behaves as a wizard: the agent seeds /__tabs/wizard
+    # and InteractiveTabs moves the user there. Without this the flow renders one card that never
+    # leaves step 1, which would still pass every assertion above.
+    model = rendered_data_model(call) or {}
+    tab = (model.get("__tabs") or {}).get("wizard") if isinstance(model.get("__tabs"), dict) else None
+    if not report.check(
+        tab == expected_tab,
+        f"the agent moved the wizard to tab {expected_tab} (/__tabs/wizard = {tab!r})",
+    ):
+        report.note("the surface renders but never advances, so the user stays on step 1 and has "
+                    "to find the next tab themselves")
 
     if check_destination:
         model = rendered_data_model(call)
@@ -564,15 +606,17 @@ def run_flow(args) -> bool:
     tools = None if args.no_render_a2ui else [RENDER_A2UI_TOOL]
     messages = [user_message(OPENING_PROMPT)]
 
+    # The same surface every turn. That is the assertion now: the flow re-renders "trip-planner"
+    # and the stable messageId makes the browser replace one card rather than stack three.
     turns = [
-        ("plain user message", "trip-search", True, None),
-        ("trip_search_submit submission", "trip-results", False, search_submission),
-        ("trip_option_selected submission", "trip-confirm", False, option_submission),
+        ("plain user message", "trip-planner", True, 0, None),
+        ("trip_search_submit submission", "trip-planner", False, 1, search_submission),
+        ("trip_option_selected submission", "trip-planner", False, 2, option_submission),
     ]
 
     previous_model: dict | None = None
 
-    for index, (label, expected_surface, check_destination, build_action) in enumerate(turns, start=1):
+    for index, (label, expected_surface, check_destination, expected_tab, build_action) in enumerate(turns, start=1):
         if build_action is not None:
             action = build_action(previous_model)
             messages = messages + submission_messages(action)
@@ -594,7 +638,7 @@ def run_flow(args) -> bool:
 
         stream = Stream(events)
         call = assert_turn(
-            report, index, stream, expected_surface, client.agent_id, log, check_destination)
+            report, index, stream, expected_surface, client.agent_id, log, check_destination, expected_tab)
 
         if call is None:
             print(f"\n  Turn {index} rendered nothing, so turns after it have no surface to submit.")
@@ -602,8 +646,8 @@ def run_flow(args) -> bool:
 
         previous_model = rendered_data_model(call)
 
-    print("\n  All three surfaces rendered. The visual confirmation is in the browser: three cards "
-          "in the thread, each interactive.")
+    print("\n  All three steps rendered onto one surface. The visual confirmation is in the "
+          "browser: one card, the tab strip advancing, earlier tabs still open for review.")
     return report.ok
 
 

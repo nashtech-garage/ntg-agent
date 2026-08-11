@@ -147,7 +147,25 @@ internal sealed class SurfaceRenderFunction : AIFunction
         }
 
         var data = templateObject["data"] as JsonObject ?? [];
-        Merge(data, ReadValues(arguments));
+
+        // Refuse rather than render a half-broken surface. A frozen input looks like a working
+        // form that ignores the user, which is far worse than a message the model can act on and
+        // retry — and unlike a rendered card, a refusal costs the user nothing.
+        var mismatches = new List<string>();
+        Merge(data, ReadValues(arguments), string.Empty, mismatches);
+
+        if (mismatches.Count > 0)
+        {
+            _logger.LogInformation(
+                "Agent {AgentId} sent values of the wrong shape for '{Surface}': {Mismatches}",
+                _agentId,
+                assetPath,
+                string.Join("; ", mismatches));
+
+            return Failure(
+                $"The values did not match the shape '{surface}' expects: {string.Join("; ", mismatches)}. "
+                + "Send the values nested exactly as the skill's instructions show, then try again.");
+        }
 
         var operations = new JsonArray
         {
@@ -169,17 +187,32 @@ internal sealed class SurfaceRenderFunction : AIFunction
                     ["components"] = components.DeepClone(),
                 },
             },
-            new JsonObject
+        };
+
+        // One update per top-level branch, rather than a single write to "/".
+        //
+        // Writing the root REPLACES the entire data model, and the model holds more than the
+        // template seeds: the catalog overrides mirror every input the user touches to
+        // /__inputs/<componentId>, which is what a Button's formData carries back to us. Replacing
+        // the root on a re-render therefore discards the user's own answers while the inputs on
+        // screen still show them — a surface that looks correct and has quietly lost its data.
+        //
+        // Per-branch writes cost nothing on a first render, where the model is empty and each key
+        // is created exactly as a root write would have created it, and they leave every branch we
+        // do not own untouched on every render after that.
+        foreach (var branch in data)
+        {
+            operations.Add(new JsonObject
             {
                 ["version"] = ProtocolVersion,
                 ["updateDataModel"] = new JsonObject
                 {
                     ["surfaceId"] = surfaceId,
-                    ["path"] = "/",
-                    ["value"] = data.DeepClone(),
+                    ["path"] = "/" + branch.Key,
+                    ["value"] = branch.Value?.DeepClone(),
                 },
-            },
-        };
+            });
+        }
 
         var payload = new JsonObject { ["a2ui_operations"] = operations }.ToJsonString();
 
@@ -224,7 +257,7 @@ internal sealed class SurfaceRenderFunction : AIFunction
     /// key by key; every other kind replaces wholesale, so a model sending a shorter list replaces
     /// the list rather than leaving stale trailing entries behind.
     /// </summary>
-    private static void Merge(JsonObject target, JsonObject? incoming)
+    private static void Merge(JsonObject target, JsonObject? incoming, string path, List<string> mismatches)
     {
         if (incoming is null)
         {
@@ -233,9 +266,25 @@ internal sealed class SurfaceRenderFunction : AIFunction
 
         foreach (var property in incoming.ToList())
         {
-            if (property.Value is JsonObject nested && target[property.Key] is JsonObject existing)
+            var here = $"{path}/{property.Key}";
+            var existing = target[property.Key];
+
+            // A seeded path may be overwritten, but not have its *kind* changed. The surface
+            // validator guarantees every binding has a seed; swapping an object for a scalar
+            // removes every path beneath it, so the inputs bound there render frozen — exactly
+            // the failure the validator exists to prevent, reintroduced at run time by the model,
+            // past the point validation reaches. Same for an array: ChoicePicker binds one even in
+            // single-select mode, and a bare string in its place stops it resolving.
+            if (existing is not null && KindOf(existing) != KindOf(property.Value))
             {
-                Merge(existing, nested);
+                mismatches.Add(
+                    $"'{here}' expects {Describe(existing)} but received {KindOf(property.Value).ToString().ToLowerInvariant()}");
+                continue;
+            }
+
+            if (property.Value is JsonObject nested && existing is JsonObject target2)
+            {
+                Merge(target2, nested, here, mismatches);
             }
             else
             {
@@ -243,6 +292,33 @@ internal sealed class SurfaceRenderFunction : AIFunction
             }
         }
     }
+
+    private enum ValueKind
+    {
+        Object,
+        Array,
+        Scalar,
+    }
+
+    private static ValueKind KindOf(JsonNode? node) => node switch
+    {
+        JsonObject => ValueKind.Object,
+        JsonArray => ValueKind.Array,
+        _ => ValueKind.Scalar,
+    };
+
+    /// <summary>
+    /// Names the expected shape well enough for the model to correct itself. For an object that
+    /// means listing its keys — "an object with keys destination, departDate" is actionable in a
+    /// way that "an object" is not.
+    /// </summary>
+    private static string Describe(JsonNode node) => node switch
+    {
+        JsonObject o when o.Count > 0 => $"an object with keys {string.Join(", ", o.Select(p => p.Key))}",
+        JsonObject => "an object",
+        JsonArray => "an array",
+        _ => "a single value",
+    };
 
     private static JsonObject? ReadValues(AIFunctionArguments arguments)
     {
