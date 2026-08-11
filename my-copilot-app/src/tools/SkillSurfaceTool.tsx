@@ -15,6 +15,7 @@ import {
   useCopilotKit,
   useRenderTool,
   UseAgentUpdate,
+  type Message,
 } from "@copilotkit/react-core/v2";
 import { z } from "zod";
 
@@ -46,11 +47,17 @@ const parameters = z.object({
 const A2UI_OPERATIONS_KEY = "a2ui_operations";
 
 // The activity type @ag-ui/a2ui-middleware stamps on the ACTIVITY_SNAPSHOT it derives from this
-// tool's result (its exported `A2UIActivityType`), and the id it gives that activity message,
-// `a2ui-surface-<surfaceId>-<toolCallId>`. Mirrored rather than imported because that package is
-// server-side — it pulls in node's `crypto` — and importing it would drag it into the browser
-// bundle just for two string constants.
+// tool's result (its exported `A2UIActivityType`) and the prefix of the id it gives that activity
+// message. Two id shapes exist and both can be on screen: `a2ui-surface-<surfaceId>` after the
+// route's StableSurfaceIdMiddleware has renamed it, and the middleware's own
+// `a2ui-surface-<surfaceId>-<toolCallId>` when that rewrite is switched off. Mirrored rather than
+// imported because that package is server-side — it pulls in node's `crypto` — and importing it
+// would drag it into the browser bundle just for a couple of string constants.
 const A2UI_ACTIVITY_TYPE = "a2ui-surface";
+const A2UI_SURFACE_MESSAGE_ID_PREFIX = "a2ui-surface-";
+
+// The tool this file renders (the orchestrator's SkillPrompt.RenderToolName).
+const SKILL_SURFACE_TOOL_NAME = "render_skill_surface";
 
 const NOTE_NOT_RESTORABLE =
   "This interactive surface can't be redrawn from the saved conversation. Ask the assistant to show it again.";
@@ -128,6 +135,60 @@ function groupBySurface(operations: A2UIOperation[]): SurfaceGroup[] {
     else groups.set(surfaceId, [operation]);
   }
   return Array.from(groups, ([surfaceId, ops]) => ({ surfaceId, operations: ops })).filter(isPaintable);
+}
+
+// Which surfaces each render_skill_surface call painted, keyed by tool call id. A stored result
+// runs to ~100 KB of JSON and every surface renderer in the conversation re-renders whenever the
+// agent's messages change, so a call's result is parsed once per session instead of once per
+// render. Safe to key on the call id alone because a tool call's result never changes once it
+// exists, and the id is the model's own — unique per call, across conversations too. Each value is
+// a handful of short ids, so there is nothing here worth evicting.
+const surfaceIdsByToolCall = new Map<string, readonly string[]>();
+
+function surfaceIdsOf(toolCallId: string, result: string | undefined): readonly string[] {
+  const cached = surfaceIdsByToolCall.get(toolCallId);
+  if (cached) return cached;
+  // A live run's tool result may not have reached the message list yet — nothing to remember.
+  if (!result) return [];
+  const surfaceIds = groupBySurface(parseResult(result)).map((group) => group.surfaceId);
+  surfaceIdsByToolCall.set(toolCallId, surfaceIds);
+  return surfaceIds;
+}
+
+/**
+ * The newest render_skill_surface call for each surface, in message order.
+ *
+ * Rendering one surface three times leaves three persisted tool calls carrying the same surface
+ * id, so a reloaded conversation would paint three cards where the live run showed one card that
+ * the later renders updated in place. Letting only the last call per surface paint keeps reload
+ * agreeing with the live view — content-wise exactly (the last render is the current state of the
+ * surface), position-wise at the last render rather than the first.
+ *
+ * Keyed on the surface ids in each result, not on the skill/surface arguments, because the
+ * surface id is what the live path collapses on; two calls that named the same template but
+ * produced different surface ids are genuinely two surfaces.
+ */
+function latestRenderBySurface(messages: readonly Message[]): Map<string, string> {
+  const resultsByCallId = new Map<string, string>();
+  const renderCallIds: string[] = [];
+  for (const message of messages) {
+    if (message.role === "assistant" && message.toolCalls) {
+      for (const call of message.toolCalls) {
+        if (call.function.name === SKILL_SURFACE_TOOL_NAME) renderCallIds.push(call.id);
+      }
+    } else if (message.role === "tool") {
+      resultsByCallId.set(message.toolCallId, message.content);
+    }
+  }
+
+  // Calls are walked oldest first, so the last write per surface is its newest render.
+  const latest = new Map<string, string>();
+  for (const callId of renderCallIds) {
+    for (const surfaceId of surfaceIdsOf(callId, resultsByCallId.get(callId))) {
+      latest.set(surfaceId, callId);
+    }
+  }
+  return latest;
 }
 
 /** Trims a tool argument down to a usable label, or null when it is missing or blank. */
@@ -237,19 +298,48 @@ function RestoredSkillSurface({
   const groups = React.useMemo(() => groupBySurface(parseResult(result)), [result]);
 
   // Stand down during a live run. The middleware turns this exact tool result into an
-  // `a2ui-surface` activity keyed `a2ui-surface-<surfaceId>-<toolCallId>`, which the activity
-  // renderer already paints — repainting it here would show the surface twice. A reloaded
-  // conversation carries no activity messages, which is precisely the case we exist for.
+  // `a2ui-surface` activity which the activity renderer already paints — repainting it here would
+  // show the surface twice. A reloaded conversation carries no activity messages, which is
+  // precisely the case we exist for.
   const messages = agent?.messages;
-  const paintedByActivity = React.useMemo(
+  const surfaceActivityIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const message of messages ?? []) {
+      if (message.role === "activity" && message.activityType === A2UI_ACTIVITY_TYPE) {
+        ids.add(message.id);
+      }
+    }
+    return ids;
+  }, [messages]);
+
+  // The middleware's own id shape names this tool call, whatever surface the result turns out to
+  // describe — so it stands the whole card down, including a result the middleware could parse and
+  // `groups` below could not. Matched on the full `-<toolCallId>` tail rather than a substring, so
+  // it stays exact. (An outer tool call wrapping this one would key the activity by the outer id
+  // and slip past, exactly as it did before this check was rewritten; nothing on this path does.)
+  const claimedByThisCall = React.useMemo(() => {
+    for (const id of surfaceActivityIds) {
+      if (id.endsWith(`-${toolCallId}`)) return true;
+    }
+    return false;
+  }, [surfaceActivityIds, toolCallId]);
+
+  const latestBySurface = React.useMemo(() => latestRenderBySurface(messages ?? []), [messages]);
+
+  // What is left for this renderer to draw: a surface nothing else is already showing.
+  const visibleGroups = React.useMemo(
     () =>
-      (messages ?? []).some(
-        (message) =>
-          message.role === "activity" &&
-          message.activityType === A2UI_ACTIVITY_TYPE &&
-          message.id.includes(toolCallId),
-      ),
-    [messages, toolCallId],
+      groups.filter((group) => {
+        // Live and keyed by surface alone: one activity card serves every render of it, so this
+        // stands down whether that card came from our render or a later one.
+        if (surfaceActivityIds.has(`${A2UI_SURFACE_MESSAGE_ID_PREFIX}${group.surfaceId}`)) {
+          return false;
+        }
+        // Restored, but a later call in this conversation re-rendered the same surface.
+        const latest = latestBySurface.get(group.surfaceId);
+        return latest === undefined || latest === toolCallId;
+      }),
+    [groups, surfaceActivityIds, latestBySurface, toolCallId],
   );
 
   // Same bridge the live renderer uses: stash the action on the run properties, re-run the agent,
@@ -271,15 +361,18 @@ function RestoredSkillSurface({
     [agent, copilotkit],
   );
 
-  if (paintedByActivity) return null;
+  if (claimedByThisCall) return null;
 
   if (groups.length === 0) {
     return <SurfaceSummary skill={skill} surface={surface} note={NOTE_NOT_RESTORABLE} />;
   }
 
+  // Every surface in this result is on screen somewhere else — say nothing rather than repeat it.
+  if (visibleGroups.length === 0) return null;
+
   return (
     <div className="my-2 flex w-full flex-col gap-4">
-      {groups.map((group) => (
+      {visibleGroups.map((group) => (
         <A2UIProvider
           key={group.surfaceId}
           theme={a2uiDefaultTheme}
@@ -298,7 +391,7 @@ function RestoredSkillSurface({
 // Must be rendered inside the <CopilotKit> provider.
 export default function SkillSurfaceTool() {
   useRenderTool({
-    name: "render_skill_surface",
+    name: SKILL_SURFACE_TOOL_NAME,
     parameters,
     render: (props) => {
       const skill = asLabel(props.parameters?.skill);
