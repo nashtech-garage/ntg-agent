@@ -1,0 +1,91 @@
+{
+  "surfaceId": "tkt-review",
+  "components": [
+    { "id": "root", "component": "Card", "child": "body" },
+    { "id": "body", "component": "Column", "children": ["title", "summary", "sep", "r-total", "ack", "actions"] },
+
+    { "id": "title", "component": "Text", "text": "Review your tickets", "variant": "h4" },
+
+    { "id": "summary", "component": "List", "direction": "vertical", "children": ["r-event", "r-venue", "r-when", "r-tickets", "r-tier", "r-seats"] },
+
+    { "id": "r-event", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-event", "v-event"] },
+    { "id": "l-event", "component": "Text", "text": "Event", "variant": "caption" },
+    { "id": "v-event", "component": "Text", "text": { "path": "/review/event" }, "variant": "body" },
+
+    { "id": "r-venue", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-venue", "v-venue"] },
+    { "id": "l-venue", "component": "Text", "text": "Venue", "variant": "caption" },
+    { "id": "v-venue", "component": "Text", "text": { "path": "/review/venue" }, "variant": "body" },
+
+    { "id": "r-when", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-when", "v-when"] },
+    { "id": "l-when", "component": "Text", "text": "When", "variant": "caption" },
+    { "id": "v-when", "component": "Text", "text": { "path": "/review/when" }, "variant": "body" },
+
+    { "id": "r-tickets", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-tickets", "v-tickets"] },
+    { "id": "l-tickets", "component": "Text", "text": "Tickets", "variant": "caption" },
+    { "id": "v-tickets", "component": "Text", "text": { "path": "/review/tickets" }, "variant": "body" },
+
+    { "id": "r-tier", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-tier", "v-tier"] },
+    { "id": "l-tier", "component": "Text", "text": "Tier", "variant": "caption" },
+    { "id": "v-tier", "component": "Text", "text": { "path": "/review/tier" }, "variant": "body" },
+
+    { "id": "r-seats", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["l-seats", "v-seats"] },
+    { "id": "l-seats", "component": "Text", "text": "Seats", "variant": "caption" },
+    { "id": "v-seats", "component": "Text", "text": { "path": "/review/seats" }, "variant": "body" },
+
+    { "id": "sep", "component": "Divider", "axis": "horizontal" },
+
+    { "id": "r-total", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["l-total", "v-total"] },
+    { "id": "l-total", "component": "Text", "text": "Total", "variant": "caption" },
+    { "id": "v-total", "component": "Text", "text": { "path": "/review/total" }, "variant": "h5" },
+
+    {
+      "id": "ack",
+      "component": "CheckBox",
+      "label": "I understand this is a demonstration — no seats are held, nothing is booked and no payment is taken.",
+      "value": { "path": "/review/acknowledged" }
+    },
+
+    { "id": "actions", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["change", "confirm"] },
+
+    {
+      "id": "change",
+      "component": "Button",
+      "variant": "default",
+      "child": "change-label",
+      "action": { "event": { "name": "ticket_change_requested", "context": {} } }
+    },
+    { "id": "change-label", "component": "Text", "text": "Change details" },
+
+    {
+      "id": "confirm",
+      "component": "Button",
+      "variant": "primary",
+      "child": "confirm-label",
+      "action": {
+        "event": {
+          "name": "ticket_booking_confirmed",
+          "context": {
+            "event": { "path": "/review/event" },
+            "tier": { "path": "/review/tier" },
+            "seats": { "path": "/review/seats" },
+            "total": { "path": "/review/total" },
+            "acknowledged": { "path": "/review/acknowledged" }
+          }
+        }
+      }
+    },
+    { "id": "confirm-label", "component": "Text", "text": "Confirm selection" }
+  ],
+  "data": {
+    "review": {
+      "event": "",
+      "venue": "",
+      "when": "",
+      "tickets": "",
+      "tier": "",
+      "seats": "",
+      "total": "",
+      "acknowledged": false
+    }
+  }
+}

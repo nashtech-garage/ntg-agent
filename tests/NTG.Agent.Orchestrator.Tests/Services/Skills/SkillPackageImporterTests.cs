@@ -20,13 +20,6 @@ public class SkillPackageImporterTests
 
     private static readonly string[] MinimalAssetPaths = ["assets/note.txt", "references/guide.md"];
 
-    private static readonly string[] TravelPlanningAssetPaths =
-    [
-        "assets/trip-confirm.json",
-        "assets/trip-results.json",
-        "assets/trip-search.json",
-    ];
-
     private const string ValidManifest = """
         ---
         name: demo-skill
@@ -511,41 +504,83 @@ public class SkillPackageImporterTests
     }
 
     /// <summary>
-    /// The package actually shipped in <c>seed/skills/</c>. If this regresses, the demo is broken
+    /// The packages actually shipped in <c>seed/skills/</c>. If one regresses, the demo is broken
     /// regardless of what the synthetic fixtures say.
     /// </summary>
-    [Test]
-    public void Import_SeededTravelPlanningPackage_Succeeds()
+    /// <remarks>
+    /// The source discovers the zips rather than naming one, so a skill added later is covered the
+    /// day it lands rather than the day someone remembers this file. The asset assertion compares
+    /// against the package's own source directory for the same reason: it states "the zip carries
+    /// what was authored" without a hardcoded list that only ever describes one skill.
+    /// </remarks>
+    [TestCaseSource(nameof(SeedPackages))]
+    public void Import_SeededPackage_Succeeds(string? package)
     {
-        var package = FindRepositoryFile(Path.Combine("seed", "skills", "travel-planning.zip"));
         if (package is null)
         {
-            Assert.Ignore("seed/skills/travel-planning.zip not found from the test output directory");
+            Assert.Ignore("no seed/skills/*.zip found from the test output directory");
             return;
         }
 
-        var result = new SkillPackageImporter().Import(
-            File.ReadAllBytes(package), "travel-planning.zip", Importer);
+        var fileName = Path.GetFileName(package);
+        var name = Path.GetFileNameWithoutExtension(package);
+
+        var result = new SkillPackageImporter().Import(File.ReadAllBytes(package), fileName, Importer);
 
         Assert.Multiple(() =>
         {
             Assert.That(result.Errors, Is.Empty, string.Join(Environment.NewLine, result.Errors));
             Assert.That(result.Succeeded, Is.True);
-            Assert.That(result.Skill!.Name, Is.EqualTo("travel-planning"));
+            Assert.That(result.Skill!.Name, Is.EqualTo(name));
             Assert.That(
                 result.Skill.Assets.Select(a => a.RelativePath).Order(StringComparer.Ordinal),
-                Is.EqualTo(TravelPlanningAssetPaths));
+                Is.EqualTo(AuthoredAssetPaths(Path.Combine(Path.GetDirectoryName(package)!, name))));
         });
     }
 
-    private static string? FindRepositoryFile(string relativePath)
+    /// <summary>
+    /// Every seed package, or a single null case when the repository is not reachable from the test
+    /// output directory — which <see cref="Import_SeededPackage_Succeeds"/> reports as an ignore, the
+    /// way an empty source could not.
+    /// </summary>
+    private static IEnumerable<TestCaseData> SeedPackages()
+    {
+        var directory = FindRepositoryDirectory(Path.Combine("seed", "skills"));
+
+        var packages = directory is null
+            ? []
+            : Directory.GetFiles(directory, "*.zip").Order(StringComparer.Ordinal).ToArray();
+
+        if (packages.Length == 0)
+        {
+            yield return new TestCaseData((string?)null).SetArgDisplayNames("(none found)");
+            yield break;
+        }
+
+        foreach (var package in packages)
+        {
+            yield return new TestCaseData(package).SetArgDisplayNames(Path.GetFileName(package));
+        }
+    }
+
+    /// <summary>
+    /// The files a package's source directory holds, other than the manifest, as the importer would
+    /// name them. Mirrors <c>scripts/pack-skills.py</c>, which skips dotfiles.
+    /// </summary>
+    private static IEnumerable<string> AuthoredAssetPaths(string skillDirectory) =>
+        Directory.EnumerateFiles(skillDirectory, "*", SearchOption.AllDirectories)
+            .Select(p => Path.GetRelativePath(skillDirectory, p).Replace(Path.DirectorySeparatorChar, '/'))
+            .Where(p => p != "SKILL.md" && !p.Split('/').Any(segment => segment.StartsWith('.')))
+            .Order(StringComparer.Ordinal);
+
+    private static string? FindRepositoryDirectory(string relativePath)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
 
         while (directory is not null)
         {
             var candidate = Path.Combine(directory.FullName, relativePath);
-            if (File.Exists(candidate))
+            if (Directory.Exists(candidate))
             {
                 return candidate;
             }

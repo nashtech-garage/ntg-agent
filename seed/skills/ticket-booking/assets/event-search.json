@@ -1,0 +1,60 @@
+{
+  "surfaceId": "tkt-search",
+  "components": [
+    { "id": "root", "component": "Column", "children": ["title", "hint", "event", "city", "date", "tickets", "priority", "together", "submit"] },
+
+    { "id": "title", "component": "Text", "text": "Find tickets", "variant": "h4" },
+    { "id": "hint", "component": "Text", "text": "Tell us what you want to see and we'll put three seating tiers together.", "variant": "caption" },
+
+    { "id": "event", "component": "TextField", "label": "What do you want to see?", "value": { "path": "/search/event" }, "variant": "shortText" },
+    { "id": "city", "component": "TextField", "label": "City or venue", "value": { "path": "/search/city" }, "variant": "shortText" },
+    { "id": "date", "component": "DateTimeInput", "label": "Preferred date", "value": { "path": "/search/date" }, "enableDate": true, "enableTime": false },
+    { "id": "tickets", "component": "Slider", "label": "Tickets", "value": { "path": "/search/tickets" }, "min": 1, "max": 6 },
+
+    {
+      "id": "priority",
+      "component": "ChoicePicker",
+      "label": "What matters most?",
+      "variant": "mutuallyExclusive",
+      "value": { "path": "/search/priority" },
+      "options": [
+        { "label": "Price — cheapest seats that work", "value": "price" },
+        { "label": "View — sightline over savings", "value": "view" },
+        { "label": "Experience — extras included", "value": "experience" }
+      ]
+    },
+
+    { "id": "together", "component": "CheckBox", "label": "Keep our seats together", "value": { "path": "/search/together" } },
+
+    {
+      "id": "submit",
+      "component": "Button",
+      "variant": "primary",
+      "child": "submit-label",
+      "action": {
+        "event": {
+          "name": "ticket_search_submit",
+          "context": {
+            "event": { "path": "/search/event" },
+            "city": { "path": "/search/city" },
+            "date": { "path": "/search/date" },
+            "tickets": { "path": "/search/tickets" },
+            "priority": { "path": "/search/priority" },
+            "together": { "path": "/search/together" }
+          }
+        }
+      }
+    },
+    { "id": "submit-label", "component": "Text", "text": "Find tickets" }
+  ],
+  "data": {
+    "search": {
+      "event": "",
+      "city": "",
+      "date": "",
+      "tickets": 2,
+      "priority": ["view"],
+      "together": true
+    }
+  }
+}
