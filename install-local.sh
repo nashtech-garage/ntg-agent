@@ -205,8 +205,8 @@ Setup complete. Launching the Aspire AppHost...
   Dashboard:   https://localhost:17050
   Admin login: admin@ntgagent.com / Ntg@123 (seeded)
 
-The Default Agent's provider (GitHub Models, openai/gpt-4.1) is configured
-automatically on first startup; change it any time in the Admin UI.
+The Default Agent's provider (Azure OpenAI, gpt-5.1, via the LightRAG key) is
+configured automatically on first startup; change it any time in the Admin UI.
 
 EOF
 exec ./start-local-lightrag.sh

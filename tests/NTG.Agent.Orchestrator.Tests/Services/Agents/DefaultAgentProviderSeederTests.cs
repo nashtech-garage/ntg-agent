@@ -18,9 +18,14 @@ public class DefaultAgentProviderSeederTests
         return services.BuildServiceProvider();
     }
 
-    private static IConfiguration BuildConfig(string? token) =>
+    private static IConfiguration BuildConfig(string? apiKey, string? endpoint = "https://res.openai.azure.com/", string? model = "gpt-5.1") =>
         new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["GitHub:Models:GitHubToken"] = token })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["LightRag:LlmApiKey"] = apiKey,
+                ["LightRag:LlmEndpoint"] = endpoint,
+                ["LightRag:LlmModel"] = model,
+            })
             .Build();
 
     private static async Task<Guid> SeedAgentAsync(IServiceProvider sp, bool isDefault, string providerName = "")
@@ -40,24 +45,25 @@ public class DefaultAgentProviderSeederTests
         return await db.Agents.AsNoTracking().FirstAsync(a => a.Id == id);
     }
 
-    private static DefaultAgentProviderSeeder BuildSeeder(IServiceProvider sp, string? token) =>
-        new(sp, BuildConfig(token), NullLogger<DefaultAgentProviderSeeder>.Instance);
+    private static DefaultAgentProviderSeeder BuildSeeder(IServiceProvider sp, IConfiguration config) =>
+        new(sp, config, NullLogger<DefaultAgentProviderSeeder>.Instance);
 
     [Test]
-    public async Task StartAsync_FillsProvider_WhenDefaultAgentHasEmptyProvider()
+    public async Task StartAsync_FillsAzureProvider_WhenDefaultAgentHasEmptyProvider()
     {
         var sp = BuildProvider(Guid.NewGuid().ToString());
         var id = await SeedAgentAsync(sp, isDefault: true);
 
-        await BuildSeeder(sp, "ghp_test").StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig("azure-key")).StartAsync(CancellationToken.None);
 
         var agent = await GetAgentAsync(sp, id);
         Assert.Multiple(() =>
         {
-            Assert.That(agent.ProviderName, Is.EqualTo("GitHubModel"));
-            Assert.That(agent.ProviderEndpoint, Is.EqualTo("https://models.github.ai/inference"));
-            Assert.That(agent.ProviderModelName, Is.EqualTo("openai/gpt-4.1"));
-            Assert.That(agent.ProviderApiKey, Is.EqualTo("ghp_test"));
+            Assert.That(agent.ProviderName, Is.EqualTo("AzureOpenAI"));
+            // The chat client factory targets Azure's /openai/v1 surface directly.
+            Assert.That(agent.ProviderEndpoint, Is.EqualTo("https://res.openai.azure.com/openai/v1"));
+            Assert.That(agent.ProviderModelName, Is.EqualTo("gpt-5.1"));
+            Assert.That(agent.ProviderApiKey, Is.EqualTo("azure-key"));
         });
     }
 
@@ -67,12 +73,12 @@ public class DefaultAgentProviderSeederTests
     public async Task StartAsync_LeavesConfiguredProviderUntouched()
     {
         var sp = BuildProvider(Guid.NewGuid().ToString());
-        var id = await SeedAgentAsync(sp, isDefault: true, providerName: "AzureOpenAI");
+        var id = await SeedAgentAsync(sp, isDefault: true, providerName: "GitHubModel");
 
-        await BuildSeeder(sp, "ghp_test").StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig("azure-key")).StartAsync(CancellationToken.None);
 
         var agent = await GetAgentAsync(sp, id);
-        Assert.That(agent.ProviderName, Is.EqualTo("AzureOpenAI"));
+        Assert.That(agent.ProviderName, Is.EqualTo("GitHubModel"));
         Assert.That(agent.ProviderApiKey, Is.Empty);
     }
 
@@ -82,19 +88,21 @@ public class DefaultAgentProviderSeederTests
         var sp = BuildProvider(Guid.NewGuid().ToString());
         var id = await SeedAgentAsync(sp, isDefault: false);
 
-        await BuildSeeder(sp, "ghp_test").StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig("azure-key")).StartAsync(CancellationToken.None);
 
         var agent = await GetAgentAsync(sp, id);
         Assert.That(agent.ProviderName, Is.Empty);
     }
 
     [Test]
-    public async Task StartAsync_DoesNothing_WithoutToken()
+    public async Task StartAsync_DoesNothing_WhenAzureConfigIncomplete()
     {
         var sp = BuildProvider(Guid.NewGuid().ToString());
         var id = await SeedAgentAsync(sp, isDefault: true);
 
-        await BuildSeeder(sp, token: null).StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig(apiKey: null)).StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig("azure-key", endpoint: "")).StartAsync(CancellationToken.None);
+        await BuildSeeder(sp, BuildConfig("azure-key", model: null)).StartAsync(CancellationToken.None);
 
         var agent = await GetAgentAsync(sp, id);
         Assert.That(agent.ProviderName, Is.Empty);

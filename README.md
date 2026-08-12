@@ -99,11 +99,7 @@ dotnet tool install --global dotnet-ef
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
-5. The Default Agent's provider is configured automatically on first startup (GitHub Models, `openai/gpt-4.1`, using the token from step 1). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard and change:
-   - Provider Name: `GitHub Model`
-   - Provider Endpoint: `https://models.github.ai/inference`
-   - Provider API Key: your GitHub token
-   - Model Name: `openai/gpt-4.1` (or another model your token supports)
+5. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, `gpt-5.1`, reusing the LightRAG Azure key — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
 ## Dev shortcuts (`ntg`)
 
