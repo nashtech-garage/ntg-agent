@@ -70,6 +70,9 @@ info "Activating repo git hooks (.githooks)."
 git config core.hooksPath .githooks
 chmod +x .githooks/commit-msg .githooks/pre-push 2>/dev/null || true
 
+# Global dotnet tools land in ~/.dotnet/tools, which is not on PATH in a fresh
+# shell — without this the init-secrets step can't find the dotnet-ef we just installed.
+export PATH="$PATH:$HOME/.dotnet/tools"
 if ! dotnet ef --version >/dev/null 2>&1; then
   info "Installing dotnet-ef global tool (required by the AppHost migration runners)."
   dotnet tool install --global dotnet-ef
