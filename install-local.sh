@@ -202,9 +202,8 @@ Setup complete. Launching the Aspire AppHost...
   Dashboard:   https://localhost:17050
   Admin login: admin@ntgagent.com / Ntg@123 (seeded)
 
-One-time manual step after first login, in the Admin UI:
-  configure the GitHub Models provider —
-  endpoint https://models.github.ai/inference, model openai/gpt-4.1
+The Default Agent's provider (GitHub Models, openai/gpt-4.1) is configured
+automatically on first startup; change it any time in the Admin UI.
 
 EOF
 exec ./start-local-lightrag.sh
