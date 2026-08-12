@@ -49,6 +49,12 @@ DEAD_PATTERNS = [
     (r"\bmaxValue\b", 'Slider "maxValue" (real prop is "max")'),
     (r"\bmaxAllowedSelections\b", 'ChoicePicker "maxAllowedSelections" (does not exist)'),
     (r"primary\|secondary\|text", "Button variant enum (real values are default|primary|borderless)"),
+    # The enum pattern above only catches the pipe-separated spelling. The guide once ALSO said
+    # 'give secondary actions variant "secondary" or "text"' in prose, which contradicted its own
+    # component table and slipped through for months. Match the variant names where they are
+    # named as variants, not the ordinary English words "secondary" and "text".
+    (r'variant\s+"?secondary"?', 'Button variant "secondary" named in prose (does not exist)'),
+    (r'variant\s+"?text"?(?!\w)', 'Button variant "text" named in prose (does not exist)'),
 ]
 
 BINDABLE_INPUTS = ["TextField", "CheckBox", "Slider", "DateTimeInput", "ChoicePicker"]
