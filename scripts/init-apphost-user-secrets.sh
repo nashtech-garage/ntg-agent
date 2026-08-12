@@ -55,7 +55,7 @@ Usage: init-apphost-user-secrets.sh [-n|--dry-run] [-h|--help]
 Sets NTG.Agent.AppHost user secrets. Per value:
   exported env var → prompt (TTY only) → $REPO_ROOT/.env → default.
 
-Env/.env keys: GITHUB_TOKEN,
+Env/.env keys: SA_PASSWORD, GITHUB_TOKEN,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
 LIGHTRAG_EMBEDDING_API_KEY,
@@ -180,6 +180,19 @@ set_secret() {
   dotnet user-secrets set "$key" "$value" --project "$APPHOST_PROJ" >/dev/null
   echo "set $key"
 }
+
+resolve_field SA_PASSWORD \
+  "SQL Server SA password (complexity rules apply) [Enter for .env]: " \
+  1 \
+  "SA_PASSWORD" \
+  "SA_PASSWORD" \
+  "__EMPTY__"
+
+if [[ -z "$SA_PASSWORD" ]]; then
+  echo "error: SA_PASSWORD is required (prompt, .env SA_PASSWORD, or export SA_PASSWORD)" >&2
+  echo "Without Parameters:sql-sa-password, Aspire silently holds every app at the parameter prompt." >&2
+  exit 1
+fi
 
 resolve_field GITHUB_TOKEN \
   "GitHub PAT (models:read) [Enter for .env]: " \
@@ -312,6 +325,7 @@ if [[ -n "$LIGHTRAG_DOCKER_CERT_PATH" && ! -f "$LIGHTRAG_DOCKER_CERT_PATH" ]]; t
   exit 1
 fi
 
+set_secret "Parameters:sql-sa-password" "$SA_PASSWORD"
 set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
