@@ -28,6 +28,27 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 
 Run the project **locally with .NET Aspire**.
 
+### Quick start (Linux/macOS)
+
+One script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20; prints install instructions if missing), activates the repo git hooks, installs `dotnet-ef`, collects the two required secrets (GitHub PAT with `models:read`, Azure OpenAI key) into `.env` and auto-generates the rest, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost:
+
+```bash
+./install-local.sh
+```
+
+Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. The steps below describe the same setup done manually.
+
+### Quick start (Windows via WSL2)
+
+The same script is the supported path on Windows — it runs inside WSL2:
+
+1. Install WSL2 with the default Ubuntu distro: `wsl --install` in an admin PowerShell, then reboot and create your Linux user.
+2. Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) with the **WSL2 backend**, and enable your distro under *Settings → Resources → WSL integration*.
+3. Inside the WSL shell, install the remaining prerequisites (.NET 10 SDK, Node ≥ 20, git) — the script lists exact commands for anything missing.
+4. Clone the repo **into the WSL filesystem** (e.g. `~/ntg-agent`, not `/mnt/c/...` — file watching and builds are unreliable and slow on the Windows mount) and run `./install-local.sh`.
+
+The dashboard is reachable from your Windows browser at `https://localhost:17050` (WSL2 forwards localhost automatically). The HTTPS dev certificate is generated inside WSL and won't be trusted by the Windows browser — accept the certificate warning, or run `dotnet dev-certs https --export-path` in WSL and import it into the Windows certificate store.
+
 The AppHost orchestrates everything: it starts a SQL Server container, runs EF migrations for Admin and Orchestrator, then launches all 5 services with service discovery and config wiring. No local SQL Server install required.
 
 Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Docker (used by Aspire to run the SQL Server container), and the `dotnet-ef` global tool:
