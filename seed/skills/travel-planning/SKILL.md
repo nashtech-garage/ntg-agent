@@ -61,8 +61,14 @@ changes a branch's shape (object to text, array to text) is refused rather than 
 
 ## Step 1 — Render the planner
 
-Render it as soon as the user wants to plan a trip, with tab 0 showing and anything they
-already told you pre-filled:
+Render it as soon as the user wants to plan a trip, with tab 0 showing.
+
+**Always carry over what they have already said.** The message that started this almost always
+names a destination — "a trip to Da Lat" means you send `trip.destination: "Da Lat"`. Do the
+same for any dates, traveller count or style they mentioned. Rendering an empty form after
+someone has just told you where they want to go makes them type it twice, and is the single
+most common way this skill is used badly. Leave a field out only when they genuinely have not
+said anything about it.
 
 ```json
 {
@@ -99,6 +105,11 @@ When `trip_search_submit` arrives, read the answers (see "Reading answers" below
 
 Prices must reflect the trip length, traveller count and the chosen style, and must increase
 across the three. Use the user's own currency if they named one, otherwise USD.
+
+The user is already looking at this tab. Clicking **Find trips** moves them straight to
+"2. Options", where they are watching placeholder text while you work — so answer promptly and
+keep the values short. Still send `__tabs` with every render: it keeps your idea of the step and
+theirs in agreement, and it costs one line.
 
 Render `trip-planner` again with the `options` branch and tab 1:
 

@@ -1,43 +1,119 @@
 {
   "surfaceId": "trip-wizard",
   "components": [
-    { "id": "root", "component": "Column", "children": ["wizard"] },
-
+    {
+      "id": "root",
+      "component": "Column",
+      "children": [
+        "wizard"
+      ]
+    },
     {
       "id": "wizard",
       "component": "Tabs",
       "tabs": [
-        { "title": "1. Trip", "child": "trip-pane" },
-        { "title": "2. Options", "child": "options-pane" },
-        { "title": "3. Review", "child": "review-pane" }
+        {
+          "title": "1. Trip",
+          "child": "trip-pane"
+        },
+        {
+          "title": "2. Options",
+          "child": "options-pane"
+        },
+        {
+          "title": "3. Review",
+          "child": "review-pane"
+        }
       ]
     },
-
     {
       "id": "trip-pane",
       "component": "Column",
-      "children": ["trip-title", "trip-hint", "trip-destination", "trip-depart", "trip-return", "trip-travellers", "trip-style", "trip-submit"]
+      "children": [
+        "trip-title",
+        "trip-hint",
+        "trip-destination",
+        "trip-depart",
+        "trip-return",
+        "trip-travellers",
+        "trip-style",
+        "trip-submit"
+      ]
     },
-    { "id": "trip-title", "component": "Text", "text": "Plan your trip", "variant": "h4" },
-    { "id": "trip-hint", "component": "Text", "text": "Tell us the basics and we'll put three options together.", "variant": "caption" },
-    { "id": "trip-destination", "component": "TextField", "label": "Where to?", "value": { "path": "/trip/destination" }, "variant": "shortText" },
-    { "id": "trip-depart", "component": "DateTimeInput", "label": "Departing", "value": { "path": "/trip/departDate" }, "enableDate": true, "enableTime": false },
-    { "id": "trip-return", "component": "DateTimeInput", "label": "Returning", "value": { "path": "/trip/returnDate" }, "enableDate": true, "enableTime": false },
-    { "id": "trip-travellers", "component": "Slider", "label": "Travellers", "value": { "path": "/trip/travellers" }, "min": 1, "max": 8 },
-
+    {
+      "id": "trip-title",
+      "component": "Text",
+      "text": "Plan your trip",
+      "variant": "h4"
+    },
+    {
+      "id": "trip-hint",
+      "component": "Text",
+      "text": "Tell us the basics and we'll put three options together.",
+      "variant": "caption"
+    },
+    {
+      "id": "trip-destination",
+      "component": "TextField",
+      "label": "Where to?",
+      "value": {
+        "path": "/trip/destination"
+      },
+      "variant": "shortText"
+    },
+    {
+      "id": "trip-depart",
+      "component": "DateTimeInput",
+      "label": "Departing",
+      "value": {
+        "path": "/trip/departDate"
+      },
+      "enableDate": true,
+      "enableTime": false
+    },
+    {
+      "id": "trip-return",
+      "component": "DateTimeInput",
+      "label": "Returning",
+      "value": {
+        "path": "/trip/returnDate"
+      },
+      "enableDate": true,
+      "enableTime": false
+    },
+    {
+      "id": "trip-travellers",
+      "component": "Slider",
+      "label": "Travellers",
+      "value": {
+        "path": "/trip/travellers"
+      },
+      "min": 1,
+      "max": 8
+    },
     {
       "id": "trip-style",
       "component": "ChoicePicker",
       "label": "Trip style",
       "variant": "mutuallyExclusive",
-      "value": { "path": "/trip/style" },
+      "value": {
+        "path": "/trip/style"
+      },
       "options": [
-        { "label": "Budget — keep it cheap", "value": "budget" },
-        { "label": "Balanced — good value", "value": "balanced" },
-        { "label": "Comfort — treat myself", "value": "comfort" }
+        {
+          "label": "Budget — keep it cheap",
+          "value": "budget"
+        },
+        {
+          "label": "Balanced — good value",
+          "value": "balanced"
+        },
+        {
+          "label": "Comfort — treat myself",
+          "value": "comfort"
+        }
       ]
     },
-
     {
       "id": "trip-submit",
       "component": "Button",
@@ -47,59 +123,233 @@
         "event": {
           "name": "trip_search_submit",
           "context": {
-            "destination": { "path": "/trip/destination" },
-            "departDate": { "path": "/trip/departDate" },
-            "returnDate": { "path": "/trip/returnDate" },
-            "travellers": { "path": "/trip/travellers" },
-            "style": { "path": "/trip/style" }
+            "destination": {
+              "path": "/trip/destination"
+            },
+            "departDate": {
+              "path": "/trip/departDate"
+            },
+            "returnDate": {
+              "path": "/trip/returnDate"
+            },
+            "travellers": {
+              "path": "/trip/travellers"
+            },
+            "style": {
+              "path": "/trip/style"
+            },
+            "advanceTab": "wizard"
           }
         }
       }
     },
-    { "id": "trip-submit-label", "component": "Text", "text": "Find trips" },
-
+    {
+      "id": "trip-submit-label",
+      "component": "Text",
+      "text": "Find trips"
+    },
     {
       "id": "options-pane",
       "component": "Column",
-      "children": ["options-heading", "options-subheading", "opt1-row", "opt1-rule", "opt2-row", "opt2-rule", "opt3-row", "opt3-rule", "options-picker", "options-submit"]
+      "children": [
+        "options-heading",
+        "options-subheading",
+        "opt1-row",
+        "opt1-rule",
+        "opt2-row",
+        "opt2-rule",
+        "opt3-row",
+        "opt3-rule",
+        "options-picker",
+        "options-submit"
+      ]
     },
-    { "id": "options-heading", "component": "Text", "text": { "path": "/options/heading" }, "variant": "h4" },
-    { "id": "options-subheading", "component": "Text", "text": { "path": "/options/subheading" }, "variant": "caption" },
-
-    { "id": "opt1-row", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["opt1-info", "opt1-price"] },
-    { "id": "opt1-info", "component": "Column", "children": ["opt1-name", "opt1-detail"] },
-    { "id": "opt1-name", "component": "Text", "text": { "path": "/options/o1/name" }, "variant": "body" },
-    { "id": "opt1-detail", "component": "Text", "text": { "path": "/options/o1/detail" }, "variant": "caption" },
-    { "id": "opt1-price", "component": "Text", "text": { "path": "/options/o1/price" }, "variant": "h5" },
-    { "id": "opt1-rule", "component": "Divider", "axis": "horizontal" },
-
-    { "id": "opt2-row", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["opt2-info", "opt2-price"] },
-    { "id": "opt2-info", "component": "Column", "children": ["opt2-name", "opt2-detail"] },
-    { "id": "opt2-name", "component": "Text", "text": { "path": "/options/o2/name" }, "variant": "body" },
-    { "id": "opt2-detail", "component": "Text", "text": { "path": "/options/o2/detail" }, "variant": "caption" },
-    { "id": "opt2-price", "component": "Text", "text": { "path": "/options/o2/price" }, "variant": "h5" },
-    { "id": "opt2-rule", "component": "Divider", "axis": "horizontal" },
-
-    { "id": "opt3-row", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["opt3-info", "opt3-price"] },
-    { "id": "opt3-info", "component": "Column", "children": ["opt3-name", "opt3-detail"] },
-    { "id": "opt3-name", "component": "Text", "text": { "path": "/options/o3/name" }, "variant": "body" },
-    { "id": "opt3-detail", "component": "Text", "text": { "path": "/options/o3/detail" }, "variant": "caption" },
-    { "id": "opt3-price", "component": "Text", "text": { "path": "/options/o3/price" }, "variant": "h5" },
-    { "id": "opt3-rule", "component": "Divider", "axis": "horizontal" },
-
+    {
+      "id": "options-heading",
+      "component": "Text",
+      "text": {
+        "path": "/options/heading"
+      },
+      "variant": "h4"
+    },
+    {
+      "id": "options-subheading",
+      "component": "Text",
+      "text": {
+        "path": "/options/subheading"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "opt1-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "opt1-info",
+        "opt1-price"
+      ]
+    },
+    {
+      "id": "opt1-info",
+      "component": "Column",
+      "children": [
+        "opt1-name",
+        "opt1-detail"
+      ]
+    },
+    {
+      "id": "opt1-name",
+      "component": "Text",
+      "text": {
+        "path": "/options/o1/name"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "opt1-detail",
+      "component": "Text",
+      "text": {
+        "path": "/options/o1/detail"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "opt1-price",
+      "component": "Text",
+      "text": {
+        "path": "/options/o1/price"
+      },
+      "variant": "h5"
+    },
+    {
+      "id": "opt1-rule",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "opt2-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "opt2-info",
+        "opt2-price"
+      ]
+    },
+    {
+      "id": "opt2-info",
+      "component": "Column",
+      "children": [
+        "opt2-name",
+        "opt2-detail"
+      ]
+    },
+    {
+      "id": "opt2-name",
+      "component": "Text",
+      "text": {
+        "path": "/options/o2/name"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "opt2-detail",
+      "component": "Text",
+      "text": {
+        "path": "/options/o2/detail"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "opt2-price",
+      "component": "Text",
+      "text": {
+        "path": "/options/o2/price"
+      },
+      "variant": "h5"
+    },
+    {
+      "id": "opt2-rule",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "opt3-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "opt3-info",
+        "opt3-price"
+      ]
+    },
+    {
+      "id": "opt3-info",
+      "component": "Column",
+      "children": [
+        "opt3-name",
+        "opt3-detail"
+      ]
+    },
+    {
+      "id": "opt3-name",
+      "component": "Text",
+      "text": {
+        "path": "/options/o3/name"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "opt3-detail",
+      "component": "Text",
+      "text": {
+        "path": "/options/o3/detail"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "opt3-price",
+      "component": "Text",
+      "text": {
+        "path": "/options/o3/price"
+      },
+      "variant": "h5"
+    },
+    {
+      "id": "opt3-rule",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
     {
       "id": "options-picker",
       "component": "ChoicePicker",
       "label": "Which one?",
       "variant": "mutuallyExclusive",
-      "value": { "path": "/options/choice" },
+      "value": {
+        "path": "/options/choice"
+      },
       "options": [
-        { "label": { "path": "/options/o1/name" }, "value": "o1" },
-        { "label": { "path": "/options/o2/name" }, "value": "o2" },
-        { "label": { "path": "/options/o3/name" }, "value": "o3" }
+        {
+          "label": {
+            "path": "/options/o1/name"
+          },
+          "value": "o1"
+        },
+        {
+          "label": {
+            "path": "/options/o2/name"
+          },
+          "value": "o2"
+        },
+        {
+          "label": {
+            "path": "/options/o3/name"
+          },
+          "value": "o3"
+        }
       ]
     },
-
     {
       "id": "options-submit",
       "component": "Button",
@@ -108,54 +358,199 @@
       "action": {
         "event": {
           "name": "trip_option_selected",
-          "context": { "choice": { "path": "/options/choice" } }
+          "context": {
+            "choice": {
+              "path": "/options/choice"
+            },
+            "advanceTab": "wizard"
+          }
         }
       }
     },
-    { "id": "options-submit-label", "component": "Text", "text": "Continue to review" },
-
+    {
+      "id": "options-submit-label",
+      "component": "Text",
+      "text": "Continue to review"
+    },
     {
       "id": "review-pane",
       "component": "Column",
-      "children": ["review-title", "review-destination-row", "review-dates-row", "review-travellers-row", "review-option-row", "review-rule", "review-total-row", "review-note", "review-actions"]
+      "children": [
+        "review-title",
+        "review-destination-row",
+        "review-dates-row",
+        "review-travellers-row",
+        "review-option-row",
+        "review-rule",
+        "review-total-row",
+        "review-note",
+        "review-actions"
+      ]
     },
-    { "id": "review-title", "component": "Text", "text": "Review your trip", "variant": "h4" },
-
-    { "id": "review-destination-row", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["review-destination-label", "review-destination-value"] },
-    { "id": "review-destination-label", "component": "Text", "text": "Destination", "variant": "caption" },
-    { "id": "review-destination-value", "component": "Text", "text": { "path": "/review/destination" }, "variant": "body" },
-
-    { "id": "review-dates-row", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["review-dates-label", "review-dates-value"] },
-    { "id": "review-dates-label", "component": "Text", "text": "Dates", "variant": "caption" },
-    { "id": "review-dates-value", "component": "Text", "text": { "path": "/review/dates" }, "variant": "body" },
-
-    { "id": "review-travellers-row", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["review-travellers-label", "review-travellers-value"] },
-    { "id": "review-travellers-label", "component": "Text", "text": "Travellers", "variant": "caption" },
-    { "id": "review-travellers-value", "component": "Text", "text": { "path": "/review/travellers" }, "variant": "body" },
-
-    { "id": "review-option-row", "component": "Row", "justify": "spaceBetween", "align": "start", "children": ["review-option-label", "review-option-value"] },
-    { "id": "review-option-label", "component": "Text", "text": "Option", "variant": "caption" },
-    { "id": "review-option-value", "component": "Text", "text": { "path": "/review/option" }, "variant": "body" },
-
-    { "id": "review-rule", "component": "Divider", "axis": "horizontal" },
-
-    { "id": "review-total-row", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["review-total-label", "review-total-value"] },
-    { "id": "review-total-label", "component": "Text", "text": "Total", "variant": "caption" },
-    { "id": "review-total-value", "component": "Text", "text": { "path": "/review/total" }, "variant": "h5" },
-
-    { "id": "review-note", "component": "Text", "text": "Demonstration only — nothing will be booked and no payment is taken.", "variant": "caption" },
-
-    { "id": "review-actions", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["review-change", "review-confirm"] },
-
+    {
+      "id": "review-title",
+      "component": "Text",
+      "text": "Review your trip",
+      "variant": "h4"
+    },
+    {
+      "id": "review-destination-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-destination-label",
+        "review-destination-value"
+      ]
+    },
+    {
+      "id": "review-destination-label",
+      "component": "Text",
+      "text": "Destination",
+      "variant": "caption"
+    },
+    {
+      "id": "review-destination-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/destination"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-dates-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-dates-label",
+        "review-dates-value"
+      ]
+    },
+    {
+      "id": "review-dates-label",
+      "component": "Text",
+      "text": "Dates",
+      "variant": "caption"
+    },
+    {
+      "id": "review-dates-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/dates"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-travellers-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-travellers-label",
+        "review-travellers-value"
+      ]
+    },
+    {
+      "id": "review-travellers-label",
+      "component": "Text",
+      "text": "Travellers",
+      "variant": "caption"
+    },
+    {
+      "id": "review-travellers-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/travellers"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-option-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-option-label",
+        "review-option-value"
+      ]
+    },
+    {
+      "id": "review-option-label",
+      "component": "Text",
+      "text": "Option",
+      "variant": "caption"
+    },
+    {
+      "id": "review-option-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/option"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-rule",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "review-total-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-total-label",
+        "review-total-value"
+      ]
+    },
+    {
+      "id": "review-total-label",
+      "component": "Text",
+      "text": "Total",
+      "variant": "caption"
+    },
+    {
+      "id": "review-total-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/total"
+      },
+      "variant": "h5"
+    },
+    {
+      "id": "review-note",
+      "component": "Text",
+      "text": "Demonstration only — nothing will be booked and no payment is taken.",
+      "variant": "caption"
+    },
+    {
+      "id": "review-actions",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-change",
+        "review-confirm"
+      ]
+    },
     {
       "id": "review-change",
       "component": "Button",
       "variant": "default",
       "child": "review-change-label",
-      "action": { "event": { "name": "trip_change_requested", "context": {} } }
+      "action": {
+        "event": {
+          "name": "trip_change_requested",
+          "context": {}
+        }
+      }
     },
-    { "id": "review-change-label", "component": "Text", "text": "Change details" },
-
+    {
+      "id": "review-change-label",
+      "component": "Text",
+      "text": "Change details"
+    },
     {
       "id": "review-confirm",
       "component": "Button",
@@ -165,15 +560,27 @@
         "event": {
           "name": "trip_booking_confirmed",
           "context": {
-            "destination": { "path": "/review/destination" },
-            "dates": { "path": "/review/dates" },
-            "option": { "path": "/review/option" },
-            "total": { "path": "/review/total" }
+            "destination": {
+              "path": "/review/destination"
+            },
+            "dates": {
+              "path": "/review/dates"
+            },
+            "option": {
+              "path": "/review/option"
+            },
+            "total": {
+              "path": "/review/total"
+            }
           }
         }
       }
     },
-    { "id": "review-confirm-label", "component": "Text", "text": "Confirm plan" }
+    {
+      "id": "review-confirm-label",
+      "component": "Text",
+      "text": "Confirm plan"
+    }
   ],
   "data": {
     "__tabs": {
@@ -184,22 +591,36 @@
       "departDate": "",
       "returnDate": "",
       "travellers": 2,
-      "style": ["balanced"]
+      "style": [
+        "balanced"
+      ]
     },
     "options": {
-      "heading": "Your three options",
-      "subheading": "Fill in the Trip tab and submit it — the options appear here.",
-      "o1": { "name": "Option 1", "detail": "Not worked out yet", "price": "—" },
-      "o2": { "name": "Option 2", "detail": "Not worked out yet", "price": "—" },
-      "o3": { "name": "Option 3", "detail": "Not worked out yet", "price": "—" },
+      "heading": "Finding your options",
+      "subheading": "Putting three together — this takes a few seconds.",
+      "o1": {
+        "name": "Option 1",
+        "detail": "Still working…",
+        "price": "…"
+      },
+      "o2": {
+        "name": "Option 2",
+        "detail": "Still working…",
+        "price": "…"
+      },
+      "o3": {
+        "name": "Option 3",
+        "detail": "Still working…",
+        "price": "…"
+      },
       "choice": []
     },
     "review": {
-      "destination": "—",
-      "dates": "—",
-      "travellers": "—",
-      "option": "—",
-      "total": "—"
+      "destination": "…",
+      "dates": "…",
+      "travellers": "…",
+      "option": "…",
+      "total": "…"
     }
   }
 }

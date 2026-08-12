@@ -150,9 +150,29 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
       }
     }
 
+    // Move the wizard on immediately, before the agent has answered.
+    //
+    // A step button in a tabbed flow reads as "next", not "submit": the user expects the tab to
+    // change on click. Waiting for the round trip means ten to twenty seconds sitting on a form
+    // they have finished with, and no signal that the click registered. So the tab advances
+    // locally here and the submission still goes out; the agent's own /__tabs write lands on the
+    // tab we already moved to and is a no-op. The next tab's content is placeholder text until
+    // the answer arrives, which is why the template seeds it with something worth reading.
+    //
+    // `advanceTab` names the Tabs component to move and is UI plumbing, so it is stripped from
+    // the payload rather than sent to the agent as if it were an answer.
+    const { advanceTab, ...eventContext } = resolved;
+    if (typeof advanceTab === "string" && advanceTab.length > 0) {
+      try {
+        const tabPath = `/__tabs/${advanceTab}`;
+        const current = Number(dataModel?.get(tabPath));
+        dataModel?.set(tabPath, (Number.isFinite(current) ? current : 0) + 1);
+      } catch { /* the tab simply does not move; the submission is unaffected */ }
+    }
+
     try {
       context.dispatchAction({
-        event: { name: actionDef.name ?? "submit", context: { ...resolved, formData } },
+        event: { name: actionDef.name ?? "submit", context: { ...eventContext, formData } },
       });
     } catch {
       props.action?.(); // fall back to the renderer's default dispatch
