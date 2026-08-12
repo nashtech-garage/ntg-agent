@@ -9,6 +9,7 @@ using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Common.Knowledge;
 using System.Security.Claims;
@@ -65,7 +66,8 @@ public class AgentAdminControllerAccessTests
             Mock.Of<IKnowledgeProvisioner>(),
             Mock.Of<IKnowledgeService>(),
             NullLogger<AgentAdminController>.Instance,
-            _accessService)
+            _accessService,
+            new ModelDiscoveryService(Mock.Of<IHttpClientFactory>()))
         {
             ControllerContext = new ControllerContext
             {
