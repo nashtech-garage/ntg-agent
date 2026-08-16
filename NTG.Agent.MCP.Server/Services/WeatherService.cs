@@ -127,7 +127,7 @@ public sealed class WeatherService
     private static string? NormalizeIconUrl(string? icon)
     {
         if (string.IsNullOrWhiteSpace(icon)) return null;
-        if (icon.StartsWith("//", StringComparison.InvariantCultureIgnoreCase)) return $"https:{icon}";
+        if (icon.StartsWith("//", StringComparison.Ordinal)) return $"https:{icon}";
         return icon;
     }
 
