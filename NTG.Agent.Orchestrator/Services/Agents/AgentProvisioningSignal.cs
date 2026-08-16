@@ -29,8 +29,5 @@ public sealed class AgentProvisioningSignal : IDisposable
 
     public Task WaitAsync(CancellationToken cancellationToken) => _signal.WaitAsync(cancellationToken);
 
-    public void Dispose()
-    {
-        _signal?.Dispose();
-    }
+    public void Dispose() => _signal.Dispose();
 }
