@@ -387,3 +387,6 @@ FodyWeavers.xsd
 .claude/
 
 .idea/
+
+# Local-only AI knowledge documentation — never commit
+.local-knowledge/
