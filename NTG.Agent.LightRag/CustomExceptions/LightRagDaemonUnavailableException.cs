@@ -1,4 +1,4 @@
-namespace NTG.Agent.LightRag;
+namespace NTG.Agent.LightRag.CustomExceptions;
 
 /// <summary>
 /// Thrown when the Docker daemon that hosts the per-agent LightRAG containers cannot be

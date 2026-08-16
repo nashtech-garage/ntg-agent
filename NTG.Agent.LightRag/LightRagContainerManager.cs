@@ -3,6 +3,7 @@ using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using NTG.Agent.LightRag.CustomExceptions;
 
 namespace NTG.Agent.LightRag;
 

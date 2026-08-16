@@ -1,4 +1,4 @@
-namespace NTG.Agent.LightRag;
+namespace NTG.Agent.LightRag.CustomExceptions;
 
 /// <summary>
 /// Thrown when a freshly-started LightRAG container's HTTP app did not begin serving
