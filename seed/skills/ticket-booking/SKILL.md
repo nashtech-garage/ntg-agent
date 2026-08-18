@@ -120,9 +120,9 @@ under about 45 characters, and make one of them the honest downside for the chea
 
 ## Step 3 — Review and confirm
 
-When `ticket_tier_selected` arrives, the `choice` value is `"t1"`, `"t2"` or `"t3"`. Render
-`booking-review` with the full summary, filling `tier`, `seats` and `total` from the tier
-the user picked:
+When `ticket_tier_selected` arrives, `choice` is an array holding one of `"t1"`, `"t2"` or
+`"t3"` — read `choice[0]`, not `choice`. Render `booking-review` with the full summary,
+filling `tier`, `seats` and `total` from the tier the user picked:
 
 ```json
 {
