@@ -49,6 +49,11 @@ The weather card path (`get_weather` → `CapturingAIFunction` → `RenderableTo
 `{ surfaceId: string, components: A2UIComponent[], data?: object }`. The middleware wraps these
 into the `createSurface` / `updateComponents` / `updateDataModel` ops the renderer consumes.
 
+This document covers Path A — the model hand-authoring a surface via `render_a2ui`. A second path,
+Path B, exists: Agent Skills' `render_skill_surface` renders a skill's pre-authored A2UI template
+server-side, with no `render_a2ui` call at all. Both paths share the renderer and catalog described
+below; see `docs/A2UI-and-AG-UI.md` for how the two fit together.
+
 ## Frontend (`my-copilot-app`)
 
 - **`app/api/copilotkit/[[...integrationId]]/route.ts`** — apply the middleware to the bridge agent:
@@ -56,7 +61,7 @@ into the `createSurface` / `updateComponents` / `updateDataModel` ops the render
 - **`src/a2ui/activityRenderer.ts`** (new) — builds the renderer once and exports a **stable array**
   (`createA2UIMessageRenderer` requires a stable `renderActivityMessages` reference):
   `createA2UIMessageRenderer({ theme: a2uiDefaultTheme, catalog: interactiveCatalog })`.
-- **`src/a2ui/interactiveCatalog.tsx`** (new) — the official `basicCatalog` cloned with four
+- **`src/a2ui/interactiveCatalog.tsx`** (new) — the official `basicCatalog` cloned with five
   components overridden (see "Interactivity" below). Registered as the renderer's `catalog`.
 - **`app/page.tsx`** — register on the provider: `<CopilotKit renderActivityMessages={a2uiActivityRenderers}>`.
   (The `useRenderActivityMessage()` hook is a *consumer*, not a registrar — the prop is the way.)
@@ -107,8 +112,12 @@ The `render_a2ui` tool itself flows through the existing frontend-tool path with
 
 ## Known limitations / not done
 
-- **Reload rehydration** — A2UI surfaces render live but are not persisted/replayed on conversation
-  reload (the weather card is). Future work: persist the `render_a2ui` call and replay it.
+- **Reload rehydration** — closed for skill surfaces: `render_skill_surface` calls (Agent Skills'
+  Path B, see `docs/Agent-Skills-Implementation-Plan.md`) are persisted and replayed on
+  conversation reload by `my-copilot-app/src/tools/SkillSurfaceTool.tsx` (`23bcf08`). Still open
+  for freeform `render_a2ui`: those surfaces render live but are not persisted/replayed on
+  conversation reload (the weather card is). Future work: persist the `render_a2ui` call and
+  replay it the same way.
 - **Binding consistency** — ~~depends partly on the model~~ **corrected.** This was not model
   variance. The original `RenderGuide` named props that do not exist in the v0.9 basic catalog
   (`TextField.text`, `CheckBox.checked`, `ChoicePicker.selections`, `Slider.minValue`/`maxValue`,

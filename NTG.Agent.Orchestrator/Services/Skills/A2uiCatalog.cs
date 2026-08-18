@@ -21,8 +21,9 @@ namespace NTG.Agent.Orchestrator.Services.Skills;
 /// bumping the npm package surfaces here rather than as a mystery import rejection.
 /// </para>
 /// <para>
-/// Regenerate the table body with the generator documented in
-/// <c>docs/Agent-Skills-Implementation-Plan.md</c>.
+/// There is no generator for the table body — it is maintained by hand against
+/// <c>basic_catalog.json</c>. <c>A2uiCatalogDriftTests</c> (see the previous paragraph) is what
+/// catches it going stale, not what regenerates it.
 /// </para>
 /// </remarks>
 public static class A2uiCatalog

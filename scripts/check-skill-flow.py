@@ -9,14 +9,15 @@ one of the skill's bundled A2UI templates). A skill body is never persisted into
 history, so on the turn *after* a surface submission the model holds the catalog and nothing else.
 The observed regression was exactly that: on turn 3 the model continued the flow from memory of an
 earlier turn instead of reloading the skill, then narrated raw data-model paths at the user rather
-than rendering `trip-confirm`. `SkillPrompt.BuildCatalog` now carries the paragraph that has to win
+than rendering the review tab. `SkillPrompt.BuildCatalog` now carries the paragraph that has to win
 ("A loaded skill lasts only for the current reply"), and this script is the regression test for it.
 
-It runs three real turns against a running orchestrator, as the browser would:
+It runs three real turns against a running orchestrator, as the browser would, each re-rendering
+the same `trip-planner` surface and moving it to the next tab:
 
-  turn 1  a plain user message  ..............  expects a `trip-search`  surface
-  turn 2  a `trip_search_submit` submission  ..  expects a `trip-results` surface
-  turn 3  a `trip_option_selected` submission .  expects a `trip-confirm` surface
+  turn 1  a plain user message  ..............  expects `trip-planner` on tab 0 (Trip)
+  turn 2  a `trip_search_submit` submission  ..  expects `trip-planner` on tab 1 (Options)
+  turn 3  a `trip_option_selected` submission .  expects `trip-planner` on tab 2 (Review)
 
 and asserts, per turn: no RUN_ERROR; `load_skill` fired; `render_skill_surface` fired for the
 expected surface; the render's tool result is `{"a2ui_operations": [...]}` with exactly the three
@@ -81,7 +82,7 @@ RENDER_TOOL = "render_skill_surface"
 DESTINATION = "Da Nang"
 OPENING_PROMPT = f"I want a trip to {DESTINATION}, can you plan it for me"
 
-# The trip the simulated user fills into trip-search, and the option they pick on trip-results.
+# The trip the simulated user fills into tab 0 (Trip), and the option they pick on tab 1 (Options).
 TRIP = {
     "destination": DESTINATION,
     "departDate": "2026-09-12",

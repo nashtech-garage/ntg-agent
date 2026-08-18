@@ -11,7 +11,7 @@
 | 2 / 2b — ZIP import and its security controls | Done | `13279d0`; surface validator `6e51e1e`, `b2cc9c9` |
 | 3 — Runtime (three tiers) | Done | `292194b`, wired into the chat path in `8244027` |
 | 4 — Admin UI | Done | API `418785b`, Blazor `d33e8b6` |
-| 5 — Demo packages | Partial | `6d32bce` ships `travel-planning` and the packer; no startup seeder, no `ticket-booking` |
+| 5 — Demo packages | Done | `6d32bce` ships `travel-planning` and the packer; startup seeder `4176017`; `ticket-booking` `4ad8c7a` |
 | 6 — Tests | Done | `b2cc9c9`, `418785b`, `382655d` |
 
 ### Closed since this table was written
@@ -21,10 +21,15 @@
 - Surface submissions were prompted like human-in-the-loop approvals, which stopped a multi-step
   skill one surface short of finishing — `595af0f`. `scripts/check-skill-flow.py` drives the full
   three-turn travel flow against a running app and guards it.
+- `values` freezing an input by changing a seeded path's kind — `SurfaceRenderFunction.Merge` now
+  refuses a change to an already-seeded path's *kind* (object → scalar, array → object, etc.),
+  adding the offending path to a list of mismatches instead of applying it, so
+  `{"form": "text"}` can no longer overwrite a seeded `/form` object with a scalar and freeze
+  every input bound beneath it — `506345a`.
 
 ### Still open
 
-- **`render_a2ui` is declared on every run of every agent**, so `A2uiPrompt.RenderGuide` — ~130
+- **`render_a2ui` is declared on every run of every agent**, so `A2uiPrompt.RenderGuide` — ~165
   lines telling the model to hand-author a component tree — is prepended even when the agent has a
   skill bound that owns the surface, competing with the skill catalog. `route.ts` now reads
   `A2UI_FREEFORM_TOOL` so a deployment can turn the declaration off, but that switch is
@@ -36,12 +41,6 @@
   so the declaration can move server-side without touching the frontend.
 - **No import-time cap on the `SKILL.md` body.** `name` and `description` are bounded; the body is
   bounded only by the 5 MB package / 20 MB uncompressed caps, which is not a context budget.
-- **`values` can still freeze an input.** `SurfaceRenderFunction.Merge` replaces wholesale for
-  anything that is not an object-into-object, so `{"form": "text"}` overwrites a seeded `/form`
-  object with a scalar and every path under it stops resolving. That is the unseeded-path failure
-  the surface validator exists to prevent, reintroduced at run time by the model, past the point
-  validation reaches. Garbage `values` are covered by tests; a *well-formed* value of the wrong
-  shape is not.
 - **Skill tests all use `UseInMemoryDatabase`.** `GetActiveSkillAssetAsync` runs a `SelectMany`
   from `AgentSkills` through `Skill.Assets` filtered on `RelativePath`; its SQL Server translation
   is unproven.
@@ -122,12 +121,24 @@ renders a summary in step 3 — both need real binding.
 > depends partly on the model") understated this. It is not model variance; the prop names are
 > wrong. That doc was corrected alongside Phase 0 in `843f711`.
 
-### 3. Surfaces do not update in place
+### 3. Surfaces do not update in place — by default
 
 The middleware keys activity messages as `` `a2ui-surface-${surfaceId}-${outerCallId}` ``.
 `outerCallId` differs per tool call, so re-rendering the same `surfaceId` produces a **new
-card**. Multi-step flows stack. This is accepted, not fought: the flow is designed to read as
-a visible wizard trail.
+card** unless something intervenes. Multi-step flows stack.
+
+**No longer accepted as-is.** `d534812` added `StableSurfaceIdMiddleware` in
+`my-copilot-app/app/api/copilotkit/[[...integrationId]]/route.ts`, wrapping the `HttpAgent` in
+front of `@ag-ui/a2ui-middleware` and stripping `outerCallId` from a skill surface's message id
+before `@ag-ui/client` resolves it, so a re-render of `render_skill_surface` replaces the
+existing card instead of appending one. It is scoped to skill surfaces only — freeform
+`render_a2ui` ids are invented by the model turn by turn and reused across unrelated requests,
+where collapsing them would silently rewrite the wrong card further up the transcript — and it
+is gated by the `A2UI_STABLE_SURFACE_IDS` env var, on by default. The two seed skills now
+deliberately demonstrate opposite behaviours: `travel-planning` renders one surface with three
+tabs and updates that one card in place; `ticket-booking` renders three separate surfaces and
+lets them stack, so both the update-in-place and the wizard-trail presentation stay demoable
+side by side.
 
 ## Architecture
 
@@ -335,7 +346,7 @@ enabled. An agent with none gets nothing, so its runs are byte-identical to befo
 
 Two things about the insert are load-bearing. It goes in *before* the `A2uiPrompt` render guide,
 because both use `Insert(0, …)` and each insert pushes the previous one further from the user's
-turn — writing them in the intuitive order buries the catalog behind 131 lines of A2UI guidance.
+turn — writing them in the intuitive order buries the catalog behind ~165 lines of A2UI guidance.
 And the whole block is wrapped in a `try`: this runs before the first yield of an async iterator,
 so an exception escapes `ChatStreamingAsync` entirely and surfaces as `RUN_ERROR` with no answer at
 all. Skills are decoration on a run; they degrade, they do not abort it.
@@ -391,21 +402,32 @@ the checked-in source tree so the zip and its sources cannot drift (`--check` fa
 have). The zips are byte-reproducible — sorted entries, pinned timestamps — so repacking an
 unchanged skill produces no git churn.
 
-Neither the startup seeder nor `ticket-booking` shipped: the package is imported through the Admin
-UI like any other. The seeder is worth having for the reason originally given — it exercises the
-same importer on every cold start — but nothing depends on it.
+Both the startup seeder and `ticket-booking` shipped. `SkillSeeder` (`4176017`) imports every
+`seed/skills/*.zip` through the same importer and registry an admin upload uses, so a fresh clone
+demos without manual setup and the import path is exercised on every cold start; it updates a
+same-named skill in place rather than re-inserting it, so re-seeding never discards an admin's
+edits. `ticket-booking` (`4ad8c7a`) is a second skill package, chosen to exercise what
+`travel-planning` does not — `Tabs` bound to data, a `Card` surface root, `List`, `CheckBox` — and,
+unlike `travel-planning`, its three steps render as three separate surfaces that stack rather than
+one surface updated in place, so the repo's two demo skills now show the opposite ends of
+Finding 3's choice.
 
 `travel-planning`:
 
-| Step | Surface | Agent calls | User submits |
+One surface, `seed/skills/travel-planning/assets/trip-planner.json` (internal
+`surfaceId: "trip-wizard"`), with three tabs that the same render call moves between by writing
+`__tabs.wizard`. This replaced the original three-surface design (`trip-search` / `trip-results` /
+`trip-confirm`) in `506345a` — see Finding 3 for why.
+
+| Tab | Index | Agent calls | User submits |
 |---|---|---|---|
-| 1. Collect | `trip-search` | `render_skill_surface` | `trip_search_submit` |
-| 2. Offer | `trip-results` | `render_skill_surface` | `trip_option_selected` |
-| 3. Review | `trip-confirm` | `render_skill_surface` | `trip_booking_confirmed` / `trip_change_requested` |
+| 1. Trip | `0` | `render_skill_surface` | `trip_search_submit` |
+| 2. Options | `1` | `render_skill_surface` | `trip_option_selected` |
+| 3. Review | `2` | `render_skill_surface` | `trip_booking_confirmed` / `trip_change_requested` |
 
 `SKILL.md` carries procedure, not syntax — it never repeats binding rules, which arrive via
-the already-injected `A2uiPrompt`. Its load-bearing instruction is *render exactly one surface
-per turn, then stop*; without it the model renders all three steps in one go.
+the already-injected `A2uiPrompt`. Its load-bearing instruction is *render exactly one tab
+per turn, then stop*; without it the model fills all three tabs in one go.
 
 ### Phase 6 — Tests
 
@@ -502,10 +524,11 @@ demoable by a human clicking buttons. **5** and **6** are packaging and safety n
 
 ## Known limitations / not done
 
-- **No reload rehydration** — inherited from the A2UI implementation; surfaces render live but
-  are not replayed on conversation reload. Do not refresh mid-demo. The gap is narrower than it
-  looks: the `render_skill_surface` call is persisted and rebuilt into the message list on reload,
-  so what is missing is only a frontend renderer for it. See "Still open".
+- **No reload rehydration for freeform `render_a2ui`** — surfaces the model hand-authors via
+  `render_a2ui` still render live only and are not replayed on conversation reload; refreshing
+  mid-demo loses them. This is now specific to Path A: every skill surface in this document goes
+  through `render_skill_surface` (Path B), and that gap closed in `23bcf08` — see "Closed since
+  this table was written".
 - **Surfaces stack per step** — see Finding 3. Intended, presented as a wizard trail.
 - **No `scripts/` execution** — see Decisions.
 - **No real APIs** — itineraries and prices are fabricated by the model. Skills are instructed
@@ -525,10 +548,11 @@ demoable by a human clicking buttons. **5** and **6** are packaging and safety n
 - `dotnet test` — importer security cases and surface validator
 - Manual e2e (AppHost running, agent bound to `travel-planning`, `render_a2ui` present):
   1. Import `travel-planning.zip` via the Admin UI → appears in the list, binds to an agent
-  2. "Help me plan a trip to Da Nang in September" → `trip-search` renders, fields are
-     editable, **pre-filled destination shows** (regression check for Phase 0)
-  3. Submit → three differentiated options render with prices
-  4. Pick one → submit → `trip-confirm` shows a correct summary and total
+  2. "Help me plan a trip to Da Nang in September" → `trip-planner` renders on the Trip tab,
+     fields are editable, **pre-filled destination shows** (regression check for Phase 0)
+  3. Submit → the same card moves to the Options tab with three differentiated options and
+     prices, without opening a second card
+  4. Pick one → submit → the same card moves to the Review tab with a correct summary and total
   5. Confirm → agent replies in text and states no booking was made
   6. Import a deliberately broken zip (zip slip, bad prop name) → rejected with a readable
      error list
