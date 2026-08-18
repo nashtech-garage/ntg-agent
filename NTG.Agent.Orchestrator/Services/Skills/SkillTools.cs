@@ -18,9 +18,11 @@ public static class SkillTools
     /// <summary>
     /// The tier-2 tool. Returns a skill's full <c>SKILL.md</c> body so the model can follow it.
     /// </summary>
-    public static AIFunction CreateLoadSkill(SkillRegistry registry, Guid agentId, ILogger logger)
+    public static AIFunction CreateLoadSkill(
+        SkillRegistry registry, SkillActivityLog activityLog, Guid agentId, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(activityLog);
         ArgumentNullException.ThrowIfNull(logger);
 
         return AIFunctionFactory.Create(
@@ -41,6 +43,9 @@ public static class SkillTools
                 }
 
                 logger.LogInformation("Agent {AgentId} loaded skill '{SkillName}'", agentId, skill);
+                // Narrate only a successful load — a refused one named a skill the agent never
+                // actually used, and telling the user otherwise would misrepresent the run.
+                activityLog.Add($"Using the {skill} skill.");
                 return body;
             },
             name: SkillPrompt.LoadToolName,
@@ -54,7 +59,8 @@ public static class SkillTools
     public static AIFunction CreateRenderSurface(
         SkillRegistry registry,
         Agents.RenderableToolCapture capture,
+        SkillActivityLog activityLog,
         Guid agentId,
         ILogger logger) =>
-        new SurfaceRenderFunction(registry, capture, agentId, logger);
+        new SurfaceRenderFunction(registry, capture, activityLog, agentId, logger);
 }

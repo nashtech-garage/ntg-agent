@@ -118,6 +118,9 @@ builder.Services.AddHttpContextAccessor();
 // the registry takes the request-scoped DbContext. See docs/Agent-Skills-Implementation-Plan.md.
 builder.Services.AddSingleton<SkillPackageImporter>();
 builder.Services.AddScoped<SkillRegistry>();
+// Request-scoped, same lifetime and sharing rationale as RenderableToolCapture above: it narrates
+// skill activity (a skill loading, a surface rendering) for the "Thought for N seconds" panel.
+builder.Services.AddScoped<SkillActivityLog>();
 // Imports seed/skills/*.zip on startup through that same registry, skipping any skill name already
 // stored so an admin's edits are never overwritten. Repo-only by default (the seed tree does not
 // ship in a published build) and contained so it can never prevent startup — see SkillSeeder.

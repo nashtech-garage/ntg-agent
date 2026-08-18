@@ -73,6 +73,7 @@ public class SurfaceRenderFunctionTests
     private AgentDbContext _context = null!;
     private SkillRegistry _registry = null!;
     private RenderableToolCapture _capture = null!;
+    private SkillActivityLog _activityLog = null!;
     private AIFunction _renderer = null!;
     private Guid _userId;
     private Guid _agentA;
@@ -88,6 +89,7 @@ public class SurfaceRenderFunctionTests
         _context = new AgentDbContext(options);
         _registry = new SkillRegistry(_context, new SkillPackageImporter(), NullLogger<SkillRegistry>.Instance);
         _capture = new RenderableToolCapture();
+        _activityLog = new SkillActivityLog();
 
         _userId = Guid.NewGuid();
         _agentA = Guid.NewGuid();
@@ -108,7 +110,7 @@ public class SurfaceRenderFunctionTests
         Bind(_agentA, demo, isEnabled: true);
         Bind(_agentA, disabled, isEnabled: false);
 
-        _renderer = SkillTools.CreateRenderSurface(_registry, _capture, _agentA, NullLogger.Instance);
+        _renderer = SkillTools.CreateRenderSurface(_registry, _capture, _activityLog, _agentA, NullLogger.Instance);
     }
 
     [TearDown]
@@ -623,7 +625,7 @@ public class SurfaceRenderFunctionTests
     public async Task Render_SkillBoundToAnotherAgent_IsRefusedAndCapturesNothing()
     {
         var otherAgentsRenderer = SkillTools.CreateRenderSurface(
-            _registry, _capture, _agentB, NullLogger.Instance);
+            _registry, _capture, _activityLog, _agentB, NullLogger.Instance);
 
         await AssertRefusedAsync("demo-skill", "panel", otherAgentsRenderer);
     }

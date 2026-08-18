@@ -42,14 +42,20 @@ internal sealed class SurfaceRenderFunction : AIFunction
 
     private readonly SkillRegistry _registry;
     private readonly RenderableToolCapture _capture;
+    private readonly SkillActivityLog _activityLog;
     private readonly Guid _agentId;
     private readonly ILogger _logger;
 
     public SurfaceRenderFunction(
-        SkillRegistry registry, RenderableToolCapture capture, Guid agentId, ILogger logger)
+        SkillRegistry registry,
+        RenderableToolCapture capture,
+        SkillActivityLog activityLog,
+        Guid agentId,
+        ILogger logger)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _capture = capture ?? throw new ArgumentNullException(nameof(capture));
+        _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _agentId = agentId;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -228,6 +234,10 @@ internal sealed class SurfaceRenderFunction : AIFunction
             assetPath,
             skill,
             components.Count);
+
+        // Narrate only a successful render — every failure path above returns before this point,
+        // so a refusal never claims a surface the user was never shown.
+        _activityLog.Add($"Rendering the {surface} surface.");
 
         // The receipt, not the payload. Everything the browser needs already went to the capture.
         return $"Rendered the '{surface}' surface. Do not describe it — the user can see it. "

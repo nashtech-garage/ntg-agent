@@ -90,8 +90,12 @@ public class AgUiController : ControllerBase
         {
             await foreach (var chunk in _agentService.ChatStreamingAsync(userId, promptRequest))
             {
-                if (chunk.ContentType == PromptContentType.Thinking && !string.IsNullOrEmpty(chunk.Content))
+                if ((chunk.ContentType == PromptContentType.Thinking || chunk.ContentType == PromptContentType.SkillNotice)
+                    && !string.IsNullOrEmpty(chunk.Content))
                 {
+                    // SkillNotice is our own narration of skill activity, emitted as a reasoning
+                    // event on the same terms as provider thinking — same block, same events —
+                    // so the browser needs no changes to show which skill the agent used.
                     // Close any open text block before reasoning starts
                     if (textOpen)
                     {

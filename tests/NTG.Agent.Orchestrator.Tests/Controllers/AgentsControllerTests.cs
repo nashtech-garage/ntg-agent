@@ -52,6 +52,7 @@ public class AgentsControllerTests
             _accessService,
             new RenderableToolCapture(),
             new SkillRegistry(_context, new SkillPackageImporter(), Mock.Of<ILogger<SkillRegistry>>()),
+            new SkillActivityLog(),
             Mock.Of<ILogger<AgentService>>()
         );
 

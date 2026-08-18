@@ -34,6 +34,7 @@ public class AgentService
     private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly SkillRegistry _skillRegistry;
+    private readonly SkillActivityLog _skillActivityLog;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
 
@@ -48,6 +49,7 @@ public class AgentService
         AgentAccessService agentAccessService,
         RenderableToolCapture renderableToolCapture,
         SkillRegistry skillRegistry,
+        SkillActivityLog skillActivityLog,
         ILogger<AgentService> logger)
     {
         _agentFactory = agentFactory;
@@ -61,6 +63,7 @@ public class AgentService
         _agentAccessService = agentAccessService;
         _renderableToolCapture = renderableToolCapture;
         _skillRegistry = skillRegistry;
+        _skillActivityLog = skillActivityLog;
     }
 
     // Turns tool results captured during the run (get_weather, possibly inside an inner agent)
@@ -76,6 +79,17 @@ public class AgentService
             yield return new PromptResponse(
                 JsonSerializer.Serialize(new { callId = captured.CallId, result = captured.Result }),
                 PromptContentType.ToolResult);
+        }
+    }
+
+    // Turns skill narration captured during the run (a skill loading, a surface rendering,
+    // possibly inside an inner agent) into SkillNotice chunks the AG-UI controller forwards to the
+    // browser as reasoning content, so the "Thought for N seconds" panel says which skill acted.
+    private IEnumerable<PromptResponse> DrainSkillNotices()
+    {
+        foreach (var line in _skillActivityLog.DrainPending())
+        {
+            yield return new PromptResponse(line, PromptContentType.SkillNotice);
         }
     }
 
@@ -144,6 +158,13 @@ public class AgentService
         // Track when the thinking phase begins and ends so we can persist the duration
         DateTime? thinkingStartedAt = null;
         DateTime? thinkingEndedAt = null;
+        // Whether the PROVIDER produced reasoning, as opposed to the thinking buffer merely being
+        // non-empty. The two are the same today, and this exists so they can stop being the same:
+        // anything we write into that buffer ourselves — a narration of which skill was loaded,
+        // say — would otherwise bill the run as OperationTypes.Reasoning on a model that never
+        // reasoned. Keeping the billing signal separate from the display buffer is correct
+        // regardless of what is eventually appended to it.
+        var hasProviderThinking = false;
         // Accumulate renderable tool calls (e.g. get_weather) so the card can be rehydrated when the
         // conversation is reloaded. Pair each ToolCall with its later ToolResult by call id.
         var pendingToolCalls = new Dictionary<string, (string Name, string Arguments)>();
@@ -154,6 +175,16 @@ public class AgentService
             if (item.ContentType == PromptContentType.Thinking)
             {
                 // Record the start timestamp on the first thinking chunk
+                thinkingStartedAt ??= DateTime.UtcNow;
+                thinkingMessageSb.Append(item.Content);
+                hasProviderThinking = true;
+            }
+            else if (item.ContentType == PromptContentType.SkillNotice)
+            {
+                // Our own narration, not the provider's. It shares the thinking buffer so it
+                // persists and reappears after a page reload, and it starts the duration clock the
+                // same way provider thinking does — but it must never set hasProviderThinking,
+                // since that flag alone decides Reasoning-vs-Chat billing.
                 thinkingStartedAt ??= DateTime.UtcNow;
                 thinkingMessageSb.Append(item.Content);
             }
@@ -206,7 +237,7 @@ public class AgentService
             // For OpenAI, ReasoningTokens is populated from UsageDetails.ReasoningTokenCount.
             // For Anthropic, the SDK folds thinking tokens into OutputTokenCount and never sets
             // ReasoningTokenCount, so we fall back to checking for thinking content in the stream.
-            var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || thinkingMessageSb.Length > 0;
+            var hasThinking = tokenUsageInfo.ReasoningTokens > 0 || hasProviderThinking;
             var chatOperationType = hasThinking ? OperationTypes.Reasoning : OperationTypes.Chat;
             await TrackTokenUsageAsync(userId, promptRequest.SessionId, promptRequest.AgentId, new ConversationListItem(conversation.Id, conversation.Name), savedMessage.Id, chatOperationType, tokenUsageInfo, responseTime);
         }
@@ -461,9 +492,9 @@ public class AgentService
 
             if (activeSkills.Count > 0)
             {
-                tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, promptRequest.AgentId, _logger));
+                tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, _skillActivityLog, promptRequest.AgentId, _logger));
                 tools.Add(SkillTools.CreateRenderSurface(
-                    _skillRegistry, _renderableToolCapture, promptRequest.AgentId, _logger));
+                    _skillRegistry, _renderableToolCapture, _skillActivityLog, promptRequest.AgentId, _logger));
             }
 
             var chatOptions = new ChatOptions
@@ -533,6 +564,13 @@ public class AgentService
                     yield return chunk;
                 }
 
+                // Drained before this update's own content so a notice ("Using the X skill.")
+                // lands before the reasoning for the step it describes, rather than after it.
+                foreach (var chunk in DrainSkillNotices())
+                {
+                    yield return chunk;
+                }
+
                 foreach (var item in update.Contents)
                 {
                     if (item is TextReasoningContent reasoningContent)
@@ -559,6 +597,12 @@ public class AgentService
 
             // Flush any tool captures that arrived during/after the final streamed update.
             foreach (var chunk in DrainRenderableToolCalls())
+            {
+                yield return chunk;
+            }
+
+            // Flush any skill narration that arrived during/after the final streamed update.
+            foreach (var chunk in DrainSkillNotices())
             {
                 yield return chunk;
             }
