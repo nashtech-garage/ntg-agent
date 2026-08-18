@@ -38,9 +38,14 @@
                             agents from the agent's Tools tab.
                         </p>
                     </div>
-                    <button class="btn btn-primary" @onclick="ShowImportModal">
-                        <i class="bi bi-cloud-upload me-2"></i>Import Skill
-                    </button>
+                    <div class="text-end">
+                        <button class="btn btn-primary" @onclick="ShowImportModal">
+                            <i class="bi bi-cloud-upload me-2"></i>Import Skill
+                        </button>
+                        <div class="form-text mt-1 mb-0">
+                            <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Error Display -->
@@ -163,6 +168,9 @@
                                     <button class="btn btn-primary" @onclick="ShowImportModal">
                                         <i class="bi bi-cloud-upload me-2"></i>Import Skill
                                     </button>
+                                    <div class="form-text mt-2">
+                                        <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
+                                    </div>
                                 </div>
                             }
                         </div>
