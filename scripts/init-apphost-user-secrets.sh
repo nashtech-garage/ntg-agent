@@ -58,7 +58,8 @@ Sets NTG.Agent.AppHost user secrets. Per value:
 Env/.env keys: SA_PASSWORD,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
-LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_AZURE_OPENAI_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_LLM_MODEL, LIGHTRAG_EMBEDDING_MODEL,
 LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
 LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL,
 LIGHTRAG_POSTGRES_PORT.
@@ -242,8 +243,22 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
   fi
 fi
 
+# One Azure OpenAI resource serves LightRAG's LLM + embedding bindings and the seeded
+# Default Agent: one endpoint, one key, two deployment names.
+resolve_field LIGHTRAG_AZURE_OPENAI_ENDPOINT \
+  "Azure OpenAI endpoint (https://<resource>.openai.azure.com/) [Enter for .env]: " \
+  0 \
+  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
+  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
+  "__EMPTY__"
+
+if [[ -z "$LIGHTRAG_AZURE_OPENAI_ENDPOINT" ]]; then
+  echo "error: LIGHTRAG_AZURE_OPENAI_ENDPOINT is required (prompt, .env LIGHTRAG_AZURE_OPENAI_ENDPOINT, or export LIGHTRAG_AZURE_OPENAI_ENDPOINT)" >&2
+  exit 1
+fi
+
 resolve_field LIGHTRAG_EMBEDDING_API_KEY \
-  "Azure OpenAI API key (LightRAG LLM + embeddings, hcm resource) [Enter for .env]: " \
+  "Azure OpenAI API key (LightRAG LLM + embeddings) [Enter for .env]: " \
   1 \
   "LIGHTRAG_EMBEDDING_API_KEY" \
   "LIGHTRAG_EMBEDDING_API_KEY" \
@@ -253,6 +268,20 @@ if [[ -z "$LIGHTRAG_EMBEDDING_API_KEY" ]]; then
   echo "error: LIGHTRAG_EMBEDDING_API_KEY is required (prompt, .env LIGHTRAG_EMBEDDING_API_KEY, or export LIGHTRAG_EMBEDDING_API_KEY)" >&2
   exit 1
 fi
+
+resolve_field LIGHTRAG_LLM_MODEL \
+  "Azure OpenAI chat deployment name [Enter for gpt-5.1]: " \
+  0 \
+  "LIGHTRAG_LLM_MODEL" \
+  "LIGHTRAG_LLM_MODEL" \
+  "gpt-5.1"
+
+resolve_field LIGHTRAG_EMBEDDING_MODEL \
+  "Azure OpenAI embedding deployment name [Enter for text-embedding-3-large]: " \
+  0 \
+  "LIGHTRAG_EMBEDDING_MODEL" \
+  "LIGHTRAG_EMBEDDING_MODEL" \
+  "text-embedding-3-large"
 
 # --- Remote LightRAG server (TLS) -------------------------------------------------
 # All optional: leave every value empty for a plain all-local run against the local
@@ -318,7 +347,10 @@ set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+set_secret "Parameters:lightrag-azure-openai-endpoint" "$LIGHTRAG_AZURE_OPENAI_ENDPOINT"
 set_secret "Parameters:lightrag-embedding-api-key" "$LIGHTRAG_EMBEDDING_API_KEY"
+set_secret "Parameters:lightrag-llm-model" "$LIGHTRAG_LLM_MODEL"
+set_secret "Parameters:lightrag-embedding-model" "$LIGHTRAG_EMBEDDING_MODEL"
 set_secret "Parameters:lightrag-docker-host" "$LIGHTRAG_DOCKER_HOST"
 set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
 set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"

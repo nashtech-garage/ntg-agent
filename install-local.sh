@@ -179,21 +179,28 @@ else
   info ".env already exists; filling only missing values."
 fi
 
-prompt_secret() {
-  # $1 = key, $2 = prompt text
+prompt_value() {
+  # $1 = key, $2 = prompt text, $3 = "secret" to hide input
   local val
   while [[ -z "$(env_get "$1")" ]]; do
     if [[ ! -t 0 ]]; then
       echo "error: $1 is empty in .env and no TTY to prompt. Set it in .env and re-run." >&2
       exit 1
     fi
-    read -r -s -p "$2: " val
-    echo
+    if [[ "${3:-}" == secret ]]; then
+      read -r -s -p "$2: " val; echo
+    else
+      read -r -p "$2: " val
+    fi
     [[ -n "$val" ]] && env_set "$1" "$val"
   done
 }
 
-prompt_secret LIGHTRAG_EMBEDDING_API_KEY "Azure OpenAI API key (LightRAG LLM + embeddings)"
+# One Azure OpenAI resource serves LightRAG (LLM + embeddings) and the seeded Default Agent.
+prompt_value LIGHTRAG_AZURE_OPENAI_ENDPOINT "Azure OpenAI endpoint (https://<resource>.openai.azure.com/)"
+prompt_value LIGHTRAG_EMBEDDING_API_KEY "Azure OpenAI API key" secret
+llm_model="$(env_get LIGHTRAG_LLM_MODEL)"; emb_model="$(env_get LIGHTRAG_EMBEDDING_MODEL)"
+info "Azure deployments: chat=${llm_model:-gpt-5.1} embeddings=${emb_model:-text-embedding-3-large} (set LIGHTRAG_LLM_MODEL / LIGHTRAG_EMBEDDING_MODEL in .env to change)."
 
 gen_if_empty() {
   # $1 = key, $2 = generated value

@@ -36,7 +36,7 @@ One command on a fresh machine — clones the repo and runs the installer:
 curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash
 ```
 
-Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20) and on Ubuntu/Debian installs the missing ones with `sudo apt` (Node via NodeSource; other systems get install instructions instead), activates the repo git hooks, installs `dotnet-ef`, collects the one required secret (an Azure OpenAI key, used for LightRAG and the Default Agent) into `.env` and auto-generates the rest, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
+Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20) and on Ubuntu/Debian installs the missing ones with `sudo apt` (Node via NodeSource; other systems get install instructions instead), activates the repo git hooks, installs `dotnet-ef`, asks for your Azure OpenAI endpoint + key (one resource serves LightRAG and the Default Agent; deployment names default to `gpt-5.1` / `text-embedding-3-large`, override in `.env`), auto-generates the remaining secrets, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
 
 Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. The steps below describe the same setup done manually.
 
@@ -65,7 +65,7 @@ dotnet tool install --global dotnet-ef
    ```
    Resolution per value: exported env var → interactive prompt (TTY only) → `$REPO_ROOT/.env` → default. Non-interactive example (skips all prompts):
    ```bash
-   LIGHTRAG_EMBEDDING_API_KEY=xxx ./scripts/init-apphost-user-secrets.sh
+   LIGHTRAG_AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ LIGHTRAG_EMBEDDING_API_KEY=xxx ./scripts/init-apphost-user-secrets.sh
    ```
    Useful flags: `--dry-run` to preview without writing, `--help` for details.
 
@@ -77,7 +77,10 @@ dotnet tool install --global dotnet-ef
    dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
    dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"
    dotnet user-secrets set "Parameters:lightrag-api-key"            "<32+ char random string>"
-   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for LightRAG>"
+   dotnet user-secrets set "Parameters:lightrag-azure-openai-endpoint" "https://<resource>.openai.azure.com/"
+   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for that resource>"
+   dotnet user-secrets set "Parameters:lightrag-llm-model"          "gpt-5.1"
+   dotnet user-secrets set "Parameters:lightrag-embedding-model"    "text-embedding-3-large"
    ```
 
 2. Run the AppHost:
@@ -97,7 +100,7 @@ dotnet tool install --global dotnet-ef
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
-4. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, `gpt-5.1`, reusing the LightRAG Azure key — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
+4. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, your endpoint/key and chat deployment from the LightRAG settings above — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
 ## Dev shortcuts (`ntg`)
 

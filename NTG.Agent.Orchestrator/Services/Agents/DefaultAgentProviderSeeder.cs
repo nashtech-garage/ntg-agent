@@ -13,8 +13,8 @@ public sealed class DefaultAgentProviderSeeder(
     IConfiguration configuration,
     ILogger<DefaultAgentProviderSeeder> logger) : IHostedService
 {
-    // The default agent rides the same Azure resource/key that LightRAG already requires
-    // (one key serves chat + embeddings there), so no extra secret is needed. GitHub Models
+    // The default agent rides the developer's own Azure resource/key/deployment that LightRAG
+    // already requires (one resource serves chat + embeddings), so no extra secret is needed. GitHub Models
     // was the previous default but is being retired (410 retirement brownouts).
     private const string ProviderName = "AzureOpenAI";
 
