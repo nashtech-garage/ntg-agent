@@ -9,7 +9,7 @@
 #   ./scripts/init-apphost-user-secrets.sh
 #   ./scripts/init-apphost-user-secrets.sh --dry-run
 #
-# Setting the corresponding env var (e.g. GITHUB_TOKEN=xyz ./init-...) skips the prompt.
+# Setting the corresponding env var (e.g. SA_PASSWORD=xyz ./init-...) skips the prompt.
 # Without a TTY (e.g. CI): prompts are skipped; each value uses env, then .env, then defaults.
 
 set -euo pipefail
@@ -55,7 +55,7 @@ Usage: init-apphost-user-secrets.sh [-n|--dry-run] [-h|--help]
 Sets NTG.Agent.AppHost user secrets. Per value:
   exported env var → prompt (TTY only) → $REPO_ROOT/.env → default.
 
-Env/.env keys: SA_PASSWORD, GITHUB_TOKEN,
+Env/.env keys: SA_PASSWORD,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
 LIGHTRAG_EMBEDDING_API_KEY,
@@ -194,18 +194,6 @@ if [[ -z "$SA_PASSWORD" ]]; then
   exit 1
 fi
 
-resolve_field GITHUB_TOKEN \
-  "GitHub PAT (models:read) [Enter for .env]: " \
-  1 \
-  "GITHUB_TOKEN" \
-  "GITHUB_TOKEN" \
-  "__EMPTY__"
-
-if [[ -z "$GITHUB_TOKEN" ]]; then
-  echo "error: GITHUB_TOKEN is required (prompt, .env GITHUB_TOKEN, or export GITHUB_TOKEN)" >&2
-  exit 1
-fi
-
 resolve_field GOOGLE_API_KEY \
   "Google API key (MCP) [Enter for .env or default placeholder]: " \
   1 \
@@ -326,7 +314,6 @@ if [[ -n "$LIGHTRAG_DOCKER_CERT_PATH" && ! -f "$LIGHTRAG_DOCKER_CERT_PATH" ]]; t
 fi
 
 set_secret "Parameters:sql-sa-password" "$SA_PASSWORD"
-set_secret "Parameters:github-token" "$GITHUB_TOKEN"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"

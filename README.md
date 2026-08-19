@@ -36,7 +36,7 @@ One command on a fresh machine — clones the repo and runs the installer:
 curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash
 ```
 
-Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20) and on Ubuntu/Debian installs the missing ones with `sudo apt` (Node via NodeSource; other systems get install instructions instead), activates the repo git hooks, installs `dotnet-ef`, collects the two required secrets (GitHub PAT with `models:read`, Azure OpenAI key) into `.env` and auto-generates the rest, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
+Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20) and on Ubuntu/Debian installs the missing ones with `sudo apt` (Node via NodeSource; other systems get install instructions instead), activates the repo git hooks, installs `dotnet-ef`, collects the one required secret (an Azure OpenAI key, used for LightRAG and the Default Agent) into `.env` and auto-generates the rest, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
 
 Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. The steps below describe the same setup done manually.
 
@@ -57,9 +57,7 @@ Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Docker (use
 dotnet tool install --global dotnet-ef
 ```
 
-1. Create a [GitHub fine-grained personal access token](https://github.com/settings/personal-access-tokens) with **models:read** permission.
-
-2. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
+1. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
 
    **Helper script** — prompts for any value not already provided via env var or `.env`, auto-generates the LightRAG keys if missing, and writes everything to user-secrets:
    ```bash
@@ -67,7 +65,7 @@ dotnet tool install --global dotnet-ef
    ```
    Resolution per value: exported env var → interactive prompt (TTY only) → `$REPO_ROOT/.env` → default. Non-interactive example (skips all prompts):
    ```bash
-   GITHUB_TOKEN=ghp_xxx ./scripts/init-apphost-user-secrets.sh
+   LIGHTRAG_EMBEDDING_API_KEY=xxx ./scripts/init-apphost-user-secrets.sh
    ```
    Useful flags: `--dry-run` to preview without writing, `--help` for details.
 
@@ -75,7 +73,6 @@ dotnet tool install --global dotnet-ef
    ```bash
    cd NTG.Agent.AppHost
    dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong!"
-   dotnet user-secrets set "Parameters:github-token"                "<your GitHub token>"
    dotnet user-secrets set "Parameters:google-api-key"              "<google CSE api key, or placeholder>"
    dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
    dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"
@@ -83,7 +80,7 @@ dotnet tool install --global dotnet-ef
    dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for LightRAG>"
    ```
 
-3. Run the AppHost:
+2. Run the AppHost:
    ```bash
    dotnet run --project NTG.Agent.AppHost
    ```
@@ -93,14 +90,14 @@ dotnet tool install --global dotnet-ef
    ./ntg run
    ```
 
-4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
+3. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
    - `sqlserver` — SQL Server 2022 container with a persistent volume
    - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
    - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
-5. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, `gpt-5.1`, reusing the LightRAG Azure key — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
+4. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, `gpt-5.1`, reusing the LightRAG Azure key — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
 ## Dev shortcuts (`ntg`)
 

@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 var builder = DistributedApplication.CreateBuilder(args);
 
 var saPassword = builder.AddParameter("sql-sa-password", secret: true);
-var githubToken = builder.AddParameter("github-token", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
@@ -71,7 +70,6 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	// Docker daemon (over the SSH tunnel) against the standalone Postgres there. That
 	// server is provisioned independently, so there is no local resource to wait on.
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
-	.WithEnvironment("GitHub__Models__GitHubToken", githubToken)
 	// LightRAG per-agent container provisioning config (see LightRagSettings /
 	// LightRagContainerManager). These replace the old singleton "lightrag" container
 	// env — the Orchestrator now applies them to each spawned lightrag-agent-{id}.

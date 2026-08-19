@@ -193,7 +193,6 @@ prompt_secret() {
   done
 }
 
-prompt_secret GITHUB_TOKEN "GitHub PAT with models:read (https://github.com/settings/tokens)"
 prompt_secret LIGHTRAG_EMBEDDING_API_KEY "Azure OpenAI API key (LightRAG LLM + embeddings)"
 
 gen_if_empty() {
