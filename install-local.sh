@@ -3,11 +3,14 @@
 # secrets into .env, populate AppHost user-secrets, bring up the local LightRAG
 # stack (deploy/lightrag-local), then launch the Aspire AppHost.
 #
-# System tools (dotnet, docker, node, ...) are checked, not installed — the
-# script prints what is missing and how to get it, then exits. Everything
-# repo-local is automatic and idempotent; re-running is safe.
+# System tools (dotnet, docker, node, ...) are checked first. On Ubuntu/Debian
+# the missing ones are installed with sudo apt (Node via NodeSource); elsewhere
+# (Arch, macOS, Docker on WSL2) the script prints what is missing and how to get
+# it, then exits. Everything repo-local is automatic and idempotent; re-running
+# is safe.
 #
 # Usage: ./install-local.sh
+#   (or, from nothing: curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,48 +22,102 @@ LIGHTRAG_COMPOSE_DIR="$REPO_ROOT/deploy/lightrag-local"
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 
-# --- Phase 1: system prerequisites (check + instruct, no sudo) ---------------
+# --- Phase 1: system prerequisites (detect; apt-install on Ubuntu/Debian) -----
 
-MISSING=()
+IS_WSL=false; grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=true
+HAVE_APT=false; command -v apt-get >/dev/null 2>&1 && HAVE_APT=true
+
+MISSING=()        # "label|hint" for every failed check
+APT_PKGS=()       # what apt can install for us
+NEED_NODE=false   # NodeSource (apt's nodejs is too old for Next.js 16)
+NEED_DOCKER=false # docker.io + daemon + group (not on WSL: Docker Desktop owns it there)
 require() {
-  # $1 = label, $2 = check command (eval'd), $3 = install hint
-  if ! eval "$2" >/dev/null 2>&1; then
-    MISSING+=("$1|$3")
-  fi
+  # $1 = label, $2 = check command (eval'd), $3 = install hint,
+  # $4 = how apt systems fix it: package list, "node", "docker", or "" (manual only)
+  eval "$2" >/dev/null 2>&1 && return
+  MISSING+=("$1|$3")
+  case "$4" in
+    "") ;;
+    node) NEED_NODE=true ;;
+    docker) $IS_WSL || NEED_DOCKER=true ;;
+    *) read -ra pkgs <<<"$4"; APT_PKGS+=("${pkgs[@]}") ;;
+  esac
 }
 
 require ".NET 10 SDK" \
   "dotnet --list-sdks | grep -q '^10\.'" \
-  "Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/10.0"
+  "Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/10.0" \
+  "dotnet-sdk-10.0"
 require "docker CLI" \
   "command -v docker" \
-  "Ubuntu: sudo apt install docker.io | Arch: sudo pacman -S docker | WSL: install Docker Desktop on Windows with WSL2 backend | https://docs.docker.com/engine/install/"
+  "Ubuntu: sudo apt install docker.io | Arch: sudo pacman -S docker | WSL: install Docker Desktop on Windows with WSL2 backend | https://docs.docker.com/engine/install/" \
+  "docker"
 require "docker daemon access" \
   "docker info" \
-  "Start the daemon (sudo systemctl enable --now docker) and add yourself to the docker group (sudo usermod -aG docker \$USER, then re-login). WSL: enable your distro under Docker Desktop > Settings > Resources > WSL integration"
+  "Start the daemon (sudo systemctl enable --now docker) and add yourself to the docker group (sudo usermod -aG docker \$USER, then re-login). WSL: enable your distro under Docker Desktop > Settings > Resources > WSL integration" \
+  "docker"
 require "docker compose plugin" \
   "docker compose version" \
-  "Ubuntu: sudo apt install docker-compose-v2 | Arch: sudo pacman -S docker-compose | bundled with Docker Desktop | https://docs.docker.com/compose/install/"
+  "Ubuntu: sudo apt install docker-compose-v2 | Arch: sudo pacman -S docker-compose | bundled with Docker Desktop | https://docs.docker.com/compose/install/" \
+  "docker"
 require "node >= 20" \
   "node -e 'process.exit(parseInt(process.versions.node) >= 20 ? 0 : 1)'" \
-  "Ubuntu: https://nodejs.org (LTS — apt's nodejs is often too old) | Arch: sudo pacman -S nodejs npm"
+  "Ubuntu: https://nodejs.org (LTS — apt's nodejs is often too old) | Arch: sudo pacman -S nodejs npm" \
+  "node"
 require "openssl" \
   "command -v openssl" \
-  "Ubuntu: sudo apt install openssl | Arch: sudo pacman -S openssl"
+  "Ubuntu: sudo apt install openssl | Arch: sudo pacman -S openssl" \
+  "openssl"
 require "git" \
   "command -v git" \
-  "Ubuntu: sudo apt install git | Arch: sudo pacman -S git"
+  "Ubuntu: sudo apt install git | Arch: sudo pacman -S git" \
+  "git"
 require "curl" \
   "command -v curl" \
-  "Ubuntu: sudo apt install curl | Arch: sudo pacman -S curl"
+  "Ubuntu: sudo apt install curl | Arch: sudo pacman -S curl" \
+  "curl ca-certificates"
 
-if (( ${#MISSING[@]} > 0 )); then
+print_missing() {
   echo "Missing prerequisites:" >&2
   for entry in "${MISSING[@]}"; do
     printf '  - %s\n      %s\n' "${entry%%|*}" "${entry#*|}" >&2
   done
-  echo "Install the above and re-run ./install-local.sh" >&2
-  exit 1
+}
+
+if (( ${#MISSING[@]} > 0 )); then
+  print_missing
+  # Second pass (NTG_PREREQS_INSTALLED set by the re-exec below) that still
+  # finds something missing means apt couldn't fix it — stop instead of looping.
+  if ! $HAVE_APT || [[ -n "${NTG_PREREQS_INSTALLED:-}" ]] \
+     || { (( ${#APT_PKGS[@]} == 0 )) && ! $NEED_NODE && ! $NEED_DOCKER; }; then
+    echo "Install the above and re-run ./install-local.sh" >&2
+    exit 1
+  fi
+
+  info "Installing missing prerequisites with sudo apt-get (you may be asked for your password)."
+  sudo -v || { echo "error: sudo is required to install prerequisites. Install them manually and re-run." >&2; exit 1; }
+  $NEED_DOCKER && APT_PKGS+=(docker.io docker-compose-v2)
+  $NEED_NODE && APT_PKGS+=(curl ca-certificates)
+  sudo apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${APT_PKGS[@]}"
+  if $NEED_NODE; then
+    info "Installing Node 22 LTS from NodeSource."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
+  fi
+  if $NEED_DOCKER; then
+    sudo systemctl enable --now docker
+    sudo usermod -aG docker "$(id -un)"
+  fi
+
+  # Re-run the checks from the top. `sg docker` gives this process the docker
+  # group membership that would otherwise need a logout/login.
+  export NTG_PREREQS_INSTALLED=1
+  info "Prerequisites installed; re-checking."
+  if $NEED_DOCKER; then
+    exec sg docker -c "exec $(printf '%q' "$REPO_ROOT/install-local.sh")"
+  fi
+  exec "$REPO_ROOT/install-local.sh"
 fi
 info "All system prerequisites present."
 
