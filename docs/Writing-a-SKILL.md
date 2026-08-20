@@ -536,9 +536,9 @@ ask.
 ## 8. Forbidden
 
 Full control matrices are in
-[Agent-Skills-Implementation-Plan.md](Agent-Skills-Implementation-Plan.md) — **Phase 2b → Container
-controls**, **Content controls**, **What validation cannot defend**. What follows is what an author
-trips over in practice.
+[skill-import-security.md](skill-import-security.md) — **Container controls**, **Content
+controls**, **What validation cannot defend**. What follows is what an author trips over in
+practice.
 
 **No code, by decision.** The extension allowlist is **`.md .json .txt .yaml .yml .png .svg`**,
 compared case-insensitively. There is no `scripts/` support and none is planned: that omission

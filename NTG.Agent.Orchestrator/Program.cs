@@ -115,7 +115,7 @@ builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
 
 // Agent Skills import. The importer is stateless and holds no dependencies, so it is a singleton;
-// the registry takes the request-scoped DbContext. See docs/Agent-Skills-Implementation-Plan.md.
+// the registry takes the request-scoped DbContext. See docs/skill-import-security.md.
 builder.Services.AddSingleton<SkillPackageImporter>();
 builder.Services.AddScoped<SkillRegistry>();
 // Request-scoped, same lifetime and sharing rationale as RenderableToolCapture above: it narrates

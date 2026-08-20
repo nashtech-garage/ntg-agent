@@ -7,7 +7,7 @@ namespace NTG.Agent.Orchestrator.Models.Skills;
 /// <para>
 /// Loading follows the spec's progressive disclosure: <see cref="Name"/> + <see cref="Description"/>
 /// go into the catalog at session start, and <see cref="Body"/> is read only when the skill is
-/// activated. See <c>docs/Agent-Skills-Implementation-Plan.md</c>.
+/// activated. See <c>docs/A2UI-and-AG-UI.md</c>.
 /// </para>
 /// </summary>
 public class Skill

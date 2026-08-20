@@ -6,10 +6,19 @@ This is the explainer for the generative-UI pipeline. It assumes you know C# and
 never read either spec. After reading it you should be able to open any file named below and know
 what you are looking at and why it is there.
 
-The two implementation plans — `docs/A2UI-Implementation-Plan.md` and
-`docs/Agent-Skills-Implementation-Plan.md` — record *what was built and in what order*. This
-document records *how it works*. Where the plans and the code disagree, the code wins, and the
-disagreements are called out in "Corrections to older docs" at the end.
+This document records *how it works*. The two implementation plans that recorded *what was built
+and in what order* have been folded in here and retired; their durable content is in §10
+(decisions), §11 (corrections) and §12 (open gaps), and the skill importer's threat model moved to
+`docs/skill-import-security.md`. Where a doc and the code disagree, the code wins, and the known
+disagreements are called out in "Claims that have expired" at the end.
+
+**Why any of this exists.** The project already shipped a generative-UI capability, but it was
+per-tool hardcoded React: `my-copilot-app/src/tools/WeatherCardTool.tsx` matches the `get_weather`
+tool by name and renders a bespoke card. That does not generalise — every new visual answer needs a
+new React component and a deploy. A2UI replaces the hardcoding with a declarative catalog the model
+can compose against, and Agent Skills replaces the model's composition with pre-authored templates
+where the flow is known in advance. The weather card is still wired up, unchanged, as the
+before/after comparison.
 
 ---
 
@@ -112,8 +121,8 @@ everything downstream of the SSE stream is shared.
         → AgUiController.ExtractPrompt turns that tool result into the next turn's prompt   (§5)
 ```
 
-Two hops in that diagram post-date the drawing in `docs/A2UI-Implementation-Plan.md`: the whole
-Path B branch (`render_skill_surface`), and `StableSurfaceIdMiddleware`.
+Two hops in that diagram post-date the original A2UI build: the whole Path B branch
+(`render_skill_surface`), and `StableSurfaceIdMiddleware`.
 
 ### Where things live
 
@@ -226,8 +235,8 @@ model, and emits the operations itself. The model never sees a component.
 | Bindings + `data` seeding | model must get both right | baked into the template |
 | Streaming cost | large `TOOL_CALL_ARGS` | model emits a few values |
 
-(That table is lifted from `docs/Agent-Skills-Implementation-Plan.md` §"A server-side tool can render
-A2UI directly", where it was the finding that motivated Path B.)
+(That comparison was the finding that motivated Path B: a server-side tool can emit A2UI
+operations directly, so the model never has to author a component tree.)
 
 **Why both exist.** Path A is the general capability: any agent, any request, no preparation —
 "build me a card with the trade-offs side by side". It is also the fragile one, because it puts a
@@ -520,7 +529,9 @@ blank card during a demo:
 > components whose setter is a no-op until the path exists.
 
 It returns **all** failures rather than the first, on the theory that an author fixing one error per
-upload round-trip will start disabling checks instead. It checks against `A2uiCatalog.cs`, a C#
+upload round-trip will start disabling checks instead. The package *container* is checked by a
+separate set of controls — path validation, zip bombs, nested archives, invisible characters — whose
+threat model is `docs/skill-import-security.md`. It checks against `A2uiCatalog.cs`, a C#
 snapshot of `basic_catalog.json` (the orchestrator has no access to the frontend's `node_modules`);
 `A2uiCatalogDriftTests` re-derives that table from the real schema when the file is present and fails
 on divergence, so bumping the npm package surfaces as a test failure rather than a mystery import
@@ -555,7 +566,103 @@ rejection. Render-time checks are the kind-preserving merge described in §4.
 
 ---
 
-## 10. References
+## 10. Decisions and why they held
+
+| Decision | Outcome | Rationale |
+|---|---|---|
+| Skill storage: SQL vs disk | **SQL — settled** | Per-agent binding needs a table regardless; disk would mean two sources of truth plus a writable volume under Aspire |
+| `scripts/` support in skill packages | **Out — settled** | Arbitrary code execution from an uploaded archive needs a sandbox story we do not have. The extension allowlist admits no executable type, so this is enforced rather than merely intended — see `docs/skill-import-security.md` |
+| Surface template location | **`assets/`** | Spec-conventional and one level deep from `SKILL.md`; supersedes the `surfaces/` directory used in the first draft |
+| Skill activation | **A dedicated `load_skill` tool** | The spec's "dedicated tool activation" pattern; maps cleanly onto the existing `AITool` plumbing |
+| Catalog gating | **Per-agent `AgentSkills` bindings** | Gating on the presence of `render_a2ui` would have put every skill in front of every A2UI-capable agent. Binding is an explicit admin action, is what the Admin UI already exposes, and makes "no skills bound" a genuine no-op rather than a smaller prompt |
+
+The first two were the reversible ones. Neither was reversed.
+
+---
+
+## 11. Corrections found during implementation
+
+Each of these contradicts something an older document or commit message says, and each is
+documented at its site in the code.
+
+- **The dead A2UI prop names are upstream, not ours.** `@ag-ui/a2ui-middleware` ships its own
+  catalog block inside its bundled prompt naming `text`, `textFieldType`, `checked`, `selections`,
+  `minValue`/`maxValue` and `maxAllowedSelections` — seven dead props, still wrong in
+  `dist/index.mjs` at v0.0.6. Anyone writing a guide from the middleware's own text lands on
+  exactly that set. The wrong copy never reaches a model here (§9).
+- **`SurfaceValidator` could not validate `Tabs`.** `Tabs.tabs` is an array of `{ title, child }`
+  objects, so its reference sits one level below every other component's, and the traversal only
+  looked at top-level reference properties. It was wrong in both directions at once: a *valid* Tabs
+  surface was rejected with every pane reported as an orphan, while a genuinely dangling `child`
+  produced no error at all. Tabs was unusable in a skill package until `b2cc9c9`, which also made
+  the walk iterate the component array rather than the id map, so a duplicated id no longer hides
+  the shadowed copy's own defects.
+- **Re-import updates `Skill` in place rather than delete-and-insert.** `AgentSkill` rows key off
+  `Skill.Id`, so replacing the row would silently unbind the skill from every agent using it —
+  turning "re-upload a fixed version" into "re-upload, then remember to re-bind everywhere", which
+  is the step someone forgets before a demo.
+- **`values` could freeze an input by changing a seeded path's kind.**
+  `SurfaceRenderFunction.Merge` now refuses a change to an already-seeded path's kind (object →
+  scalar, array → object) and returns the offending paths to the model as a readable error, so
+  `{"form": "text"}` can no longer overwrite a seeded `/form` object and freeze every input bound
+  beneath it.
+- **Surface submissions were prompted like human-in-the-loop approvals**, which stopped a
+  multi-step skill one surface short of finishing. `scripts/check-skill-flow.py` drives the full
+  three-turn travel flow against a running app and guards it.
+
+---
+
+## 12. Open gaps
+
+Known and unfixed. Security-specific gaps are in `docs/skill-import-security.md`.
+
+- **`render_a2ui` is declared on every run of every agent**, so `A2uiPrompt.RenderGuide` is
+  prepended even when the agent has a skill bound that owns the surface, competing with the skill
+  catalog. `route.ts` reads `A2UI_FREEFORM_TOOL` so a deployment can turn the declaration off, but
+  that switch is per-deployment: the route knows the agent id and nothing else, skill bindings are
+  server state, and the only endpoint exposing them is Admin-only. The per-agent fix belongs in
+  `AgentService`, which holds `activeSkills` and the `frontendToolNames.Contains(...)` gate a few
+  lines apart.
+- **No reload rehydration for freeform `render_a2ui`.** Skill surfaces are replayed (§7); surfaces
+  the model hand-authors are not, so refreshing mid-demo loses them.
+- **Skill tests all use `UseInMemoryDatabase`.** `GetActiveSkillAssetAsync` runs a `SelectMany` from
+  `AgentSkills` through `Skill.Assets` filtered on `RelativePath`; its SQL Server translation is
+  unproven.
+- **No skill versioning.** Re-import overwrites body and assets in place, keeping the row. The
+  SHA-256 of each imported body is logged so an incident can still be traced to specific content.
+- **`deleteSurface` and streaming partial-update "heal" are never exercised.**
+- **No real APIs behind the demo skills.** Itineraries, seats and prices are fabricated by the
+  model. Skills are instructed to fabricate freely but never to produce a booking reference, PNR or
+  payment confirmation.
+
+---
+
+## 13. Manual end-to-end checks
+
+Builds: `dotnet build NTG.Agent.Orchestrator`, and `npm run build` in `my-copilot-app`.
+
+**Path A** — AppHost running, agent with `render_a2ui` available:
+
+1. "build a small card with a heading and a button" → a styled surface renders.
+2. "make me a signup form with a name field and a subscribe checkbox" → type and toggle both work.
+3. "ask my opinion with a 3-option multiple choice" → pick and submit; the agent receives the
+   selection and confirms it.
+4. The hardcoded weather card still works unchanged.
+
+**Path B** — agent bound to `travel-planning`:
+
+1. Import `travel-planning.zip` via the Admin UI → appears in the list, binds to an agent.
+2. "Help me plan a trip to Da Nang in September" → `trip-planner` renders on the Trip tab, fields
+   are editable, and the **destination is pre-filled** (this is the regression check for the
+   corrected `RenderGuide` prop names).
+3. Submit → the same card moves to the Options tab with three differentiated options and prices,
+   without opening a second card.
+4. Pick one → submit → the same card moves to the Review tab with a correct summary and total.
+5. Confirm → the agent replies in text and states that no booking was made.
+
+---
+
+## 14. References
 
 Upstream specs:
 
@@ -563,7 +670,11 @@ Upstream specs:
 - A2UI v0.9 specification: https://a2ui.org/specification/v0.9-a2ui/
 - Google Developers Blog — Introducing A2UI: https://developers.googleblog.com/introducing-a2ui-an-open-project-for-agent-driven-interfaces/
 - CopilotKit — Build with Google's A2UI + AG-UI: https://www.copilotkit.ai/blog/build-with-googles-new-a2ui-spec-agent-user-interfaces-with-a2ui-ag-ui
+- Agent Skills overview: https://agentskills.io
 - Agent Skills specification: https://agentskills.io/specification
+- Adding skills support to an agent: https://agentskills.io/client-implementation/adding-skills-support
+- Best practices for skill creators: https://agentskills.io/skill-creation/best-practices
+- Spec and reference library: https://github.com/agentskills/agentskills
 
 In-repo schemas (the authority when a doc and a schema disagree):
 
@@ -572,8 +683,9 @@ In-repo schemas (the authority when a doc and a schema disagree):
 
 Sibling documents:
 
-- `docs/A2UI-Implementation-Plan.md` — how Path A was built
-- `docs/Agent-Skills-Implementation-Plan.md` — how skills and Path B were built
+- `docs/AGUI-Surface-Template-Design.md` — how to design a surface template
+- `docs/Writing-a-SKILL.md` — how to write, pack and ship a skill
+- `docs/skill-import-security.md` — the importer's threat model and controls
 - `docs/agents-as-tools-architecture.md` — the surrounding agent/tool model
 
 ### Claims that have expired
