@@ -17,26 +17,31 @@
     </div>
     <div class="col-md-6 mb-3">
         <label class="form-label fw-semibold">Model <span class="text-muted">(Optional)</span></label>
-        @if (isLoadingModels)
-        {
-            <div class="form-control text-muted">
-                <span class="spinner-border spinner-border-sm me-2"></span>Loading models...
-            </div>
-        }
-        else if (models != null && models.Count > 0)
-        {
-            <select class="form-select" @bind="SelectedModel">
-                <option value="">Use default@(defaultModel != null ? $" ({defaultModel})" : "")</option>
-                @foreach (var m in models)
-                {
-                    <option value="@m.Id">@m.Id@(m.DisplayName != null ? $" — {m.DisplayName}" : "")</option>
-                }
-            </select>
-        }
-        else
+        @if (selectedProvider == null)
         {
             <input type="text" class="form-control" @bind="SelectedModel"
                    placeholder="@(IsInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" />
+            <div class="form-text">No provider selected — type any model id manually.</div>
+        }
+        else if (enabledModels == null || enabledModels.Count == 0)
+        {
+            <div class="alert alert-warning py-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                No models enabled for this provider yet. Enable models in the Providers page first.
+            </div>
+        }
+        else
+        {
+            <select class="form-select" @bind="SelectedModel">
+                <option value="">Select a model...</option>
+                @foreach (var m in enabledModels)
+                {
+                    <option value="@m.ModelId">
+                        @m.ModelId@(string.IsNullOrEmpty(m.DisplayName) ? "" : $" — {m.DisplayName}")@(m.AllowsThinking ? " (thinking)" : "")
+                    </option>
+                }
+            </select>
+            <div class="form-text">Only models enabled by the admin for this provider are listed.</div>
         }
         @if (modelError != null)
         {
@@ -51,12 +56,12 @@
     [Parameter] public string? ModelOverride { get; set; }
     [Parameter] public EventCallback<string?> ModelOverrideChanged { get; set; }
     [Parameter] public bool IsInner { get; set; }
+    [Parameter] public EventCallback<bool> SupportsThinkingChanged { get; set; }
 
     private IList<ProviderDto>? providers;
-    private IList<ModelItem>? models;
-    private bool isLoadingModels;
+    private ProviderDto? selectedProvider;
+    private IList<ProviderModelDto>? enabledModels;
     private string? modelError;
-    private string? defaultModel;
 
     private Guid? SelectedProviderId
     {
@@ -72,45 +77,65 @@
 
     protected override async Task OnInitializedAsync()
     {
-        providers = await AgentClient.GetProvidersAsync();
-        if (ProviderId.HasValue)
+        try
         {
-            await LoadModels(ProviderId.Value);
+            providers = await AgentClient.GetProvidersAsync();
+            if (ProviderId.HasValue)
+            {
+                selectedProvider = providers?.FirstOrDefault(p => p.Id == ProviderId.Value);
+                enabledModels = selectedProvider?.Models;
+            }
         }
+        catch (Exception ex)
+        {
+            modelError = ex.Message;
+        }
+        await RecomputeThinkingSupportAsync();
     }
 
     private async Task SetProviderId(Guid? value)
     {
         ProviderId = value;
         await ProviderIdChanged.InvokeAsync(value);
-        await LoadModels(value);
+        if (value.HasValue)
+        {
+            selectedProvider = providers?.FirstOrDefault(p => p.Id == value.Value);
+            enabledModels = selectedProvider?.Models;
+        }
+        else
+        {
+            selectedProvider = null;
+            enabledModels = null;
+        }
+        // A model enabled for the previous provider may not exist on the new one.
+        await SetModel(null);
+    }
+
+    private async Task OnProviderChanged()
+    {
+        // Re-select in case the dropdown value changed through binding.
+        if (ProviderId.HasValue)
+        {
+            selectedProvider = providers?.FirstOrDefault(p => p.Id == ProviderId.Value);
+            enabledModels = selectedProvider?.Models;
+        }
+        await RecomputeThinkingSupportAsync();
     }
 
     private async Task SetModel(string? value)
     {
         ModelOverride = string.IsNullOrWhiteSpace(value) ? null : value;
         await ModelOverrideChanged.InvokeAsync(ModelOverride);
+        await RecomputeThinkingSupportAsync();
     }
 
-    private async Task OnProviderChanged()
+    // Thinking mode is available only when the admin allowed it for the selected model
+    // on the provider. No model / no provider / not-allowed all report false up to the parent
+    // so it can gate (and reset, if needed) the Fast/Thinking toggle.
+    private async Task RecomputeThinkingSupportAsync()
     {
-        if (ProviderId.HasValue)
-            await LoadModels(ProviderId.Value);
-        else
-            models = null;
-    }
-
-    private async Task LoadModels(Guid? providerId)
-    {
-        if (!providerId.HasValue) { models = null; return; }
-        isLoadingModels = true; modelError = null;
-        try
-        {
-            models = await AgentClient.GetProviderModelsAsync(providerId.Value);
-            var provider = await AgentClient.GetProviderAsync(providerId.Value);
-            defaultModel = provider?.DefaultModel;
-        }
-        catch (Exception ex) { modelError = ex.Message; models = null; }
-        finally { isLoadingModels = false; }
+        var model = enabledModels?.FirstOrDefault(m =>
+            string.Equals(m.ModelId, ModelOverride, StringComparison.OrdinalIgnoreCase));
+        await SupportsThinkingChanged.InvokeAsync(model?.AllowsThinking ?? false);
     }
 }

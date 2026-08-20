@@ -86,7 +86,9 @@ public class AgentAdminController : ControllerBase
                 IsDefault = x.IsDefault,
                 IsPublished = x.IsPublished,
                 AgentKind = x.AgentKind,
-                Mode = x.Mode
+                Mode = x.Mode,
+                Temperature = x.Temperature,
+                MaxOutputTokens = x.MaxOutputTokens
             })
             .FirstOrDefaultAsync();
 
@@ -120,6 +122,8 @@ public class AgentAdminController : ControllerBase
         agent.ModelOverride = updatedAgent.ModelOverride;
         agent.McpServer = updatedAgent.McpServer;
         agent.Mode = updatedAgent.Mode;
+        agent.Temperature = updatedAgent.Temperature;
+        agent.MaxOutputTokens = updatedAgent.MaxOutputTokens;
         agent.UpdatedAt = DateTime.UtcNow;
         agent.UpdatedByUserId = userId;
         await _agentDbContext.SaveChangesAsync();
@@ -300,6 +304,8 @@ public class AgentAdminController : ControllerBase
             ModelOverride = updatedAgent.ModelOverride,
             McpServer = updatedAgent.McpServer,
             Mode = updatedAgent.AgentKind == AgentKind.Inner ? AgentMode.Fast : updatedAgent.Mode,
+            Temperature = updatedAgent.Temperature,
+            MaxOutputTokens = updatedAgent.MaxOutputTokens,
             UpdatedByUserId = userId,
             OwnerUserId = userId,
             IsDefault = false,
@@ -531,7 +537,7 @@ public class AgentAdminController : ControllerBase
                 a.Description,
                 a.Instructions,
                 ProviderName = a.Provider != null ? a.Provider.Name : null,
-                ModelOverride = a.ModelOverride ?? (a.Provider != null ? a.Provider.DefaultModel : null)
+                ModelOverride = a.ModelOverride
             })
             .ToListAsync();
 
@@ -636,10 +642,18 @@ public class AgentAdminController : ControllerBase
                 p.ProviderType,
                 p.Endpoint,
                 p.ApiKey,
-                p.DefaultModel,
+                p.AzureAiAccountName,
+                p.AzureAiProjectName,
                 AgentCount = p.Agents.Count,
                 p.CreatedAt,
-                p.UpdatedAt
+                p.UpdatedAt,
+                Models = p.Models.OrderBy(m => m.ModelId).Select(m => new ProviderModelDto
+                {
+                    Id = m.Id,
+                    ModelId = m.ModelId,
+                    DisplayName = m.DisplayName,
+                    AllowsThinking = m.AllowsThinking
+                }).ToList()
             })
             .ToListAsync();
         var result = providers.Select(p => new ProviderDto
@@ -651,7 +665,9 @@ public class AgentAdminController : ControllerBase
             ApiKey = p.ApiKey != null && p.ApiKey.Length > 12
                 ? p.ApiKey[..6] + "***" + p.ApiKey[^4..]
                 : p.ApiKey,
-            DefaultModel = p.DefaultModel,
+            AzureAiAccountName = p.AzureAiAccountName,
+            AzureAiProjectName = p.AzureAiProjectName,
+            Models = p.Models,
             AgentCount = p.AgentCount,
             CreatedAt = p.CreatedAt,
             UpdatedAt = p.UpdatedAt
@@ -673,7 +689,15 @@ public class AgentAdminController : ControllerBase
                 ProviderType = p.ProviderType,
                 Endpoint = p.Endpoint,
                 ApiKey = p.ApiKey,
-                DefaultModel = p.DefaultModel,
+                AzureAiAccountName = p.AzureAiAccountName,
+                AzureAiProjectName = p.AzureAiProjectName,
+                Models = p.Models.OrderBy(m => m.ModelId).Select(m => new ProviderModelDto
+                {
+                    Id = m.Id,
+                    ModelId = m.ModelId,
+                    DisplayName = m.DisplayName,
+                    AllowsThinking = m.AllowsThinking
+                }).ToList(),
                 AgentCount = p.Agents.Count,
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt
@@ -685,7 +709,7 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new provider.
+    /// Creates a new provider, including the models the admin enabled for it.
     /// </summary>
     [HttpPost("providers")]
     public async Task<IActionResult> CreateProvider([FromBody] ProviderDto dto)
@@ -697,7 +721,15 @@ public class AgentAdminController : ControllerBase
             ProviderType = dto.ProviderType,
             Endpoint = dto.Endpoint,
             ApiKey = dto.ApiKey,
-            DefaultModel = dto.DefaultModel,
+            AzureAiAccountName = dto.AzureAiAccountName,
+            AzureAiProjectName = dto.AzureAiProjectName,
+            Models = (dto.Models ?? []).Select(m => new Models.Agents.ProviderModel
+            {
+                Id = Guid.NewGuid(),
+                ModelId = m.ModelId,
+                DisplayName = m.DisplayName,
+                AllowsThinking = m.AllowsThinking
+            }).ToList(),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -707,19 +739,47 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Updates an existing provider.
+    /// Updates an existing provider, replacing its enabled-model list wholesale.
     /// </summary>
     [HttpPut("providers/{id}")]
     public async Task<IActionResult> UpdateProvider(Guid id, [FromBody] ProviderDto dto)
     {
-        var provider = await _agentDbContext.Providers.FindAsync(id);
+        var provider = await _agentDbContext.Providers
+            .Include(p => p.Models)
+            .FirstOrDefaultAsync(p => p.Id == id);
         if (provider == null) return NotFound();
         provider.Name = dto.Name;
         provider.ProviderType = dto.ProviderType;
         provider.Endpoint = dto.Endpoint;
         provider.ApiKey = dto.ApiKey;
-        provider.DefaultModel = dto.DefaultModel;
+        provider.AzureAiAccountName = dto.AzureAiAccountName;
+        provider.AzureAiProjectName = dto.AzureAiProjectName;
         provider.UpdatedAt = DateTime.UtcNow;
+
+        // Replace the enabled-model list. ProviderModel.Id is a client-generated Guid, so new
+        // instances must be attached explicitly as Added — letting DetectChanges discover them
+        // through the navigation marks them Modified (no store-generated key) and EF then emits
+        // UPDATEs against rows that don't exist, surfacing as DbUpdateConcurrencyException.
+        var oldModels = provider.Models.ToList();
+        _agentDbContext.RemoveRange(oldModels);
+        provider.Models.Clear();
+
+        var newModels = (dto.Models ?? [])
+            .Where(m => !string.IsNullOrWhiteSpace(m.ModelId))
+            .Select(m => new Models.Agents.ProviderModel
+            {
+                Id = Guid.NewGuid(),
+                ModelId = m.ModelId,
+                DisplayName = m.DisplayName,
+                AllowsThinking = m.AllowsThinking
+            })
+            .ToList();
+        foreach (var model in newModels)
+        {
+            provider.Models.Add(model);
+        }
+        _agentDbContext.AddRange(newModels);
+
         await _agentDbContext.SaveChangesAsync();
         return NoContent();
     }
@@ -751,7 +811,7 @@ public class AgentAdminController : ControllerBase
         if (provider == null) return NotFound();
         try
         {
-            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey);
+            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey, provider.AzureAiAccountName, provider.AzureAiProjectName);
             return Ok(new TestConnectionResult { Success = true, ModelCount = models.Count, Models = models });
         }
         catch (Exception ex)
@@ -770,12 +830,23 @@ public class AgentAdminController : ControllerBase
         if (provider == null) return NotFound();
         try
         {
-            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey);
+            var models = await _modelDiscoveryService.GetModelsAsync(provider.ProviderType, provider.Endpoint, provider.ApiKey, provider.AzureAiAccountName, provider.AzureAiProjectName);
             return Ok(models);
         }
         catch (Exception ex)
         {
             return BadRequest(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Checks whether a given (provider type, model id) pair supports thinking/reasoning mode,
+    /// against the backend's curated model list. Stateless — used to gate the Thinking toggle
+    /// for hand-typed model overrides that aren't necessarily in the discovered model list.
+    /// </summary>
+    [HttpGet("providers/thinking-support")]
+    public IActionResult CheckThinkingSupport([FromQuery] ProviderType providerType, [FromQuery] string? model)
+    {
+        return Ok(new { supportsThinking = ThinkingCapableModels.Supports(providerType, model) });
     }
 }

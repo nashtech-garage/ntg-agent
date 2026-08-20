@@ -114,6 +114,17 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             entity.Property(e => e.Endpoint).HasMaxLength(500);
         });
 
+        modelBuilder.Entity<Models.Agents.ProviderModel>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ModelId).IsRequired().HasMaxLength(300);
+            entity.Property(e => e.DisplayName).HasMaxLength(500);
+            entity.HasOne(e => e.Provider)
+                .WithMany(p => p.Models)
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Models.Agents.Agent>()
             .HasOne(a => a.Provider)
             .WithMany(p => p.Agents)
@@ -127,9 +138,16 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Id = defaultProviderId,
             Name = "Default Provider",
             ProviderType = Common.Dtos.Agents.ProviderType.OpenAI,
-            DefaultModel = "gpt-4o",
             CreatedAt = new DateTime(2025, 6, 24),
             UpdatedAt = new DateTime(2025, 6, 24)
+        });
+
+        modelBuilder.Entity<Models.Agents.ProviderModel>().HasData(new Models.Agents.ProviderModel
+        {
+            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+            ProviderId = defaultProviderId,
+            ModelId = "gpt-4o",
+            AllowsThinking = false
         });
 
         modelBuilder.Entity<Models.Agents.Agent>().HasData(new Models.Agents.Agent
@@ -144,6 +162,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             IsDefault = true,
             IsPublished = true,
             AgentKind = Common.Dtos.Agents.AgentKind.Outer,
+            ModelOverride = "gpt-4o",
             ProviderId = defaultProviderId
         });
 

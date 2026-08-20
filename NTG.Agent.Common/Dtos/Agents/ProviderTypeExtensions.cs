@@ -9,6 +9,7 @@ public static class ProviderTypeExtensions
         ProviderType.Anthropic => "Anthropic",
         ProviderType.GoogleGemini => "Google Gemini",
         ProviderType.OpenAICompatible => "OpenAI Compatible",
+        ProviderType.Custom => "Custom",
         _ => type.ToString()
     };
 }

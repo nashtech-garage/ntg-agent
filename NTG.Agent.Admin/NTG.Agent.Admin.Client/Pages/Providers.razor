@@ -35,7 +35,7 @@
                         <th>Type</th>
                         <th>Endpoint</th>
                         <th>API Key</th>
-                        <th>Default Model</th>
+                        <th>Models</th>
                         <th>Agents</th>
                         <th>Actions</th>
                     </tr>
@@ -48,7 +48,7 @@
                             <td><span class="badge bg-primary">@p.ProviderType.ToDisplayName()</span></td>
                             <td><small class="text-muted">@(p.Endpoint ?? "—")</small></td>
                             <td><code>@MaskApiKey(p.ApiKey)</code></td>
-                            <td>@(p.DefaultModel ?? "—")</td>
+                            <td><span class="badge bg-secondary">@p.Models.Count</span></td>
                             <td><span class="badge bg-secondary">@p.AgentCount</span></td>
                             <td>
                                 <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => ShowEditModal(p.Id)" title="Edit">
@@ -66,23 +66,23 @@
     }
 </div>
 
-@if (showFormModal)
+@if (showFormModal && editingProvider != null)
 {
     <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editingProvider?.Id != Guid.Empty ? "Edit Provider" : "Create Provider")</h5>
+                    <h5 class="modal-title">@(editingProvider.Id != Guid.Empty ? "Edit Provider" : "Create Provider")</h5>
                     <button type="button" class="btn-close" @onclick="CloseFormModal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" @bind="editingProvider!.Name" placeholder="e.g., My OpenAI" required />
+                        <input type="text" class="form-control" @bind="editingProvider.Name" placeholder="e.g., My OpenAI" required />
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Provider Type <span class="text-danger">*</span></label>
-                        <select class="form-select" value="@editingProvider!.ProviderType" @onchange="OnProviderTypeChanged">
+                        <select class="form-select" value="@editingProvider.ProviderType" @onchange="OnProviderTypeChanged">
                             @foreach (ProviderType t in Enum.GetValues<ProviderType>())
                             {
                                 <option value="@t">@t.ToDisplayName()</option>
@@ -91,53 +91,156 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Endpoint</label>
-                        <input type="text" class="form-control" @bind="editingProvider!.Endpoint"
-                               placeholder="@GetEndpointPlaceholder(editingProvider!.ProviderType)"
-                               readonly="@IsEndpointReadonly(editingProvider!.ProviderType)" />
+                        <input type="text" class="form-control" @bind="editingProvider.Endpoint"
+                               placeholder="@GetEndpointPlaceholder(editingProvider.ProviderType)"
+                               readonly="@IsEndpointReadonly(editingProvider.ProviderType)" />
                     </div>
+                    @if (editingProvider.ProviderType == ProviderType.AzureOpenAI)
+                    {
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">AI Services Account Name</label>
+                                <input type="text" class="form-control" @bind="editingProvider.AzureAiAccountName"
+                                       placeholder="e.g., rmit-capstone-2026-hcm--resource" />
+                                <div class="form-text">Used to list this project's deployments (not the full model catalog).</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">AI Foundry Project Name</label>
+                                <input type="text" class="form-control" @bind="editingProvider.AzureAiProjectName"
+                                       placeholder="e.g., rmit-capstone-2026-hcm-eastus2" />
+                            </div>
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">API Key</label>
                         <div class="input-group">
-                            <input type="@(showKey ? "text" : "password")" class="form-control" @bind="editingProvider!.ApiKey"
+                            <input type="@(showKey ? "text" : "password")" class="form-control" @bind="editingProvider.ApiKey"
                                    placeholder="Enter API key" />
                             <button class="btn btn-outline-secondary" type="button" @onclick="() => showKey = !showKey">
                                 <i class="bi @(showKey ? "bi-eye-slash" : "bi-eye")"></i>
                             </button>
                         </div>
                     </div>
+
                     <div class="mb-3">
-                        <label class="form-label">Default Model</label>
-                        <input type="text" class="form-control" @bind="editingProvider!.DefaultModel"
-                               placeholder="e.g., gpt-4o (optional)" />
+                        <label class="form-label">Models available to agents</label>
+                        @if (editingProvider.ProviderType == ProviderType.Custom)
+                        {
+                            <div class="form-text mb-2">Custom providers expose no model catalog — add each model manually.</div>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:45%;">Model ID</th>
+                                            <th style="width:30%;">Thinking mode</th>
+                                            <th style="width:10%;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var m in editingProvider.Models)
+                                        {
+                                            <tr>
+                                                <td><input type="text" class="form-control form-control-sm" @bind="m.ModelId" placeholder="e.g., my-model-v1" /></td>
+                                                <td>
+                                                    <div class="form-check form-switch mb-0">
+                                                        <input class="form-check-input" type="checkbox" role="switch" id="@("think-" + editingProvider.Models.IndexOf(m))"
+                                                               checked="@m.AllowsThinking" @onchange="() => m.AllowsThinking = !m.AllowsThinking" />
+                                                        <label class="form-check-label small" for="@("think-" + editingProvider.Models.IndexOf(m))">Allow</label>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => editingProvider.Models.Remove(m)" title="Remove">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                        @if (editingProvider.Models.Count == 0)
+                                        {
+                                            <tr><td colspan="3" class="text-muted small">No models yet — click "Add Model" below.</td></tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCustomModel">
+                                <i class="bi bi-plus-circle me-1"></i>Add Model
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="FetchModels" disabled="@isFetching">
+                                    @if (isFetching)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    <i class="bi bi-cloud-download"></i> Fetch Models
+                                </button>
+                                <small class="text-muted">Fetches the provider's available models; tick the ones agents may use.</small>
+                            </div>
+                            @if (fetchMessage != null)
+                            {
+                                <div class="alert @(fetchSucceeded ? "alert-success" : "alert-danger") py-2 small">@fetchMessage</div>
+                            }
+                            @if (modelChoices != null && modelChoices.Count > 0)
+                            {
+                                <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width:10%;">Enable</th>
+                                                <th style="width:45%;">Model</th>
+                                                <th style="width:35%;">Thinking mode</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var c in modelChoices)
+                                            {
+                                                <tr class="@(c.IsEnabled ? "" : "opacity-50")">
+                                                    <td>
+                                                        <input class="form-check-input" type="checkbox" checked="@c.IsEnabled"
+                                                               @onchange="() => ToggleModelEnabled(c)" />
+                                                    </td>
+                                                    <td>
+                                                        <span class="fw-semibold">@c.ModelId</span>
+                                                        @if (!string.IsNullOrEmpty(c.DisplayName))
+                                                        {
+                                                            <div class="text-muted small">@c.DisplayName</div>
+                                                        }
+                                                    </td>
+                                                    <td>
+                                                        <div class="form-check form-switch mb-0">
+                                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                                   checked="@c.AllowsThinking"
+                                                                   disabled="@(!c.IsEnabled || !c.SupportsThinking)"
+                                                                   @onchange="() => ToggleThinking(c)"
+                                                                   title="@(c.SupportsThinking ? "Allow agents to use Thinking mode with this model" : "This model does not support Thinking mode")" />
+                                                            <label class="form-check-label small">
+                                                                @if (!c.SupportsThinking) { <span class="text-muted">Not thinking-capable</span> }
+                                                                else if (c.AllowsThinking) { <span>Allowed</span> }
+                                                                else { <span>Off</span> }
+                                                            </label>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="text-muted small">No models loaded yet. Save the provider and click "Fetch Models".</div>
+                            }
+                        }
                     </div>
 
                     @if (!string.IsNullOrEmpty(formError))
                     {
                         <div class="alert alert-danger">@formError</div>
                     }
-                    @if (testResult != null)
-                    {
-                        <div class="alert @(testResult.Success ? "alert-success" : "alert-danger")">
-                            @if (testResult.Success)
-                            {
-                                <span>✓ Connected successfully. @testResult.ModelCount models found.</span>
-                                if (testResult.Models.Count > 0)
-                                {
-                                    <div class="mt-2"><small>Models: @string.Join(", ", testResult.Models.Take(10).Select(m => m.Id))@(testResult.Models.Count > 10 ? "..." : "")</small></div>
-                                }
-                            }
-                            else
-                            {
-                                <span>✗ Connection failed: @testResult.ErrorMessage</span>
-                            }
-                        </div>
-                    }
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-outline-info me-auto" @onclick="TestConnection" disabled="@isTesting">
-                        @if (isTesting) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        <i class="bi bi-plug"></i> Test Connection
-                    </button>
                     <button class="btn btn-secondary" @onclick="CloseFormModal">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveProvider" disabled="@isSaving">
                         @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
@@ -185,9 +288,22 @@
     private bool showDeleteModal;
     private bool showKey;
     private bool isSaving;
-    private bool isTesting;
+    private bool isFetching;
     private string? formError;
-    private TestConnectionResult? testResult;
+    private string? fetchMessage;
+    private bool fetchSucceeded;
+
+    private IList<ModelItem>? discoveredModels;
+    private List<ModelChoice>? modelChoices;
+
+    private sealed class ModelChoice
+    {
+        public string ModelId { get; set; } = string.Empty;
+        public string? DisplayName { get; set; }
+        public bool IsEnabled { get; set; }
+        public bool AllowsThinking { get; set; }
+        public bool SupportsThinking { get; set; }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -202,17 +318,28 @@
     private void ShowCreateModal()
     {
         editingProvider = new ProviderDto { ProviderType = ProviderType.OpenAI };
-        formError = null;
-        testResult = null;
+        ResetModalState();
         showFormModal = true;
     }
 
     private async Task ShowEditModal(Guid id)
     {
         editingProvider = await AgentClient.GetProviderAsync(id);
-        formError = null;
-        testResult = null;
+        ResetModalState();
+        if (editingProvider != null)
+        {
+            RebuildModelChoices();
+        }
         showFormModal = true;
+    }
+
+    private void ResetModalState()
+    {
+        formError = null;
+        fetchMessage = null;
+        fetchSucceeded = false;
+        discoveredModels = null;
+        modelChoices = null;
     }
 
     private void ShowDeleteModal(ProviderDto p)
@@ -225,13 +352,13 @@
     {
         showFormModal = false;
         editingProvider = null;
-        formError = null;
-        testResult = null;
+        ResetModalState();
     }
 
     private async Task SaveProvider()
     {
-        if (string.IsNullOrWhiteSpace(editingProvider!.Name)) { formError = "Name is required."; return; }
+        if (editingProvider == null) return;
+        if (string.IsNullOrWhiteSpace(editingProvider.Name)) { formError = "Name is required."; return; }
         isSaving = true; formError = null;
         try
         {
@@ -259,13 +386,13 @@
         catch (Exception) { /* handled by UI disabled state */ }
     }
 
-    private async Task TestConnection()
+    private async Task FetchModels()
     {
         if (editingProvider == null) return;
-        isTesting = true; testResult = null;
+        isFetching = true; fetchMessage = null; discoveredModels = null; modelChoices = null;
         try
         {
-            // Save first so we can test with stored credentials
+            // Save first so the discovery endpoint can read the stored credentials.
             if (editingProvider.Id == Guid.Empty)
             {
                 var id = await AgentClient.CreateProviderAsync(editingProvider);
@@ -275,10 +402,117 @@
             {
                 await AgentClient.UpdateProviderAsync(editingProvider);
             }
-            testResult = await AgentClient.TestProviderConnectionAsync(editingProvider.Id);
+            discoveredModels = await AgentClient.GetProviderModelsAsync(editingProvider.Id);
+            RebuildModelChoices();
+            fetchSucceeded = true;
+            fetchMessage = $"Found {discoveredModels.Count} model(s). Tick the ones agents may use.";
         }
-        catch (Exception ex) { testResult = new TestConnectionResult { Success = false, ErrorMessage = ex.Message }; }
-        finally { isTesting = false; }
+        catch (Exception ex)
+        {
+            fetchSucceeded = false;
+            fetchMessage = ex.Message;
+        }
+        finally { isFetching = false; }
+    }
+
+    /// <summary>
+    /// Merges the discovered models with the admin's persisted choices. Discovered models get the
+    /// backend's thinking-capability verdict (used to grey out the toggle); persisted models the
+    /// provider no longer reports stay editable so admins can clean them up.
+    /// </summary>
+    private void RebuildModelChoices()
+    {
+        if (editingProvider == null) { modelChoices = null; return; }
+        if (editingProvider.ProviderType == ProviderType.Custom) { modelChoices = null; return; }
+
+        var choices = new List<ModelChoice>();
+        var persistedById = editingProvider.Models
+            .GroupBy(m => m.ModelId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        if (discoveredModels != null)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var dm in discoveredModels)
+            {
+                persistedById.TryGetValue(dm.Id, out var pm);
+                choices.Add(new ModelChoice
+                {
+                    ModelId = dm.Id,
+                    DisplayName = dm.DisplayName,
+                    IsEnabled = pm != null,
+                    AllowsThinking = pm?.AllowsThinking ?? false,
+                    SupportsThinking = dm.SupportsThinking
+                });
+                seen.Add(dm.Id);
+            }
+            foreach (var m in editingProvider.Models)
+            {
+                if (seen.Contains(m.ModelId)) continue;
+                choices.Add(new ModelChoice
+                {
+                    ModelId = m.ModelId,
+                    DisplayName = m.DisplayName,
+                    IsEnabled = true,
+                    AllowsThinking = m.AllowsThinking,
+                    SupportsThinking = true
+                });
+            }
+        }
+        else
+        {
+            foreach (var m in editingProvider.Models)
+            {
+                choices.Add(new ModelChoice
+                {
+                    ModelId = m.ModelId,
+                    DisplayName = m.DisplayName,
+                    IsEnabled = true,
+                    AllowsThinking = m.AllowsThinking,
+                    SupportsThinking = true
+                });
+            }
+        }
+        modelChoices = choices;
+    }
+
+    private void ToggleModelEnabled(ModelChoice c)
+    {
+        if (editingProvider == null) return;
+        c.IsEnabled = !c.IsEnabled;
+        var existing = editingProvider.Models
+            .FirstOrDefault(m => string.Equals(m.ModelId, c.ModelId, StringComparison.OrdinalIgnoreCase));
+        if (c.IsEnabled)
+        {
+            if (existing == null)
+            {
+                editingProvider.Models.Add(new ProviderModelDto
+                {
+                    ModelId = c.ModelId,
+                    DisplayName = c.DisplayName,
+                    AllowsThinking = c.AllowsThinking
+                });
+            }
+        }
+        else
+        {
+            if (existing != null) editingProvider.Models.Remove(existing);
+            c.AllowsThinking = false;
+        }
+    }
+
+    private void ToggleThinking(ModelChoice c)
+    {
+        if (editingProvider == null || !c.SupportsThinking) return;
+        c.AllowsThinking = !c.AllowsThinking;
+        var existing = editingProvider.Models
+            .FirstOrDefault(m => string.Equals(m.ModelId, c.ModelId, StringComparison.OrdinalIgnoreCase));
+        if (existing != null) existing.AllowsThinking = c.AllowsThinking;
+    }
+
+    private void AddCustomModel()
+    {
+        editingProvider!.Models.Add(new ProviderModelDto());
     }
 
     private void OnProviderTypeChanged(ChangeEventArgs e)
@@ -293,7 +527,9 @@
                 ProviderType.GoogleGemini => "https://generativelanguage.googleapis.com/v1beta",
                 _ => editingProvider.Endpoint
             };
-            testResult = null;
+            fetchMessage = null;
+            discoveredModels = null;
+            RebuildModelChoices();
         }
     }
 
@@ -304,6 +540,7 @@
         ProviderType.Anthropic => "https://api.anthropic.com/v1",
         ProviderType.GoogleGemini => "https://generativelanguage.googleapis.com/v1beta",
         ProviderType.OpenAICompatible => "https://your-endpoint/v1",
+        ProviderType.Custom => "https://your-endpoint/v1 (optional)",
         _ => ""
     };
 

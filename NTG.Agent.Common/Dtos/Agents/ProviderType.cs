@@ -6,5 +6,6 @@ public enum ProviderType
     AzureOpenAI = 1,
     Anthropic = 2,
     GoogleGemini = 3,
-    OpenAICompatible = 4
+    OpenAICompatible = 4,
+    Custom = 5
 }

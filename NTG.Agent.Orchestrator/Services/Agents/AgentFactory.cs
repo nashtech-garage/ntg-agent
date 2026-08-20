@@ -83,12 +83,13 @@ public class AgentFactory : IAgentFactory
             : null;
         if (provider == null)
             throw new InvalidOperationException($"Agent '{agentConfig.Name}' has no provider configured.");
-        string modelId = agentConfig.ModelOverride ?? provider.DefaultModel ?? throw new InvalidOperationException($"No model configured for agent '{agentConfig.Name}'.");
+        string modelId = agentConfig.ModelOverride ?? throw new InvalidOperationException($"No model configured for agent '{agentConfig.Name}'.");
         return provider.ProviderType switch
         {
             ProviderType.OpenAI => CreateBasicOpenAIAgent(provider, modelId, instructions),
             ProviderType.GoogleGemini => CreateBasicOpenAIAgent(provider, modelId, instructions),
             ProviderType.OpenAICompatible => CreateBasicOpenAIAgent(provider, modelId, instructions),
+            ProviderType.Custom => CreateBasicOpenAIAgent(provider, modelId, instructions),
             ProviderType.AzureOpenAI => CreateBasicAzureOpenAIAgent(provider, modelId, instructions),
             ProviderType.Anthropic => CreateBasicAnthropicAgent(provider, modelId, instructions),
             _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),
@@ -139,8 +140,15 @@ public class AgentFactory : IAgentFactory
             // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
             // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
             // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
+            // OpenAI-compatible providers (DeepSeek, etc.) also expose /v1/responses, so honor a
+            // custom endpoint here exactly like the Chat Completions path below does.
+            var thinkingOptions = new OpenAIClientOptions();
+            if (!string.IsNullOrWhiteSpace(provider.Endpoint))
+            {
+                thinkingOptions.Endpoint = new Uri(provider.Endpoint);
+            }
 #pragma warning disable OPENAI001
-            chatClient = new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
+            chatClient = new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), thinkingOptions)
                 .GetResponsesClient()
                 .AsIChatClient(modelId)
                 .AsBuilder()
@@ -148,6 +156,8 @@ public class AgentFactory : IAgentFactory
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
                 .ConfigureOptions(o =>
                 {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
                     o.Reasoning = new()
                     {
                         Effort = ReasoningEffort.Medium,
@@ -171,6 +181,11 @@ public class AgentFactory : IAgentFactory
                 .AsBuilder()
                 .UseFunctionInvocation()
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
                 .Build();
         }
 
@@ -199,6 +214,8 @@ public class AgentFactory : IAgentFactory
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
                 .ConfigureOptions(o =>
                 {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
                     o.RawRepresentationFactory = _ => new MessageCreateParams
                     {
                         Model = modelId,
@@ -216,6 +233,11 @@ public class AgentFactory : IAgentFactory
                 .AsBuilder()
                 .UseFunctionInvocation()
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
                 .Build();
         }
 
@@ -242,6 +264,8 @@ public class AgentFactory : IAgentFactory
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
                 .ConfigureOptions(o =>
                 {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
                     o.RawRepresentationFactory = _ => new CreateResponseOptions
                     {
                         ReasoningOptions = new ResponseReasoningOptions
@@ -264,6 +288,11 @@ public class AgentFactory : IAgentFactory
                 .AsBuilder()
                 .UseFunctionInvocation()
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
                 .Build();
         }
 
@@ -341,7 +370,7 @@ public class AgentFactory : IAgentFactory
         if (provider == null)
             throw new InvalidOperationException($"Agent '{agent.Name}' has no provider configured.");
 
-        string modelId = agent.ModelOverride ?? provider.DefaultModel
+        string modelId = agent.ModelOverride
             ?? throw new InvalidOperationException($"No model configured for agent '{agent.Name}'.");
 
         return provider.ProviderType switch
@@ -349,6 +378,7 @@ public class AgentFactory : IAgentFactory
             ProviderType.OpenAI => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
             ProviderType.GoogleGemini => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
             ProviderType.OpenAICompatible => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
+            ProviderType.Custom => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
             ProviderType.AzureOpenAI => await CreateAzureOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
             ProviderType.Anthropic => await CreateAnthropicAgentAsync(provider, modelId, agent, userId, isAdmin),
             _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),

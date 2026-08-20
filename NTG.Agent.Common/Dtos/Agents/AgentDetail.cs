@@ -31,6 +31,12 @@ public class AgentDetail
     /// <summary>Determines whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
 
+    /// <summary>Sampling temperature for generation. Null = provider/model default.</summary>
+    public double? Temperature { get; set; }
+
+    /// <summary>Maximum output tokens for generation. Null = provider/model default.</summary>
+    public int? MaxOutputTokens { get; set; }
+
     public string ToolCount { get; set; } = "0";
 
     public AgentDetail()

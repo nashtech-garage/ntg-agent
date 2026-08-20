@@ -1546,4 +1546,30 @@ public class AgentAdminControllerTests
     }
 
     #endregion
+
+    #region Thinking Support Tests
+
+    [Test]
+    public void CheckThinkingSupport_WithKnownThinkingModel_ReturnsTrue()
+    {
+        var result = _controller.CheckThinkingSupport(NTG.Agent.Common.Dtos.Agents.ProviderType.Anthropic, "claude-sonnet-4-5");
+
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var supportsThinking = okResult.Value!.GetType().GetProperty("supportsThinking")!.GetValue(okResult.Value);
+        Assert.That(supportsThinking, Is.EqualTo(true));
+    }
+
+    [Test]
+    public void CheckThinkingSupport_WithNonThinkingModel_ReturnsFalse()
+    {
+        var result = _controller.CheckThinkingSupport(NTG.Agent.Common.Dtos.Agents.ProviderType.OpenAI, "gpt-4o");
+
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var supportsThinking = okResult.Value!.GetType().GetProperty("supportsThinking")!.GetValue(okResult.Value);
+        Assert.That(supportsThinking, Is.EqualTo(false));
+    }
+
+    #endregion
 }

@@ -313,6 +313,16 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
             throw new InvalidOperationException(
                 $"Could not find the shared '{_settings.PostgresHostAlias}' container — is the AppHost running?");
 
+        // The shared Postgres is long-lived user infrastructure, not something the AppHost
+        // recreates each session — if it exists but is stopped (reboot, manual stop), start it
+        // so the agent containers can resolve and connect to it. Without this, every agent
+        // container crash-loops on an unresolvable Postgres host.
+        if (!string.Equals(pg.State, "running", StringComparison.OrdinalIgnoreCase))
+        {
+            await _docker.Containers.StartContainerAsync(pg.ID, new ContainerStartParameters(), ct);
+            _logger.LogInformation("LightRagContainerManager: started the shared '{Alias}' Postgres container.", _settings.PostgresHostAlias);
+        }
+
         try
         {
             await _docker.Networks.ConnectNetworkAsync(SharedNetwork, new NetworkConnectParameters

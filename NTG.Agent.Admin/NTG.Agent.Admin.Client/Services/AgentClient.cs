@@ -139,14 +139,6 @@ public class AgentClient(HttpClient httpClient)
         }
     }
 
-    public async Task<TestConnectionResult> TestProviderConnectionAsync(Guid id)
-    {
-        var response = await httpClient.PostAsync($"api/agentadmin/providers/{id}/test", null);
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<TestConnectionResult>();
-        return result ?? new TestConnectionResult { Success = false, ErrorMessage = "Empty response" };
-    }
-
     public async Task<IList<ModelItem>> GetProviderModelsAsync(Guid id)
     {
         var response = await httpClient.GetAsync($"api/agentadmin/providers/{id}/models");

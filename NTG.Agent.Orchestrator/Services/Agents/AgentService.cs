@@ -663,7 +663,7 @@ public class AgentService
             ConversationId = conversation.Id,
             MessageId = messageId,
             AgentId = agentId,
-            ModelName = agentConfig.ModelOverride ?? agentConfig.Provider?.DefaultModel ?? string.Empty,
+            ModelName = agentConfig.ModelOverride ?? string.Empty,
             ProviderName = agentConfig.Provider?.Name ?? string.Empty,
             InputTokens = tokenUsageInfo.InputTokens,
             OutputTokens = tokenUsageInfo.OutputTokens,

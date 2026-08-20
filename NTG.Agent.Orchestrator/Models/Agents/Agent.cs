@@ -32,6 +32,12 @@ public class Agent
     /// <summary>Whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
 
+    /// <summary>Sampling temperature for generation. Null = provider/model default.</summary>
+    public double? Temperature { get; set; }
+
+    /// <summary>Maximum output tokens for generation. Null = provider/model default.</summary>
+    public int? MaxOutputTokens { get; set; }
+
     public AgentKind AgentKind { get; set; } = AgentKind.Outer;
 
     public string? McpServer { get; set; } = string.Empty;

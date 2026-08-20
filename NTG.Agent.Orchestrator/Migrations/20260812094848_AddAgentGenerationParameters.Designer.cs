@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812094848_AddAgentGenerationParameters")]
+    partial class AddAgentGenerationParameters
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -104,7 +107,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                             IsPublished = true,
                             McpServer = "",
                             Mode = 0,
-                            ModelOverride = "gpt-4o",
                             Name = "Default Agent",
                             OwnerUserId = "e0afe23f-b53c-4ad8-b718-cb4ff5bb9f71",
                             ProviderId = new Guid("00000000-0000-0000-0000-000000000001"),
@@ -209,14 +211,11 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Property<string>("ApiKey")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("AzureAiAccountName")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("AzureAiProjectName")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("DefaultModel")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Endpoint")
                         .HasMaxLength(500)
@@ -242,46 +241,10 @@ namespace NTG.Agent.Orchestrator.Migrations
                         {
                             Id = new Guid("00000000-0000-0000-0000-000000000001"),
                             CreatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            DefaultModel = "gpt-4o",
                             Name = "Default Provider",
                             ProviderType = 0,
                             UpdatedAt = new DateTime(2025, 6, 24, 0, 0, 0, 0, DateTimeKind.Unspecified)
-                        });
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.ProviderModel", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("AllowsThinking")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ModelId")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<Guid>("ProviderId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProviderId");
-
-                    b.ToTable("ProviderModel");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = new Guid("00000000-0000-0000-0000-000000000002"),
-                            AllowsThinking = false,
-                            ModelId = "gpt-4o",
-                            ProviderId = new Guid("00000000-0000-0000-0000-000000000001")
                         });
                 });
 
@@ -932,17 +895,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Agent");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.ProviderModel", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Provider", "Provider")
-                        .WithMany("Models")
-                        .HasForeignKey("ProviderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Provider");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.PChatMessage", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Chat.Conversation", "Conversation")
@@ -1023,8 +975,6 @@ namespace NTG.Agent.Orchestrator.Migrations
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Provider", b =>
                 {
                     b.Navigation("Agents");
-
-                    b.Navigation("Models");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Chat.Conversation", b =>
