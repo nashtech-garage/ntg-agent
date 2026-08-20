@@ -7,6 +7,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Knowledge;
+using NTG.Agent.LightRag.BackgroundServices;
 
 namespace NTG.Agent.LightRag;
 

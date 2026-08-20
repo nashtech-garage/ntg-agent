@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.LightRag;
+using NTG.Agent.LightRag.BackgroundServices;
 
 namespace NTG.Agent.Orchestrator.Tests.Services.Knowledge;
 

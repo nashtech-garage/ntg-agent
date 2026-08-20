@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace NTG.Agent.LightRag;
+namespace NTG.Agent.LightRag.BackgroundServices;
 
 /// <summary>
 /// On startup, pulls the LightRAG image once and ensures every agent has a running

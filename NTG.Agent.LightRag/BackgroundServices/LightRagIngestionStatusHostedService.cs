@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.Common.Knowledge;
 
-namespace NTG.Agent.LightRag;
+namespace NTG.Agent.LightRag.BackgroundServices;
 
 /// <summary>
 /// Advances documents through the LightRAG ingestion pipeline without blocking the upload request.
