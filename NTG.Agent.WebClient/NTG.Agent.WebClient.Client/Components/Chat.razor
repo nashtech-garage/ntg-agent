@@ -460,8 +460,30 @@ else
 
             await foreach (var item in ChatClient.InvokeStreamAsync(request))
             {
-                if (item.ContentType == PromptContentType.Thinking)
+                if (item.ContentType == PromptContentType.ToolCall || item.ContentType == PromptContentType.ToolResult)
                 {
+                    // Protocol payloads for an A2UI-capable client to render as a card. This client
+                    // has no renderer for either, and the branch below appends whatever it is given
+                    // straight into the reply — so an unhandled chunk here is not a missing feature,
+                    // it is raw JSON pasted into the assistant's bubble. The orchestrator already
+                    // withholds both from a text-only client; this is the second lock on the same
+                    // door.
+                    //
+                    // It locks these two values only. PromptContentType is an open enum and the
+                    // else-branch below is the default, so a member added later still lands in the
+                    // reply verbatim — whoever adds one has to come back here.
+                    continue;
+                }
+
+                if (item.ContentType == PromptContentType.Thinking || item.ContentType == PromptContentType.SkillNotice)
+                {
+                    // SkillNotice is the orchestrator's own narration of skill activity ("Using the
+                    // X skill."). It is not the model's reasoning, but it belongs in the same place
+                    // the user looks for how an answer was reached, which is what the AG-UI client
+                    // does with it too. No such chunk reaches this client today — the orchestrator
+                    // withholds skills from a text-only run entirely, so nothing narrates. This is
+                    // the handling that has to already exist if that ever changes, not a feature
+                    // the web chat currently exercises.
                     // Record start timestamp on the first thinking chunk
                     thinkingStartedAt ??= DateTime.UtcNow;
                     isThinking = true;
