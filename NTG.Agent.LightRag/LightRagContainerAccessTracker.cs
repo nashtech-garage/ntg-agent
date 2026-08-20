@@ -1,3 +1,5 @@
+using NTG.Agent.LightRag.BackgroundServices;
+
 namespace NTG.Agent.LightRag;
 
 /// <summary>
@@ -38,6 +40,15 @@ public sealed class LightRagContainerAccessTracker
         lock (_lock)
         {
             _lastAccess.Remove(agentId);
+        }
+    }
+
+    /// <summary>Point-in-time copy of all tracked agents and their last access times.</summary>
+    public IReadOnlyList<KeyValuePair<Guid, DateTime>> Snapshot()
+    {
+        lock (_lock)
+        {
+            return _lastAccess.ToList();
         }
     }
 }

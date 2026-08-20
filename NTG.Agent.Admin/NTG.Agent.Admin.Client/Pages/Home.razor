@@ -1,6 +1,7 @@
 ﻿@page "/"
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@implements IDisposable
 
 @using NTG.Agent.Common.Dtos.Agents
 @using NTG.Agent.Admin.Client.Components
@@ -137,13 +138,34 @@
                                             <div class="flex-grow-1">
                                                 <small class="text-muted d-block">Status</small>
                                                 <span class="fw-medium">
+                                                    @switch (agent.ProvisioningStatus)
+                                                    {
+                                                        case AgentProvisioningStatus.Ready:
+                                                            <span class="badge bg-success-subtle text-success">Ready</span>
+                                                            break;
+                                                        case AgentProvisioningStatus.Failed:
+                                                            <span class="badge bg-danger-subtle text-danger" title="@agent.ProvisioningError">Failed</span>
+                                                            <button class="btn btn-sm btn-outline-warning py-0 px-1 ms-1"
+                                                                    @onclick="() => RetryProvision(agent.Id)"
+                                                                    disabled="@retrying.Contains(agent.Id)"
+                                                                    title="Retry provisioning">
+                                                                <i class="bi bi-arrow-clockwise"></i> Retry
+                                                            </button>
+                                                            break;
+                                                        default:
+                                                            <span class="badge bg-info-subtle text-info">
+                                                                <span class="spinner-border spinner-border-sm me-1" style="width:0.7rem;height:0.7rem;" role="status"></span>
+                                                                Provisioning
+                                                            </span>
+                                                            break;
+                                                    }
                                                     @if (agent.IsPublished)
                                                     {
-                                                        <span class="badge bg-success-subtle text-success">Published</span>
+                                                        <span class="badge bg-success-subtle text-success ms-1">Published</span>
                                                     }
                                                     else
                                                     {
-                                                        <span class="badge bg-secondary-subtle text-secondary">Draft</span>
+                                                        <span class="badge bg-secondary-subtle text-secondary ms-1">Draft</span>
                                                     }
                                                 </span>
                                             </div>
@@ -217,6 +239,12 @@
     private AgentKind? filterKind;
     private DeleteAgentConfirmationModal? deleteModal;
 
+    // Re-fetch the list while any agent is still Provisioning so the badge flips to Ready/Failed
+    // on its own (mirrors DocumentsTab's polling). Torn down when nothing is provisioning.
+    private const int PollIntervalMs = 3000;
+    private System.Threading.Timer? _pollTimer;
+    private readonly HashSet<Guid> retrying = new();
+
     private IList<AgentListItem> displayedAgents =>
         allAgents == null
             ? new List<AgentListItem>()
@@ -227,6 +255,7 @@
     protected override async Task OnInitializedAsync()
     {
         allAgents = await AgentClient.GetListAsync();
+        EnsurePolling();
     }
 
     private void SetFilter(AgentKind? kind)
@@ -243,6 +272,62 @@
     private async Task HandleAgentDeleted()
     {
         allAgents = await AgentClient.GetListAsync();
+        EnsurePolling();
         StateHasChanged();
+    }
+
+    private async Task RetryProvision(Guid agentId)
+    {
+        if (!retrying.Add(agentId)) return;
+        try
+        {
+            await AgentClient.ReprovisionAsync(agentId);
+            allAgents = await AgentClient.GetListAsync();
+            EnsurePolling();
+        }
+        finally
+        {
+            retrying.Remove(agentId);
+            StateHasChanged();
+        }
+    }
+
+    // Start the poll timer when any agent is Provisioning; dispose it once none remain.
+    private void EnsurePolling()
+    {
+        var anyProvisioning = allAgents?.Any(a => a.ProvisioningStatus == AgentProvisioningStatus.Provisioning) == true;
+        if (anyProvisioning && _pollTimer is null)
+        {
+            _pollTimer = new System.Threading.Timer(async _ => await PollAsync(), null, PollIntervalMs, PollIntervalMs);
+        }
+        else if (!anyProvisioning)
+        {
+            _pollTimer?.Dispose();
+            _pollTimer = null;
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            var refreshed = await AgentClient.GetListAsync();
+            await InvokeAsync(() =>
+            {
+                allAgents = refreshed;
+                EnsurePolling();
+                StateHasChanged();
+            });
+        }
+        catch
+        {
+            // Transient fetch failure — keep polling; the next tick retries.
+        }
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Dispose();
+        _pollTimer = null;
     }
 }

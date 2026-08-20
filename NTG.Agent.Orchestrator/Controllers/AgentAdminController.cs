@@ -21,6 +21,7 @@ public class AgentAdminController : ControllerBase
     private readonly IAgentFactory _agentFactory;
     private readonly IKnowledgeProvisioner _knowledgeProvisioner;
     private readonly IKnowledgeService _knowledgeService;
+    private readonly AgentProvisioningSignal _provisioningSignal;
     private readonly ILogger<AgentAdminController> _logger;
     private readonly AgentAccessService _agentAccessService;
 
@@ -28,15 +29,16 @@ public class AgentAdminController : ControllerBase
         IAgentFactory agentFactory,
         IKnowledgeProvisioner knowledgeProvisioner,
         IKnowledgeService knowledgeService,
+        AgentProvisioningSignal provisioningSignal,
         ILogger<AgentAdminController> logger,
         AgentAccessService agentAccessService
-
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _agentFactory = agentFactory ?? throw new ArgumentNullException(nameof(agentFactory));
         _knowledgeProvisioner = knowledgeProvisioner ?? throw new ArgumentNullException(nameof(knowledgeProvisioner));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
+        _provisioningSignal = provisioningSignal ?? throw new ArgumentNullException(nameof(provisioningSignal));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
     }
@@ -54,7 +56,7 @@ public class AgentAdminController : ControllerBase
         }
 
         var agents = await query
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind, x.ProvisioningStatus, x.ProvisioningError))
             .ToListAsync();
         return Ok(agents);
     }
@@ -76,7 +78,9 @@ public class AgentAdminController : ControllerBase
                 IsDefault = x.IsDefault,
                 IsPublished = x.IsPublished,
                 AgentKind = x.AgentKind,
-                Mode = x.Mode
+                Mode = x.Mode,
+                ProvisioningStatus = x.ProvisioningStatus,
+                ProvisioningError = x.ProvisioningError
             })
             .FirstOrDefaultAsync();
 
@@ -299,6 +303,7 @@ public class AgentAdminController : ControllerBase
             IsDefault = false,
             IsPublished = false,
             AgentKind = updatedAgent.AgentKind,
+            ProvisioningStatus = AgentProvisioningStatus.Provisioning,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -306,23 +311,36 @@ public class AgentAdminController : ControllerBase
         _agentDbContext.Agents.Add(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);
 
-        // Provision this agent's knowledge backend (e.g. its dedicated LightRAG container).
-        // If provisioning fails, roll back the agent row so we never leave an agent without
-        // a knowledge backend.
-        try
+        // Provisioning its lightRAG container can take seconds, so
+        // it runs in the background: the agent is persisted as Provisioning and the worker boots the
+        // container, then flips it to Ready/Failed. The create response returns immediately (202) with trackable status.
+        _provisioningSignal.Notify();
+        _logger.LogInformation("Agent {AgentId} created; queued for background provisioning.", agent.Id);
+
+        return AcceptedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
+    }
+
+    /// <summary>
+    /// Re-runs the provisioning process for an agent when it has failed.
+    /// </summary>
+    [HttpPost("{id}/reprovision")]
+    public async Task<IActionResult> ReprovisionAgent(Guid id, CancellationToken cancellationToken = default)
+    {
+        var agent = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        if (agent == null)
         {
-            await _knowledgeProvisioner.ProvisionAgentAsync(agent.Id, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to provision the knowledge backend for agent {AgentId}; rolling back.", agent.Id);
-            _agentDbContext.Agents.Remove(agent);
-            await _agentDbContext.SaveChangesAsync(cancellationToken);
-            return StatusCode(StatusCodes.Status500InternalServerError,
-                $"Failed to provision the agent's knowledge backend: {ex.Message}");
+            return NotFound($"Agent with ID '{id}' not found.");
         }
 
-        return CreatedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
+        agent.ProvisioningStatus = AgentProvisioningStatus.Provisioning;
+        agent.ProvisioningError = null;
+        agent.ProvisionedAt = null;
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
+
+        _provisioningSignal.Notify();
+        _logger.LogInformation("Agent {AgentId} queued for re-provisioning.", agent.Id);
+
+        return Accepted();
     }
 
     /// <summary>
@@ -337,6 +355,12 @@ public class AgentAdminController : ControllerBase
         if (agent == null)
         {
             return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        // Only allow fully-provisioned agents to be published to the end users via api/agents
+        if (isPublished && agent.ProvisioningStatus != AgentProvisioningStatus.Ready)
+        {
+            return Conflict($"Agent cannot be published while its provisioning status is '{agent.ProvisioningStatus}'. It must be Ready.");
         }
 
         agent.IsPublished = isPublished;

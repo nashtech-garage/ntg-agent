@@ -162,7 +162,7 @@ public class LightRagKnowledge : IKnowledgeService
         }
 
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
-        var contextText = await client.QueryAsync(query, _settings.TopK, "hybrid", true, cancellationToken);
+        var contextText = await client.QueryAsync(query, _settings.TopK, _settings.QueryMode, true, cancellationToken);
         return new KnowledgeSearchResponse(
             IsEmpty: string.IsNullOrWhiteSpace(contextText),
             Query: query,

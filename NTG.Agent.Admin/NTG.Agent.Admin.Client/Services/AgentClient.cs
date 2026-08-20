@@ -83,6 +83,17 @@ public class AgentClient(HttpClient httpClient)
     public async Task UpdateAgentPublishStatus(Guid id, bool isPublished)
     {
         var response = await httpClient.PatchAsJsonAsync($"api/agentadmin/{id}/publish", isPublished);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Status: {(int)response.StatusCode}, Error: {errorContent}");
+        }
+    }
+
+    /// <summary>Re-runs knowledge-backend provisioning for an agent (e.g. after a Failed provision).</summary>
+    public async Task ReprovisionAsync(Guid id)
+    {
+        var response = await httpClient.PostAsync($"api/agentadmin/{id}/reprovision", null);
         response.EnsureSuccessStatusCode();
     }
 

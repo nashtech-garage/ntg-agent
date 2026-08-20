@@ -49,7 +49,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -66,13 +66,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -198,7 +198,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -222,7 +222,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -266,7 +266,7 @@ public class AgentAdminControllerTests
     }
 
     [Test]
-    public async Task CreateAgent_WhenValidAgentProvided_ReturnsCreatedAtActionResult()
+    public async Task CreateAgent_WhenValidAgentProvided_ReturnsAcceptedAtActionResult()
     {
         // Arrange
         var newAgent = new AgentDetail(
@@ -283,8 +283,8 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        Assert.That(result, Is.TypeOf<CreatedAtActionResult>());
-        var createdResult = result as CreatedAtActionResult;
+        Assert.That(result, Is.TypeOf<AcceptedAtActionResult>());
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         Assert.That(createdResult.ActionName, Is.EqualTo(nameof(_controller.GetAgentById)));
 
@@ -327,7 +327,7 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -344,7 +344,7 @@ public class AgentAdminControllerTests
     }
 
     [Test]
-    public async Task CreateAgent_ProvisionsKnowledgeBackend()
+    public async Task CreateAgent_PersistsAgentAsProvisioning_WithoutInlineProvisioning()
     {
         // Arrange
         var newAgent = new AgentDetail(Guid.Empty, "Container Agent", "Instructions",
@@ -353,20 +353,26 @@ public class AgentAdminControllerTests
         // Act
         var result = await _controller.CreateAgent(newAgent);
 
-        // Assert — the knowledge provisioner was asked to provision the agent's backend.
-        var createdResult = result as CreatedAtActionResult;
+        // Assert — provisioning is now backgrounded: the controller persists the agent as
+        // Provisioning and does NOT block on / call the provisioner inline (the worker does).
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = (createdResult.Value as Guid?)!.Value;
 
+        var savedAgent = await _context.Agents.FindAsync(createdAgentId);
+        Assert.That(savedAgent, Is.Not.Null);
+        Assert.That(savedAgent.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Provisioning));
+
         _mockKnowledgeProvisioner.Verify(
-            m => m.ProvisionAgentAsync(createdAgentId, It.IsAny<CancellationToken>()),
-            Times.Once);
+            m => m.ProvisionAgentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Test]
-    public async Task CreateAgent_WhenContainerProvisioningFails_RollsBackAgentRow()
+    public async Task CreateAgent_DoesNotRollBack_WhenProvisioningWouldFail()
     {
-        // Arrange — provisioning throws, so the just-created agent row must be removed.
+        // Arrange — even if provisioning would throw, creation no longer provisions inline, so the
+        // agent row persists (in Provisioning state) instead of being rolled back with a 500.
         _mockKnowledgeProvisioner
             .Setup(m => m.ProvisionAgentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("docker down"));
@@ -377,9 +383,8 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        Assert.That(result, Is.TypeOf<ObjectResult>());
-        Assert.That((result as ObjectResult)!.StatusCode, Is.EqualTo(StatusCodes.Status500InternalServerError));
-        Assert.That(await _context.Agents.AnyAsync(a => a.Name == "Doomed Agent"), Is.False);
+        Assert.That(result, Is.TypeOf<AcceptedAtActionResult>());
+        Assert.That(await _context.Agents.AnyAsync(a => a.Name == "Doomed Agent"), Is.True);
     }
 
     [Test]
@@ -395,8 +400,8 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        Assert.That(result, Is.TypeOf<CreatedAtActionResult>());
-        var createdResult = result as CreatedAtActionResult;
+        Assert.That(result, Is.TypeOf<AcceptedAtActionResult>());
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -433,7 +438,7 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -472,7 +477,7 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -508,8 +513,8 @@ public class AgentAdminControllerTests
         var result2 = await _controller.CreateAgent(agent2);
 
         // Assert
-        var createdId1 = (result1 as CreatedAtActionResult)?.Value as Guid?;
-        var createdId2 = (result2 as CreatedAtActionResult)?.Value as Guid?;
+        var createdId1 = (result1 as AcceptedAtActionResult)?.Value as Guid?;
+        var createdId2 = (result2 as AcceptedAtActionResult)?.Value as Guid?;
 
         Assert.That(createdId1, Is.Not.Null);
         Assert.That(createdId2, Is.Not.Null);
@@ -525,7 +530,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -550,7 +555,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -564,7 +569,7 @@ public class AgentAdminControllerTests
         var result = await controllerWithSpecificUser.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -589,7 +594,7 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -618,7 +623,7 @@ public class AgentAdminControllerTests
         var result = await _controller.CreateAgent(newAgent);
 
         // Assert
-        var createdResult = result as CreatedAtActionResult;
+        var createdResult = result as AcceptedAtActionResult;
         Assert.That(createdResult, Is.Not.Null);
         var createdAgentId = createdResult.Value as Guid?;
         Assert.That(createdAgentId, Is.Not.Null);
@@ -745,7 +750,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, NullLogger<AgentAdminController>.Instance, _accessService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -776,6 +781,55 @@ public class AgentAdminControllerTests
         // Assert
         var updatedAgent = await _context.Agents.FindAsync(agentId);
         Assert.That(updatedAgent!.UpdatedAt, Is.GreaterThan(originalTimestamp));
+    }
+
+    [Test]
+    public async Task UpdateAgentPublishStatus_WhenAgentNotReady_ReturnsConflict_AndStaysUnpublished()
+    {
+        // Arrange — an agent still provisioning must not be publishable (would expose a backend-less
+        // agent to end users via api/agents).
+        var agentId = await SeedSingleAgentData();
+        var agent = await _context.Agents.FindAsync(agentId);
+        agent!.ProvisioningStatus = AgentProvisioningStatus.Provisioning;
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.UpdateAgentPublishStatus(agentId, true);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<ConflictObjectResult>());
+        var reloaded = await _context.Agents.FindAsync(agentId);
+        Assert.That(reloaded!.IsPublished, Is.False);
+    }
+
+    [Test]
+    public async Task ReprovisionAgent_ResetsToProvisioning_AndReturnsAccepted()
+    {
+        // Arrange — a Failed agent gets retried.
+        var agentId = await SeedSingleAgentData();
+        var agent = await _context.Agents.FindAsync(agentId);
+        agent!.ProvisioningStatus = AgentProvisioningStatus.Failed;
+        agent.ProvisioningError = "docker down";
+        await _context.SaveChangesAsync();
+
+        // Act
+        var result = await _controller.ReprovisionAgent(agentId);
+
+        // Assert
+        Assert.That(result, Is.TypeOf<AcceptedResult>());
+        var reloaded = await _context.Agents.FindAsync(agentId);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reloaded!.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Provisioning));
+            Assert.That(reloaded.ProvisioningError, Is.Null);
+        }
+    }
+
+    [Test]
+    public async Task ReprovisionAgent_WhenAgentDoesNotExist_ReturnsNotFound()
+    {
+        var result = await _controller.ReprovisionAgent(Guid.NewGuid());
+        Assert.That(result, Is.TypeOf<NotFoundObjectResult>());
     }
 
     [Test]
@@ -1015,6 +1069,8 @@ public class AgentAdminControllerTests
             Instructions = "Test instructions for single agent",
             OwnerUserId = ownerUser.Id,
             UpdatedByUserId = updaterUser.Id,
+            // An already-existing agent is fully provisioned; publishing requires Ready.
+            ProvisioningStatus = AgentProvisioningStatus.Ready,
             CreatedAt = DateTime.UtcNow.AddDays(-1),
             UpdatedAt = DateTime.UtcNow
         };

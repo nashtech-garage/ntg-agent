@@ -3,10 +3,9 @@ using Microsoft.Extensions.Options;
 namespace NTG.Agent.LightRag;
 
 /// <summary>
-/// Default <see cref="ILightRagHealthProbe"/>. Issues a short-timeout <c>GET /health</c>
-/// through the named LightRAG HTTP client, so the probe traverses the SOCKS proxy / SSH
-/// tunnel when one is configured (a raw TCP connect cannot). Host resolution mirrors the
-/// factory: empty <see cref="LightRagSettings.ServerHost"/> means the local loopback.
+/// Default <see cref="ILightRagHealthProbe"/>. Issues a short-timeout <c>GET health</c>
+/// through the named LightRAG HTTP client against the gateway's per-agent path, so the
+/// probe traverses the SOCKS proxy when one is configured (a raw TCP connect cannot).
 /// </summary>
 public sealed class LightRagHealthProbe : ILightRagHealthProbe
 {
@@ -23,16 +22,18 @@ public sealed class LightRagHealthProbe : ILightRagHealthProbe
         _settings = settings.Value;
     }
 
-    public async Task<bool> IsHealthyAsync(int port, CancellationToken cancellationToken = default)
+    public async Task<bool> IsHealthyAsync(Guid agentId, CancellationToken cancellationToken = default)
     {
         try
         {
             var http = _httpClientFactory.CreateClient(nameof(LightRagClient));
-            http.BaseAddress = new Uri($"http://{ResolveHost()}:{port}");
+            http.BaseAddress = new Uri($"{_settings.ResolveGatewayUrl()}/agents/{agentId}/");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(ProbeTimeout);
-            using var _ = await http.GetAsync("health", HttpCompletionOption.ResponseHeadersRead, cts.Token);
-            return true;
+            using var response = await http.GetAsync("health", HttpCompletionOption.ResponseHeadersRead, cts.Token);
+            // The gateway answers 502/504 itself when the agent's container is stopped or not
+            // yet resolvable — a response alone no longer proves the app is serving.
+            return response.IsSuccessStatusCode;
         }
         catch
         {
@@ -41,6 +42,4 @@ public sealed class LightRagHealthProbe : ILightRagHealthProbe
             return false;
         }
     }
-
-    private string ResolveHost() => string.IsNullOrWhiteSpace(_settings.ServerHost) ? "localhost" : _settings.ServerHost;
 }

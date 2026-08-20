@@ -380,6 +380,13 @@ public class AgentService
         }
         else
         {
+            // Speculative prefetch: start the knowledge search now, using the raw user prompt,
+            // so it runs concurrently with agent construction (incl. the MCP ListToolsAsync hop)
+            // and the first "decide to search" LLM call. KnowledgePlugin reuses this warm result
+            // when the model's memory-tool query matches the prompt, and falls back to a fresh
+            // query otherwise. If the model never searches, the task's result is simply discarded.
+            var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId, tags);
+
             // Build the agent up front. A misconfigured agent (e.g. no model provider
             // selected) throws here; catch it so we can stream a friendly message
             // instead of letting the exception corrupt the JSON response stream — a
@@ -416,7 +423,7 @@ public class AgentService
 
             chatHistory.Add(userMessage);
 
-            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId).AsAITool();
+            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
 
             // The outer agent's own knowledge tool is attached per-request here; inner-agent
             // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory

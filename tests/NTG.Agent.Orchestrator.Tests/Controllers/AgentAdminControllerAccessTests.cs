@@ -64,6 +64,7 @@ public class AgentAdminControllerAccessTests
             Mock.Of<IAgentFactory>(),
             Mock.Of<IKnowledgeProvisioner>(),
             Mock.Of<IKnowledgeService>(),
+            new AgentProvisioningSignal(),
             NullLogger<AgentAdminController>.Instance,
             _accessService)
         {

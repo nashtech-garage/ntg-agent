@@ -58,6 +58,7 @@ public class DocumentsControllerTests
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _signal.Dispose();
     }
     [Test]
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260719045930_AddAgentProvisioningStatus")]
+    partial class AddAgentProvisioningStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,6 +49,9 @@ namespace NTG.Agent.Orchestrator.Migrations
 
                     b.Property<bool>("IsPublished")
                         .HasColumnType("bit");
+
+                    b.Property<int?>("LightRagPort")
+                        .HasColumnType("int");
 
                     b.Property<string>("McpServer")
                         .HasColumnType("nvarchar(max)");
@@ -146,33 +152,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.HasIndex("InnerAgentId");
 
                     b.ToTable("AgentInnerAgents");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentRole", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RoleId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AgentId", "RoleId")
-                        .IsUnique();
-
-                    b.ToTable("AgentRoles");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>
@@ -827,17 +806,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("InnerAgent");
 
                     b.Navigation("OuterAgent");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentRole", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
-                        .WithMany()
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.AgentTools", b =>

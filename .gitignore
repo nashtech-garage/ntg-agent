@@ -385,3 +385,9 @@ FodyWeavers.xsd
 .env.example
 
 .claude/
+
+.idea/
+
+.local-knowledge/
+
+.qoder/

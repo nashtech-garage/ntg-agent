@@ -3,11 +3,11 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace NTG.Agent.LightRag;
+namespace NTG.Agent.LightRag.BackgroundServices;
 
 /// <summary>
 /// On startup, pulls the LightRAG image once and ensures every agent has a running
-/// dedicated container, back-filling/repairing its port reservation.
+/// dedicated container.
 /// Runs as a background service so it does not block app startup (the first-run image
 /// pull can take minutes); <see cref="ILightRagContainerManager.EnsureContainerAsync"/>
 /// also self-pulls, so agent creation works even before this finishes.
@@ -35,15 +35,16 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
     {
         try
         {
-            // The daemon is reached over an SSH tunnel; if the app booted before the tunnel was
-            // up the daemon is momentarily unreachable. Wait for it (up to the budget) instead of
+            // The daemon is remote, so it can be momentarily unreachable at boot — a restarting
+            // server, or a firewall rule not yet applied. Wait for it (up to the budget) instead of
             // failing on the single startup attempt — otherwise no containers are reconciled until
             // a full app restart. Give up with a clear failure once the budget expires.
             if (!await WaitForDaemonAsync(stoppingToken))
             {
                 _logger.LogError(
                     "LightRAG reconciler: Docker daemon at '{DockerHost}' still unreachable after {Timeout}s — " +
-                    "is the SSH tunnel (ssh -L 2375:/var/run/docker.sock) up? Skipping startup reconciliation; " +
+                    "check the server is up, that inbound 2376 is allowed from this machine, and that the " +
+                    "client certificate is valid. Skipping startup reconciliation; " +
                     "containers will be provisioned on demand once the daemon is reachable.",
                     string.IsNullOrWhiteSpace(_settings.DockerHost) ? "local socket" : _settings.DockerHost,
                     Math.Max(1, _settings.DaemonProbeTimeoutSeconds));
@@ -53,17 +54,14 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
             await _containerManager.EnsureImagePulledAsync(stoppingToken);
 
             using var scope = _serviceProvider.CreateScope();
-            var portStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentPortStore>();
-            var provisioner = scope.ServiceProvider.GetRequiredService<ILightRagProvisioner>();
-            var agentIds = await portStore.GetAgentIdsAsync(stoppingToken);
+            var agentStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentStore>();
+            var agentIds = await agentStore.GetAgentIdsAsync(stoppingToken);
 
             foreach (var agentId in agentIds)
             {
                 try
                 {
-                    // Reserve the agent's identity-bound port and ensure its container runs
-                    // on it (reassign + retry once on external port conflict).
-                    await provisioner.ProvisionAsync(agentId, stoppingToken);
+                    await _containerManager.EnsureContainerAsync(agentId, stoppingToken);
                 }
                 catch (Exception ex)
                 {
