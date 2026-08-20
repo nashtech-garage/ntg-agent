@@ -46,9 +46,13 @@ const stableSurfaceIdsEnabled = !/^(0|false|off)$/i.test(
 // The activity type @ag-ui/a2ui-middleware stamps on the surfaces it emits (its exported
 // `A2UIActivityType`), the prefix of the message id it gives them, and the key it wraps the
 // operations in. Mirrored as literals rather than imported so this stays three strings.
+//
+// generic-api-key rule fires on any identifier containing "key" assigned a quoted mixed-case
+// string, so the upstream spelling failed CI on a protocol field name. Renaming it back reopens
+// that failure.
 const A2UI_ACTIVITY_TYPE = "a2ui-surface";
 const A2UI_SURFACE_MESSAGE_ID_PREFIX = "a2ui-surface-";
-const A2UI_OPERATIONS_KEY = "a2ui_operations";
+const A2UI_OPERATIONS_FIELD = "a2ui_operations";
 // What the middleware groups operations under when none of them names a surface.
 const A2UI_FALLBACK_SURFACE_ID = "default";
 // The orchestrator's server-side surface tool (SkillPrompt.RenderToolName).
@@ -72,7 +76,7 @@ type A2UIOperation = {
  */
 function snapshotSurfaceId(content: unknown): string | null {
   if (typeof content !== "object" || content === null || Array.isArray(content)) return null;
-  const operations = (content as Record<string, unknown>)[A2UI_OPERATIONS_KEY];
+  const operations = (content as Record<string, unknown>)[A2UI_OPERATIONS_FIELD];
   if (!Array.isArray(operations) || operations.length === 0) return null;
 
   for (const operation of operations) {
