@@ -37,7 +37,8 @@ public class ModelDiscoveryService
 
     private static async Task<List<ModelItem>> GetOpenAIModelsAsync(HttpClient client, string? apiKey)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
+        EnsureApiKey(apiKey, "OpenAI");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.openai.com/v1/models");
         request.Headers.Add("Authorization", $"Bearer {apiKey}");
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -64,9 +65,10 @@ public class ModelDiscoveryService
             throw new ArgumentException("Azure AI Services account name is required to fetch deployed models.");
         if (string.IsNullOrEmpty(project))
             throw new ArgumentException("Azure AI Foundry project name is required to fetch deployed models.");
+        EnsureApiKey(apiKey, "Azure OpenAI");
 
         var url = $"https://{account}.services.ai.azure.com/api/projects/{project}/deployments?api-version=v1";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("api-key", apiKey);
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -105,7 +107,8 @@ public class ModelDiscoveryService
 
     private static async Task<List<ModelItem>> GetAnthropicModelsAsync(HttpClient client, string? apiKey)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "https://api.anthropic.com/v1/models");
+        EnsureApiKey(apiKey, "Anthropic");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://api.anthropic.com/v1/models");
         request.Headers.Add("x-api-key", apiKey);
         request.Headers.Add("anthropic-version", "2023-06-01");
         var response = await client.SendAsync(request);
@@ -116,9 +119,10 @@ public class ModelDiscoveryService
 
     private static async Task<List<ModelItem>> GetGeminiModelsAsync(HttpClient client, string? endpoint, string? apiKey)
     {
+        EnsureApiKey(apiKey, "Google Gemini");
         var baseUrl = endpoint?.TrimEnd('/') ?? "https://generativelanguage.googleapis.com/v1beta";
         var url = $"{baseUrl}/openai/models";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("Authorization", $"Bearer {apiKey}");
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
@@ -133,13 +137,19 @@ public class ModelDiscoveryService
         var url = baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
             ? $"{baseUrl}/models"
             : $"{baseUrl}/v1/models";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
         if (!string.IsNullOrWhiteSpace(apiKey))
             request.Headers.Add("Authorization", $"Bearer {apiKey}");
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<OpenAIListResponse>();
         return result?.Data.Select(m => new ModelItem { Id = m.Id, SupportsThinking = ThinkingCapableModels.Supports(ProviderType.OpenAICompatible, m.Id) }).ToList() ?? [];
+    }
+
+    private static void EnsureApiKey(string? apiKey, string providerName)
+    {
+        if (string.IsNullOrWhiteSpace(apiKey))
+            throw new ArgumentException($"API key is required for {providerName}. Add it on the provider before fetching models.");
     }
 
     private class OpenAIListResponse { public List<OpenAIModelData> Data { get; set; } = []; }

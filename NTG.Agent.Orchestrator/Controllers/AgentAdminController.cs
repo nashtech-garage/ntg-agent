@@ -662,9 +662,9 @@ public class AgentAdminController : ControllerBase
             Name = p.Name,
             ProviderType = p.ProviderType,
             Endpoint = p.Endpoint,
-            ApiKey = p.ApiKey != null && p.ApiKey.Length > 12
-                ? p.ApiKey[..6] + "***" + p.ApiKey[^4..]
-                : p.ApiKey,
+            // Never return the API key (even masked) — read endpoints only report
+            // whether one is configured so secrets don't leak into browser state/logs.
+            HasApiKey = !string.IsNullOrEmpty(p.ApiKey),
             AzureAiAccountName = p.AzureAiAccountName,
             AzureAiProjectName = p.AzureAiProjectName,
             Models = p.Models,
@@ -688,7 +688,9 @@ public class AgentAdminController : ControllerBase
                 Name = p.Name,
                 ProviderType = p.ProviderType,
                 Endpoint = p.Endpoint,
-                ApiKey = p.ApiKey,
+                // Never echo the stored key back to the client.
+                ApiKey = null,
+                HasApiKey = !string.IsNullOrEmpty(p.ApiKey),
                 AzureAiAccountName = p.AzureAiAccountName,
                 AzureAiProjectName = p.AzureAiProjectName,
                 Models = p.Models.OrderBy(m => m.ModelId).Select(m => new ProviderModelDto
@@ -751,7 +753,10 @@ public class AgentAdminController : ControllerBase
         provider.Name = dto.Name;
         provider.ProviderType = dto.ProviderType;
         provider.Endpoint = dto.Endpoint;
-        provider.ApiKey = dto.ApiKey;
+        // Only replace the stored key when the client sends a new one — the read endpoints
+        // never echo the key back, so a blank value means "keep the existing key", not "clear it".
+        if (!string.IsNullOrWhiteSpace(dto.ApiKey))
+            provider.ApiKey = dto.ApiKey;
         provider.AzureAiAccountName = dto.AzureAiAccountName;
         provider.AzureAiProjectName = dto.AzureAiProjectName;
         provider.UpdatedAt = DateTime.UtcNow;

@@ -4,7 +4,7 @@
 <div class="row">
     <div class="col-md-6 mb-3">
         <label class="form-label fw-semibold">Provider <span class="text-muted">(Optional)</span></label>
-        <select class="form-select" @bind="SelectedProviderId" @bind:after="OnProviderChanged">
+        <select class="form-select" value="@ProviderId?.ToString()" @onchange="OnProviderIdChangedAsync">
             <option value="">Select a provider...</option>
             @if (providers != null)
             {
@@ -19,7 +19,7 @@
         <label class="form-label fw-semibold">Model <span class="text-muted">(Optional)</span></label>
         @if (selectedProvider == null)
         {
-            <input type="text" class="form-control" @bind="SelectedModel"
+            <input type="text" class="form-control" value="@ModelOverride" @onchange="OnModelOverrideChangedAsync"
                    placeholder="@(IsInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" />
             <div class="form-text">No provider selected — type any model id manually.</div>
         }
@@ -32,7 +32,7 @@
         }
         else
         {
-            <select class="form-select" @bind="SelectedModel">
+            <select class="form-select" value="@ModelOverride" @onchange="OnModelOverrideChangedAsync">
                 <option value="">Select a model...</option>
                 @foreach (var m in enabledModels)
                 {
@@ -63,26 +63,14 @@
     private IList<ProviderModelDto>? enabledModels;
     private string? modelError;
 
-    private Guid? SelectedProviderId
-    {
-        get => ProviderId;
-        set => _ = SetProviderId(value);
-    }
-
-    private string? SelectedModel
-    {
-        get => ModelOverride;
-        set => _ = SetModel(value);
-    }
-
     protected override async Task OnInitializedAsync()
     {
         try
         {
             providers = await AgentClient.GetProvidersAsync();
-            if (ProviderId.HasValue)
+            if (ProviderId is { } providerId)
             {
-                selectedProvider = providers?.FirstOrDefault(p => p.Id == ProviderId.Value);
+                selectedProvider = providers?.FirstOrDefault(p => p.Id == providerId);
                 enabledModels = selectedProvider?.Models;
             }
         }
@@ -93,13 +81,24 @@
         await RecomputeThinkingSupportAsync();
     }
 
-    private async Task SetProviderId(Guid? value)
+    private async Task OnProviderIdChangedAsync(ChangeEventArgs e)
     {
-        ProviderId = value;
-        await ProviderIdChanged.InvokeAsync(value);
-        if (value.HasValue)
+        var providerId = Guid.TryParse(e.Value?.ToString(), out var parsed) ? parsed : (Guid?)null;
+        await SetProviderAsync(providerId);
+    }
+
+    private async Task OnModelOverrideChangedAsync(ChangeEventArgs e)
+    {
+        await SetModelAsync(e.Value?.ToString());
+    }
+
+    private async Task SetProviderAsync(Guid? providerId)
+    {
+        ProviderId = providerId;
+        await ProviderIdChanged.InvokeAsync(providerId);
+        if (providerId is { } pid)
         {
-            selectedProvider = providers?.FirstOrDefault(p => p.Id == value.Value);
+            selectedProvider = providers?.FirstOrDefault(p => p.Id == pid);
             enabledModels = selectedProvider?.Models;
         }
         else
@@ -108,21 +107,10 @@
             enabledModels = null;
         }
         // A model enabled for the previous provider may not exist on the new one.
-        await SetModel(null);
+        await SetModelAsync(null);
     }
 
-    private async Task OnProviderChanged()
-    {
-        // Re-select in case the dropdown value changed through binding.
-        if (ProviderId.HasValue)
-        {
-            selectedProvider = providers?.FirstOrDefault(p => p.Id == ProviderId.Value);
-            enabledModels = selectedProvider?.Models;
-        }
-        await RecomputeThinkingSupportAsync();
-    }
-
-    private async Task SetModel(string? value)
+    private async Task SetModelAsync(string? value)
     {
         ModelOverride = string.IsNullOrWhiteSpace(value) ? null : value;
         await ModelOverrideChanged.InvokeAsync(ModelOverride);

@@ -114,8 +114,12 @@ public class AgentFactory : IAgentFactory
     {
         // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
         // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
+        // The SDK client is intentionally not disposed: its lifetime is owned by the returned agent,
+        // which keeps using it for the agent's whole lifetime.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
         var chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
             .AsIChatClient(defaultModelId: modelId);
+#pragma warning restore CA2000
 
         var agent = new ChatClientAgent(chatClient, instructions: instructions);
         return agent;
@@ -123,8 +127,11 @@ public class AgentFactory : IAgentFactory
 
     private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Provider provider, string modelId, string instructions)
     {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
         var agent = new AzureOpenAIClient(
-             new Uri(provider.Endpoint!),
+             new Uri(provider.Endpoint),
              new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
                .GetChatClient(modelId)
                .AsAIAgent(instructions: instructions);
@@ -207,8 +214,12 @@ public class AgentFactory : IAgentFactory
             // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
             const int maxTokens = 4096;
             const int thinkingTokens = 2048;
+            // The SDK client is intentionally not disposed: its lifetime is owned by the agent,
+            // which keeps using the chat client for the agent's whole lifetime.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
             chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
                 .AsIChatClient(defaultModelId: modelId)
+#pragma warning restore CA2000
                 .AsBuilder()
                 .UseFunctionInvocation()
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
@@ -228,8 +239,11 @@ public class AgentFactory : IAgentFactory
         }
         else
         {
+            // Intentionally not disposed — see the Thinking branch above.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
             chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
                 .AsIChatClient(defaultModelId: modelId)
+#pragma warning restore CA2000
                 .AsBuilder()
                 .UseFunctionInvocation()
                 .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
@@ -248,6 +262,9 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Provider provider, string modelId, Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
         IChatClient chatClient;
 
         if (agent.Mode == AgentMode.Thinking)
@@ -255,7 +272,7 @@ public class AgentFactory : IAgentFactory
             // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
 #pragma warning disable OPENAI001
             chatClient = new AzureOpenAIClient(
-                    new Uri(provider.Endpoint!),
+                    new Uri(provider.Endpoint),
                     new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
                 .GetResponsesClient()
                 .AsIChatClient(modelId)
@@ -281,7 +298,7 @@ public class AgentFactory : IAgentFactory
         else
         {
             chatClient = new AzureOpenAIClient(
-                new Uri(provider.Endpoint!),
+                new Uri(provider.Endpoint),
                 new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
                 .GetChatClient(modelId)
                 .AsIChatClient()

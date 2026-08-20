@@ -47,7 +47,16 @@
                             <td><strong>@p.Name</strong></td>
                             <td><span class="badge bg-primary">@p.ProviderType.ToDisplayName()</span></td>
                             <td><small class="text-muted">@(p.Endpoint ?? "—")</small></td>
-                            <td><code>@MaskApiKey(p.ApiKey)</code></td>
+                            <td>
+                                @if (p.HasApiKey)
+                                {
+                                    <span class="badge bg-success-subtle text-success">configured</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
                             <td><span class="badge bg-secondary">@p.Models.Count</span></td>
                             <td><span class="badge bg-secondary">@p.AgentCount</span></td>
                             <td>
@@ -115,11 +124,12 @@
                         <label class="form-label">API Key</label>
                         <div class="input-group">
                             <input type="@(showKey ? "text" : "password")" class="form-control" @bind="editingProvider.ApiKey"
-                                   placeholder="Enter API key" />
+                                   placeholder="@(editingProvider.HasApiKey ? "Leave blank to keep the current key" : "Enter API key")" />
                             <button class="btn btn-outline-secondary" type="button" @onclick="() => showKey = !showKey">
                                 <i class="bi @(showKey ? "bi-eye-slash" : "bi-eye")"></i>
                             </button>
                         </div>
+                        <div class="form-text">The stored key is never shown; enter a new one only to replace it.</div>
                     </div>
 
                     <div class="mb-3">
@@ -545,11 +555,4 @@
     };
 
     private static bool IsEndpointReadonly(ProviderType type) => type is ProviderType.OpenAI or ProviderType.Anthropic;
-
-    private static string MaskApiKey(string? key)
-    {
-        if (string.IsNullOrEmpty(key)) return "—";
-        if (key.Length <= 12) return new string('*', key.Length);
-        return key[..6] + "***" + key[^4..];
-    }
 }

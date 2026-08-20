@@ -9,6 +9,13 @@ public class ProviderDto
     public string? ApiKey { get; set; }
 
     /// <summary>
+    /// Whether the stored provider has an API key configured. Read endpoints never return
+    /// the key itself (even masked) — this flag lets the UI indicate configuration state
+    /// without exposing the secret.
+    /// </summary>
+    public bool HasApiKey { get; set; }
+
+    /// <summary>
     /// Azure AI Foundry account name used by the deployments discovery endpoint
     /// (https://{account}.services.ai.azure.com/api/projects/{project}/deployments).
     /// Only relevant for <see cref="ProviderType.AzureOpenAI"/>.

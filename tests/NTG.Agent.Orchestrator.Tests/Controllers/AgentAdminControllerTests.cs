@@ -1556,7 +1556,8 @@ public class AgentAdminControllerTests
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var supportsThinking = okResult.Value!.GetType().GetProperty("supportsThinking")!.GetValue(okResult.Value);
+        var value = okResult!.Value!;
+        var supportsThinking = value.GetType().GetProperty("supportsThinking")!.GetValue(value);
         Assert.That(supportsThinking, Is.EqualTo(true));
     }
 
@@ -1567,7 +1568,8 @@ public class AgentAdminControllerTests
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var supportsThinking = okResult.Value!.GetType().GetProperty("supportsThinking")!.GetValue(okResult.Value);
+        var value = okResult!.Value!;
+        var supportsThinking = value.GetType().GetProperty("supportsThinking")!.GetValue(value);
         Assert.That(supportsThinking, Is.EqualTo(false));
     }
 
