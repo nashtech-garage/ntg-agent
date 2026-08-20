@@ -71,7 +71,10 @@ body {
   /* The basic catalog's primary Button reads this var for its background. */
   --a2ui-primary-color: var(--a2ui-accent);
 
-  max-width: 460px !important;
+  /* Was a flat 460px, where a label-and-value row left the value column nowhere to go. 536 is a
+     judgement call, picked by eye against the widest thing these surfaces draw — a three-option
+     price list — not derived from anything. min() keeps it off the edges of a narrow viewport. */
+  max-width: min(536px, 100%) !important;
   margin: 6px 0 !important;
   padding: 18px 18px 20px !important;
   background:
@@ -91,6 +94,41 @@ body {
      for a light page unless told otherwise — unchecked radios come out as white discs on the dark
      card. This is the only way to reach them. */
   color-scheme: light dark;
+}
+
+/* Rows — the label-and-value pattern, and the two things that used to break it.
+
+   Symptom: a price rendered as "$42" on one line and "0" on the next, inside a spaceBetween Row.
+
+   First cause is the catalog's own markup. Column renders `width: 100%` unconditionally, so a
+   Column nested in a Row asks for the entire row. Both children are shrinkable flex items, so the
+   browser resolves the over-request by squeezing the *other* one — the value — down to a sliver.
+   The fix is to stop the nested container asking for everything (`width: auto`, and `min-width: 0`
+   so it may shrink past its own content) and to take the value out of the shrink entirely.
+
+   Second cause is that a sliver-wide element still has to put "$420" somewhere, and it is allowed
+   to break mid-token: react-ui sets `.copilotKitMessage { overflow-wrap: break-word }`, which every
+   surface inherits. That rule is right for prose — a pasted URL should wrap rather than overflow —
+   so it is left alone everywhere except the value, where a break is never the better outcome.
+
+   Together: the left side yields, the value keeps its line. */
+.a2ui-surface div[style*="flex-direction: row"] {
+  gap: 12px !important;
+  min-width: 0;
+}
+.a2ui-surface div[style*="flex-direction: row"] > div[style*="flex-direction: column"] {
+  width: auto !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+/* The value is the last thing in the row — a price, a total, a confirm button. It is also the
+   shortest, so giving it the immovable side costs the layout nothing, and it is the one place worth
+   overriding the inherited break-word: a total that wraps mid-digit is unreadable, whereas one that
+   runs a few pixels wide is merely tight. */
+.a2ui-surface div[style*="justify-content: space-between"] > :last-child {
+  flex-shrink: 0 !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
 }
 
 /* Headings — intentional scale, tighter tracking */
