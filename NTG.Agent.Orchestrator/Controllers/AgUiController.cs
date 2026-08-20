@@ -18,6 +18,7 @@ public class AgUiController : ControllerBase
 {
     private readonly AgentService _agentService;
     private readonly AgentDbContext _dbContext;
+    private readonly AgentAccessService _agentAccessService;
     private readonly ILogger<AgUiController> _logger;
     private readonly IMemoryCache _cache;
 
@@ -30,10 +31,16 @@ public class AgUiController : ControllerBase
         SlidingExpiration = TimeSpan.FromHours(4)
     };
 
-    public AgUiController(AgentService agentService, AgentDbContext dbContext, ILogger<AgUiController> logger, IMemoryCache cache)
+    public AgUiController(
+        AgentService agentService,
+        AgentDbContext dbContext,
+        AgentAccessService agentAccessService,
+        ILogger<AgUiController> logger,
+        IMemoryCache cache)
     {
         _agentService = agentService;
         _dbContext = dbContext;
+        _agentAccessService = agentAccessService;
         _logger = logger;
         _cache = cache;
     }
@@ -56,6 +63,29 @@ public class AgUiController : ControllerBase
         Response.Headers["X-Accel-Buffering"] = "no";
 
         Guid? userId = User.GetUserId();
+
+        // Checked here rather than left to the run, for two reasons. It stops an inaccessible
+        // agent creating a conversation row — GetOrCreateConversationAsync below writes one before
+        // anything has established the caller may chat at all, so a signed-out client polling this
+        // endpoint quietly accumulated rows. And it is the only place the refusal can be phrased
+        // for a human: past this point the denial arrives as an exception from deep inside the
+        // agent factory, which the catch-all downstream turns into "an internal error".
+        //
+        // Not a substitute for that catch. This mirrors AgentsController's check, and neither it
+        // nor this one looks at AgentKind — AgentFactory.CreateAgent additionally refuses an inner,
+        // tool-only agent, so the refusal can still surface from the run.
+        if (!await _agentAccessService.HasAccessAsync(agentId, userId, User.IsInRole("Admin"), HttpContext.RequestAborted))
+        {
+            _logger.LogInformation(
+                "AG-UI run refused for agent {AgentId} on thread {ThreadId}: caller has no access", agentId, threadId);
+
+            await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
+            await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+            await WriteAssistantMessageAsync(AccessDeniedMessage);
+            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
+            return;
+        }
 
         var conversationId = await GetOrCreateConversationAsync(userId, threadId);
 
@@ -199,18 +229,25 @@ public class AgUiController : ControllerBase
         }
         catch (AnonymousRateLimitExceededException)
         {
-            if (reasoningOpen)
-            {
-                await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
-                await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
-            }
-            if (textOpen)
-                await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
+            await CloseOpenBlocksAsync();
+            await WriteAssistantMessageAsync(
+                "⚠️ You've reached the message limit for anonymous users. Please sign in to continue.");
+            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
+        }
+        catch (AgentAccessDeniedException)
+        {
+            // Reached only for a denial the up-front check does not make — an inner, tool-only
+            // agent, or access revoked between that check and the run. Answered the same way, and
+            // deliberately NOT as RUN_ERROR: being signed out is an ordinary outcome the user can
+            // act on, and dressing it as an internal fault is what sent a debugging session after
+            // a crash that never happened.
+            _logger.LogInformation(
+                "AG-UI run for thread {ThreadId} was refused by the agent factory: no access to {AgentId}",
+                threadId, agentId);
 
-            var rateMsgId = NewId();
-            await WriteEventAsync(new { type = "TEXT_MESSAGE_START", messageId = rateMsgId, role = "assistant", timestamp = Now() });
-            await WriteEventAsync(new { type = "TEXT_MESSAGE_CONTENT", messageId = rateMsgId, delta = "⚠️ You've reached the message limit for anonymous users. Please sign in to continue.", timestamp = Now() });
-            await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId = rateMsgId, timestamp = Now() });
+            await CloseOpenBlocksAsync();
+            await WriteAssistantMessageAsync(AccessDeniedMessage);
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
             await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
         }
@@ -222,16 +259,47 @@ public class AgUiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AG-UI agent run failed for thread {ThreadId}", threadId);
+            await CloseOpenBlocksAsync();
+            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = "RUN_ERROR", message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
+        }
+
+        // Ends whichever block is still open, so anything written afterwards starts clean. Local
+        // functions because they close over the four flags that track that state; three catch
+        // blocks wanted the same seven lines, and a fourth copy is where the copies start drifting.
+        async Task CloseOpenBlocksAsync()
+        {
             if (reasoningOpen)
             {
                 await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
                 await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
+                reasoningOpen = false;
             }
+
             if (textOpen)
+            {
                 await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_ERROR", message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
+                textOpen = false;
+            }
         }
+    }
+
+    /// <summary>
+    /// What the caller is told when the agent is not theirs to chat with. Worded for someone who is
+    /// simply signed out, because that is overwhelmingly the reason: an agent is reachable by its
+    /// owner, an Admin, or a role it has been granted, and a fresh install grants it to nobody.
+    /// </summary>
+    private const string AccessDeniedMessage =
+        "You do not have access to this agent. Sign in with an account that can use it, or ask an "
+        + "administrator to grant your role access.";
+
+    /// <summary>One complete assistant message: start, one delta, end.</summary>
+    private async Task WriteAssistantMessageAsync(string text)
+    {
+        var id = NewId();
+        await WriteEventAsync(new { type = "TEXT_MESSAGE_START", messageId = id, role = "assistant", timestamp = Now() });
+        await WriteEventAsync(new { type = "TEXT_MESSAGE_CONTENT", messageId = id, delta = text, timestamp = Now() });
+        await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId = id, timestamp = Now() });
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
