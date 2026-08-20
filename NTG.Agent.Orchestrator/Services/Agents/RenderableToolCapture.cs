@@ -36,4 +36,17 @@ public sealed class RenderableToolCapture
             yield return call;
         }
     }
+
+    /// <summary>
+    /// Empties the buffer without handing anything back, for a run whose client cannot render a
+    /// captured call. Separate from <see cref="DrainPending"/> because that one is a lazy iterator:
+    /// a caller that wants only the emptying would have to enumerate a sequence it then throws
+    /// away, and a caller that forgot to enumerate would silently leave the buffer full.
+    /// </summary>
+    public void DiscardPending()
+    {
+        while (_pending.TryDequeue(out _))
+        {
+        }
+    }
 }

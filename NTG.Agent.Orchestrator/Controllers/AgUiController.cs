@@ -88,7 +88,11 @@ public class AgUiController : ControllerBase
 
         try
         {
-            await foreach (var chunk in _agentService.ChatStreamingAsync(userId, promptRequest))
+            // my-copilot-app: an AG-UI client with the A2UI renderer mounted. This is the one
+            // endpoint where a rendered surface, a frontend tool call and a tool-render card all
+            // have somewhere to land.
+            await foreach (var chunk in _agentService.ChatStreamingAsync(
+                userId, promptRequest, capabilities: ChatClientCapabilities.GenerativeUi))
             {
                 if ((chunk.ContentType == PromptContentType.Thinking || chunk.ContentType == PromptContentType.SkillNotice)
                     && !string.IsNullOrEmpty(chunk.Content))

@@ -68,7 +68,32 @@ public class AgentService
 
     // Turns tool results captured during the run (get_weather, possibly inside an inner agent)
     // into ToolCall + ToolResult chunks the AG-UI controller forwards to the browser to render.
-    private IEnumerable<PromptResponse> DrainRenderableToolCalls()
+    //
+    // Only a client that can render them gets them. Nothing in the Blazor chat renders a ToolCall
+    // or a ToolResult — its stream loop appends every non-Thinking chunk straight into the
+    // assistant's bubble — so forwarding them there pastes raw protocol JSON into the reply. The
+    // buffer is emptied either way: the tool did run, and a capture left queued would surface later
+    // against some other part of the stream.
+    //
+    // Withholding them also stops the Tool-role row being written for that conversation, since the
+    // envelope SaveMessages persists is built from these very chunks. That is the intended shape —
+    // the row exists so an A2UI client can rehydrate a card on reload, and a text-only client has
+    // no card to rehydrate — but it does mean such a conversation stores no record of the call.
+    private IEnumerable<PromptResponse> DrainRenderableToolCalls(ChatClientCapabilities capabilities)
+    {
+        if (capabilities != ChatClientCapabilities.GenerativeUi)
+        {
+            // Eager, not a lazy iterator that yields nothing. In this branch emptying the buffer is
+            // the method's only effect, and an effect that happens only if the caller remembers to
+            // enumerate the result is one a refactor can drop without a single warning.
+            _renderableToolCapture.DiscardPending();
+            return [];
+        }
+
+        return ForwardRenderableToolCalls();
+    }
+
+    private IEnumerable<PromptResponse> ForwardRenderableToolCalls()
     {
         foreach (var captured in _renderableToolCapture.DrainPending())
         {
@@ -85,7 +110,24 @@ public class AgentService
     // Turns skill narration captured during the run (a skill loading, a surface rendering,
     // possibly inside an inner agent) into SkillNotice chunks the AG-UI controller forwards to the
     // browser as reasoning content, so the "Thought for N seconds" panel says which skill acted.
-    private IEnumerable<PromptResponse> DrainSkillNotices()
+    //
+    // Gated on the same terms as the tool-render chunks above, though nothing writes to the log on
+    // a text-only run today: the only two writers are the skill tools, and those are not attached.
+    // The gate is here because that reasoning is a chain through three files, and the buffer is
+    // deliberately shared with inner agents — the moment a skill tool is baked in by AgentFactory
+    // rather than attached per request, the chain breaks and this is where it would leak.
+    private IEnumerable<PromptResponse> DrainSkillNotices(ChatClientCapabilities capabilities)
+    {
+        if (capabilities != ChatClientCapabilities.GenerativeUi)
+        {
+            _skillActivityLog.DiscardPending();
+            return [];
+        }
+
+        return ForwardSkillNotices();
+    }
+
+    private IEnumerable<PromptResponse> ForwardSkillNotices()
     {
         foreach (var line in _skillActivityLog.DrainPending())
         {
@@ -93,7 +135,16 @@ public class AgentService
         }
     }
 
-    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(Guid? userId, PromptRequestForm promptRequest, bool isAdmin = false)
+    /// <param name="capabilities">
+    /// What the calling client can render, stated by the controller that received the request.
+    /// Defaults to <see cref="ChatClientCapabilities.TextOnly"/> so a caller that does not say gets
+    /// the plain-text run rather than chunks it cannot display.
+    /// </param>
+    public async IAsyncEnumerable<PromptResponse> ChatStreamingAsync(
+        Guid? userId,
+        PromptRequestForm promptRequest,
+        bool isAdmin = false,
+        ChatClientCapabilities capabilities = ChatClientCapabilities.TextOnly)
     {
         var startTime = DateTime.UtcNow;
         var anonymousSessionId = Guid.Empty;
@@ -170,7 +221,7 @@ public class AgentService
         var pendingToolCalls = new Dictionary<string, (string Name, string Arguments)>();
         var toolRenderEnvelopes = new List<object>();
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin, capabilities))
         {
             if (item.ContentType == PromptContentType.Thinking)
             {
@@ -220,7 +271,7 @@ public class AgentService
         try
         {
             var savedMessage = await SaveMessages(
-                userId, promptRequest, conversation,
+                userId, promptRequest, conversation, capabilities,
                 agentMessageSb.ToString(),
                 thinkingMessageSb.Length > 0 ? thinkingMessageSb.ToString() : null,
                 thinkingDurationMs,
@@ -327,7 +378,7 @@ public class AgentService
             .ToList();
     }
 
-    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments, string? toolRenderJson = null)
+    private async Task<PChatMessage> SaveMessages(Guid? userId, PromptRequestForm promptRequest, Conversation conversation, ChatClientCapabilities capabilities, string assistantReply, string? thinkingContent, int? thinkingDurationMs, List<string> ocrDocuments, string? toolRenderJson = null)
     {
         // Note: conversation name generation was moved to before streaming in ChatStreamingAsync.
         // Stamp explicit, strictly increasing timestamps so reload order is deterministic:
@@ -349,7 +400,16 @@ public class AgentService
 
         // Tool-result follow-up turns carry a synthetic acknowledgement prompt that the user
         // never typed — persist only the assistant reply so it doesn't pollute the transcript.
-        if (promptRequest.PersistUserMessage)
+        //
+        // Honoured only for the client that has such turns. They exist solely on the AG-UI path,
+        // and PromptRequestForm is [FromForm]-bound on the other one — so on a text-only run the
+        // flag is caller-supplied with no legitimate sender, and a crafted post would run the
+        // agent, spend the tokens and keep the reply while quietly dropping the user's own message
+        // from the transcript.
+        var persistUserMessage = promptRequest.PersistUserMessage
+            || capabilities != ChatClientCapabilities.GenerativeUi;
+
+        if (persistUserMessage)
         {
             var userMessage = new PChatMessage { UserId = userId, Conversation = conversation, Content = promptRequest.Prompt, Role = ChatRole.User, CreatedAt = now, UpdatedAt = now };
             _agentDbContext.ChatMessages.Add(userMessage);
@@ -416,7 +476,8 @@ public class AgentService
         List<string> ocrDocuments,
         TokenUsageInfo tokenUsageInfo,
         Guid? userId,
-        bool isAdmin = false)
+        bool isAdmin,
+        ChatClientCapabilities capabilities)
     {
         if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
         {
@@ -476,18 +537,33 @@ public class AgentService
             // GetAgentToolsByAgentId filters on, so they are attached here alongside the knowledge
             // tool rather than baked in by AgentFactory. An agent with no bound skills gets neither
             // the tools nor the catalog message, leaving its runs byte-identical to before.
-            // Guarded for the same reason conversation naming is: this runs before the first
-            // yield of an async iterator, so an exception escapes ChatStreamingAsync entirely and
-            // surfaces as RUN_ERROR with no answer — for every agent, including the ones with no
-            // skills bound. Skills are decoration on a run; they degrade, they do not abort it.
+            //
+            // Withheld outright from a text-only client, rather than trimmed down to the tools it
+            // could technically run. What the skills we ship produce is an A2UI surface, and only
+            // the AG-UI client mounts a renderer for one: render_skill_surface there would draw
+            // something nobody can see, and its result — the surface's whole component tree,
+            // routinely ~100 KB of JSON — would arrive in the Blazor chat as text. Leaving
+            // load_skill on by itself is the worse half-measure, because it hands the model a
+            // step-by-step flow whose every step names a tool it was not given. So the tier stack
+            // goes as a unit, and a text-only run stays byte-identical to a run on an agent with no
+            // skills bound.
             IReadOnlyList<SkillRegistry.ActiveSkill> activeSkills = [];
-            try
+
+            if (capabilities == ChatClientCapabilities.GenerativeUi)
             {
-                activeSkills = await _skillRegistry.GetActiveSkillsAsync(promptRequest.AgentId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not load skills for agent {AgentId}; running without them", promptRequest.AgentId);
+                // Guarded for the same reason conversation naming is: this runs before the first
+                // yield of an async iterator, so an exception escapes ChatStreamingAsync entirely
+                // and surfaces as RUN_ERROR with no answer — for every agent, including the ones
+                // with no skills bound. Skills are decoration on a run; they degrade, they do not
+                // abort it.
+                try
+                {
+                    activeSkills = await _skillRegistry.GetActiveSkillsAsync(promptRequest.AgentId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Could not load skills for agent {AgentId}; running without them", promptRequest.AgentId);
+                }
             }
 
             if (activeSkills.Count > 0)
@@ -506,7 +582,15 @@ public class AgentService
             // Declaration-only tools are not invocable, so the model's call surfaces below
             // as FunctionCallContent instead of being executed server-side.
             var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (!string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
+
+            // Read only for the client that owns it. A text-only client executes no frontend tool,
+            // so a declaration from one could only ever produce a call nothing answers. It is also
+            // the field's only protection: PromptRequestForm is [FromForm]-bound on that endpoint,
+            // so FrontendToolsJson is caller-supplied there, and a crafted form post naming
+            // render_a2ui would otherwise pull the entire A2UI render guide into a run whose client
+            // cannot draw a surface.
+            if (capabilities == ChatClientCapabilities.GenerativeUi
+                && !string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
             {
                 // FrontendToolsJson comes from the request body, so a client can declare any tool
                 // name it likes — including one already registered server-side. Providers reject
@@ -559,14 +643,14 @@ public class AgentService
             {
                 // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
                 // including ones executed inside an inner agent — so the browser can render them.
-                foreach (var chunk in DrainRenderableToolCalls())
+                foreach (var chunk in DrainRenderableToolCalls(capabilities))
                 {
                     yield return chunk;
                 }
 
                 // Drained before this update's own content so a notice ("Using the X skill.")
                 // lands before the reasoning for the step it describes, rather than after it.
-                foreach (var chunk in DrainSkillNotices())
+                foreach (var chunk in DrainSkillNotices(capabilities))
                 {
                     yield return chunk;
                 }
@@ -596,13 +680,13 @@ public class AgentService
             }
 
             // Flush any tool captures that arrived during/after the final streamed update.
-            foreach (var chunk in DrainRenderableToolCalls())
+            foreach (var chunk in DrainRenderableToolCalls(capabilities))
             {
                 yield return chunk;
             }
 
             // Flush any skill narration that arrived during/after the final streamed update.
-            foreach (var chunk in DrainSkillNotices())
+            foreach (var chunk in DrainSkillNotices(capabilities))
             {
                 yield return chunk;
             }

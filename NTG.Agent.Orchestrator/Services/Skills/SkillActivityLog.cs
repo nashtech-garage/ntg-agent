@@ -22,4 +22,17 @@ public sealed class SkillActivityLog
             yield return line;
         }
     }
+
+    /// <summary>
+    /// Empties the buffer without handing anything back, for a run whose client has nowhere to show
+    /// the narration. Separate from <see cref="DrainPending"/> for the same reason its counterpart
+    /// on <see cref="Agents.RenderableToolCapture"/> is: that one is a lazy iterator, so emptying
+    /// through it only happens if the caller remembers to enumerate what it returns.
+    /// </summary>
+    public void DiscardPending()
+    {
+        while (_pending.TryDequeue(out _))
+        {
+        }
+    }
 }
