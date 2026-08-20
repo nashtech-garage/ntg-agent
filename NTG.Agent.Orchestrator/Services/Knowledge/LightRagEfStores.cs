@@ -7,46 +7,17 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 /// <summary>
 /// EF-backed implementation of the LightRAG provider's persistence seams. This is the only
-/// place where the LightRAG provider touches the Orchestrator's database: agent port
-/// reservations live on <c>Agent.LightRagPort</c> and ingestion progress on <c>Document</c>.
+/// place where the LightRAG provider touches the Orchestrator's database: the agent list for
+/// the startup reconciler and ingestion progress on <c>Document</c>.
 /// </summary>
-public sealed class LightRagEfAgentPortStore : ILightRagAgentPortStore
+public sealed class LightRagEfAgentStore : ILightRagAgentStore
 {
     private readonly AgentDbContext _db;
 
-    public LightRagEfAgentPortStore(AgentDbContext db) => _db = db;
+    public LightRagEfAgentStore(AgentDbContext db) => _db = db;
 
     public async Task<IReadOnlyList<Guid>> GetAgentIdsAsync(CancellationToken cancellationToken = default)
         => await _db.Agents.Select(a => a.Id).ToListAsync(cancellationToken);
-
-    public async Task<int?> GetPortAsync(Guid agentId, CancellationToken cancellationToken = default)
-        => await _db.Agents
-            .Where(a => a.Id == agentId)
-            .Select(a => a.LightRagPort)
-            .FirstOrDefaultAsync(cancellationToken);
-
-    public async Task<IReadOnlyList<(Guid AgentId, int Port)>> GetAssignedPortsAsync(CancellationToken cancellationToken = default)
-        => (await _db.Agents
-            .Where(a => a.LightRagPort != null && a.LightRagPort > 0)
-            .Select(a => new { a.Id, Port = a.LightRagPort!.Value })
-            .ToListAsync(cancellationToken))
-            .Select(x => (x.Id, x.Port))
-            .ToList();
-
-    public async Task<IReadOnlyList<int>> GetReservedPortsAsync(Guid excludeAgentId, CancellationToken cancellationToken = default)
-        => await _db.Agents
-            .Where(a => a.Id != excludeAgentId && a.LightRagPort != null)
-            .Select(a => a.LightRagPort!.Value)
-            .ToListAsync(cancellationToken);
-
-    public async Task SetPortAsync(Guid agentId, int port, CancellationToken cancellationToken = default)
-    {
-        var agent = await _db.Agents.FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken)
-            ?? throw new InvalidOperationException($"Agent {agentId} not found while reserving a LightRAG port.");
-
-        agent.LightRagPort = port;
-        await _db.SaveChangesAsync(cancellationToken);
-    }
 }
 
 /// <summary>EF-backed store the LightRAG ingestion-status worker polls and updates.</summary>

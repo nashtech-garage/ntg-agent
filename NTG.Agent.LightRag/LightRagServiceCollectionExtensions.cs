@@ -1,19 +1,21 @@
+using System.Security.Cryptography.X509Certificates;
 using Docker.DotNet;
+using Docker.DotNet.X509;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Knowledge;
+using NTG.Agent.LightRag.BackgroundServices;
 
 namespace NTG.Agent.LightRag;
 
 /// <summary>
 /// Single entry point for hosting the LightRAG knowledge provider. The host only calls
 /// <see cref="AddLightRagKnowledge"/> and implements the two persistence seams
-/// (<see cref="ILightRagAgentPortStore"/>, <see cref="ILightRagIngestionStore"/>);
-/// everything else — per-agent containers, port reservations, HTTP clients, background
-/// workers — is wired here.
+/// (<see cref="ILightRagAgentStore"/>, <see cref="ILightRagIngestionStore"/>);
+/// everything else — per-agent containers, HTTP clients, background workers — is wired here.
 /// </summary>
 public static class LightRagServiceCollectionExtensions
 {
@@ -46,11 +48,14 @@ public static class LightRagServiceCollectionExtensions
             });
 
         // Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
-        // LightRagClientFactory (each agent has its own container endpoint), so we only
-        // configure the timeout here. The resilience override above is keyed on this name.
-        // When LightRag:SocksProxy is set, route through that SOCKS5 proxy so the dynamic
-        // per-agent container ports are reachable over the SSH tunnel (`ssh -D`); empty =>
-        // direct connection (local dev).
+        // LightRagClientFactory (each agent is dialed via the gateway's /agents/{id}/ path),
+        // so we only configure the timeout here. The resilience override above is keyed on
+        // this name. The remote gateway serves HTTPS with the server's certificate; it is
+        // signed by a private CA we hold no root for, so the certificate is accepted
+        // unvalidated — encrypted, but the server is unauthenticated. Requests remain gated by
+        // the X-API-Key header, and inbound access by the cloud firewall (Azure NSG) rules.
+        // When LightRag:SocksProxy is set, route through that SOCKS5 proxy instead (`ssh -D`),
+        // so a developer can tunnel rather than open the gateway port; empty => direct.
         services.AddHttpClient(nameof(LightRagClient), c =>
         {
             c.Timeout = TimeSpan.FromMinutes(5);
@@ -58,7 +63,15 @@ public static class LightRagServiceCollectionExtensions
         .ConfigurePrimaryHttpMessageHandler(sp =>
         {
             var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-            var handler = new SocketsHttpHandler();
+#pragma warning disable CA5359 // Deliberate: the gateway certificate is signed by a private CA
+            // whose root is not distributed to clients, so there is no trust anchor to validate
+            // against. Traffic is encrypted but the server is unauthenticated; requests are gated
+            // by X-API-Key and inbound access by the cloud firewall (Azure NSG) rules.
+            var handler = new SocketsHttpHandler
+            {
+                SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => true }
+            };
+#pragma warning restore CA5359
             if (!string.IsNullOrWhiteSpace(cfg.SocksProxy))
             {
                 handler.Proxy = new System.Net.WebProxy(cfg.SocksProxy);
@@ -71,13 +84,15 @@ public static class LightRagServiceCollectionExtensions
         // factory resolves a per-agent client, and the reconciler ensures containers exist
         // for every agent on startup.
         // IDockerClient is built from LightRagSettings.DockerHost (empty => local socket;
-        // tcp://<server>:2375 => remote daemon) and injected so the manager is testable.
+        // https://<server>:2376 => remote daemon over TLS) and injected so the manager is
+        // testable. When a client certificate is configured the daemon is driven with mutual
+        // TLS: it runs with `tlsverify: true` and admits only CA-signed client certificates.
         services.AddSingleton<IDockerClient>(sp =>
         {
             var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
             var dockerConfig = string.IsNullOrWhiteSpace(cfg.DockerHost)
                 ? new DockerClientConfiguration()
-                : new DockerClientConfiguration(new Uri(cfg.DockerHost));
+                : new DockerClientConfiguration(new Uri(cfg.DockerHost), BuildDockerCredentials(cfg));
             return dockerConfig.CreateClient();
         });
         // Shared readiness probe: used by the container manager to poll a freshly-started
@@ -86,12 +101,6 @@ public static class LightRagServiceCollectionExtensions
         services.AddSingleton<ILightRagHealthProbe, LightRagHealthProbe>();
         services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
         services.AddSingleton<LightRagContainerAccessTracker>();
-        // Identity-bound host-port reservations (one permanent port per agent) — prevents
-        // cross-agent misrouting when a freed port would otherwise be recycled. The provisioner
-        // centralises the reserve->ensure->reassign flow used by the factory, reconciler, and
-        // agent creation.
-        services.AddScoped<PortReservationService>();
-        services.AddScoped<ILightRagProvisioner, LightRagProvisioner>();
         services.AddScoped<LightRagClientFactory>();
         services.AddHostedService<LightRagReconcilerHostedService>();
         services.AddHostedService<LightRagContainerIdleShutdownService>();
@@ -100,5 +109,36 @@ public static class LightRagServiceCollectionExtensions
         services.AddHostedService<LightRagIngestionStatusHostedService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Credentials for the remote daemon: the configured PKCS#12 client certificate, or none when
+    /// no certificate is set (an unauthenticated endpoint, as used in local dev).
+    /// </summary>
+    /// <remarks>
+    /// The daemon's own certificate is deliberately NOT validated. It is signed by a private CA
+    /// whose root is not distributed to clients, so there is no trust anchor to check it against;
+    /// the connection is encrypted but the server is unauthenticated. Inbound access to :2376 is
+    /// restricted by the cloud firewall (Azure NSG) instead.
+    /// </remarks>
+    private static CertificateCredentials? BuildDockerCredentials(LightRagSettings cfg)
+    {
+        if (string.IsNullOrWhiteSpace(cfg.DockerCertPath))
+            return null;
+
+        if (!File.Exists(cfg.DockerCertPath))
+        {
+            throw new FileNotFoundException(
+                $"LightRag:DockerCertPath points at '{cfg.DockerCertPath}', which does not exist. " +
+                "Copy the client certificate from the server (~/docker-certs/client.pfx) and set the path " +
+                "in user-secrets.", cfg.DockerCertPath);
+        }
+
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(cfg.DockerCertPath, cfg.DockerCertPassword);
+        var credentials = new CertificateCredentials(certificate);
+#pragma warning disable CA5359 // Deliberate — see the remarks above.
+        credentials.ServerCertificateValidationCallback += (_, _, _, _) => true;
+#pragma warning restore CA5359
+        return credentials;
     }
 }

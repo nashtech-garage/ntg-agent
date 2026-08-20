@@ -163,7 +163,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             IsPublished = true,
             AgentKind = Common.Dtos.Agents.AgentKind.Outer,
             ModelOverride = "gpt-4o",
-            ProviderId = defaultProviderId
+            ProviderId = defaultProviderId,
+            ProvisioningStatus = Common.Dtos.Agents.AgentProvisioningStatus.Ready
         });
 
         modelBuilder.Entity<Folder>().HasData(

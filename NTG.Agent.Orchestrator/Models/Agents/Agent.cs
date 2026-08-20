@@ -42,12 +42,14 @@ public class Agent
 
     public string? McpServer { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Host port of this agent's dedicated LightRAG container (lightrag-agent-{Id}).
-    /// Null until the container has been provisioned. Allocated dynamically at
-    /// agent creation and self-healed by <c>LightRagReconcilerHostedService</c> on restart.
-    /// </summary>
-    public int? LightRagPort { get; set; }
+    public AgentProvisioningStatus ProvisioningStatus { get; set; } = AgentProvisioningStatus.Provisioning;
+
+    /// <summary>Failure reason surfaced to the UI when <see cref="ProvisioningStatus"/> is
+    /// <see cref="AgentProvisioningStatus.Failed"/>.</summary>
+    public string? ProvisioningError { get; set; }
+
+    /// <summary>When the last provisioning transition to Ready/Failed occurred</summary>
+    public DateTime? ProvisionedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

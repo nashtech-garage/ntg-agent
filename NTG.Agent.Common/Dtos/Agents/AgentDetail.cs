@@ -37,6 +37,12 @@ public class AgentDetail
     /// <summary>Maximum output tokens for generation. Null = provider/model default.</summary>
     public int? MaxOutputTokens { get; set; }
 
+    /// <summary>Where this agent is in its knowledge-backend provisioning lifecycle.</summary>
+    public AgentProvisioningStatus ProvisioningStatus { get; set; } = AgentProvisioningStatus.Ready;
+
+    /// <summary>Failure reason shown when <see cref="ProvisioningStatus"/> is Failed.</summary>
+    public string? ProvisioningError { get; set; }
+
     public string ToolCount { get; set; } = "0";
 
     public AgentDetail()

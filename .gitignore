@@ -389,3 +389,9 @@ local-appsettings-setup.md
 
 .claude/
 .slim/deepwork/
+
+.idea/
+
+.local-knowledge/
+
+.qoder/

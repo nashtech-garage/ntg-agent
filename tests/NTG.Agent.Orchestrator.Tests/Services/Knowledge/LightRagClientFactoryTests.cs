@@ -1,53 +1,36 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.LightRag;
-using NTG.Agent.Orchestrator.Data;
-using NTG.Agent.Orchestrator.Services.Knowledge;
-using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 
 namespace NTG.Agent.Orchestrator.Tests.Services.Knowledge;
 
 [TestFixture]
 public class LightRagClientFactoryTests
 {
-    // A port nothing listens on, so the reachability probe always fails and the factory
-    // falls through to provisioning.
-    private const int UnreachablePort = 1;
-    private const int ReservedPort = 20005;
-
-    private AgentDbContext _db = null!;
     private Mock<IHttpClientFactory> _httpFactory = null!;
-    private Mock<ILightRagProvisioner> _provisioner = null!;
+    private Mock<ILightRagContainerManager> _containerManager = null!;
     private Mock<ILightRagHealthProbe> _healthProbe = null!;
     // The factory asks IHttpClientFactory for the real per-agent client (the reachability
-    // probe is now delegated to ILightRagHealthProbe) — keep the created clients so the test
+    // probe is delegated to ILightRagHealthProbe) — keep the created clients so the test
     // can assert the resulting client's BaseAddress.
     private List<HttpClient> _created = null!;
 
     [SetUp]
     public void Setup()
     {
-        _db = new AgentDbContext(new DbContextOptionsBuilder<AgentDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options);
-
         _created = [];
         _httpFactory = new Mock<IHttpClientFactory>();
         _httpFactory.Setup(f => f.CreateClient(It.IsAny<string>()))
             .Returns(() => { var c = new HttpClient(); _created.Add(c); return c; });
 
-        _provisioner = new Mock<ILightRagProvisioner>();
-        _provisioner
-            .Setup(p => p.ProvisionAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(ReservedPort);
+        _containerManager = new Mock<ILightRagContainerManager>();
 
-        // Default: nothing answers on the cached port, so the fast-path probe fails and the
-        // factory falls through to provisioning. Individual tests can override this.
+        // Default: the agent's container does not answer through the gateway, so the factory
+        // falls through to ensuring the container. Individual tests can override this.
         _healthProbe = new Mock<ILightRagHealthProbe>();
         _healthProbe
-            .Setup(p => p.IsHealthyAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(p => p.IsHealthyAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
     }
 
@@ -56,58 +39,64 @@ public class LightRagClientFactoryTests
     {
         foreach (var c in _created)
             c.Dispose();
-        _db.Dispose();
     }
 
-    private LightRagClientFactory NewFactory() =>
-        new(new LightRagEfAgentPortStore(_db), _httpFactory.Object, _provisioner.Object, _healthProbe.Object,
-            new LightRagContainerAccessTracker(), Options.Create(new LightRagSettings()), NullLoggerFactory.Instance);
-
-    private async Task<Guid> SeedAgentAsync(int? port)
-    {
-        var id = Guid.NewGuid();
-        _db.Agents.Add(new AgentModel { Id = id, Name = "agent", LightRagPort = port });
-        await _db.SaveChangesAsync();
-        return id;
-    }
+    private LightRagClientFactory NewFactory(LightRagSettings? settings = null) =>
+        new(_httpFactory.Object, _containerManager.Object, _healthProbe.Object,
+            new LightRagContainerAccessTracker(), Options.Create(settings ?? new LightRagSettings()), NullLoggerFactory.Instance);
 
     [Test]
-    public async Task GetClientAsync_WhenNoCachedPort_ProvisionsAndUsesReservedPort()
+    public async Task GetClientAsync_WhenContainerNotServing_EnsuresContainerAndTargetsAgentPath()
     {
-        var agentId = await SeedAgentAsync(port: null);
+        var agentId = Guid.NewGuid();
         var factory = NewFactory();
 
         await factory.GetClientAsync(agentId);
 
-        _provisioner.Verify(p => p.ProvisionAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:{ReservedPort}")));
+        _containerManager.Verify(m => m.EnsureContainerAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:8080/agents/{agentId}/")));
     }
 
     [Test]
-    public async Task GetClientAsync_WhenCachedPortUnreachable_ReprovisionsToAgentsOwnPort()
+    public async Task GetClientAsync_WhenContainerServing_SkipsEnsure()
     {
-        // The DB holds a stale/foreign port. The fast-path probe fails, so the factory must
-        // re-provision and use the agent's OWN reserved port — never the stale port. This is
-        // the regression guard against cross-agent misrouting via a recycled port.
-        var agentId = await SeedAgentAsync(port: UnreachablePort);
+        // The gateway routes by container name, so a healthy answer on the agent's path is
+        // provably this agent's own container — no container work needed.
+        var agentId = Guid.NewGuid();
+        _healthProbe
+            .Setup(p => p.IsHealthyAsync(agentId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         var factory = NewFactory();
 
         await factory.GetClientAsync(agentId);
 
-        _provisioner.Verify(p => p.ProvisionAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
-        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:{ReservedPort}")));
+        _containerManager.Verify(m => m.EnsureContainerAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"http://localhost:8080/agents/{agentId}/")));
     }
 
     [Test]
-    public async Task GetClientAsync_CalledTwiceInScope_ReturnsCachedClientAndProvisionsOnce()
+    public async Task GetClientAsync_WhenGatewayUrlConfigured_TargetsThatGateway()
     {
-        var agentId = await SeedAgentAsync(port: null);
+        // The remote gateway is dialled directly over TLS, so the configured URL must reach
+        // the client rather than the local-dev default.
+        var agentId = Guid.NewGuid();
+        var factory = NewFactory(new LightRagSettings { GatewayUrl = "https://4.193.109.6" });
+
+        await factory.GetClientAsync(agentId);
+
+        Assert.That(_created[^1].BaseAddress, Is.EqualTo(new Uri($"https://4.193.109.6/agents/{agentId}/")));
+    }
+
+    [Test]
+    public async Task GetClientAsync_CalledTwiceInScope_ReturnsCachedClientAndEnsuresOnce()
+    {
+        var agentId = Guid.NewGuid();
         var factory = NewFactory();
 
         var first = await factory.GetClientAsync(agentId);
         var second = await factory.GetClientAsync(agentId);
 
         Assert.That(second, Is.SameAs(first));
-        _provisioner.Verify(p => p.ProvisionAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
+        _containerManager.Verify(m => m.EnsureContainerAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }

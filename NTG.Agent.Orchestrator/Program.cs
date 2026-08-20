@@ -114,6 +114,12 @@ builder.Services.AddSingleton<IngestionStatusSignal>();
 builder.Services.AddHttpClient("ModelDiscovery");
 builder.Services.AddScoped<ModelDiscoveryService>();
 
+// Agent-provisioning lifecycle: CreateAgent/reprovision persist an agent in Provisioning state and
+// signal this worker, which boots the knowledge backend in the background and flips the row to
+// Ready/Failed (so the create request never blocks on container boot).
+builder.Services.AddSingleton<AgentProvisioningSignal>();
+builder.Services.AddHostedService<AgentProvisioningHostedService>();
+
 // Knowledge provider selection — the Orchestrator only depends on IKnowledgeService /
 // IKnowledgeProvisioner; the provider behind them is chosen by configuration so backends
 // can be swapped without touching Orchestrator code.
@@ -121,10 +127,10 @@ var knowledgeProvider = builder.Configuration["Knowledge:Provider"] ?? "LightRag
 switch (knowledgeProvider)
 {
     case "LightRag":
-        // Self-contained provider package (containers, port reservations, HTTP clients,
-        // background workers). The EF adapters below are its only touch points with our DB.
+        // Self-contained provider package (containers, HTTP clients, background workers).
+        // The EF adapters below are its only touch points with our DB.
         builder.Services.AddLightRagKnowledge(builder.Configuration);
-        builder.Services.AddScoped<ILightRagAgentPortStore, LightRagEfAgentPortStore>();
+        builder.Services.AddScoped<ILightRagAgentStore, LightRagEfAgentStore>();
         builder.Services.AddScoped<ILightRagIngestionStore, LightRagEfIngestionStore>();
         break;
     default:
