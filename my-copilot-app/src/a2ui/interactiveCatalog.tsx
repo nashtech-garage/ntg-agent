@@ -324,7 +324,10 @@ const InteractiveTabs = createReactComponent(TabsApi as any, ({ props, buildChil
             role="tab"
             id={`${domId}tab-${i}`}
             aria-selected={activeIndex === i}
-            aria-controls={`${domId}panel-${i}`}
+            // Only the active panel is rendered, so pointing an inactive tab at
+            // panel-${i} would reference an element that is not in the DOM — invalid
+            // ARIA, and assistive tech follows the reference before checking it exists.
+            aria-controls={activeIndex === i ? `${domId}panel-${i}` : undefined}
             tabIndex={activeIndex === i ? 0 : -1}
             ref={(el) => { tabRefs.current[i] = el; }}
             onClick={() => setSelectedIndex(i)}

@@ -257,8 +257,8 @@
 
                 @if (!string.IsNullOrEmpty(skillsStatusMessage))
                 {
-                    <div class="alert alert-success mt-3 d-flex align-items-center" role="alert">
-                        <i class="bi bi-check-circle-fill me-2"></i>
+                    <div class="alert @(skillsStatusIsError ? "alert-danger" : "alert-success") mt-3 d-flex align-items-center" role="alert">
+                        <i class="@(skillsStatusIsError ? "bi bi-exclamation-triangle-fill" : "bi bi-check-circle-fill") me-2"></i>
                         <div>@skillsStatusMessage</div>
                     </div>
                 }
@@ -296,6 +296,9 @@
 
     private List<AgentSkillDto>? agentSkills;
     private string? skillsStatusMessage;
+    // Paired with skillsStatusMessage: without it a failure renders in the success alert, so a
+    // "Could not save skills" line arrives green with a tick and reads as if it worked.
+    private bool skillsStatusIsError;
     private bool isSavingSkills;
 
     private const string mcpTab = "mcp";
@@ -321,6 +324,7 @@
         {
             agentSkills = [];
             skillsStatusMessage = $"Could not load skills: {ex.Message}";
+            skillsStatusIsError = true;
         }
 
         if (!string.IsNullOrEmpty(AgentDetail.McpServer))
@@ -429,6 +433,7 @@
 
         isSavingSkills = true;
         skillsStatusMessage = string.Empty;
+        skillsStatusIsError = false;
 
         // finally, not a trailing assignment: an exception escaping an event handler would
         // otherwise leave the button spinning and disabled for good, with no error shown.
@@ -440,6 +445,7 @@
         catch (Exception ex)
         {
             skillsStatusMessage = $"Could not save skills: {ex.Message}";
+            skillsStatusIsError = true;
         }
         finally
         {

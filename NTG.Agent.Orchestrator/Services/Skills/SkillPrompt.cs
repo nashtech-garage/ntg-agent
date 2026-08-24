@@ -106,27 +106,50 @@ public static class SkillPrompt
     /// in a description, so this is defence in depth for skills stored before that check existed.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Category-based rather than a list of known offenders. A hand-maintained set catches CR and
     /// LF and misses U+0085 NEL, U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR — all of
     /// which are above 0x20, so they clear a control-character check too, while markdown renderers
     /// and tokenizers alike still treat them as line breaks. Asking Unicode what a character
     /// <em>is</em> closes the whole class rather than three members of it.
+    /// </para>
+    /// <para>
+    /// Iterates runes, not chars, and flattens <see cref="UnicodeCategory.Format"/> too. Both are
+    /// needed for the same class of attack: Unicode tag characters (U+E0000–U+E007F) are Format,
+    /// and being supplementary-plane they arrive as a surrogate pair, so a per-char loop sees two
+    /// Surrogates and matches neither. A per-char loop also misses BMP Format characters outright
+    /// — U+200B ZERO WIDTH SPACE needs no surrogates to slip through. Flattening Format does cost
+    /// legitimate joiners (ZWJ in emoji sequences, Arabic formatting marks); that is the right
+    /// trade here because <c>SkillContentGuard</c> already rejects those at import, so anything
+    /// still carrying them reached the database before that check existed.
+    /// </para>
     /// </remarks>
     private static string Sanitize(string value)
     {
         var builder = new StringBuilder(value.Length);
 
-        foreach (var c in value)
+        Span<char> utf16 = stackalloc char[2];
+
+        foreach (var rune in value.EnumerateRunes())
         {
-            builder.Append(CharUnicodeInfo.GetUnicodeCategory(c) switch
+            switch (Rune.GetUnicodeCategory(rune))
             {
-                UnicodeCategory.LineSeparator
-                    or UnicodeCategory.ParagraphSeparator
-                    or UnicodeCategory.Control => ' ',
-                // A backtick would close the fence around the name that precedes it.
-                _ when c == '`' => '\'',
-                _ => c,
-            });
+                case UnicodeCategory.LineSeparator:
+                case UnicodeCategory.ParagraphSeparator:
+                case UnicodeCategory.Control:
+                case UnicodeCategory.Format:
+                    builder.Append(' ');
+                    continue;
+            }
+
+            // A backtick would close the fence around the name that precedes it.
+            if (rune.Value == '`')
+            {
+                builder.Append('\'');
+                continue;
+            }
+
+            builder.Append(utf16[..rune.EncodeToUtf16(utf16)]);
         }
 
         return builder.ToString().Trim();

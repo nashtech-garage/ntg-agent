@@ -221,10 +221,16 @@ public class SkillsController(SkillRegistry skillRegistry, ILogger<SkillsControl
             replaced);
 
     /// <summary>
-    /// Reassembles <c>SKILL.md</c> from the stored frontmatter fields and body. Values are written
-    /// quoted; the importer rejects newlines and structural markers in them, so no value can break
-    /// out of its line.
+    /// Reassembles <c>SKILL.md</c> from the stored frontmatter fields and body.
     /// </summary>
+    /// <remarks>
+    /// Only <c>metadata.version</c> is quoted; <c>name</c>, <c>description</c>, <c>license</c> and
+    /// <c>compatibility</c> are emitted as bare scalars. That is safe rather than accidental — the
+    /// importer rejects newlines and structural markers in those fields, so no value can break out
+    /// of its line. It does mean a value containing <c>": "</c> round-trips through this project's
+    /// own parser but may be read as a nested mapping by a strict YAML parser, so quote them here
+    /// if exported packages ever need to survive a third-party reader.
+    /// </remarks>
     private static string BuildManifest(Models.Skills.Skill skill)
     {
         var builder = new StringBuilder();
