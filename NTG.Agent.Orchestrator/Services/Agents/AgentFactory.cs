@@ -1,7 +1,6 @@
 ﻿using Anthropic;
 using Anthropic.Core;
 using Anthropic.Models.Messages;
-using Azure.AI.OpenAI;
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -130,9 +129,9 @@ public class AgentFactory : IAgentFactory
         if (string.IsNullOrWhiteSpace(provider.Endpoint))
             throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
 
-        var agent = new AzureOpenAIClient(
-             new Uri(provider.Endpoint),
-             new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
+        var agent = new OpenAIClient(
+             new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+             new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) })
                .GetChatClient(modelId)
                .AsAIAgent(instructions: instructions);
         return agent;
@@ -265,15 +264,22 @@ public class AgentFactory : IAgentFactory
         if (string.IsNullOrWhiteSpace(provider.Endpoint))
             throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
 
+        // AzureOpenAIClient appends legacy routes (/openai/deployments/... with a pinned preview
+        // api-version) onto the endpoint, which 404s against the modern /openai/v1 surface that
+        // Foundry-issued "Target URI" endpoints point at. The plain OpenAIClient against the
+        // normalized v1 base serves both chat completions and responses for these endpoints;
+        // the deployment name is resolved via the request's model field.
+        var azureClient = new OpenAIClient(
+            new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+            new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) });
+
         IChatClient chatClient;
 
         if (agent.Mode == AgentMode.Thinking)
         {
             // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
 #pragma warning disable OPENAI001
-            chatClient = new AzureOpenAIClient(
-                    new Uri(provider.Endpoint),
-                    new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
+            chatClient = azureClient
                 .GetResponsesClient()
                 .AsIChatClient(modelId)
                 .AsBuilder()
@@ -297,9 +303,7 @@ public class AgentFactory : IAgentFactory
         }
         else
         {
-            chatClient = new AzureOpenAIClient(
-                new Uri(provider.Endpoint),
-                new ApiKeyCredential(provider.ApiKey ?? "placeholder"))
+            chatClient = azureClient
                 .GetChatClient(modelId)
                 .AsIChatClient()
                 .AsBuilder()
