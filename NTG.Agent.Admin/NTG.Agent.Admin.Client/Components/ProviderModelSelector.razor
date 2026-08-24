@@ -3,7 +3,7 @@
 
 <div class="row">
     <div class="col-md-6 mb-3">
-        <label class="form-label fw-semibold">Provider <span class="text-muted">(Optional)</span></label>
+        <label class="form-label fw-semibold">LLM Provider <span class="text-muted">(Optional)</span></label>
         <select class="form-select" value="@ProviderId?.ToString()" @onchange="OnProviderIdChangedAsync">
             <option value="">Select a provider...</option>
             @if (providers != null)
@@ -21,13 +21,13 @@
         {
             <input type="text" class="form-control" value="@ModelOverride" @onchange="OnModelOverrideChangedAsync"
                    placeholder="@(IsInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" />
-            <div class="form-text">No provider selected — type any model id manually.</div>
+            <div class="form-text">No LLM provider selected — type any model id manually.</div>
         }
         else if (enabledModels == null || enabledModels.Count == 0)
         {
             <div class="alert alert-warning py-2 mb-0 small">
                 <i class="bi bi-exclamation-triangle me-1"></i>
-                No models enabled for this provider yet. Enable models in the Providers page first.
+                No models enabled for this LLM provider yet. Enable models in the LLM Providers page first.
             </div>
         }
         else
@@ -41,7 +41,7 @@
                     </option>
                 }
             </select>
-            <div class="form-text">Only models enabled by the admin for this provider are listed.</div>
+            <div class="form-text">Only models enabled by the admin for this LLM provider are listed.</div>
         }
         @if (modelError != null)
         {

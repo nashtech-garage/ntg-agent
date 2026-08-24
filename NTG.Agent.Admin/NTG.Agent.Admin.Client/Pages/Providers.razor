@@ -5,15 +5,15 @@
 @using NTG.Agent.Common.Dtos.Agents
 @inject AgentClient AgentClient
 
-<PageTitle>Providers</PageTitle>
+<PageTitle>LLM Providers</PageTitle>
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">
-            <i class="bi bi-cloud-fill me-2"></i>Providers
+            <i class="bi bi-cloud-fill me-2"></i>LLM Providers
         </h1>
         <button class="btn btn-primary" @onclick="ShowCreateModal">
-            <i class="bi bi-plus-circle me-2"></i>Add Provider
+            <i class="bi bi-plus-circle me-2"></i>Add LLM Provider
         </button>
     </div>
 
@@ -23,7 +23,7 @@
     }
     else if (providers.Count == 0)
     {
-        <div class="alert alert-info">No providers configured. Add one to get started.</div>
+        <div class="alert alert-info">No LLM providers configured. Add one to get started.</div>
     }
     else
     {
@@ -81,7 +81,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(editingProvider.Id != Guid.Empty ? "Edit Provider" : "Create Provider")</h5>
+                    <h5 class="modal-title">@(editingProvider.Id != Guid.Empty ? "Edit LLM Provider" : "Create LLM Provider")</h5>
                     <button type="button" class="btn-close" @onclick="CloseFormModal"></button>
                 </div>
                 <div class="modal-body">
@@ -90,7 +90,7 @@
                         <input type="text" class="form-control" @bind="editingProvider.Name" placeholder="e.g., My OpenAI" required />
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Provider Type <span class="text-danger">*</span></label>
+                        <label class="form-label">LLM Provider Type <span class="text-danger">*</span></label>
                         <select class="form-select" value="@editingProvider.ProviderType" @onchange="OnProviderTypeChanged">
                             @foreach (ProviderType t in Enum.GetValues<ProviderType>())
                             {
@@ -136,7 +136,7 @@
                         <label class="form-label">Models available to agents</label>
                         @if (editingProvider.ProviderType == ProviderType.Custom)
                         {
-                            <div class="form-text mb-2">Custom providers expose no model catalog — add each model manually.</div>
+                            <div class="form-text mb-2">Custom LLM providers expose no model catalog — add each model manually.</div>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle">
                                     <thead>
@@ -186,7 +186,7 @@
                                     }
                                     <i class="bi bi-cloud-download"></i> Fetch Models
                                 </button>
-                                <small class="text-muted">Fetches the provider's available models; tick the ones agents may use.</small>
+                                <small class="text-muted">Fetches the LLM provider's available models; tick the ones agents may use.</small>
                             </div>
                             @if (fetchMessage != null)
                             {
@@ -240,7 +240,7 @@
                             }
                             else
                             {
-                                <div class="text-muted small">No models loaded yet. Save the provider and click "Fetch Models".</div>
+                                <div class="text-muted small">No models loaded yet. Save the LLM provider and click "Fetch Models".</div>
                             }
                         }
                     </div>
@@ -268,14 +268,14 @@
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title text-danger">Delete Provider</h5>
+                    <h5 class="modal-title text-danger">Delete LLM Provider</h5>
                     <button type="button" class="btn-close" @onclick="() => { showDeleteModal = false; deletingProvider = null; }"></button>
                 </div>
                 <div class="modal-body">
                     <p>Are you sure you want to delete <strong>@deletingProvider.Name</strong>?</p>
                     @if (deletingProvider.AgentCount > 0)
                     {
-                        <div class="alert alert-warning">This provider is used by @deletingProvider.AgentCount agent(s). It cannot be deleted until all agents are reassigned.</div>
+                        <div class="alert alert-warning">This LLM provider is used by @deletingProvider.AgentCount agent(s). It cannot be deleted until all agents are reassigned.</div>
                     }
                     <p class="text-muted">This action cannot be undone.</p>
                 </div>
