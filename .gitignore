@@ -388,6 +388,7 @@ start-local.sh
 local-appsettings-setup.md
 
 .claude/
+.opencode/
 .slim/deepwork/
 
 .idea/

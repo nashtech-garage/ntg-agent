@@ -16,7 +16,6 @@ public static class ThinkingCapableModels
         [ProviderType.Anthropic] = ["claude-3-7-sonnet", "claude-sonnet-4", "claude-opus-4", "claude-haiku-4-5"],
         [ProviderType.GoogleGemini] = ["gemini-2.0-flash-thinking", "gemini-2.5"],
         [ProviderType.OpenAICompatible] = ["o1", "o3", "gpt-5", "deepseek-v4", "deepseek-r1", "deepseek-reasoner", "qwq", "grok-3", "grok-4"],
-        [ProviderType.Custom] = ["o1", "o3", "gpt-5", "deepseek-v4", "deepseek-r1", "deepseek-reasoner", "qwq", "grok-3", "grok-4"],
     };
 
     public static bool Supports(ProviderType providerType, string? modelId) =>

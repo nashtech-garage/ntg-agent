@@ -134,114 +134,69 @@
 
                     <div class="mb-3">
                         <label class="form-label">Models available to agents</label>
-                        @if (editingProvider.ProviderType == ProviderType.Custom)
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="FetchModels" disabled="@isFetching">
+                                @if (isFetching)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-cloud-download"></i> Fetch Models
+                            </button>
+                            <small class="text-muted">Fetches the LLM provider's available models; tick the ones agents may use.</small>
+                        </div>
+                        @if (fetchMessage != null)
                         {
-                            <div class="form-text mb-2">Custom LLM providers expose no model catalog — add each model manually.</div>
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle">
+                            <div class="alert @(fetchSucceeded ? "alert-success" : "alert-danger") py-2 small">@fetchMessage</div>
+                        }
+                        @if (modelChoices != null && modelChoices.Count > 0)
+                        {
+                            <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                                <table class="table table-sm align-middle mb-0">
                                     <thead>
                                         <tr>
-                                            <th style="width:45%;">Model ID</th>
-                                            <th style="width:30%;">Thinking mode</th>
-                                            <th style="width:10%;"></th>
+                                            <th style="width:10%;">Enable</th>
+                                            <th style="width:45%;">Model</th>
+                                            <th style="width:35%;">Thinking mode</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach (var m in editingProvider.Models)
+                                        @foreach (var c in modelChoices)
                                         {
-                                            <tr>
-                                                <td><input type="text" class="form-control form-control-sm" @bind="m.ModelId" placeholder="e.g., my-model-v1" /></td>
+                                            <tr class="@(c.IsEnabled ? "" : "opacity-50")">
+                                                <td>
+                                                    <input class="form-check-input" type="checkbox" checked="@c.IsEnabled"
+                                                           @onchange="() => ToggleModelEnabled(c)" />
+                                                </td>
+                                                <td>
+                                                    <span class="fw-semibold">@c.ModelId</span>
+                                                    @if (!string.IsNullOrEmpty(c.DisplayName))
+                                                    {
+                                                        <div class="text-muted small">@c.DisplayName</div>
+                                                    }
+                                                </td>
                                                 <td>
                                                     <div class="form-check form-switch mb-0">
-                                                        <input class="form-check-input" type="checkbox" role="switch" id="@("think-" + editingProvider.Models.IndexOf(m))"
-                                                               checked="@m.AllowsThinking" @onchange="() => m.AllowsThinking = !m.AllowsThinking" />
-                                                        <label class="form-check-label small" for="@("think-" + editingProvider.Models.IndexOf(m))">Allow</label>
+                                                        <input class="form-check-input" type="checkbox" role="switch"
+                                                               checked="@c.AllowsThinking"
+                                                               disabled="@(!c.IsEnabled || !c.SupportsThinking)"
+                                                               @onchange="() => ToggleThinking(c)"
+                                                               title="@(c.SupportsThinking ? "Allow agents to use Thinking mode with this model" : "This model does not support Thinking mode")" />
+                                                        <label class="form-check-label small">
+                                                            @if (!c.SupportsThinking) { <span class="text-muted">Not thinking-capable</span> }
+                                                            else if (c.AllowsThinking) { <span>Allowed</span> }
+                                                            else { <span>Off</span> }
+                                                        </label>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => editingProvider.Models.Remove(m)" title="Remove">
-                                                        <i class="bi bi-trash"></i>
-                                                    </button>
-                                                </td>
                                             </tr>
-                                        }
-                                        @if (editingProvider.Models.Count == 0)
-                                        {
-                                            <tr><td colspan="3" class="text-muted small">No models yet — click "Add Model" below.</td></tr>
                                         }
                                     </tbody>
                                 </table>
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-primary" @onclick="AddCustomModel">
-                                <i class="bi bi-plus-circle me-1"></i>Add Model
-                            </button>
                         }
                         else
                         {
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="FetchModels" disabled="@isFetching">
-                                    @if (isFetching)
-                                    {
-                                        <span class="spinner-border spinner-border-sm me-1"></span>
-                                    }
-                                    <i class="bi bi-cloud-download"></i> Fetch Models
-                                </button>
-                                <small class="text-muted">Fetches the LLM provider's available models; tick the ones agents may use.</small>
-                            </div>
-                            @if (fetchMessage != null)
-                            {
-                                <div class="alert @(fetchSucceeded ? "alert-success" : "alert-danger") py-2 small">@fetchMessage</div>
-                            }
-                            @if (modelChoices != null && modelChoices.Count > 0)
-                            {
-                                <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
-                                    <table class="table table-sm align-middle mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th style="width:10%;">Enable</th>
-                                                <th style="width:45%;">Model</th>
-                                                <th style="width:35%;">Thinking mode</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach (var c in modelChoices)
-                                            {
-                                                <tr class="@(c.IsEnabled ? "" : "opacity-50")">
-                                                    <td>
-                                                        <input class="form-check-input" type="checkbox" checked="@c.IsEnabled"
-                                                               @onchange="() => ToggleModelEnabled(c)" />
-                                                    </td>
-                                                    <td>
-                                                        <span class="fw-semibold">@c.ModelId</span>
-                                                        @if (!string.IsNullOrEmpty(c.DisplayName))
-                                                        {
-                                                            <div class="text-muted small">@c.DisplayName</div>
-                                                        }
-                                                    </td>
-                                                    <td>
-                                                        <div class="form-check form-switch mb-0">
-                                                            <input class="form-check-input" type="checkbox" role="switch"
-                                                                   checked="@c.AllowsThinking"
-                                                                   disabled="@(!c.IsEnabled || !c.SupportsThinking)"
-                                                                   @onchange="() => ToggleThinking(c)"
-                                                                   title="@(c.SupportsThinking ? "Allow agents to use Thinking mode with this model" : "This model does not support Thinking mode")" />
-                                                            <label class="form-check-label small">
-                                                                @if (!c.SupportsThinking) { <span class="text-muted">Not thinking-capable</span> }
-                                                                else if (c.AllowsThinking) { <span>Allowed</span> }
-                                                                else { <span>Off</span> }
-                                                            </label>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            }
-                                        </tbody>
-                                    </table>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="text-muted small">No models loaded yet. Save the LLM provider and click "Fetch Models".</div>
-                            }
+                            <div class="text-muted small">No models loaded yet. Save the LLM provider and click "Fetch Models".</div>
                         }
                     </div>
 
@@ -433,7 +388,6 @@
     private void RebuildModelChoices()
     {
         if (editingProvider == null) { modelChoices = null; return; }
-        if (editingProvider.ProviderType == ProviderType.Custom) { modelChoices = null; return; }
 
         var choices = new List<ModelChoice>();
         var persistedById = editingProvider.Models
@@ -520,11 +474,6 @@
         if (existing != null) existing.AllowsThinking = c.AllowsThinking;
     }
 
-    private void AddCustomModel()
-    {
-        editingProvider!.Models.Add(new ProviderModelDto());
-    }
-
     private void OnProviderTypeChanged(ChangeEventArgs e)
     {
         if (Enum.TryParse<ProviderType>(e.Value?.ToString(), out var type))
@@ -550,7 +499,6 @@
         ProviderType.Anthropic => "https://api.anthropic.com/v1",
         ProviderType.GoogleGemini => "https://generativelanguage.googleapis.com/v1beta",
         ProviderType.OpenAICompatible => "https://your-endpoint/v1",
-        ProviderType.Custom => "https://your-endpoint/v1 (optional)",
         _ => ""
     };
 

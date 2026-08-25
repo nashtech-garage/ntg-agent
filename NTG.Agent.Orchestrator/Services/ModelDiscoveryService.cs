@@ -29,8 +29,6 @@ public class ModelDiscoveryService
             ProviderType.Anthropic => await GetAnthropicModelsAsync(client, apiKey),
             ProviderType.GoogleGemini => await GetGeminiModelsAsync(client, endpoint, apiKey),
             ProviderType.OpenAICompatible => await GetOpenAICompatModelsAsync(client, endpoint, apiKey),
-            // Custom providers define their models manually in the admin UI — nothing to fetch.
-            ProviderType.Custom => [],
             _ => throw new NotSupportedException($"Provider type '{type}' is not supported.")
         };
     }
