@@ -21,15 +21,7 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
             case ReasoningSurface.ResponsesApi:
                 return client.GetResponsesClient()
                     .AsIChatClient(agent.ProviderModelName)
-                    .BuildStandard(o => o.RawRepresentationFactory = _ => new CreateResponseOptions
-                    {
-                        ReasoningOptions = new ResponseReasoningOptions
-                        {
-                            ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
-                            // Summary support varies per model; Auto selects the best available.
-                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Auto,
-                        }
-                    });
+                    .BuildStandard(ConfigureResponsesOptions);
 
             case ReasoningSurface.ChatCompletionsEffort:
                 return client.GetChatClient(agent.ProviderModelName)
@@ -46,6 +38,31 @@ public sealed class OpenAICompatibleClientFactory : IAgentClientFactory
         }
 #pragma warning restore OPENAI001
     }
+
+#pragma warning disable OPENAI001
+    // The Responses API is stateful unless told otherwise, and that statefulness is what broke the tool
+    // loop. OpenAIResponsesChatClient surfaces the stored response id as ChatResponse.ConversationId;
+    // FunctionInvokingChatClient reads a non-null ConversationId as "the service owns the history", throws
+    // away everything it has accumulated and sends the next iteration as previous_response_id plus the bare
+    // tool result. Azure's /openai/v1 surface does not reliably retain those responses — and does not admit
+    // it in the response's own "store" field, which is the only signal the client would honour — so the
+    // continuation immediately after a successful tool call dies with
+    // HTTP 400 previous_response_not_found and takes the whole run with it. Intermittently, which is worse.
+    // store=false keeps ConversationId null, so the full history travels on every request and nothing
+    // depends on server state we cannot inspect. Reasoning stays configured here because the summaries are
+    // the entire reason this surface is preferred over chat completions.
+    public static void ConfigureResponsesOptions(ChatOptions options) =>
+        options.RawRepresentationFactory = _ => new CreateResponseOptions
+        {
+            StoredOutputEnabled = false,
+            ReasoningOptions = new ResponseReasoningOptions
+            {
+                ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                // Summary support varies per model; Auto selects the best available.
+                ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Auto,
+            }
+        };
+#pragma warning restore OPENAI001
 
     private static OpenAIClient CreateOpenAIClient(Models.Agents.Agent agent)
     {

@@ -36,29 +36,99 @@ body {
    ────────────────────────────────────────────────────────────────────────── */
 .a2ui-surface {
   --a2ui-accent: #5b5bd6;
+  /* Companion hue. One accent alone reads flat over a whole form; a second, used only on the
+     primary button's gradient, gives the card somewhere to travel to. Teal is far enough from
+     iris to register and close enough not to argue with it. Deep, because the button's label sits
+     on the far end of that gradient too: a brighter teal drops white text to about 3:1. */
+  --a2ui-accent-2: #0e8080;
+  /* Text on the accents. White is right here, but not everywhere: dark lifts both accents so they
+     read against a near-black card, and white on the lifted iris is only 3.5:1 — so dark flips
+     this to ink instead. The gradient still carries the emphasis either way. */
+  --a2ui-on-accent: #ffffff;
   --a2ui-ink: #1f2333;
   --a2ui-muted: #6b7180;
+  /* Field labels carry most of the text on a form, so they are where colour actually shows.
+     Tinted toward the accent rather than left grey. */
+  --a2ui-label: #4a4fb0;
   --a2ui-card: #ffffff;
   --a2ui-border: #e6e7f0;
+  --a2ui-rule: #dcdeeb;
   --a2ui-field: #fbfbfe;
   --a2ui-ring: rgba(91, 91, 214, 0.30);
+  /* A wash of the accent in one corner, so the card has a light source instead of a flat fill.
+     Kept faint — higher and it stops reading as paper and starts reading as a banner. The amount
+     is per-theme because a percentage is not perceptually equal on both grounds: 5% over white
+     and 8% over near-black are the same small step in opposite directions.
+     Written as an alpha, like --a2ui-ring. color-mix() would say it better, but Lightning CSS
+     cannot fold one whose argument is a var(), so it ships a pre-@supports fallback of the accent
+     at FULL strength — turning this whisper into an indigo blob wherever color-mix is missing. */
+  --a2ui-wash: rgba(91, 91, 214, 0.05);
+  /* Shadows are tokens too, so the dark block below can be a palette swap and nothing else. The
+     ambient one is iris-tinted here, where a coloured shadow reads; over a dark ground it cannot,
+     and dark takes it back to plain black. */
+  --a2ui-shadow-near: rgba(20, 22, 40, 0.04);
+  --a2ui-shadow-far: rgba(91, 91, 214, 0.22);
   /* The basic catalog's primary Button reads this var for its background. */
   --a2ui-primary-color: var(--a2ui-accent);
 
-  max-width: 460px !important;
+  /* Was a flat 460px, where a label-and-value row left the value column nowhere to go. 536 is a
+     judgement call, picked by eye against the widest thing these surfaces draw — a three-option
+     price list — not derived from anything. min() keeps it off the edges of a narrow viewport. */
+  max-width: min(536px, 100%) !important;
   margin: 6px 0 !important;
   padding: 18px 18px 20px !important;
-  background: var(--a2ui-card) !important;
+  background:
+    radial-gradient(120% 90% at 100% 0%, var(--a2ui-wash), transparent 60%),
+    var(--a2ui-card) !important;
   color: var(--a2ui-ink) !important;
   border: 1px solid var(--a2ui-border) !important;
   border-radius: 16px !important;
   box-shadow:
-    0 1px 2px rgba(20, 22, 40, 0.04),
-    0 12px 28px -12px rgba(91, 91, 214, 0.22) !important;
+    0 1px 2px var(--a2ui-shadow-near),
+    0 14px 30px -14px var(--a2ui-shadow-far) !important;
   font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif !important;
   font-size: 14px;
   line-height: 1.55;
   box-sizing: border-box;
+  /* Checkboxes, radios and the range track are painted by the UA, not by us, and it paints them
+     for a light page unless told otherwise — unchecked radios come out as white discs on the dark
+     card. This is the only way to reach them. */
+  color-scheme: light dark;
+}
+
+/* Rows — the label-and-value pattern, and the two things that used to break it.
+
+   Symptom: a price rendered as "$42" on one line and "0" on the next, inside a spaceBetween Row.
+
+   First cause is the catalog's own markup. Column renders `width: 100%` unconditionally, so a
+   Column nested in a Row asks for the entire row. Both children are shrinkable flex items, so the
+   browser resolves the over-request by squeezing the *other* one — the value — down to a sliver.
+   The fix is to stop the nested container asking for everything (`width: auto`, and `min-width: 0`
+   so it may shrink past its own content) and to take the value out of the shrink entirely.
+
+   Second cause is that a sliver-wide element still has to put "$420" somewhere, and it is allowed
+   to break mid-token: react-ui sets `.copilotKitMessage { overflow-wrap: break-word }`, which every
+   surface inherits. That rule is right for prose — a pasted URL should wrap rather than overflow —
+   so it is left alone everywhere except the value, where a break is never the better outcome.
+
+   Together: the left side yields, the value keeps its line. */
+.a2ui-surface div[style*="flex-direction: row"] {
+  gap: 12px !important;
+  min-width: 0;
+}
+.a2ui-surface div[style*="flex-direction: row"] > div[style*="flex-direction: column"] {
+  width: auto !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+/* The value is the last thing in the row — a price, a total, a confirm button. It is also the
+   shortest, so giving it the immovable side costs the layout nothing, and it is the one place worth
+   overriding the inherited break-word: a total that wraps mid-digit is unreadable, whereas one that
+   runs a few pixels wide is merely tight. */
+.a2ui-surface div[style*="justify-content: space-between"] > :last-child {
+  flex-shrink: 0 !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
 }
 
 /* Headings — intentional scale, tighter tracking */
@@ -77,12 +147,17 @@ body {
 .a2ui-surface h4 { font-size: 16px !important; }
 .a2ui-surface small { color: var(--a2ui-muted) !important; }
 
-/* Field labels — quiet, recognizable */
-.a2ui-surface label {
+/* Field labels — quiet, recognizable.
+   Only the ones that actually name a field. The unqualified selector also caught every option
+   row — ChoicePicker wraps each choice in a bare <label>, CheckBox puts one beside its box — and
+   six lines of indigo in a column is where lively turns into busy. A field label is the one that
+   stands above its control: it has a `for`, and nothing precedes it. Option rows keep the ink and
+   the size they inherit, which is what makes them read as answers rather than questions. */
+.a2ui-surface label[for]:not(input + label) {
   font-size: 12.5px !important;
   font-weight: 550 !important;
   letter-spacing: 0 !important;
-  color: var(--a2ui-muted) !important;
+  color: var(--a2ui-label) !important;
 }
 
 /* Text inputs & textareas — tactile, clearly editable, iris focus ring */
@@ -102,11 +177,19 @@ body {
   border-color: var(--a2ui-accent) !important;
   box-shadow: 0 0 0 3px var(--a2ui-ring) !important;
 }
-.a2ui-surface input[type="checkbox"] {
+.a2ui-surface input[type="checkbox"],
+.a2ui-surface input[type="radio"] {
   width: 18px !important;
   height: 18px !important;
   padding: 0 !important;
   accent-color: var(--a2ui-accent) !important;
+}
+/* Sliders were left at the browser default — a pink track beside an iris button. */
+.a2ui-surface input[type="range"] {
+  accent-color: var(--a2ui-accent) !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
 }
 
 /* Buttons — primary inherits the iris var; all get a clear focus state */
@@ -118,31 +201,87 @@ body {
   cursor: pointer;
   transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.04s ease;
 }
-.a2ui-surface button:hover { filter: brightness(0.97); }
+/* The primary button is the one place both accents meet. Everything else stays single-hue, so
+   the gradient reads as emphasis rather than decoration.
+   Keyed on the inline background because that is the only thing that distinguishes the primary
+   variant in the DOM. React assigns inline styles through the CSSOM, and a var() reference is
+   *not* resolved at parse time — the browser stores and re-serialises the reference itself — so
+   the attribute really does read `background-color: var(--a2ui-primary-color)`. Matching the
+   property name as well is what keeps the tab strip out of it: an active tab spends the same var
+   on its `color` and `border-bottom`. Leaving the reference's closing paren off also catches the
+   stock catalog Button, which writes the same declaration with a `, #007bff` fallback. */
+.a2ui-surface button[style*="background-color: var(--a2ui-primary-color"] {
+  background-image: linear-gradient(135deg, var(--a2ui-accent), var(--a2ui-accent-2)) !important;
+  color: var(--a2ui-on-accent) !important;
+  border: none !important;
+}
+.a2ui-surface button:hover { filter: brightness(1.04) saturate(1.05); }
 .a2ui-surface button:active { transform: translateY(1px); }
 .a2ui-surface button:focus-visible {
   outline: none !important;
   box-shadow: 0 0 0 3px var(--a2ui-ring) !important;
 }
-
-/* Dividers */
-.a2ui-surface hr {
-  border: none !important;
-  border-top: 1px solid var(--a2ui-border) !important;
+/* A Button goes disabled while its form is invalid, and the catalog gives no sign of it. */
+.a2ui-surface button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
 }
 
+/* Tabs are <button>s, so the rules above land on them uninvited: a 10px radius bends the active
+   tab's 2px underline into a shallow "u", and one weight for every button erases the bold/normal
+   distinction the strip relies on. The weight comes back as colour instead, which is the quieter
+   signal of the two and leaves the accent underline to do the pointing. */
+.a2ui-surface [role="tab"] { border-radius: 0 !important; }
+.a2ui-surface [role="tab"][aria-selected="false"] { color: var(--a2ui-muted) !important; }
+
+/* Every line the catalog draws is a hardcoded #ccc: Divider is a <div> with that background (not
+   an <hr>, so the obvious selector never matched), the tab strip underlines itself with it, and
+   Card borders itself with it. One mid-grey doing three jobs — heavy on white, and a glare on the
+   dark card. React writes inline styles through the CSSOM, so the browser re-serialises them and
+   `#ccc` reaches the attribute as `rgb(204, 204, 204)`; the colour alone would therefore sweep up
+   all three at once, which is why each rule below matches the property that carries it. */
+.a2ui-surface div[style*="background-color: rgb(204, 204, 204)"] {
+  /* Faded at both ends so a section break reads as a seam rather than a cut. */
+  background: linear-gradient(
+    90deg, transparent, var(--a2ui-rule) 15%, var(--a2ui-rule) 85%, transparent) !important;
+}
+/* The vertical Divider is the 1px-wide one — fade it along its own axis, not across it. */
+.a2ui-surface div[style*="background-color: rgb(204, 204, 204)"][style*="width: 1px"] {
+  background: linear-gradient(
+    180deg, transparent, var(--a2ui-rule) 15%, var(--a2ui-rule) 85%, transparent) !important;
+}
+.a2ui-surface div[style*="border-bottom: 1px solid rgb(204, 204, 204)"] {
+  border-bottom-color: var(--a2ui-rule) !important;
+}
+.a2ui-surface div[style*="border: 1px solid rgb(204, 204, 204)"] {
+  border-color: var(--a2ui-border) !important;
+}
+/* Card and the Modal panel fill themselves #fff, which is a white hole punched in a dark card.
+   A no-op in light, where the token is that same white. */
+.a2ui-surface div[style*="background-color: rgb(255, 255, 255)"] {
+  background-color: var(--a2ui-card) !important;
+}
+
+/* Dark is a palette swap and nothing more — every rule above draws its colour from these. */
 @media (prefers-color-scheme: dark) {
   .a2ui-surface {
     --a2ui-accent: #7c7cf0;
+    --a2ui-accent-2: #22a89e;
+    /* White on the lifted accents is 3.5:1; ink on them is 5.2:1 at the iris end and better at
+       the teal one. The button stays the brightest thing on the card either way. */
+    --a2ui-on-accent: #12142a;
     --a2ui-ink: #e9eaf2;
     --a2ui-muted: #9aa0b4;
+    --a2ui-label: #b4b7f0;
     --a2ui-card: #161922;
     --a2ui-border: #2a2f40;
+    --a2ui-rule: #363d52;
     --a2ui-field: #1d2130;
     --a2ui-ring: rgba(124, 124, 240, 0.34);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.30),
-      0 14px 30px -14px rgba(0, 0, 0, 0.55) !important;
+    --a2ui-wash: rgba(124, 124, 240, 0.08);
+    --a2ui-shadow-near: rgba(0, 0, 0, 0.30);
+    --a2ui-shadow-far: rgba(0, 0, 0, 0.55);
   }
 }
 

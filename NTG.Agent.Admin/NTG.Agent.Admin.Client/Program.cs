@@ -49,4 +49,9 @@ builder.Services.AddHttpClient<TokenUsageClient>(client =>
     client.BaseAddress = baseUri;
 });
 
+builder.Services.AddHttpClient<SkillClient>(client =>
+{
+    client.BaseAddress = baseUri;
+});
+
 await builder.Build().RunAsync();

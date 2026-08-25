@@ -1,0 +1,300 @@
+@page "/skills-management"
+@* Role is named explicitly rather than relying on the bare [Authorize] used by most pages here.
+   The server sets DefaultPolicy = RequireRole("Admin"), but this component renders on WASM,
+   where AddAuthorizationCore() leaves the default at RequireAuthenticatedUser() only — so bare
+   [Authorize] does not gate on Admin along the interactive path. Follows TokenUsageManagement.
+   This is UI gating only; the real boundary is [Authorize(Roles="Admin")] on SkillsController. *@
+@attribute [Authorize(Roles = "Admin")]
+@rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
+@using NTG.Agent.Admin.Client.Components
+@using NTG.Agent.Common.Dtos.Skills
+@inject SkillClient SkillClient
+@inject ILogger<SkillManagement> Logger
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Skills Management</PageTitle>
+
+<div class="container-fluid px-2 px-md-4 py-2 py-md-3">
+    <div class="row mb-2 mb-md-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Skills Management</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="p-4">
+                <!-- Header with Import Button -->
+                <div class="d-flex justify-content-between align-items-center mb-4 header-section">
+                    <div class="flex-grow-1">
+                        <h4 class="mb-1">Skills Management</h4>
+                        <p class="text-muted mb-0 d-none d-sm-block">
+                            Import, inspect and manage Agent Skills packages. Skills are bound to individual
+                            agents from the agent's Tools tab.
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        <button class="btn btn-primary" @onclick="ShowImportModal">
+                            <i class="bi bi-cloud-upload me-2"></i>Import Skill
+                        </button>
+                        <div class="form-text mt-1 mb-0">
+                            <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Display -->
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        @errorMessage
+                        <button type="button" class="btn-close" @onclick="() => errorMessage = string.Empty"></button>
+                    </div>
+                }
+
+                <!-- Loading State -->
+                @if (isLoading)
+                {
+                    <div class="d-flex justify-content-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card">
+                        <div class="card-body p-0">
+                            @if (skills.Any())
+                            {
+                                <!-- Desktop Table View -->
+                                <div class="table-responsive d-none d-md-block">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Description</th>
+                                                <th>Version</th>
+                                                <th>Imported By</th>
+                                                <th>Assets</th>
+                                                <th>Imported</th>
+                                                <th width="160">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var skill in skills)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <i class="bi bi-puzzle-fill me-2 text-primary"></i>@skill.Name
+                                                    </td>
+                                                    <td class="text-muted text-truncate" style="max-width: 320px;" title="@skill.Description">
+                                                        @skill.Description
+                                                    </td>
+                                                    <td><span class="badge bg-secondary">@skill.Version</span></td>
+                                                    <td class="text-truncate" style="max-width: 180px;" title="@skill.ImportedByEmail">
+                                                        @skill.ImportedByEmail
+                                                    </td>
+                                                    <td><span class="badge bg-info-subtle text-info">@skill.AssetCount</span></td>
+                                                    <td><small class="text-muted">@skill.CreatedAt.ToString("MMM dd, yyyy")</small></td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm" role="group">
+                                                            <button class="btn btn-outline-secondary" @onclick="() => ViewSkill(skill)" title="View">
+                                                                <i class="bi bi-eye"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-primary" @onclick="() => ExportSkill(skill)" title="Export">
+                                                                <i class="bi bi-download"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-danger" @onclick="() => ShowDeleteConfirmation(skill)" title="Delete">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Mobile Card View -->
+                                <div class="d-block d-md-none p-3">
+                                    @foreach (var skill in skills)
+                                    {
+                                        <div class="skill-card mb-3 p-3 shadow-sm rounded bg-white">
+                                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                                <span class="fw-bold"><i class="bi bi-puzzle-fill me-2 text-primary"></i>@skill.Name</span>
+                                                <span class="badge bg-secondary">@skill.Version</span>
+                                            </div>
+                                            <p class="text-muted small mb-2">@skill.Description</p>
+                                            <div class="mb-1 small">
+                                                <span class="text-muted">Imported by:</span> @skill.ImportedByEmail
+                                            </div>
+                                            <div class="mb-1 small">
+                                                <span class="text-muted">Assets:</span>
+                                                <span class="badge bg-info-subtle text-info">@skill.AssetCount</span>
+                                            </div>
+                                            <div class="mb-2 small">
+                                                <span class="text-muted">Imported:</span> @skill.CreatedAt.ToString("MMM dd, yyyy")
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button class="btn btn-outline-secondary btn-sm flex-fill" @onclick="() => ViewSkill(skill)">
+                                                    <i class="bi bi-eye me-1"></i>View
+                                                </button>
+                                                <button class="btn btn-outline-primary btn-sm flex-fill" @onclick="() => ExportSkill(skill)">
+                                                    <i class="bi bi-download me-1"></i>Export
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-sm flex-fill" @onclick="() => ShowDeleteConfirmation(skill)">
+                                                    <i class="bi bi-trash me-1"></i>Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="text-center py-5">
+                                    <div class="mb-3">
+                                        <i class="bi bi-puzzle text-muted" style="font-size: 3rem;"></i>
+                                    </div>
+                                    <h5 class="text-muted">No skills imported yet</h5>
+                                    <p class="text-muted">Import a skill package (.zip) to get started.</p>
+                                    <button class="btn btn-primary" @onclick="ShowImportModal">
+                                        <i class="bi bi-cloud-upload me-2"></i>Import Skill
+                                    </button>
+                                    <div class="form-text mt-2">
+                                        <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+@if (showImportModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-cloud-upload me-2"></i>Import Skill
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseImportModal"></button>
+                </div>
+                <div class="modal-body">
+                    <ImportSkillForm OnImportCompleted="HandleImportCompleted" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+<SkillDetailModal SkillId="viewingSkillId" IsVisible="showDetailModal" OnClose="CloseDetailModal" />
+
+<DeleteSkillConfirmationModal @ref="deleteModal" OnDeleted="HandleSkillDeleted" />
+
+@code {
+    private List<SkillListItem> skills = new();
+    private bool isLoading = true;
+    private string errorMessage = string.Empty;
+
+    private bool showImportModal;
+    private bool showDetailModal;
+    private Guid? viewingSkillId;
+    private DeleteSkillConfirmationModal? deleteModal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSkills();
+    }
+
+    private async Task LoadSkills()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = string.Empty;
+            skills = (await SkillClient.GetListAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load skills: {ex.Message}";
+            Logger.LogError(ex, "Error loading skills");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowImportModal()
+    {
+        showImportModal = true;
+    }
+
+    private void CloseImportModal()
+    {
+        showImportModal = false;
+    }
+
+    private async Task HandleImportCompleted()
+    {
+        showImportModal = false;
+        await LoadSkills();
+    }
+
+    private void ViewSkill(SkillListItem skill)
+    {
+        viewingSkillId = skill.Id;
+        showDetailModal = true;
+    }
+
+    private void CloseDetailModal()
+    {
+        showDetailModal = false;
+        viewingSkillId = null;
+    }
+
+    private async Task ExportSkill(SkillListItem skill)
+    {
+        try
+        {
+            var (content, fileName, contentType) = await SkillClient.ExportAsync(skill.Id, skill.Name);
+
+            using var memoryStream = new MemoryStream();
+            await content.CopyToAsync(memoryStream);
+            var fileBytes = memoryStream.ToArray();
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, Convert.ToBase64String(fileBytes), contentType);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to export skill '{skill.Name}': {ex.Message}";
+            Logger.LogError(ex, "Error exporting skill {SkillName}", skill.Name);
+        }
+    }
+
+    private void ShowDeleteConfirmation(SkillListItem skill)
+    {
+        deleteModal?.ShowDeleteConfirmation(skill.Id, skill.Name);
+    }
+
+    private async Task HandleSkillDeleted()
+    {
+        await LoadSkills();
+    }
+}

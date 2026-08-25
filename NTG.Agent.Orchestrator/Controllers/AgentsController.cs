@@ -41,7 +41,12 @@ public class AgentsController : ControllerBase
             yield return new PromptResponse("You do not have access to this agent.", PromptContentType.Text);
             yield break;
         }
-        await foreach (var response in _agentService.ChatStreamingAsync(userId, promptRequest, isAdmin))
+        // The Blazor web client. Its chat renders markdown text and nothing else, so it is served
+        // the plain-text run: no A2UI surfaces, no skill tools, no frontend tools. Stated
+        // explicitly rather than left to the parameter default, because the endpoint a request
+        // arrives on is the whole basis for the decision and belongs at the endpoint.
+        await foreach (var response in _agentService.ChatStreamingAsync(
+            userId, promptRequest, isAdmin, ChatClientCapabilities.TextOnly))
         {
             yield return response;
         }

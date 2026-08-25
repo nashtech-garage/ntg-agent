@@ -110,6 +110,10 @@ All agent management under `api/agentadmin` (Admin role required).
 | `POST` | `/{id}/connect` | Connect to MCP server |
 | `GET` | `/{id}/inner-agents` | Get inner agent bindings for an outer agent |
 | `PUT` | `/{id}/inner-agents` | Update inner agent bindings for an outer agent |
+| `GET` | `/{agentId}/access` | List the roles granted access to an agent |
+| `POST` | `/{agentId}/access` | Grant a role access to an agent |
+| `DELETE` | `/{agentId}/access/{roleId}` | Revoke a role's access |
+| `GET` | `/roles` | List assignable roles (for the Access tab) |
 
 ## Blazor UI Components
 
@@ -118,21 +122,32 @@ All agent management under `api/agentadmin` (Admin role required).
 | Page | Routes | Purpose |
 |---|---|---|
 | `Home.razor` | `/` | Dashboard with tabs: All / Outer / Inner agents. Card grid with kind badges |
-| `AddAgent.razor` | `/agents/new`, `/agents/duplicate/{id}`, `/inner-agents/new` | Create/duplicate agent. Shows Agent Kind selector (Outer/Inner) for new agents. Hides Mode for Inner. |
-| `AgentDetails.razor` | `/agents/{id}` | Detail view with tabs: Settings / Tools / Knowledge Base |
+| `AddAgent.razor` | `/agents/new`, `/agents/duplicate/{sourceAgentId:guid}` | Create/duplicate agent. Shows Agent Kind selector (Outer/Inner) for new agents. Hides Mode for Inner. |
+| `AgentDetails.razor` | `/agents/{id:guid}` | Detail view with tabs: Settings / Tools / Knowledge Base / Access |
 
 ### Components
 
 | Component | Used by | Purpose |
 |---|---|---|
-| `AgentSettingsTab.razor` | AgentDetails | Edit provider, description, system prompt, Mode |
-| `ToolManagementTab.razor` | AgentDetails | MCP connection, Built-in tools, Inner Agent bindings (dual sub-tab) |
-| `InnerAgentToolManagementTab.razor` | AgentDetails | MCP skills binding (uses `AgentDetail` parameter) |
+| `AgentSettingsTab.razor` | AgentDetails | Edit provider, description, system prompt, Mode. Hosts `ProviderConfigSection.razor` |
+| `ToolManagementTab.razor` | AgentDetails | Three sub-tabs: **MCP & Built-in Tools**, **Inner Agents** (outer agents only), **Skills** |
+| `InnerAgentToolManagementTab.razor` | AgentDetails | Tool management for inner agents (uses `AgentDetail` parameter) |
+| `DocumentsTab.razor` | AgentDetails | Knowledge base: folders, uploads, LightRAG ingestion |
+| `AgentAccessTab.razor` | AgentDetails | Grant/revoke role access to the agent |
 | `DeleteAgentConfirmationModal.razor` | Home | Confirm delete dialog |
 
 ### NavMenu
 
-Single "Agent Management" entry pointing to `/`. The dashboard tabs handle filtering between Outer and Inner agents.
+Agents live at `/`, and the dashboard's All / Outer Agents / Inner Agents tabs handle filtering
+between the two kinds. The other admin areas are siblings, not children of it:
+
+| Entry | Route |
+|---|---|
+| Agents (dashboard) | `/` |
+| Users & Roles | `/users-roles-management` |
+| Tags | `/tags-management` |
+| Skills | `/skills-management` |
+| Token Usage | `/token-usage` |
 
 ## Key Design Decisions
 
