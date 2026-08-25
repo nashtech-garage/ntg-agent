@@ -4,10 +4,11 @@
 # stack (deploy/lightrag-local), then launch the Aspire AppHost.
 #
 # System tools (dotnet, docker, node, ...) are checked first. On Ubuntu/Debian
-# the missing ones are installed with sudo apt (Node via NodeSource); elsewhere
-# (Arch, macOS, Docker on WSL2) the script prints what is missing and how to get
-# it, then exits. Everything repo-local is automatic and idempotent; re-running
-# is safe.
+# the missing ones are installed with sudo apt (Node via NodeSource); on macOS
+# they are installed with Homebrew (brew must be present; Docker must already be
+# running — not auto-installed). Elsewhere (Arch, Docker on WSL2) the script
+# prints what is missing and how to get it, then exits. Everything repo-local is
+# automatic and idempotent; re-running is safe.
 #
 # Usage: ./install-local.sh
 #   (or, from nothing: curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash)
@@ -26,56 +27,76 @@ warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 
 IS_WSL=false; grep -qi microsoft /proc/version 2>/dev/null && IS_WSL=true
 HAVE_APT=false; command -v apt-get >/dev/null 2>&1 && HAVE_APT=true
+IS_MAC=false; [[ "$(uname -s)" == "Darwin" ]] && IS_MAC=true
+HAVE_BREW=false; command -v brew >/dev/null 2>&1 && HAVE_BREW=true
+
+# sed -i portability: BSD sed (macOS) requires an explicit (possibly empty)
+# backup-extension argument, GNU sed (Linux) does not.
+SED_INPLACE=(-i)
+$IS_MAC && SED_INPLACE=(-i '')
 
 MISSING=()        # "label|hint" for every failed check
 APT_PKGS=()       # what apt can install for us
+BREW_PKGS=()      # what brew can install for us on macOS
 NEED_NODE=false   # NodeSource (apt's nodejs is too old for Next.js 16)
-NEED_DOCKER=false # docker.io + daemon + group (not on WSL: Docker Desktop owns it there)
+NEED_DOCKER=false # docker.io + daemon + group (Linux only; macOS/WSL: user-managed)
 require() {
   # $1 = label, $2 = check command (eval'd), $3 = install hint,
   # $4 = how apt systems fix it: package list, "node", "docker", or "" (manual only)
+  # $5 = how brew fixes it on macOS: "cask:NAME", "NAME", or "" (manual only)
   eval "$2" >/dev/null 2>&1 && return
   MISSING+=("$1|$3")
   case "$4" in
     "") ;;
     node) NEED_NODE=true ;;
-    docker) $IS_WSL || NEED_DOCKER=true ;;
+    docker) $IS_WSL || $IS_MAC || NEED_DOCKER=true ;;
     *) read -ra pkgs <<<"$4"; APT_PKGS+=("${pkgs[@]}") ;;
   esac
+  if $IS_MAC && [[ -n "${5:-}" ]]; then
+    BREW_PKGS+=("$5")
+  fi
 }
 
 require ".NET 10 SDK" \
   "dotnet --list-sdks | grep -q '^10\.'" \
-  "Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/10.0" \
-  "dotnet-sdk-10.0"
+  "Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | macOS: brew install --cask dotnet-sdk | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/10.0" \
+  "dotnet-sdk-10.0" \
+  "cask:dotnet-sdk"
 require "docker CLI" \
   "command -v docker" \
-  "Ubuntu: sudo apt install docker.io | Arch: sudo pacman -S docker | WSL: install Docker Desktop on Windows with WSL2 backend | https://docs.docker.com/engine/install/" \
-  "docker"
+  "Ubuntu: sudo apt install docker.io | macOS: brew install docker (or install Docker Desktop / Colima) | Arch: sudo pacman -S docker | WSL: install Docker Desktop on Windows with WSL2 backend | https://docs.docker.com/engine/install/" \
+  "docker" \
+  ""
 require "docker daemon access" \
   "docker info" \
-  "Start the daemon (sudo systemctl enable --now docker) and add yourself to the docker group (sudo usermod -aG docker \$USER, then re-login). WSL: enable your distro under Docker Desktop > Settings > Resources > WSL integration" \
-  "docker"
+  "Start the daemon (Linux: sudo systemctl enable --now docker, then sudo usermod -aG docker \$USER and re-login; macOS: start Docker Desktop or run 'colima start'; WSL: enable your distro under Docker Desktop > Settings > Resources > WSL integration)" \
+  "docker" \
+  ""
 require "docker compose plugin" \
   "docker compose version" \
-  "Ubuntu: sudo apt install docker-compose-v2 | Arch: sudo pacman -S docker-compose | bundled with Docker Desktop | https://docs.docker.com/compose/install/" \
-  "docker"
+  "Ubuntu: sudo apt install docker-compose-v2 | macOS: bundled with Docker Desktop, or: brew install docker-compose | Arch: sudo pacman -S docker-compose | bundled with Docker Desktop | https://docs.docker.com/compose/install/" \
+  "docker" \
+  ""
 require "node >= 20" \
   "node -e 'process.exit(parseInt(process.versions.node) >= 20 ? 0 : 1)'" \
-  "Ubuntu: https://nodejs.org (LTS — apt's nodejs is often too old) | Arch: sudo pacman -S nodejs npm" \
+  "Ubuntu: https://nodejs.org (LTS — apt's nodejs is often too old) | macOS: brew install node | Arch: sudo pacman -S nodejs npm" \
+  "node" \
   "node"
 require "openssl" \
   "command -v openssl" \
-  "Ubuntu: sudo apt install openssl | Arch: sudo pacman -S openssl" \
-  "openssl"
+  "Ubuntu: sudo apt install openssl | macOS: ships with macOS (Command Line Tools) | Arch: sudo pacman -S openssl" \
+  "openssl" \
+  ""
 require "git" \
   "command -v git" \
-  "Ubuntu: sudo apt install git | Arch: sudo pacman -S git" \
+  "Ubuntu: sudo apt install git | macOS: xcode-select --install, or: brew install git | Arch: sudo pacman -S git" \
+  "git" \
   "git"
 require "curl" \
   "command -v curl" \
-  "Ubuntu: sudo apt install curl | Arch: sudo pacman -S curl" \
-  "curl ca-certificates"
+  "Ubuntu: sudo apt install curl | macOS: ships with macOS | Arch: sudo pacman -S curl" \
+  "curl ca-certificates" \
+  ""
 
 print_missing() {
   echo "Missing prerequisites:" >&2
@@ -86,10 +107,46 @@ print_missing() {
 
 if (( ${#MISSING[@]} > 0 )); then
   print_missing
+
   # Second pass (NTG_PREREQS_INSTALLED set by the re-exec below) that still
-  # finds something missing means apt couldn't fix it — stop instead of looping.
-  if ! $HAVE_APT || [[ -n "${NTG_PREREQS_INSTALLED:-}" ]] \
-     || { (( ${#APT_PKGS[@]} == 0 )) && ! $NEED_NODE && ! $NEED_DOCKER; }; then
+  # finds something missing means we couldn't fix it — stop instead of looping.
+  if [[ -n "${NTG_PREREQS_INSTALLED:-}" ]]; then
+    echo "Install the above and re-run ./install-local.sh" >&2
+    exit 1
+  fi
+
+  # --- macOS / Homebrew path ---------------------------------------------
+  if $IS_MAC; then
+    if ! $HAVE_BREW; then
+      echo "error: Homebrew is required on macOS. Install it:" >&2
+      echo "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"" >&2
+      echo "  See https://brew.sh — then re-run ./install-local.sh" >&2
+      exit 1
+    fi
+    # If fewer brew-fixable packages than missing items, something can't be
+    # auto-fixed (e.g. Docker daemon not running) — hints + exit.
+    if (( ${#BREW_PKGS[@]} < ${#MISSING[@]} )); then
+      echo "Some prerequisites cannot be auto-installed on macOS." >&2
+      echo "Start your Docker daemon first:" >&2
+      echo "  Docker Desktop, or: brew install colima docker docker-compose && colima start" >&2
+      echo "Then re-run ./install-local.sh" >&2
+      exit 1
+    fi
+    info "Installing missing prerequisites with Homebrew (cask installs may prompt for your password)."
+    CASKS=(); FORMULAE=()
+    for spec in "${BREW_PKGS[@]}"; do
+      if [[ "$spec" == cask:* ]]; then CASKS+=("${spec#cask:}")
+      else FORMULAE+=("$spec"); fi
+    done
+    (( ${#CASKS[@]} > 0 )) && brew install --cask "${CASKS[@]}"
+    (( ${#FORMULAE[@]} > 0 )) && brew install "${FORMULAE[@]}"
+    export NTG_PREREQS_INSTALLED=1
+    info "Prerequisites installed; re-checking."
+    exec "$REPO_ROOT/install-local.sh"
+  fi
+
+  # --- Linux / apt path --------------------------------------------------
+  if ! $HAVE_APT || { (( ${#APT_PKGS[@]} == 0 )) && ! $NEED_NODE && ! $NEED_DOCKER; }; then
     echo "Install the above and re-run ./install-local.sh" >&2
     exit 1
   fi
@@ -166,7 +223,7 @@ env_set() {
   local v="$2"
   v="${v//\\/\\\\}"; v="${v//&/\\&}"; v="${v//|/\\|}"
   if grep -q "^[[:space:]]*$1=" "$ENV_FILE"; then
-    sed -i "s|^[[:space:]]*$1=.*|$1=$v|" "$ENV_FILE"
+    sed "${SED_INPLACE[@]}" "s|^[[:space:]]*$1=.*|$1=$v|" "$ENV_FILE"
   else
     printf '%s=%s\n' "$1" "$2" >> "$ENV_FILE"
   fi

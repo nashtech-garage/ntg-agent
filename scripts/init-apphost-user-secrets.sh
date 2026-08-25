@@ -44,7 +44,7 @@ fi
 
 if ! docker info >/dev/null 2>&1; then
   echo "error: cannot access Docker daemon (permission denied or daemon not running)." >&2
-  echo "Ensure Docker is running and your user has permission (for Linux/WSL: add user to docker group, then re-login)." >&2
+  echo "Ensure Docker is running and your user has permission (for Linux/WSL: add user to docker group, then re-login; macOS: start Docker Desktop or run 'colima start')." >&2
   exit 1
 fi
 
