@@ -1,5 +1,4 @@
 using NTG.Agent.Common.Dtos.Agents;
-using NTG.Agent.Orchestrator.Services.Agents;
 
 namespace NTG.Agent.Orchestrator.Services;
 
@@ -41,7 +40,7 @@ public class ModelDiscoveryService
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<OpenAIListResponse>();
-        return result?.Data.Select(m => new ModelItem { Id = m.Id, SupportsThinking = ThinkingCapableModels.Supports(ProviderType.OpenAI, m.Id) }).ToList() ?? [];
+        return result?.Data.Select(m => new ModelItem { Id = m.Id }).ToList() ?? [];
     }
 
     /// <summary>
@@ -77,9 +76,7 @@ public class ModelDiscoveryService
             {
                 // The deployment name is the identifier the Azure OpenAI SDK expects.
                 Id = d.Name,
-                DisplayName = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? null : d.ModelName,
-                SupportsThinking = ThinkingCapableModels.Supports(ProviderType.AzureOpenAI, d.Name)
-                                   || ThinkingCapableModels.Supports(ProviderType.AzureOpenAI, d.ModelName)
+                DisplayName = string.Equals(d.Name, d.ModelName, StringComparison.OrdinalIgnoreCase) ? null : d.ModelName
             })
             .ToList() ?? [];
     }
@@ -112,7 +109,7 @@ public class ModelDiscoveryService
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<AnthropicListResponse>();
-        return result?.Data.Select(m => new ModelItem { Id = m.Id, DisplayName = m.DisplayName, SupportsThinking = ThinkingCapableModels.Supports(ProviderType.Anthropic, m.Id) }).ToList() ?? [];
+        return result?.Data.Select(m => new ModelItem { Id = m.Id, DisplayName = m.DisplayName }).ToList() ?? [];
     }
 
     private static async Task<List<ModelItem>> GetGeminiModelsAsync(HttpClient client, string? endpoint, string? apiKey)
@@ -125,7 +122,7 @@ public class ModelDiscoveryService
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<OpenAIListResponse>();
-        return result?.Data.Select(m => new ModelItem { Id = m.Id, SupportsThinking = ThinkingCapableModels.Supports(ProviderType.GoogleGemini, m.Id) }).ToList() ?? [];
+        return result?.Data.Select(m => new ModelItem { Id = m.Id }).ToList() ?? [];
     }
 
     private static async Task<List<ModelItem>> GetOpenAICompatModelsAsync(HttpClient client, string? endpoint, string? apiKey)
@@ -141,7 +138,7 @@ public class ModelDiscoveryService
         var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadFromJsonAsync<OpenAIListResponse>();
-        return result?.Data.Select(m => new ModelItem { Id = m.Id, SupportsThinking = ThinkingCapableModels.Supports(ProviderType.OpenAICompatible, m.Id) }).ToList() ?? [];
+        return result?.Data.Select(m => new ModelItem { Id = m.Id }).ToList() ?? [];
     }
 
     private static void EnsureApiKey(string? apiKey, string providerName)

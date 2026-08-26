@@ -25,6 +25,7 @@ public class AgentAdminControllerTests
     private Mock<IAgentFactory> _mockAgentFactory;
     private Mock<IKnowledgeProvisioner> _mockKnowledgeProvisioner;
     private Mock<IKnowledgeService> _mockKnowledgeService;
+    private Mock<IThinkingSupportProbe> _mockThinkingProbe;
     private ModelDiscoveryService _modelDiscoveryService;
 
     [SetUp]
@@ -40,6 +41,7 @@ public class AgentAdminControllerTests
         _mockAgentFactory = new();
         _mockKnowledgeProvisioner = new();
         _mockKnowledgeService = new();
+        _mockThinkingProbe = new();
         var httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _modelDiscoveryService = new ModelDiscoveryService(httpClientFactoryMock.Object);
         // Mock the admin user principal
@@ -53,7 +55,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -70,13 +72,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object);
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -202,7 +204,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -226,7 +228,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -521,7 +523,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -546,7 +548,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -733,7 +735,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService, _modelDiscoveryService, _mockThinkingProbe.Object)
         {
             ControllerContext = new ControllerContext
             {
@@ -1606,26 +1608,60 @@ public class AgentAdminControllerTests
     #region Thinking Support Tests
 
     [Test]
-    public void CheckThinkingSupport_WithKnownThinkingModel_ReturnsTrue()
+    public async Task CheckThinkingSupport_WhenProviderMissing_ReturnsNotFound()
     {
-        var result = _controller.CheckThinkingSupport(NTG.Agent.Common.Dtos.Agents.ProviderType.Anthropic, "claude-sonnet-4-5");
+        var result = await _controller.CheckThinkingSupport(Guid.NewGuid(), new ThinkingSupportRequest { ModelId = "claude-sonnet-4-5" });
+
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+    }
+
+    [Test]
+    public async Task CheckThinkingSupport_WhenProbeAccepts_ReturnsTrue()
+    {
+        var providerId = Guid.NewGuid();
+        await _context.Providers.AddAsync(new Provider
+        {
+            Id = providerId,
+            Name = "Test Provider",
+            ProviderType = ProviderType.Anthropic,
+            ApiKey = "test-key"
+        });
+        await _context.SaveChangesAsync();
+        _mockThinkingProbe
+            .Setup(p => p.ProbeAsync(It.IsAny<Provider>(), "claude-sonnet-4-5", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThinkingSupportResult { SupportsThinking = true });
+
+        var result = await _controller.CheckThinkingSupport(providerId, new ThinkingSupportRequest { ModelId = "claude-sonnet-4-5" });
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
         var value = okResult!.Value!;
-        var supportsThinking = value.GetType().GetProperty("supportsThinking")!.GetValue(value);
+        var supportsThinking = value.GetType().GetProperty("SupportsThinking")!.GetValue(value);
         Assert.That(supportsThinking, Is.EqualTo(true));
     }
 
     [Test]
-    public void CheckThinkingSupport_WithNonThinkingModel_ReturnsFalse()
+    public async Task CheckThinkingSupport_WhenProbeRejects_ReturnsFalse()
     {
-        var result = _controller.CheckThinkingSupport(NTG.Agent.Common.Dtos.Agents.ProviderType.OpenAI, "gpt-4o");
+        var providerId = Guid.NewGuid();
+        await _context.Providers.AddAsync(new Provider
+        {
+            Id = providerId,
+            Name = "Test Provider",
+            ProviderType = ProviderType.OpenAI,
+            ApiKey = "test-key"
+        });
+        await _context.SaveChangesAsync();
+        _mockThinkingProbe
+            .Setup(p => p.ProbeAsync(It.IsAny<Provider>(), "gpt-4o", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ThinkingSupportResult { SupportsThinking = false, Error = "provider rejected the thinking parameter" });
+
+        var result = await _controller.CheckThinkingSupport(providerId, new ThinkingSupportRequest { ModelId = "gpt-4o" });
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
         var value = okResult!.Value!;
-        var supportsThinking = value.GetType().GetProperty("supportsThinking")!.GetValue(value);
+        var supportsThinking = value.GetType().GetProperty("SupportsThinking")!.GetValue(value);
         Assert.That(supportsThinking, Is.EqualTo(false));
     }
 

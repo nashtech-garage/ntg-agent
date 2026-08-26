@@ -90,6 +90,7 @@ builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
+builder.Services.AddScoped<IThinkingSupportProbe, ThinkingSupportProbe>();
 builder.Services.AddScoped<AgentService>();
 // Provider probing (test connection / list models) for the admin agent screens.
 // Uses a typed HttpClient so the standard ServiceDefaults resilience pipeline applies.

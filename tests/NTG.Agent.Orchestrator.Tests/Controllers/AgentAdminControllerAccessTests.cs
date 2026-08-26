@@ -68,7 +68,8 @@ public class AgentAdminControllerAccessTests
             new AgentProvisioningSignal(),
             NullLogger<AgentAdminController>.Instance,
             _accessService,
-            new ModelDiscoveryService(Mock.Of<IHttpClientFactory>()))
+            new ModelDiscoveryService(Mock.Of<IHttpClientFactory>()),
+            Mock.Of<IThinkingSupportProbe>())
         {
             ControllerContext = new ControllerContext
             {

@@ -26,6 +26,7 @@ public class AgentAdminController : ControllerBase
     private readonly ILogger<AgentAdminController> _logger;
     private readonly AgentAccessService _agentAccessService;
     private readonly ModelDiscoveryService _modelDiscoveryService;
+    private readonly IThinkingSupportProbe _thinkingSupportProbe;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
@@ -34,7 +35,8 @@ public class AgentAdminController : ControllerBase
         AgentProvisioningSignal provisioningSignal,
         ILogger<AgentAdminController> logger,
         AgentAccessService agentAccessService,
-        ModelDiscoveryService modelDiscoveryService
+        ModelDiscoveryService modelDiscoveryService,
+        IThinkingSupportProbe thinkingSupportProbe
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
@@ -45,6 +47,7 @@ public class AgentAdminController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
         _modelDiscoveryService = modelDiscoveryService ?? throw new ArgumentNullException(nameof(modelDiscoveryService));
+        _thinkingSupportProbe = thinkingSupportProbe ?? throw new ArgumentNullException(nameof(thinkingSupportProbe));
     }
 
     /// <summary>
@@ -870,13 +873,16 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Checks whether a given (provider type, model id) pair supports thinking/reasoning mode,
-    /// against the backend's curated model list. Stateless — used to gate the Thinking toggle
-    /// for hand-typed model overrides that aren't necessarily in the discovered model list.
+    /// Live-checks whether one of a provider's models supports thinking/reasoning mode by sending
+    /// a small test request with the thinking parameter enabled, using the same payload shape as
+    /// the chat path's Thinking mode (see <see cref="ThinkingSupportProbe"/>). Replaces the old
+    /// curated model-name list: capability is verified against the provider itself.
     /// </summary>
-    [HttpGet("providers/thinking-support")]
-    public IActionResult CheckThinkingSupport([FromQuery] ProviderType providerType, [FromQuery] string? model)
+    [HttpPost("providers/{id}/models/thinking-support")]
+    public async Task<IActionResult> CheckThinkingSupport(Guid id, [FromBody] ThinkingSupportRequest request)
     {
-        return Ok(new { supportsThinking = ThinkingCapableModels.Supports(providerType, model) });
+        var provider = await _agentDbContext.Providers.FindAsync(id);
+        if (provider == null) return NotFound();
+        return Ok(await _thinkingSupportProbe.ProbeAsync(provider, request.ModelId));
     }
 }

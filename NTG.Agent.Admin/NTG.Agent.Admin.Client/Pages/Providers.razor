@@ -178,11 +178,11 @@
                                                     <div class="form-check form-switch mb-0">
                                                         <input class="form-check-input" type="checkbox" role="switch"
                                                                checked="@c.AllowsThinking"
-                                                               disabled="@(!c.IsEnabled || !c.SupportsThinking)"
+                                                               disabled="@(!c.IsEnabled || IsProbing(c))"
                                                                @onchange="() => ToggleThinking(c)"
-                                                               title="@(c.SupportsThinking ? "Allow agents to use Thinking mode with this model" : "This model does not support Thinking mode")" />
+                                                               title="Allow agents to use Thinking mode with this model (verified by a small test request to the provider)" />
                                                         <label class="form-check-label small">
-                                                            @if (!c.SupportsThinking) { <span class="text-muted">Not thinking-capable</span> }
+                                                            @if (IsProbing(c)) { <span class="text-muted">Testing…</span> }
                                                             else if (c.AllowsThinking) { <span>Allowed</span> }
                                                             else { <span>Off</span> }
                                                         </label>
@@ -260,6 +260,8 @@
 
     private IList<ModelItem>? discoveredModels;
     private List<ModelChoice>? modelChoices;
+    // Models with a thinking test request currently in flight.
+    private HashSet<string> probingModels = new(StringComparer.OrdinalIgnoreCase);
 
     private sealed class ModelChoice
     {
@@ -267,8 +269,9 @@
         public string? DisplayName { get; set; }
         public bool IsEnabled { get; set; }
         public bool AllowsThinking { get; set; }
-        public bool SupportsThinking { get; set; }
     }
+
+    private bool IsProbing(ModelChoice c) => probingModels.Contains(c.ModelId);
 
     protected override async Task OnInitializedAsync()
     {
@@ -381,9 +384,10 @@
     }
 
     /// <summary>
-    /// Merges the discovered models with the admin's persisted choices. Discovered models get the
-    /// backend's thinking-capability verdict (used to grey out the toggle); persisted models the
-    /// provider no longer reports stay editable so admins can clean them up.
+    /// Merges the discovered models with the admin's persisted choices. Persisted models the
+    /// provider no longer reports stay editable so admins can clean them up. Thinking capability
+    /// is no longer decided here — it is verified live by a test request when the admin turns
+    /// the toggle on.
     /// </summary>
     private void RebuildModelChoices()
     {
@@ -405,8 +409,7 @@
                     ModelId = dm.Id,
                     DisplayName = dm.DisplayName,
                     IsEnabled = pm != null,
-                    AllowsThinking = pm?.AllowsThinking ?? false,
-                    SupportsThinking = dm.SupportsThinking
+                    AllowsThinking = pm?.AllowsThinking ?? false
                 });
                 seen.Add(dm.Id);
             }
@@ -418,8 +421,7 @@
                     ModelId = m.ModelId,
                     DisplayName = m.DisplayName,
                     IsEnabled = true,
-                    AllowsThinking = m.AllowsThinking,
-                    SupportsThinking = true
+                    AllowsThinking = m.AllowsThinking
                 });
             }
         }
@@ -432,8 +434,7 @@
                     ModelId = m.ModelId,
                     DisplayName = m.DisplayName,
                     IsEnabled = true,
-                    AllowsThinking = m.AllowsThinking,
-                    SupportsThinking = true
+                    AllowsThinking = m.AllowsThinking
                 });
             }
         }
@@ -465,13 +466,62 @@
         }
     }
 
-    private void ToggleThinking(ModelChoice c)
+    /// <summary>
+    /// Turning thinking ON is verified live: the backend sends a small test request with the same
+    /// payload as the chat path's Thinking mode. Only a provider-accepted request persists the
+    /// flag; failures keep it off and surface the provider's reason.
+    /// </summary>
+    private async Task ToggleThinking(ModelChoice c)
     {
-        if (editingProvider == null || !c.SupportsThinking) return;
-        c.AllowsThinking = !c.AllowsThinking;
-        var existing = editingProvider.Models
+        if (editingProvider == null || !c.IsEnabled) return;
+
+        if (c.AllowsThinking)
+        {
+            c.AllowsThinking = false;
+            SetPersistedAllowsThinking(c, false);
+            return;
+        }
+
+        // The probe runs server-side against stored credentials, so unsaved providers must be saved first.
+        if (editingProvider.Id == Guid.Empty)
+        {
+            fetchSucceeded = false;
+            fetchMessage = "Save the LLM provider first so its credentials can be used for the thinking test request.";
+            return;
+        }
+
+        probingModels.Add(c.ModelId);
+        try
+        {
+            var result = await AgentClient.TestModelThinkingAsync(editingProvider.Id, c.ModelId);
+            if (result.SupportsThinking)
+            {
+                c.AllowsThinking = true;
+                SetPersistedAllowsThinking(c, true);
+                fetchMessage = null;
+            }
+            else
+            {
+                fetchSucceeded = false;
+                fetchMessage = $"\"{c.ModelId}\" did not pass the thinking test request{(string.IsNullOrEmpty(result.Error) ? "." : $": {result.Error}")}";
+            }
+        }
+        catch (Exception ex)
+        {
+            fetchSucceeded = false;
+            fetchMessage = $"Thinking test request for \"{c.ModelId}\" failed: {ex.Message}";
+        }
+        finally
+        {
+            probingModels.Remove(c.ModelId);
+        }
+    }
+
+    private void SetPersistedAllowsThinking(ModelChoice c, bool allowsThinking)
+    {
+        var existing = editingProvider!.Models
             .FirstOrDefault(m => string.Equals(m.ModelId, c.ModelId, StringComparison.OrdinalIgnoreCase));
-        if (existing != null) existing.AllowsThinking = c.AllowsThinking;
+        if (existing != null) existing.AllowsThinking = allowsThinking;
     }
 
     private void OnProviderTypeChanged(ChangeEventArgs e)

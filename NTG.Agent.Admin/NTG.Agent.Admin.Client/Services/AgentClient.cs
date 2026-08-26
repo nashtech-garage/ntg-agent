@@ -157,4 +157,18 @@ public class AgentClient(HttpClient httpClient)
         var result = await response.Content.ReadFromJsonAsync<IList<ModelItem>>();
         return result ?? [];
     }
+
+    /// <summary>
+    /// Asks the backend to verify thinking support for a model by sending a small test request
+    /// (same payload shape as the chat path's Thinking mode) to the provider.
+    /// </summary>
+    public async Task<ThinkingSupportResult> TestModelThinkingAsync(Guid providerId, string modelId)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            $"api/agentadmin/providers/{providerId}/models/thinking-support",
+            new ThinkingSupportRequest { ModelId = modelId });
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ThinkingSupportResult>()
+            ?? new ThinkingSupportResult { SupportsThinking = false, Error = "Empty response from server." };
+    }
 }

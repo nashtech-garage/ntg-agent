@@ -136,41 +136,131 @@ public class AgentFactory : IAgentFactory
         return agent;
     }
 
+    /// <summary>
+    /// Builds an <see cref="IChatClient"/> configured exactly like the chat path's Thinking mode:
+    /// same provider API surface and same thinking/reasoning parameters, so a request sent through
+    /// it has the same payload shape the chat client will use (see <c>ThinkingSupportProbe</c>).
+    /// <paramref name="temperature"/> and <paramref name="maxOutputTokens"/> come from the agent
+    /// config on the chat path; pass nulls to get the same defaults an unconfigured agent gets.
+    /// </summary>
+    internal static IChatClient CreateThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        return provider.ProviderType switch
+        {
+            ProviderType.OpenAI or ProviderType.GoogleGemini or ProviderType.OpenAICompatible => CreateOpenAIResponsesThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            ProviderType.AzureOpenAI => CreateAzureOpenAIThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            ProviderType.Anthropic => CreateAnthropicThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),
+        };
+    }
+
+    private static IChatClient CreateOpenAIResponsesThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
+        // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
+        // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
+        // OpenAI-compatible providers (DeepSeek, etc.) also expose /v1/responses, so honor a
+        // custom endpoint here exactly like the Chat Completions path does.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(provider.Endpoint))
+        {
+            clientOptions.Endpoint = new Uri(provider.Endpoint);
+        }
+#pragma warning disable OPENAI001
+        return new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), clientOptions)
+            .GetResponsesClient()
+            .AsIChatClient(modelId)
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.Reasoning = new()
+                {
+                    Effort = ReasoningEffort.Medium,
+                    Output = ReasoningOutput.Full,
+                };
+            })
+            .Build();
+#pragma warning restore OPENAI001
+    }
+
+    private static IChatClient CreateAzureOpenAIThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
+        // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+        var azureClient = new OpenAIClient(
+            new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+            new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) });
+#pragma warning disable OPENAI001
+        return azureClient
+            .GetResponsesClient()
+            .AsIChatClient(modelId)
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.RawRepresentationFactory = _ => new CreateResponseOptions
+                {
+                    ReasoningOptions = new ResponseReasoningOptions
+                    {
+                        ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                        ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                    }
+                };
+            })
+            .Build();
+#pragma warning restore OPENAI001
+    }
+
+    private static IChatClient CreateAnthropicThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        // Extended thinking surfaces chain-of-thought as ThinkingContent items in the streaming response.
+        // Requires a compatible Claude model (e.g. claude-3-7-sonnet or later).
+        // The Anthropic MEA adapter reads RawRepresentationFactory to build the raw MessageCreateParams,
+        // which is the only supported way to pass the Thinking configuration.
+        // budgetTokens controls max reasoning tokens (must be ≥1024 and less than MaxTokens).
+        // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
+        const int maxTokens = 4096;
+        const int thinkingTokens = 2048;
+        // The SDK client is intentionally not disposed: its lifetime is owned by the returned
+        // agent/chat client pipeline, which keeps using it for its whole lifetime.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
+        return new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
+            .AsIChatClient(defaultModelId: modelId)
+#pragma warning restore CA2000
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.RawRepresentationFactory = _ => new MessageCreateParams
+                {
+                    Model = modelId,
+                    MaxTokens = o.MaxOutputTokens ?? maxTokens,
+                    Messages = [],
+                    Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
+                };
+            })
+            .Build();
+    }
+
     private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Provider provider, string modelId, Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
         IChatClient chatClient;
 
         if (agent.Mode == AgentMode.Thinking)
         {
-            // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
-            // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
-            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
-            // OpenAI-compatible providers (DeepSeek, etc.) also expose /v1/responses, so honor a
-            // custom endpoint here exactly like the Chat Completions path below does.
-            var thinkingOptions = new OpenAIClientOptions();
-            if (!string.IsNullOrWhiteSpace(provider.Endpoint))
-            {
-                thinkingOptions.Endpoint = new Uri(provider.Endpoint);
-            }
-#pragma warning disable OPENAI001
-            chatClient = new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), thinkingOptions)
-                .GetResponsesClient()
-                .AsIChatClient(modelId)
-                .AsBuilder()
-                .UseFunctionInvocation()
-                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-                .ConfigureOptions(o =>
-                {
-                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
-                    o.MaxOutputTokens = agent.MaxOutputTokens;
-                    o.Reasoning = new()
-                    {
-                        Effort = ReasoningEffort.Medium,
-                        Output = ReasoningOutput.Full,
-                    };
-                })
-                .Build();
-#pragma warning restore OPENAI001
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
         }
         else
         {
@@ -204,36 +294,7 @@ public class AgentFactory : IAgentFactory
 
         if (agent.Mode == AgentMode.Thinking)
         {
-            // Extended thinking surfaces chain-of-thought as ThinkingContent items in the streaming response.
-            // Requires a compatible Claude model (e.g. claude-3-7-sonnet or later).
-            // The Anthropic MEA adapter reads RawRepresentationFactory to build the raw MessageCreateParams,
-            // which is the only supported way to pass the Thinking configuration.
-            // budgetTokens controls max reasoning tokens (must be ≥1024 and less than MaxTokens).
-            // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
-            const int maxTokens = 4096;
-            const int thinkingTokens = 2048;
-            // The SDK client is intentionally not disposed: its lifetime is owned by the agent,
-            // which keeps using the chat client for the agent's whole lifetime.
-#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
-            chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
-                .AsIChatClient(defaultModelId: modelId)
-#pragma warning restore CA2000
-                .AsBuilder()
-                .UseFunctionInvocation()
-                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-                .ConfigureOptions(o =>
-                {
-                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
-                    o.MaxOutputTokens = agent.MaxOutputTokens;
-                    o.RawRepresentationFactory = _ => new MessageCreateParams
-                    {
-                        Model = modelId,
-                        MaxTokens = o.MaxOutputTokens ?? maxTokens,
-                        Messages = [],
-                        Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
-                    };
-                })
-                .Build();
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
         }
         else
         {
@@ -276,29 +337,7 @@ public class AgentFactory : IAgentFactory
 
         if (agent.Mode == AgentMode.Thinking)
         {
-            // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
-#pragma warning disable OPENAI001
-            chatClient = azureClient
-                .GetResponsesClient()
-                .AsIChatClient(modelId)
-                .AsBuilder()
-                .UseFunctionInvocation()
-                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
-                .ConfigureOptions(o =>
-                {
-                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
-                    o.MaxOutputTokens = agent.MaxOutputTokens;
-                    o.RawRepresentationFactory = _ => new CreateResponseOptions
-                    {
-                        ReasoningOptions = new ResponseReasoningOptions
-                        {
-                            ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
-                            ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
-                        }
-                    };
-                })
-                .Build();
-#pragma warning restore OPENAI001
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
         }
         else
         {
