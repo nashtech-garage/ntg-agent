@@ -7,6 +7,7 @@ using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Agents;
+using NTG.Agent.Orchestrator.Services.Skills;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Common.Knowledge;
@@ -50,6 +51,8 @@ public class AgentsControllerTests
             Mock.Of<IDocumentAnalysisService>(),
             _accessService,
             new RenderableToolCapture(),
+            new SkillRegistry(_context, new SkillPackageImporter(), Mock.Of<ILogger<SkillRegistry>>()),
+            new SkillActivityLog(),
             Mock.Of<ILogger<AgentService>>()
         );
 

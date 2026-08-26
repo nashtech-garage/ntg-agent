@@ -71,4 +71,7 @@ public class Agent
     /// <summary>Bindings where this agent is used as an inner agent.</summary>
     public ICollection<AgentInnerAgent> OuterAgentBindings { get; set; } = new List<AgentInnerAgent>();
 
+    /// <summary>Agent Skills bound to this agent. Only enabled bindings reach the model's catalog.</summary>
+    public ICollection<Skills.AgentSkill> SkillBindings { get; set; } = new List<Skills.AgentSkill>();
+
 }

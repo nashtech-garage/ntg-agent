@@ -15,19 +15,26 @@ A React chat interface built with Next.js (App Router) and CopilotKit that commu
 
 ## Architecture
 
-The frontend acts as a translation layer between CopilotKit's AG-UI event stream and the .NET backend's custom streaming format.
+The frontend bridges CopilotKit's AG-UI event stream straight to the .NET backend's native AG-UI
+endpoint — there is no translation layer. `HttpAgent` (from `@ag-ui/client`) is pointed directly at
+the Orchestrator; two middlewares wrap it to add A2UI-specific behaviour on top of the raw AG-UI
+stream.
 
 ```
 Browser
   └─ CopilotKit React UI
        └─ POST /api/copilotkit/{agentUUID}          (Next.js catch-all route)
-            └─ NtgAgent.run()                        (AbstractAgent subclass)
-                 └─ POST /api/agents/chat            (.NET Orchestrator)
-                      └─ IAsyncEnumerable<PromptResponse>  (streaming JSON)
-                           └─ AG-UI SSE events → browser
+            └─ HttpAgent.run()                       (@ag-ui/client, wrapped in middleware)
+                 ├─ StableSurfaceIdMiddleware         (optional — see A2UI_STABLE_SURFACE_IDS below)
+                 └─ A2UIMiddleware                    (@ag-ui/a2ui-middleware)
+                      └─ POST /api/agui/{agentUUID}   (.NET Orchestrator, AgUiController — native AG-UI/SSE)
+                           └─ AG-UI SSE events → browser, already in AG-UI shape
 ```
 
-> **Note — Option B (future):** The .NET backend can expose a native AG-UI/SSE endpoint using the `Microsoft.Extensions.AgentFramework.AgUI` NuGet package, eliminating this translation layer entirely.
+> **Note — Option B, done:** the .NET backend exposes a native AG-UI/SSE endpoint
+> (`AgUiController`, `POST /api/agui/{agentId}`), which is what `route.ts` talks to. The
+> translation layer this note used to describe (`NtgAgent`, `_bufferUtils.ts`, a .NET
+> `/api/agents/chat` multipart endpoint) is gone.
 
 ## Project Structure
 
@@ -39,15 +46,21 @@ my-copilot-app/
 │   │   │   └── route.ts                   # Proxies agent catalog from .NET /api/agents
 │   │   └── copilotkit/
 │   │       └── [[...integrationId]]/
-│   │           ├── route.ts               # CopilotKit runtime endpoint + /threads stub
-│   │           ├── _ntgAgent.ts           # Custom AbstractAgent: calls .NET chat endpoint
-│   │           ├── _conversationStore.ts  # Creates/caches conversations per session
-│   │           └── _bufferUtils.ts        # Parses streaming JSON array from .NET
+│   │           └── route.ts               # CopilotKit runtime endpoint: HttpAgent → /api/agui,
+│   │                                       # A2UIMiddleware + StableSurfaceIdMiddleware, /threads stub
 │   ├── layout.tsx                         # Root layout (fonts only — no CopilotKit wrapper)
 │   └── page.tsx                           # Agent selector + CopilotChat component
 ├── src/
-│   └── components/
-│       └── AgentSelector.tsx              # Agent switcher dropdown
+│   ├── a2ui/
+│   │   ├── interactiveCatalog.tsx         # basicCatalog cloned with five components overridden
+│   │   └── activityRenderer.ts            # createA2UIMessageRenderer, stable renderer array
+│   ├── components/
+│   │   └── AgentSelector.tsx              # Agent switcher dropdown
+│   ├── tools/
+│   │   ├── WeatherCardTool.tsx            # Hardcoded weather card (get_weather results)
+│   │   └── SkillSurfaceTool.tsx           # Renders render_skill_surface, incl. reload rehydration
+│   └── utils/
+│       └── streamParser.ts                # Streaming/message parsing helpers
 ├── next.config.ts
 ├── tsconfig.json
 └── package.json
@@ -59,34 +72,21 @@ my-copilot-app/
 
 2. **CopilotKit initialisation** — `<CopilotKit runtimeUrl="/api/copilotkit/{agentId}" agent="dotnet_orchestrator_agent">` mounts, triggering a `GET /api/copilotkit/{id}/info` discovery call and a `GET /api/copilotkit/{id}/threads` call (returns empty — no thread persistence).
 
-3. **Message send** — CopilotKit POSTs to `/api/copilotkit/{agentId}`. The route handler creates an `NtgAgent` instance (carrying the backend UUID and session cookie), then hands it to `CopilotRuntime`.
+3. **Message send** — CopilotKit POSTs to `/api/copilotkit/{agentId}`. The route handler builds an `HttpAgent` (`@ag-ui/client`) pointed at the Orchestrator's native AG-UI endpoint, wraps it in `A2UIMiddleware` (and, unless disabled, `StableSurfaceIdMiddleware`), and hands it to `CopilotRuntime`.
 
-4. **NtgAgent.run()** — Before the first message on a session, creates a conversation via `POST /api/conversations`. Then POSTs to `/api/agents/chat` as `multipart/form-data`:
+4. **HttpAgent.run()** — Posts the AG-UI `RunAgentInput` (thread id, messages, declared tools) as JSON straight to `POST /api/agui/{agentId}` on the .NET Orchestrator (`AgUiController`). The controller maps `threadId` to a conversation itself, creating one on first use — the frontend never calls `/api/conversations` before a message.
 
-   | Field | Value |
-   |---|---|
-   | `Prompt` | Last user message text |
-   | `ConversationId` | Guid from conversation creation |
-   | `SessionId` | UUID from `ntg_session_id` cookie |
-   | `AgentId` | Backend agent UUID (from the URL path) |
+5. **Streaming** — `AgUiController` streams native AG-UI SSE events (`TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`, `ACTIVITY_SNAPSHOT`, …) directly — no intermediate JSON array and no client-side buffer parser. `A2UIMiddleware` further rewrites any `render_a2ui`/`render_skill_surface` tool result into `ACTIVITY_SNAPSHOT` events for the A2UI renderer.
 
-5. **Streaming** — The .NET backend returns `IAsyncEnumerable<PromptResponse>` serialised as a JSON array `[{"content":"...","contentType":0},...]`. `_bufferUtils.ts` parses chunks incrementally and emits `TEXT_MESSAGE_CONTENT` AG-UI events.
-
-6. **Anonymous rate limiting** — Before each message, `GET /api/conversations/anonymous/rate-limit-status` is checked. If the limit is reached, a local rate-limit message is emitted without calling the backend.
+6. **Anonymous rate limiting** — Enforced server-side: `AgentService` throws `AnonymousRateLimitExceededException` when an anonymous session is over its limit, and `AgUiController` catches it mid-run and emits an error event instead of a normal completion. There is no separate pre-flight rate-limit check on the frontend anymore.
 
 ## Key Implementation Notes
 
-### `_ntgAgent.ts` — NtgAgent
-
-Extends `AbstractAgent` from `@ag-ui/client`. Two important design decisions:
-
-- **`_ntgBackendAgentId`** — CopilotKit's `handle-run.ts` explicitly does `agent.agentId = mapKey` after cloning, overwriting it with `"dotnet_orchestrator_agent"`. The real backend UUID is stored in a private field `_ntgBackendAgentId` that CopilotKit never touches.
-
-- **`clone()` override** — `AbstractAgent.clone()` uses `Object.create()` and only copies its own fields. The override copies `_ntgBackendAgentId` and `cookieHeader` so they survive cloning.
-
 ### `route.ts` — CopilotRuntime setup
 
-- `NtgAgent` is created directly inside `handleCopilotRequest` (not as an async factory) because `CopilotRuntime.handleServiceAdapter()` calls `Promise.resolve(agents)` — passing a function would resolve to the function itself, yielding an empty agent map.
+- The `HttpAgent` (`@ag-ui/client`) is built directly inside `handleCopilotRequest` (not as an async factory) because `CopilotRuntime.handleServiceAdapter()` calls `Promise.resolve(agents)` — passing a function would resolve to the function itself, yielding an empty agent map.
+- The backend agent UUID lives in the request URL (`/api/agui/{integrationId}`), baked straight into the `HttpAgent`'s own `url`. Unlike the old translation-layer design, nothing needs to survive CopilotKit's `agent.agentId = mapKey` overwrite in `handle-run.ts` — the id CopilotKit sees (`dotnet_orchestrator_agent`) is just a routing key.
+- Middleware registration order matters: `use()` pushes onto a list `AbstractAgent` folds with `reduceRight`, so the middleware registered *first* wraps the rest and sees what they emit. `StableSurfaceIdMiddleware` (see `A2UI_STABLE_SURFACE_IDS` below) is registered before `A2UIMiddleware` so it can see the `ACTIVITY_SNAPSHOT` events the latter invents.
 - The `GET /threads` sub-path returns `{ threads: [] }` to prevent a 405 from `ExperimentalEmptyAdapter`.
 
 ## Environment Variables
@@ -97,6 +97,19 @@ services__ntg_agent_orchestrator__https__0="https://localhost:7093"
 
 # Manual override
 ORCHESTRATOR_URL="https://localhost:7093"
+
+# Freeform A2UI. Unset (or anything other than 0/false/off) declares `render_a2ui`, letting the
+# model hand-author a surface; the orchestrator then also prepends its A2uiPrompt.RenderGuide.
+# Set to 0 for a deployment whose agents render only through Agent Skills' render_skill_surface —
+# skill surfaces and A2UI rendering keep working either way.
+A2UI_FREEFORM_TOOL="0"
+
+# Stable skill-surface ids. Unset (or anything other than 0/false/off) makes a re-rendered
+# render_skill_surface surface replace its existing chat card in place instead of stacking a new
+# one (StableSurfaceIdMiddleware). Scoped to skill surfaces only — freeform render_a2ui always
+# stacks, since its surface ids are model-invented and reused across unrelated requests. Set to 0
+# to restore the pre-d534812 stacking behaviour for skill surfaces too.
+A2UI_STABLE_SURFACE_IDS="0"
 ```
 
 TLS verification is relaxed in development (`NODE_TLS_REJECT_UNAUTHORIZED=0`) to allow self-signed certificates over HTTPS.

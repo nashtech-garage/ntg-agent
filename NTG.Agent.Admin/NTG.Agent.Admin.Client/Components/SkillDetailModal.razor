@@ -1,0 +1,154 @@
+@using NTG.Agent.Common.Dtos.Skills
+@inject SkillClient SkillClient
+@inject ILogger<SkillDetailModal> Logger
+
+@if (IsVisible)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-puzzle-fill me-2"></i>@(detail?.Name ?? "Skill")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoading)
+                    {
+                        <div class="d-flex justify-content-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>@errorMessage
+                        </div>
+                    }
+                    else if (detail != null)
+                    {
+                        <dl class="row mb-4">
+                            <dt class="col-sm-3">Version</dt>
+                            <dd class="col-sm-9">@detail.Version</dd>
+
+                            <dt class="col-sm-3">Description</dt>
+                            <dd class="col-sm-9">@detail.Description</dd>
+
+                            <dt class="col-sm-3">Imported by</dt>
+                            <dd class="col-sm-9">@detail.ImportedByEmail</dd>
+
+                            <dt class="col-sm-3">Imported on</dt>
+                            <dd class="col-sm-9">@detail.CreatedAt.ToString("MMM dd, yyyy HH:mm")</dd>
+                        </dl>
+
+                        <h6 class="mb-2"><i class="bi bi-file-earmark-text me-2"></i>SKILL.md</h6>
+                        <pre class="p-3 bg-light border rounded" style="white-space: pre-wrap; max-height: 320px; overflow-y: auto;">@detail.Body</pre>
+
+                        <h6 class="mb-2 mt-4">
+                            <i class="bi bi-folder2 me-2"></i>Bundled Assets
+                            <span class="badge bg-secondary ms-1">@detail.Assets.Count</span>
+                        </h6>
+                        @if (detail.Assets.Count == 0)
+                        {
+                            <p class="text-muted">No bundled assets.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush small">
+                                @foreach (var asset in detail.Assets)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span class="font-monospace">@asset.RelativePath</span>
+                                        <span class="text-muted">@FormatSize(asset.SizeBytes)</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="CloseModal">
+                        <i class="bi bi-x-lg me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter]
+    public Guid? SkillId { get; set; }
+
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private SkillDetail? detail;
+    private bool isLoading;
+    private string? errorMessage;
+    private Guid? loadedSkillId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && SkillId.HasValue && SkillId != loadedSkillId)
+        {
+            await LoadDetail(SkillId.Value);
+        }
+
+        if (!IsVisible)
+        {
+            detail = null;
+            errorMessage = null;
+            loadedSkillId = null;
+        }
+    }
+
+    private async Task LoadDetail(Guid skillId)
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            detail = await SkillClient.GetDetailAsync(skillId);
+            loadedSkillId = skillId;
+            if (detail == null)
+            {
+                errorMessage = "Skill not found. It may have been deleted.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading skill detail for {SkillId}", skillId);
+            errorMessage = "Failed to load skill details.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB"];
+        double size = bytes;
+        var unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+        return $"{size:0.#} {units[unitIndex]}";
+    }
+
+    private async Task CloseModal()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
