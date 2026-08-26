@@ -182,6 +182,17 @@ public class AgentFactory : IAgentFactory
                     Effort = ReasoningEffort.Medium,
                     Output = ReasoningOutput.Full,
                 };
+                // The Responses API stores responses server-side by default; the stored response id then
+                // surfaces as ChatResponse.ConversationId, which FunctionInvokingChatClient treats as
+                // "the service owns the history" — dropping accumulated messages and sending bare tool
+                // results via previous_response_id. Endpoints that do not reliably retain those responses
+                // fail continuations with HTTP 400 previous_response_not_found. store=false keeps history
+                // client-side; reasoning config above still applies. (Fix merged from main's
+                // OpenAICompatibleClientFactory.ConfigureResponsesOptions.)
+                o.RawRepresentationFactory = _ => new CreateResponseOptions
+                {
+                    StoredOutputEnabled = false,
+                };
             })
             .Build();
 #pragma warning restore OPENAI001
@@ -209,6 +220,9 @@ public class AgentFactory : IAgentFactory
                 o.MaxOutputTokens = maxOutputTokens;
                 o.RawRepresentationFactory = _ => new CreateResponseOptions
                 {
+                    // See CreateOpenAIResponsesThinkingChatClient: stateful responses break tool-call
+                    // continuations on endpoints that don't retain them.
+                    StoredOutputEnabled = false,
                     ReasoningOptions = new ResponseReasoningOptions
                     {
                         ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
