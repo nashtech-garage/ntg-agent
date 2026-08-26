@@ -849,6 +849,9 @@ public class AgentAdminController : ControllerBase
         }
         catch (Exception ex)
         {
+            // Broad by design: any discovery failure is surfaced to the admin as the
+            // connection-test verdict; logged here so server-side diagnostics keep the detail.
+            _logger.LogError(ex, "Provider connection test failed for provider {ProviderId}", id);
             return Ok(new TestConnectionResult { Success = false, ErrorMessage = ex.Message });
         }
     }
@@ -868,6 +871,7 @@ public class AgentAdminController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Model discovery failed for provider {ProviderId}", id);
             return BadRequest(ex.Message);
         }
     }
