@@ -13,11 +13,11 @@ public sealed class LightRagContainerAccessTracker
     private readonly object _lock = new();
 
     /// <summary>Record that the given agent's container was just accessed.</summary>
-    public void Touch(Guid agentId)
+    public void Touch(Guid ownerAgentId)
     {
         lock (_lock)
         {
-            _lastAccess[agentId] = DateTime.UtcNow;
+            _lastAccess[ownerAgentId] = DateTime.UtcNow;
         }
     }
 
@@ -26,20 +26,20 @@ public sealed class LightRagContainerAccessTracker
     /// has never been tracked. Callers should treat a missing entry as "unknown"
     /// (i.e. don't shut down a container we've never seen accessed).
     /// </summary>
-    public DateTime? GetLastAccess(Guid agentId)
+    public DateTime? GetLastAccess(Guid ownerAgentId)
     {
         lock (_lock)
         {
-            return _lastAccess.TryGetValue(agentId, out var ts) ? ts : null;
+            return _lastAccess.TryGetValue(ownerAgentId, out var ts) ? ts : null;
         }
     }
 
     /// <summary>Remove the tracking entry for an agent (e.g. after its container is removed).</summary>
-    public void Remove(Guid agentId)
+    public void Remove(Guid ownerAgentId)
     {
         lock (_lock)
         {
-            _lastAccess.Remove(agentId);
+            _lastAccess.Remove(ownerAgentId);
         }
     }
 

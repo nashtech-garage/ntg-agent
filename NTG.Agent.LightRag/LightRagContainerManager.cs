@@ -14,7 +14,7 @@ namespace NTG.Agent.LightRag;
 /// </summary>
 public sealed class LightRagContainerManager : ILightRagContainerManager, IDisposable
 {
-	// The nginx gateway proxies /agents/{agentId}/* to this container-internal port by name
+	// The nginx gateway proxies /agents/{ownerAgentId}/* to this container-internal port by name
 	// on the shared network; containers publish no host ports.
 	private const string ContainerPort = "9621/tcp";
 
@@ -44,11 +44,11 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 
 	private string ImageName => $"{_settings.ImageRef}:{_settings.ImageTag}";
 
-	private static string ContainerName(Guid agentId) => $"lightrag-agent-{agentId}";
+	private static string ContainerName(Guid ownerAgentId) => $"lightrag-agent-{ownerAgentId}";
 
 	// LightRAG WORKSPACE scopes every row it writes in the shared Postgres tables.
 	// Use the dash-less GUID so it is a safe identifier in any backend.
-	private static string Workspace(Guid agentId) => $"w{agentId:N}";
+	private static string Workspace(Guid ownerAgentId) => $"w{ownerAgentId:N}";
 
 	// Cheap round-trip that proves the daemon is reachable before we attempt the heavier
 	// image/container operations. Catches connectivity failures (SSH tunnel down => refused)
@@ -92,12 +92,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		_logger.LogInformation("LightRagContainerManager: pulled image {Image}.", ImageName);
 	}
 
-	public async Task EnsureContainerAsync(Guid agentId, CancellationToken cancellationToken = default)
+	public async Task EnsureContainerAsync(Guid ownerAgentId, CancellationToken cancellationToken = default)
 	{
 		await _gate.WaitAsync(cancellationToken);
 		try
 		{
-			await EnsureContainerCoreAsync(agentId, cancellationToken);
+			await EnsureContainerCoreAsync(ownerAgentId, cancellationToken);
 		}
 		finally
 		{
@@ -109,12 +109,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		// connection is dropped ("response ended prematurely"). Wait for the app to actually
 		// serve before returning. Polled OUTSIDE _gate so one agent's cold boot does not
 		// serialize every other agent's container operations behind it.
-		await WaitUntilReadyAsync(agentId, ContainerName(agentId), cancellationToken);
+		await WaitUntilReadyAsync(ownerAgentId, ContainerName(ownerAgentId), cancellationToken);
 	}
 
 	// The create/start/inspect flow, run under _gate; readiness is awaited by the caller
 	// after the gate is released.
-	private async Task EnsureContainerCoreAsync(Guid agentId, CancellationToken cancellationToken)
+	private async Task EnsureContainerCoreAsync(Guid ownerAgentId, CancellationToken cancellationToken)
 	{
 		// Fail fast with a clean, typed error if the daemon is down, instead of letting the
 		// raw Docker.DotNet/SocketException leak from the first Docker call below to the
@@ -125,7 +125,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		await EnsureImagePulledAsync(cancellationToken);
 		var network = await EnsureSharedNetworkAsync(cancellationToken);
 
-		var name = ContainerName(agentId);
+		var name = ContainerName(ownerAgentId);
 		var existing = await FindContainerAsync(name, cancellationToken);
 
 		if (existing is not null)
@@ -139,7 +139,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 			// one with drifted env fails this and is recreated.
 			if (onNetwork && running)
 			{
-				var desiredEnv = BuildEnv(agentId);
+				var desiredEnv = BuildEnv(ownerAgentId);
 				var currentEnv = inspect.Config?.Env ?? [];
 				var driftedKeys = FindEnvDrift(currentEnv, desiredEnv);
 
@@ -155,7 +155,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 				// the workspace vector data so LightRAG rebuilds the index at correct size.
 				if (driftedKeys.Contains("EMBEDDING_DIM"))
 				{
-					await ResetVectorSchemaAsync(agentId, cancellationToken);
+					await ResetVectorSchemaAsync(ownerAgentId, cancellationToken);
 				}
 			}
 			else
@@ -166,17 +166,17 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 			await _docker.Containers.RemoveContainerAsync(existing.ID, new ContainerRemoveParameters { Force = true }, cancellationToken);
 		}
 
-		var create = await _docker.Containers.CreateContainerAsync(BuildCreateParameters(name, agentId, network), cancellationToken);
+		var create = await _docker.Containers.CreateContainerAsync(BuildCreateParameters(name, ownerAgentId, network), cancellationToken);
 		await _docker.Containers.StartContainerAsync(create.ID, new ContainerStartParameters(), cancellationToken);
 
 		_logger.LogInformation("LightRagContainerManager: created {Name} (network {Network}, workspace {Workspace}).",
-			name, network, Workspace(agentId));
+			name, network, Workspace(ownerAgentId));
 	}
 
 	// Polls GET health (through the gateway) until the container's app answers, or throws once
 	// the readiness budget is exhausted. A container reused on the fast path is already serving,
 	// so this returns on the first probe; a freshly-started one is waited out through its boot.
-	private async Task WaitUntilReadyAsync(Guid agentId, string name, CancellationToken cancellationToken)
+	private async Task WaitUntilReadyAsync(Guid ownerAgentId, string name, CancellationToken cancellationToken)
 	{
 		var timeout = TimeSpan.FromSeconds(Math.Max(1, _settings.ReadinessTimeoutSeconds));
 		var interval = TimeSpan.FromMilliseconds(Math.Max(50, _settings.ReadinessPollIntervalMs));
@@ -187,7 +187,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			attempts++;
-			if (await _healthProbe.IsHealthyAsync(agentId, cancellationToken))
+			if (await _healthProbe.IsHealthyAsync(ownerAgentId, cancellationToken))
 			{
 				_logger.LogInformation("LightRagContainerManager: {Name} ready after {Attempts} probe(s).", name, attempts);
 				return;
@@ -200,12 +200,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		}
 	}
 
-	public async Task StopAndRemoveContainerAsync(Guid agentId, CancellationToken cancellationToken = default)
+	public async Task StopAndRemoveContainerAsync(Guid ownerAgentId, CancellationToken cancellationToken = default)
 	{
 		await _gate.WaitAsync(cancellationToken);
 		try
 		{
-			var name = ContainerName(agentId);
+			var name = ContainerName(ownerAgentId);
 			var existing = await FindContainerAsync(name, cancellationToken);
 			if (existing is null)
 			{
@@ -231,12 +231,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		}
 	}
 
-	public async Task StopContainerAsync(Guid agentId, CancellationToken cancellationToken = default)
+	public async Task StopContainerAsync(Guid ownerAgentId, CancellationToken cancellationToken = default)
 	{
 		await _gate.WaitAsync(cancellationToken);
 		try
 		{
-			var name = ContainerName(agentId);
+			var name = ContainerName(ownerAgentId);
 			var existing = await FindContainerAsync(name, cancellationToken);
 			if (existing is null)
 			{
@@ -337,7 +337,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 	}
 
 	// TLS terminates at the nginx gateway; containers serve plain HTTP on the Docker network.
-	private List<string> BuildEnv(Guid agentId) =>
+	private List<string> BuildEnv(Guid ownerAgentId) =>
 	[
 		"LIGHTRAG_KV_STORAGE=PGKVStorage",
 		"LIGHTRAG_VECTOR_STORAGE=PGVectorStorage",
@@ -349,7 +349,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		$"POSTGRES_PASSWORD={_settings.PostgresPassword}",
 		$"POSTGRES_DATABASE={_settings.PostgresDatabase}",
         // The isolation boundary: every row this container writes is scoped to this workspace.
-        $"WORKSPACE={Workspace(agentId)}",
+        $"WORKSPACE={Workspace(ownerAgentId)}",
 		"LLM_BINDING=azure_openai",
 		$"LLM_MODEL={_settings.LlmModel}",
 		$"LLM_BINDING_HOST={_settings.LlmEndpoint}",
@@ -374,12 +374,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		$"LIGHTRAG_API_KEY={_settings.ApiKey}",
 	];
 
-	private CreateContainerParameters BuildCreateParameters(string name, Guid agentId, string network) =>
+	private CreateContainerParameters BuildCreateParameters(string name, Guid ownerAgentId, string network) =>
 		new()
 		{
 			Name = name,
 			Image = ImageName,
-			Env = BuildEnv(agentId),
+			Env = BuildEnv(ownerAgentId),
 			// No published host ports: the gateway reaches the container's 9621 by name over
 			// the shared network.
 			ExposedPorts = new Dictionary<string, EmptyStruct> { [ContainerPort] = default },
@@ -438,9 +438,9 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 		return drifted;
 	}
 
-	private async Task ResetVectorSchemaAsync(Guid agentId, CancellationToken ct)
+	private async Task ResetVectorSchemaAsync(Guid ownerAgentId, CancellationToken ct)
 	{
-		var workspace = Workspace(agentId);
+		var workspace = Workspace(ownerAgentId);
 		// The standalone server Postgres is reached directly, so the endpoint is configured
 		// (PostgresHost/PostgresPort with ServerHost fallback), not discovered from the daemon.
 		// Whitespace counts as unset: the AppHost passes " " to disable a remote parameter.
@@ -499,14 +499,14 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
 
 			_logger.LogWarning(
 				"LightRagContainerManager: wiped vector rows for agent {AgentId} (workspace={W}). " +
-				"Documents must be re-uploaded to be queryable.", agentId, workspace);
+				"Documents must be re-uploaded to be queryable.", ownerAgentId, workspace);
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex,
 				"LightRagContainerManager: failed to reset vector schema for agent {AgentId} ({Endpoint}). " +
 				"Container will still be recreated but first upload may fail until schema is manually reset.",
-				agentId, pgEndpoint);
+				ownerAgentId, pgEndpoint);
 		}
 	}
 

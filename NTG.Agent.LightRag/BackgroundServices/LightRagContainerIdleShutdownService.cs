@@ -82,7 +82,7 @@ public sealed class LightRagContainerIdleShutdownService : BackgroundService
         var now = DateTime.UtcNow;
         var shutdownCount = 0;
 
-        foreach (var (agentId, lastAccess) in tracked)
+        foreach (var (ownerAgentId, lastAccess) in tracked)
         {
             var idleDuration = now - lastAccess;
             if (idleDuration < timeout)
@@ -91,19 +91,19 @@ public sealed class LightRagContainerIdleShutdownService : BackgroundService
             _logger.LogInformation(
                 "LightRAG idle shutdown: agent {AgentId} has been idle for {IdleMinutes:F0}min " +
                 "(threshold={Threshold}min). Stopping container.",
-                agentId, idleDuration.TotalMinutes, _settings.IdleTimeoutMinutes);
+                ownerAgentId, idleDuration.TotalMinutes, _settings.IdleTimeoutMinutes);
 
             try
             {
-                await _containerManager.StopContainerAsync(agentId, ct);
-                _accessTracker.Remove(agentId);
+                await _containerManager.StopContainerAsync(ownerAgentId, ct);
+                _accessTracker.Remove(ownerAgentId);
                 shutdownCount++;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex,
                     "LightRAG idle shutdown: failed to stop container for agent {AgentId}.",
-                    agentId);
+                    ownerAgentId);
             }
         }
 
