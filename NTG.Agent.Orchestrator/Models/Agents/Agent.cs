@@ -47,6 +47,15 @@ public class Agent
     /// <summary>When the last provisioning transition to Ready/Failed occurred</summary>
     public DateTime? ProvisionedAt { get; set; }
 
+    /// <summary>
+    /// The agent that owns the LightRAG knowledge base this agent uses.
+    /// <c>null</c> means this agent owns its own KB; a non-null value means it is a guest in that
+    /// agent's KB. An owner always has this set to <c>null</c> — guests never own, so a join target
+    /// must itself be an owner (no chaining).
+    /// Always <c>null</c> for <see cref="AgentKind.Inner"/> agents, which have no knowledge base.
+    /// </summary>
+    public Guid? KnowledgeOwnerAgentId { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

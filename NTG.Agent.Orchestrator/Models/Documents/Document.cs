@@ -14,6 +14,12 @@ public class Document
     public string Url { get; set; } = string.Empty;
     public string? KnowledgeDocId { get; set; }
     public Guid? FolderId { get; set; }
+
+    /// <summary>
+    /// The knowledge base this document belongs to — the owning agent's id. For an agent that owns
+    /// its own KB this is its own id, which is why existing rows need no backfill. Documents belong
+    /// to the KB, not to the agent that uploaded them: see <see cref="UploadedViaAgentId"/>.
+    /// </summary>
     public Guid AgentId { get; set; }
     public Guid CreatedByUserId { get; set; }
     public Guid UpdatedByUserId { get; set; }
@@ -30,6 +36,15 @@ public class Document
 
     /// <summary>Failure reason surfaced to the UI when <see cref="Status"/> is <see cref="DocumentStatus.Failed"/>.</summary>
     public string? ErrorMessage { get; set; }
+
+    /// <summary>The agent this document was uploaded through. Provenance only — it does not affect
+    /// access, since every agent in the knowledge base can read every document in it. Nulled when
+    /// that agent is deleted; <see cref="UploadedViaAgentName"/> survives.</summary>
+    public Guid? UploadedViaAgentId { get; set; }
+
+    /// <summary>Name snapshot of the uploading agent, so the "uploaded via" label survives that
+    /// agent's deletion.</summary>
+    public string? UploadedViaAgentName { get; set; }
 
     // Navigation properties
     public ICollection<DocumentTag> DocumentTags { get; set; } = new List<DocumentTag>();

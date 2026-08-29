@@ -112,6 +112,23 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
         base.OnModelCreating(modelBuilder);
 
+        // Self-referencing knowledge-base ownership: a guest agent points at the agent that founded
+        // the KB they share. Restrict maps to ON DELETE NO ACTION, a database-level backstop beneath
+        // the 409 guard in AgentAdminController.DeleteAgent — an owner cannot be deleted while
+        // guests still depend on its container and workspace.
+        modelBuilder.Entity<Models.Agents.Agent>(e =>
+        {
+            e.HasOne<Models.Agents.Agent>()
+                .WithMany()
+                .HasForeignKey(a => a.KnowledgeOwnerAgentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(a => a.KnowledgeOwnerAgentId);
+        });
+
+        modelBuilder.Entity<Models.Documents.Document>()
+            .Property(d => d.UploadedViaAgentName)
+            .HasMaxLength(200);
+
         modelBuilder.Entity<Models.Agents.Agent>().HasData(new Models.Agents.Agent
         {
             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
