@@ -59,7 +59,7 @@ public class LightRagReconcilerHostedServiceTests
         manager.Setup(m => m.EnsureImagePulledAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
         var agentStore = new Mock<ILightRagAgentStore>();
-        agentStore.Setup(p => p.GetAgentIdsAsync(It.IsAny<CancellationToken>()))
+        agentStore.Setup(p => p.GetKnowledgeOwnerIdsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid>)Array.Empty<Guid>());
 
         var settings = new LightRagSettings { DaemonProbeTimeoutSeconds = 5, DaemonProbePollIntervalMs = 10 };

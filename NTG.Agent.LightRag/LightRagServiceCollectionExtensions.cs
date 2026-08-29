@@ -101,6 +101,10 @@ public static class LightRagServiceCollectionExtensions
         services.AddSingleton<ILightRagHealthProbe, LightRagHealthProbe>();
         services.AddSingleton<ILightRagContainerManager, LightRagContainerManager>();
         services.AddSingleton<LightRagContainerAccessTracker>();
+        // Maps an agent to the knowledge base backing it — the id that keys its container,
+        // workspace and file-store directory. Scoped so its per-request cache collapses the
+        // several lookups a single chat turn would otherwise make.
+        services.AddScoped<LightRagWorkspaceResolver>();
         services.AddScoped<LightRagClientFactory>();
         services.AddHostedService<LightRagReconcilerHostedService>();
         services.AddHostedService<LightRagContainerIdleShutdownService>();

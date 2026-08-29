@@ -6,8 +6,9 @@ using Microsoft.Extensions.Options;
 namespace NTG.Agent.LightRag.BackgroundServices;
 
 /// <summary>
-/// On startup, pulls the LightRAG image once and ensures every agent has a running
-/// dedicated container.
+/// On startup, pulls the LightRAG image once and ensures every knowledge base has a running
+/// container. Knowledge bases, not agents: several agents can share one, and inner agents have
+/// none at all.
 /// Runs as a background service so it does not block app startup (the first-run image
 /// pull can take minutes); <see cref="ILightRagContainerManager.EnsureContainerAsync"/>
 /// also self-pulls, so agent creation works even before this finishes.
@@ -55,21 +56,23 @@ public sealed class LightRagReconcilerHostedService : BackgroundService
 
             using var scope = _serviceProvider.CreateScope();
             var agentStore = scope.ServiceProvider.GetRequiredService<ILightRagAgentStore>();
-            var agentIds = await agentStore.GetAgentIdsAsync(stoppingToken);
+            // One container per knowledge base, not per agent: agents sharing a knowledge base cost
+            // one container between them, and agents with none (inner agents) cost nothing.
+            var ownerAgentIds = await agentStore.GetKnowledgeOwnerIdsAsync(stoppingToken);
 
-            foreach (var agentId in agentIds)
+            foreach (var ownerAgentId in ownerAgentIds)
             {
                 try
                 {
-                    await _containerManager.EnsureContainerAsync(agentId, stoppingToken);
+                    await _containerManager.EnsureContainerAsync(ownerAgentId, stoppingToken);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "LightRAG reconciler: failed to ensure container for agent {AgentId}.", agentId);
+                    _logger.LogError(ex, "LightRAG reconciler: failed to ensure container for knowledge base {OwnerAgentId}.", ownerAgentId);
                 }
             }
 
-            _logger.LogInformation("LightRAG reconciler: reconciled {Count} agent container(s).", agentIds.Count);
+            _logger.LogInformation("LightRAG reconciler: reconciled {Count} knowledge-base container(s).", ownerAgentIds.Count);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {

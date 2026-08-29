@@ -10,6 +10,7 @@ public class LightRagKnowledge : IKnowledgeService
 {
     private readonly LightRagClientFactory _clientFactory;
     private readonly LightRagFileStore _fileStore;
+    private readonly LightRagWorkspaceResolver _resolver;
     private readonly LightRagSettings _settings;
     private readonly ILogger<LightRagKnowledge> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -17,12 +18,14 @@ public class LightRagKnowledge : IKnowledgeService
     public LightRagKnowledge(
         LightRagClientFactory clientFactory,
         LightRagFileStore fileStore,
+        LightRagWorkspaceResolver resolver,
         IOptions<LightRagSettings> settings,
         ILogger<LightRagKnowledge> logger,
         IHttpClientFactory httpClientFactory)
     {
         _clientFactory = clientFactory;
         _fileStore = fileStore;
+        _resolver = resolver;
         _settings = settings.Value;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
@@ -31,6 +34,9 @@ public class LightRagKnowledge : IKnowledgeService
     public async Task<string> BeginImportDocumentAsync(Stream content, string fileName, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
     {
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
+        // The file store is keyed by knowledge base, so an uploaded file stays reachable to every
+        // agent sharing it — and outlives the agent it was uploaded through.
+        var ownerAgentId = await _resolver.RequireOwnerAgentIdAsync(agentId, cancellationToken);
 
         // Buffer stream so it can be read twice: once for LightRAG, once for the file store.
         using var buffer = new MemoryStream();
@@ -39,7 +45,7 @@ public class LightRagKnowledge : IKnowledgeService
         // Persist the original bytes immediately (keyed by the local Document.Id) so the file is
         // downloadable while LightRAG is still extracting in the background.
         buffer.Position = 0;
-        await _fileStore.SaveAsync(agentId, documentId, fileName, buffer, cancellationToken);
+        await _fileStore.SaveAsync(ownerAgentId, documentId, fileName, buffer, cancellationToken);
 
         // LightRAG /documents/upload is async — it returns a track_id right away and assigns the
         // real doc-id later. We do NOT wait here; the background worker polls for completion.
@@ -80,10 +86,11 @@ public class LightRagKnowledge : IKnowledgeService
             throw new ArgumentException("Content cannot be null or empty.", nameof(content));
 
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
+        var ownerAgentId = await _resolver.RequireOwnerAgentIdAsync(agentId, cancellationToken);
 
         using (var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content)))
         {
-            await _fileStore.SaveAsync(agentId, documentId, fileName, stream, cancellationToken);
+            await _fileStore.SaveAsync(ownerAgentId, documentId, fileName, stream, cancellationToken);
         }
 
         var trackId = await client.InsertTextAsync(content, fileName, cancellationToken);
@@ -144,21 +151,32 @@ public class LightRagKnowledge : IKnowledgeService
             await client.DeleteDocumentAsync(effectiveDocId, cancellationToken);
         }
 
-        _fileStore.FindAndDelete(agentId, documentId);
+        var ownerAgentId = await _resolver.RequireOwnerAgentIdAsync(agentId, cancellationToken);
+        _fileStore.FindAndDelete(ownerAgentId, documentId);
     }
 
     public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
     {
-        // Each agent has its own container/workspace, so this query only sees this
-        // agent's documents. Hybrid mode enables local + global graph search with re-ranking.
+        // The query runs against the container behind this agent's knowledge base, so it sees every
+        // document in that knowledge base — its own uploads and those of any agent sharing it, and
+        // nothing outside it. Hybrid mode enables local + global graph search with re-ranking.
         //
         // NOTE: LightRAG's /query endpoint does not support tag-based filtering. Tags are
-        // accepted for interface compatibility but are not applied. Per-agent workspace
-        // isolation already scopes results to a single agent's documents.
+        // accepted for interface compatibility but are not applied. Workspace isolation already
+        // scopes results to a single knowledge base's documents.
         if (tags is { Count: > 0 })
         {
             _logger.LogWarning("LightRagKnowledge.SearchAsync: tag-based filtering is not supported by LightRAG; " +
                 "tags were provided but will be ignored for agentId={AgentId}.", agentId);
+        }
+
+        // An agent with no knowledge base has nothing to retrieve from. It should never reach here
+        // (inner agents are not given the memory tool), so degrade to an empty result rather than
+        // throwing — a retrieval miss must not take down the chat turn around it.
+        if (await _resolver.GetOwnerAgentIdAsync(agentId, cancellationToken) is null)
+        {
+            _logger.LogWarning("LightRagKnowledge.SearchAsync: agent {AgentId} has no knowledge base; returning empty.", agentId);
+            return new KnowledgeSearchResponse(IsEmpty: true, Query: query, Results: []);
         }
 
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
@@ -172,11 +190,14 @@ public class LightRagKnowledge : IKnowledgeService
     public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
         => await SearchAsync(query, agentId, new List<string>(), cancellationToken);
 
-    public Task<KnowledgeFileContent> ExportDocumentAsync(Guid agentId, Guid documentId, string? knowledgeDocId, string fileName, CancellationToken cancellationToken = default)
+    public async Task<KnowledgeFileContent> ExportDocumentAsync(Guid agentId, Guid documentId, string? knowledgeDocId, string fileName, CancellationToken cancellationToken = default)
     {
-        var result = _fileStore.GetAsync(agentId, documentId, fileName)
-            ?? throw new FileNotFoundException($"Document '{documentId}' not found in file store for agent '{agentId}'.");
-        return Task.FromResult(result);
+        // Keyed by knowledge base, so any agent sharing it can download the file — including one
+        // uploaded through a sibling agent, or through an agent that has since been deleted.
+        var ownerAgentId = await _resolver.RequireOwnerAgentIdAsync(agentId, cancellationToken);
+        return _fileStore.GetAsync(ownerAgentId, documentId, fileName)
+            ?? throw new FileNotFoundException(
+                $"Document '{documentId}' not found in file store for knowledge base '{ownerAgentId}'.");
     }
 
     // SSRF guard for BeginImportWebPageAsync: true for loopback, private (RFC 1918),

@@ -2,13 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Documents;
 using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Extentions;
 
 namespace NTG.Agent.Orchestrator.Services.Knowledge;
 
 /// <summary>
 /// EF-backed implementation of the LightRAG provider's persistence seams. This is the only
-/// place where the LightRAG provider touches the Orchestrator's database: the agent list for
-/// the startup reconciler and ingestion progress on <c>Document</c>.
+/// place where the LightRAG provider touches the Orchestrator's database: knowledge-base ownership
+/// for the startup reconciler and the workspace resolver, and ingestion progress on <c>Document</c>.
+/// The ownership rules themselves live in <see cref="KnowledgeOwnershipExtensions"/>.
 /// </summary>
 public sealed class LightRagEfAgentStore : ILightRagAgentStore
 {
@@ -16,8 +18,11 @@ public sealed class LightRagEfAgentStore : ILightRagAgentStore
 
     public LightRagEfAgentStore(AgentDbContext db) => _db = db;
 
-    public async Task<IReadOnlyList<Guid>> GetAgentIdsAsync(CancellationToken cancellationToken = default)
-        => await _db.Agents.Select(a => a.Id).ToListAsync(cancellationToken);
+    public Task<IReadOnlyList<Guid>> GetKnowledgeOwnerIdsAsync(CancellationToken cancellationToken = default)
+        => _db.GetKnowledgeOwnerIdsAsync(cancellationToken);
+
+    public Task<Guid?> GetKnowledgeOwnerAsync(Guid agentId, CancellationToken cancellationToken = default)
+        => _db.GetKnowledgeOwnerIdAsync(agentId, cancellationToken);
 }
 
 /// <summary>EF-backed store the LightRAG ingestion-status worker polls and updates.</summary>
