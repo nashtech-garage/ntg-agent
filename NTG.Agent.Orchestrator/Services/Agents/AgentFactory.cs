@@ -1,7 +1,6 @@
 ﻿using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Common.Dtos.Agents;

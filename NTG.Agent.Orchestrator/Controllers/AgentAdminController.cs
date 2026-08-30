@@ -23,15 +23,13 @@ public class AgentAdminController : ControllerBase
     private readonly IKnowledgeService _knowledgeService;
     private readonly AgentProvisioningSignal _provisioningSignal;
     private readonly ILogger<AgentAdminController> _logger;
-    private readonly AgentAccessService _agentAccessService;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
         IKnowledgeProvisioner knowledgeProvisioner,
         IKnowledgeService knowledgeService,
         AgentProvisioningSignal provisioningSignal,
-        ILogger<AgentAdminController> logger,
-        AgentAccessService agentAccessService
+        ILogger<AgentAdminController> logger
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
@@ -40,7 +38,6 @@ public class AgentAdminController : ControllerBase
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _provisioningSignal = provisioningSignal ?? throw new ArgumentNullException(nameof(provisioningSignal));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
     }
 
     /// <summary>

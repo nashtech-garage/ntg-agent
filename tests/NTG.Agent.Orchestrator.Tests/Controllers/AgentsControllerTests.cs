@@ -56,7 +56,7 @@ public class AgentsControllerTests
             Mock.Of<ILogger<AgentService>>()
         );
 
-        _controller = new AgentsController(_mockAgentService.Object, _context, _accessService)
+        _controller = new AgentsController(_mockAgentService.Object, _accessService)
         {
             ControllerContext = new ControllerContext
             {
