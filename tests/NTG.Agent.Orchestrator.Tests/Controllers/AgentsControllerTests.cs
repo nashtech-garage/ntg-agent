@@ -49,7 +49,6 @@ public class AgentsControllerTests
             Mock.Of<IIpAddressService>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<IDocumentAnalysisService>(),
-            _accessService,
             new RenderableToolCapture(),
             new SkillRegistry(_context, new SkillPackageImporter(), Mock.Of<ILogger<SkillRegistry>>()),
             new SkillActivityLog(),
