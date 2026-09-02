@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Orchestrator.Data;
 
@@ -11,9 +12,11 @@ using NTG.Agent.Orchestrator.Data;
 namespace NTG.Agent.Orchestrator.Migrations
 {
     [DbContext(typeof(AgentDbContext))]
-    partial class AgentDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825030202_MigrateCustomProvidersToOpenAICompatible")]
+    partial class MigrateCustomProvidersToOpenAICompatible
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -682,112 +685,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                         });
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.AgentSkill", b =>
-                {
-                    b.Property<Guid>("AgentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("SkillId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsEnabled")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("AgentId", "SkillId");
-
-                    b.HasIndex("SkillId");
-
-                    b.ToTable("AgentSkills");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.Skill", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Compatibility")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.Property<Guid>("ImportedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("License")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("SourceFileName")
-                        .HasMaxLength(260)
-                        .HasColumnType("nvarchar(260)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Version")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("Skills");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.SkillAsset", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<byte[]>("Content")
-                        .IsRequired()
-                        .HasColumnType("varbinary(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("RelativePath")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
-
-                    b.Property<Guid>("SkillId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SkillId", "RelativePath")
-                        .IsUnique();
-
-                    b.ToTable("SkillAssets");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.Tag", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1113,36 +1010,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.AgentSkill", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Agents.Agent", "Agent")
-                        .WithMany("SkillBindings")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Skills.Skill", "Skill")
-                        .WithMany("AgentBindings")
-                        .HasForeignKey("SkillId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Agent");
-
-                    b.Navigation("Skill");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.SkillAsset", b =>
-                {
-                    b.HasOne("NTG.Agent.Orchestrator.Models.Skills.Skill", "Skill")
-                        .WithMany("Assets")
-                        .HasForeignKey("SkillId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Skill");
-                });
-
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Tags.TagRole", b =>
                 {
                     b.HasOne("NTG.Agent.Orchestrator.Models.Tags.Tag", "Tag")
@@ -1161,8 +1028,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("InnerAgentBindings");
 
                     b.Navigation("OuterAgentBindings");
-
-                    b.Navigation("SkillBindings");
                 });
 
             modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Agents.Provider", b =>
@@ -1192,13 +1057,6 @@ namespace NTG.Agent.Orchestrator.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("NTG.Agent.Orchestrator.Models.Skills.Skill", b =>
-                {
-                    b.Navigation("AgentBindings");
-
-                    b.Navigation("Assets");
                 });
 #pragma warning restore 612, 618
         }

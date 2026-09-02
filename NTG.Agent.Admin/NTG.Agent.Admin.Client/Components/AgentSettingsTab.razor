@@ -1,4 +1,5 @@
 @using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Admin.Client.Components
 @inject AgentClient AgentClient
 
 <div class="tab-pane fade show active">
@@ -13,13 +14,7 @@
                 <div class="card border-0 bg-light">
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="systemPrompt" class="form-label fw-semibold">
-                                <i class="bi bi-chat-text me-2"></i>Agent provider
-                            </label>
-                            <div class="form-text mb-2">
-                                The AI model that powers your agent. Choose based on your needs for performance, cost, and capabilities.
-                            </div>
-                            <ProviderConfigSection Agent="AgentDetail" Compact="true" />
+                            <ProviderModelSelector @bind-ProviderId="AgentDetail.ProviderId" @bind-ModelOverride="AgentDetail.ModelOverride" SupportsThinkingChanged="OnSupportsThinkingChanged" />
                             <label for="description" class="form-label fw-semibold">
                                 <i class="bi bi-info-square me-2"></i>Description
                             </label>
@@ -120,21 +115,25 @@ You are a helpful AI assistant specialized in customer support. Always be polite
                     </h6>
                     <div class="mb-3">
                         <label class="form-label small">Temperature</label>
-                        <input type="range" class="form-range" min="0" max="1" step="0.1" @bind="temperature">
+                        <input type="range" class="form-range" min="0" max="@temperatureMax" step="0.1" @bind="TemperatureValue">
                         <div class="d-flex justify-content-between">
                             <small class="text-muted">Conservative</small>
                             <small class="text-muted">Creative</small>
                         </div>
-                        <small class="text-muted">Current: @temperature.ToString("F1")</small>
+                        <small class="text-muted">Current: @TemperatureValue.ToString("F1")</small>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label class="form-label small">Max Response Length</label>
-                        <select class="form-select form-select-sm" @bind="maxTokens">
-                            <option value="150">Short (150 tokens)</option>
-                            <option value="500">Medium (500 tokens)</option>
-                            <option value="1000">Long (1000 tokens)</option>
-                            <option value="2000">Very Long (2000 tokens)</option>
+                        <select class="form-select form-select-sm" @bind="AgentDetail.MaxOutputTokens">
+                            <option value="">Model default</option>
+                            <option value="1024">1,024 tokens</option>
+                            <option value="2048">2,048 tokens</option>
+                            <option value="4096">4,096 tokens</option>
+                            <option value="8192">8,192 tokens</option>
+                            <option value="16384">16,384 tokens</option>
+                            <option value="32768">32,768 tokens</option>
+                            <option value="65536">65,536 tokens</option>
                         </select>
                     </div>
 
@@ -153,18 +152,19 @@ You are a helpful AI assistant specialized in customer support. Always be polite
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="agentSettingsMode" id="settingsModeThinking"
                                        checked="@(AgentDetail.Mode == AgentMode.Thinking)"
-                                       @onchange="() => AgentDetail.Mode = AgentMode.Thinking" />
+                                       @onchange="() => AgentDetail.Mode = AgentMode.Thinking"
+                                       disabled="@(!supportsThinking)" />
                                 <label class="form-check-label small" for="settingsModeThinking">
                                     <i class="bi bi-cpu-fill text-info me-1"></i><strong>Thinking</strong>
                                     <div class="text-muted" style="font-size:0.75rem;">Shows reasoning steps first.</div>
                                 </label>
                             </div>
                         </div>
+                        @if (!supportsThinking)
+                        {
+                            <div class="text-muted small mt-1">Not supported by this model.</div>
+                        }
                     </div>
-                    
-                    <button class="btn btn-outline-primary btn-sm w-100" @onclick="SaveAdvancedSettings">
-                        <i class="bi bi-gear me-1"></i>Save Settings
-                    </button>
                 </div>
             </div>
         </div>
@@ -179,12 +179,28 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     private string statusMessage = string.Empty;
     private bool isSaving = false;
     private bool isSuccess = false;
+    private bool supportsThinking;
 
-    // Advanced settings
-    private double temperature = 0.7;
-    private int maxTokens = 500;
-    
     private readonly string defaultPrompt = "You are a helpful AI assistant. Please provide accurate and helpful responses to user queries.";
+
+    // Anthropic's API caps temperature at 1.0; every other provider we support allows up to 2.0.
+    private double temperatureMax => AgentDetail.ProviderType == "Anthropic" ? 1 : 2;
+
+    private double TemperatureValue
+    {
+        get => AgentDetail.Temperature ?? 0.7;
+        set => AgentDetail.Temperature = value;
+    }
+
+    private Task OnSupportsThinkingChanged(bool supported)
+    {
+        supportsThinking = supported;
+        if (!supported && AgentDetail.Mode == AgentMode.Thinking)
+        {
+            AgentDetail.Mode = AgentMode.Fast;
+        }
+        return Task.CompletedTask;
+    }
 
     private async Task SaveAgentSetting()
     {
@@ -216,24 +232,5 @@ You are a helpful AI assistant specialized in customer support. Always be polite
     private void ResetToDefault()
     {
         systemPrompt = defaultPrompt;
-    }
-
-    private async Task SaveAdvancedSettings()
-    {
-        try
-        {
-            // TODO: Implement API call to save advanced settings
-            await Task.Delay(500);
-            statusMessage = "Advanced settings saved successfully!";
-            isSuccess = true;
-            
-            await Task.Delay(2000);
-            statusMessage = string.Empty;
-        }
-        catch (Exception ex)
-        {
-            statusMessage = $"Error saving settings: {ex.Message}";
-            isSuccess = false;
-        }
     }
 }
