@@ -2,7 +2,6 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -31,7 +30,6 @@ public class AgentService
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IDocumentAnalysisService _documentAnalysisService;
-    private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly SkillRegistry _skillRegistry;
     private readonly SkillActivityLog _skillActivityLog;
@@ -46,7 +44,6 @@ public class AgentService
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
         IDocumentAnalysisService documentAnalysisService,
-        AgentAccessService agentAccessService,
         RenderableToolCapture renderableToolCapture,
         SkillRegistry skillRegistry,
         SkillActivityLog skillActivityLog,
@@ -60,7 +57,6 @@ public class AgentService
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
-        _agentAccessService = agentAccessService;
         _renderableToolCapture = renderableToolCapture;
         _skillRegistry = skillRegistry;
         _skillActivityLog = skillActivityLog;

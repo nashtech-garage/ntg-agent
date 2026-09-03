@@ -22,7 +22,6 @@ public class AgentAdminControllerAccessTests
 {
     private AgentDbContext _context;
     private AgentAdminController _controller;
-    private AgentAccessService _accessService;
     private Guid _testAdminUserId;
     private Guid _testAgentId;
     private Guid _testRoleId;
@@ -34,7 +33,6 @@ public class AgentAdminControllerAccessTests
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
             .Options;
         _context = new AgentDbContext(options);
-        _accessService = new AgentAccessService(_context);
         _testAdminUserId = Guid.NewGuid();
         _testAgentId = Guid.NewGuid();
         _testRoleId = Guid.NewGuid();
@@ -67,7 +65,6 @@ public class AgentAdminControllerAccessTests
             Mock.Of<IKnowledgeService>(),
             new AgentProvisioningSignal(),
             NullLogger<AgentAdminController>.Instance,
-            _accessService,
             new ModelDiscoveryService(Mock.Of<IHttpClientFactory>()),
             Mock.Of<IThinkingSupportProbe>())
         {

@@ -147,13 +147,13 @@ public class ModelDiscoveryService
             throw new ArgumentException($"API key is required for {providerName}. Add it on the provider before fetching models.");
     }
 
-    private class OpenAIListResponse { public List<OpenAIModelData> Data { get; set; } = []; }
-    private class OpenAIModelData { public string Id { get; set; } = string.Empty; }
-    private class AnthropicListResponse { public List<AnthropicModelData> Data { get; set; } = []; }
-    private class AnthropicModelData { public string Id { get; set; } = string.Empty; public string DisplayName { get; set; } = string.Empty; }
+    private sealed class OpenAIListResponse { public List<OpenAIModelData> Data { get; set; } = []; }
+    private sealed class OpenAIModelData { public string Id { get; set; } = string.Empty; }
+    private sealed class AnthropicListResponse { public List<AnthropicModelData> Data { get; set; } = []; }
+    private sealed class AnthropicModelData { public string Id { get; set; } = string.Empty; public string DisplayName { get; set; } = string.Empty; }
 
-    private class AzureDeploymentListResponse { public List<AzureDeploymentData> Value { get; set; } = []; }
-    private class AzureDeploymentData
+    private sealed class AzureDeploymentListResponse { public List<AzureDeploymentData> Value { get; set; } = []; }
+    private sealed  class AzureDeploymentData
     {
         public string Name { get; set; } = string.Empty;
         public string ModelName { get; set; } = string.Empty;

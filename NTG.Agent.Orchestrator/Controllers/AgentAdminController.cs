@@ -24,7 +24,6 @@ public class AgentAdminController : ControllerBase
     private readonly IKnowledgeService _knowledgeService;
     private readonly AgentProvisioningSignal _provisioningSignal;
     private readonly ILogger<AgentAdminController> _logger;
-    private readonly AgentAccessService _agentAccessService;
     private readonly ModelDiscoveryService _modelDiscoveryService;
     private readonly IThinkingSupportProbe _thinkingSupportProbe;
 
@@ -34,7 +33,6 @@ public class AgentAdminController : ControllerBase
         IKnowledgeService knowledgeService,
         AgentProvisioningSignal provisioningSignal,
         ILogger<AgentAdminController> logger,
-        AgentAccessService agentAccessService,
         ModelDiscoveryService modelDiscoveryService,
         IThinkingSupportProbe thinkingSupportProbe
         )
@@ -45,7 +43,6 @@ public class AgentAdminController : ControllerBase
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _provisioningSignal = provisioningSignal ?? throw new ArgumentNullException(nameof(provisioningSignal));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
         _modelDiscoveryService = modelDiscoveryService ?? throw new ArgumentNullException(nameof(modelDiscoveryService));
         _thinkingSupportProbe = thinkingSupportProbe ?? throw new ArgumentNullException(nameof(thinkingSupportProbe));
     }
@@ -174,7 +171,7 @@ public class AgentAdminController : ControllerBase
         return names;
     }
 
-    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools, ISet<string> mcpToolNames)
+    private static List<AgentToolDto> MergeAgentTools(Models.Agents.Agent agent, List<AITool> availableTools, HashSet<string> mcpToolNames)
     {
         return availableTools
                 .Select(t =>

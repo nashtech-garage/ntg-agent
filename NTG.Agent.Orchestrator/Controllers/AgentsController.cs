@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
 using NTG.Agent.Orchestrator.Extentions;
 
@@ -14,12 +13,10 @@ namespace NTG.Agent.Orchestrator.Controllers;
 public class AgentsController : ControllerBase
 {
     private readonly AgentService _agentService;
-    private readonly AgentDbContext _agentDbContext;
     private readonly AgentAccessService _agentAccessService;
-    public AgentsController(AgentService agentService, AgentDbContext agentDbContext, AgentAccessService agentAccessService)
+    public AgentsController(AgentService agentService, AgentAccessService agentAccessService)
     {
         _agentService = agentService ?? throw new ArgumentNullException(nameof(agentService));
-        _agentDbContext = agentDbContext;
         _agentAccessService = agentAccessService;
     }
 
