@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Knowledge;
@@ -33,8 +32,7 @@ public class AgentFactoryTests
             _context,
             new Mock<IKnowledgeService>().Object,
             new AgentAccessService(_context),
-            new RenderableToolCapture(),
-            new ServiceCollection().BuildServiceProvider());
+            new RenderableToolCapture());
 
         _userId = Guid.NewGuid();
         _roleId = Guid.NewGuid();
@@ -65,7 +63,7 @@ public class AgentFactoryTests
             Instructions = "Test",
             IsPublished = true,
             AgentKind = kind,
-            ProviderName = "Bogus", // unreachable for Inner; makes Outer fail *after* the access gate
+            // No provider configured — unreachable for Inner; makes Outer fail *after* the access gate
             OwnerUserId = Guid.NewGuid(),
             UpdatedByUserId = Guid.NewGuid()
         });
@@ -89,11 +87,11 @@ public class AgentFactoryTests
     public void CreateAgent_WithUser_OuterAgentWithRoleGrant_PassesAccessGate()
     {
         // Control for the test above: an identical Outer agent gets through the access
-        // gate and only fails later at provider creation (bogus provider name) — proving
+        // gate and only fails later at provider creation (no provider configured) — proving
         // the Inner refusal is kind-based, not access-based.
         var agentId = SeedGrantedAgent(AgentKind.Outer);
 
-        Assert.ThrowsAsync<NotSupportedException>(() =>
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));
     }
 }

@@ -1,4 +1,7 @@
-﻿using Microsoft.Agents.AI;
+﻿using Anthropic;
+using Anthropic.Core;
+using Anthropic.Models.Messages;
+using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
@@ -8,7 +11,10 @@ using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Common.Knowledge;
-using NTG.Agent.Orchestrator.Services.Agents.Clients;
+using OpenAI;
+using OpenAI.Responses;
+using System.ClientModel;
+using OpenAI.Chat;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
 
@@ -19,24 +25,18 @@ public class AgentFactory : IAgentFactory
     private readonly IKnowledgeService _knowledgeService;
     private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
-    private readonly IServiceProvider _serviceProvider;
     public string ToolContext { get; set; } = string.Empty;
 
     private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
-    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService, RenderableToolCapture renderableToolCapture, IServiceProvider serviceProvider)
+    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService, RenderableToolCapture renderableToolCapture)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
         _renderableToolCapture = renderableToolCapture ?? throw new ArgumentNullException(nameof(renderableToolCapture));
-        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     }
-
-    private IAgentClientFactory ResolveClientFactory(string providerName) =>
-        _serviceProvider.GetKeyedService<IAgentClientFactory>(providerName)
-            ?? throw new NotSupportedException($"Agent provider '{providerName}' is not supported.");
 
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
@@ -77,9 +77,300 @@ public class AgentFactory : IAgentFactory
     public async Task<AIAgent> CreateBasicAgent(string instructions)
     {
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == DefaultAgentId) ?? throw new ArgumentException($"Agent with ID '{DefaultAgentId}' not found.");
+        var provider = agentConfig.ProviderId.HasValue
+            ? await _agentDbContext.Providers.FindAsync(agentConfig.ProviderId.Value)
+            : null;
+        if (provider == null)
+            throw new InvalidOperationException($"Agent '{agentConfig.Name}' has no provider configured.");
+        string modelId = agentConfig.ModelOverride ?? throw new InvalidOperationException($"No model configured for agent '{agentConfig.Name}'.");
+        return provider.ProviderType switch
+        {
+            ProviderType.OpenAI => CreateBasicOpenAIAgent(provider, modelId, instructions),
+            ProviderType.GoogleGemini => CreateBasicOpenAIAgent(provider, modelId, instructions),
+            ProviderType.OpenAICompatible => CreateBasicOpenAIAgent(provider, modelId, instructions),
+            ProviderType.AzureOpenAI => CreateBasicAzureOpenAIAgent(provider, modelId, instructions),
+            ProviderType.Anthropic => CreateBasicAnthropicAgent(provider, modelId, instructions),
+            _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),
+        };
+    }
 
-        var chatClient = ResolveClientFactory(agentConfig.ProviderName).CreateChatClient(agentConfig, enableThinking: false);
-        return new ChatClientAgent(chatClient, instructions: instructions);
+    private static ChatClientAgent CreateBasicOpenAIAgent(Models.Agents.Provider provider, string modelId, string instructions)
+    {
+        // Endpoint is optional for standard OpenAI; GitHub Models and Google Gemini require a custom endpoint.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(provider.Endpoint))
+        {
+            clientOptions.Endpoint = new Uri(provider.Endpoint);
+        }
+
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), clientOptions);
+        var agent = openAiClient.GetChatClient(modelId).AsAIAgent(instructions: instructions);
+        return agent;
+    }
+
+    private static ChatClientAgent CreateBasicAnthropicAgent(Models.Agents.Provider provider, string modelId, string instructions)
+    {
+        // Uses the official Anthropic SDK (Anthropic NuGet package) which includes Microsoft.Extensions.AI
+        // integration via the AsIChatClient() extension method defined in the Microsoft.Extensions.AI namespace.
+        // The SDK client is intentionally not disposed: its lifetime is owned by the returned agent,
+        // which keeps using it for the agent's whole lifetime.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
+        var chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
+            .AsIChatClient(defaultModelId: modelId);
+#pragma warning restore CA2000
+
+        var agent = new ChatClientAgent(chatClient, instructions: instructions);
+        return agent;
+    }
+
+    private static ChatClientAgent CreateBasicAzureOpenAIAgent(Models.Agents.Provider provider, string modelId, string instructions)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
+        var agent = new OpenAIClient(
+             new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+             new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) })
+               .GetChatClient(modelId)
+               .AsAIAgent(instructions: instructions);
+        return agent;
+    }
+
+    /// <summary>
+    /// Builds an <see cref="IChatClient"/> configured exactly like the chat path's Thinking mode:
+    /// same provider API surface and same thinking/reasoning parameters, so a request sent through
+    /// it has the same payload shape the chat client will use (see <c>ThinkingSupportProbe</c>).
+    /// <paramref name="temperature"/> and <paramref name="maxOutputTokens"/> come from the agent
+    /// config on the chat path; pass nulls to get the same defaults an unconfigured agent gets.
+    /// </summary>
+    internal static IChatClient CreateThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        return provider.ProviderType switch
+        {
+            ProviderType.OpenAI or ProviderType.GoogleGemini or ProviderType.OpenAICompatible => CreateOpenAIResponsesThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            ProviderType.AzureOpenAI => CreateAzureOpenAIThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            ProviderType.Anthropic => CreateAnthropicThinkingChatClient(provider, modelId, temperature, maxOutputTokens),
+            _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),
+        };
+    }
+
+    private static IChatClient CreateOpenAIResponsesThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        // o-series reasoning models (o3, o4-mini, etc.) require the Responses API (/v1/responses).
+        // o.Reasoning surfaces chain-of-thought tokens as TextReasoningContent in the stream.
+        // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithOpenAI/Agent_OpenAI_Step02_Reasoning/Program.cs
+        // OpenAI-compatible providers (DeepSeek, etc.) also expose /v1/responses, so honor a
+        // custom endpoint here exactly like the Chat Completions path does.
+        var clientOptions = new OpenAIClientOptions();
+        if (!string.IsNullOrWhiteSpace(provider.Endpoint))
+        {
+            clientOptions.Endpoint = new Uri(provider.Endpoint);
+        }
+#pragma warning disable OPENAI001
+        return new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), clientOptions)
+            .GetResponsesClient()
+            .AsIChatClient(modelId)
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.Reasoning = new()
+                {
+                    Effort = ReasoningEffort.Medium,
+                    Output = ReasoningOutput.Full,
+                };
+                // The Responses API stores responses server-side by default; the stored response id then
+                // surfaces as ChatResponse.ConversationId, which FunctionInvokingChatClient treats as
+                // "the service owns the history" — dropping accumulated messages and sending bare tool
+                // results via previous_response_id. Endpoints that do not reliably retain those responses
+                // fail continuations with HTTP 400 previous_response_not_found. store=false keeps history
+                // client-side; reasoning config above still applies. (Fix merged from main's
+                // OpenAICompatibleClientFactory.ConfigureResponsesOptions.)
+                o.RawRepresentationFactory = _ => new CreateResponseOptions
+                {
+                    StoredOutputEnabled = false,
+                };
+            })
+            .Build();
+#pragma warning restore OPENAI001
+    }
+
+    private static IChatClient CreateAzureOpenAIThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
+        // See: https://github.com/rwjdk/MicrosoftAgentFrameworkSamples/blob/main/src/OpenAIResponsesApi.ReasoningSummary/Program.cs
+        var azureClient = new OpenAIClient(
+            new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+            new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) });
+#pragma warning disable OPENAI001
+        return azureClient
+            .GetResponsesClient()
+            .AsIChatClient(modelId)
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.RawRepresentationFactory = _ => new CreateResponseOptions
+                {
+                    // See CreateOpenAIResponsesThinkingChatClient: stateful responses break tool-call
+                    // continuations on endpoints that don't retain them.
+                    StoredOutputEnabled = false,
+                    ReasoningOptions = new ResponseReasoningOptions
+                    {
+                        ReasoningEffortLevel = ResponseReasoningEffortLevel.High,
+                        ReasoningSummaryVerbosity = ResponseReasoningSummaryVerbosity.Detailed,
+                    }
+                };
+            })
+            .Build();
+#pragma warning restore OPENAI001
+    }
+
+    private static IChatClient CreateAnthropicThinkingChatClient(Models.Agents.Provider provider, string modelId, double? temperature, int? maxOutputTokens)
+    {
+        // Extended thinking surfaces chain-of-thought as ThinkingContent items in the streaming response.
+        // Requires a compatible Claude model (e.g. claude-3-7-sonnet or later).
+        // The Anthropic MEA adapter reads RawRepresentationFactory to build the raw MessageCreateParams,
+        // which is the only supported way to pass the Thinking configuration.
+        // budgetTokens controls max reasoning tokens (must be ≥1024 and less than MaxTokens).
+        // See: https://github.com/microsoft/agent-framework/blob/main/dotnet/samples/02-agents/AgentWithAnthropic/Agent_Anthropic_Step02_Reasoning/Program.cs
+        const int maxTokens = 4096;
+        const int thinkingTokens = 2048;
+        // The SDK client is intentionally not disposed: its lifetime is owned by the returned
+        // agent/chat client pipeline, which keeps using it for its whole lifetime.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
+        return new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
+            .AsIChatClient(defaultModelId: modelId)
+#pragma warning restore CA2000
+            .AsBuilder()
+            .UseFunctionInvocation()
+            .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+            .ConfigureOptions(o =>
+            {
+                o.Temperature = temperature.HasValue ? (float?)temperature.Value : null;
+                o.MaxOutputTokens = maxOutputTokens;
+                o.RawRepresentationFactory = _ => new MessageCreateParams
+                {
+                    Model = modelId,
+                    MaxTokens = o.MaxOutputTokens ?? maxTokens,
+                    Messages = [],
+                    Thinking = new ThinkingConfigParam(new ThinkingConfigEnabled(budgetTokens: thinkingTokens))
+                };
+            })
+            .Build();
+    }
+
+    private async Task<AIAgent> CreateOpenAIAgentAsync(Models.Agents.Provider provider, string modelId, Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
+    {
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
+        }
+        else
+        {
+            // Standard models use Chat Completions API.
+            var clientOptions = new OpenAIClientOptions();
+            if (!string.IsNullOrWhiteSpace(provider.Endpoint))
+            {
+                clientOptions.Endpoint = new Uri(provider.Endpoint);
+            }
+            chatClient = new OpenAIClient(new ApiKeyCredential(provider.ApiKey ?? "placeholder"), clientOptions)
+                .GetChatClient(modelId)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
+                .Build();
+        }
+
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+    }
+
+    private async Task<AIAgent> CreateAnthropicAgentAsync(Models.Agents.Provider provider, string modelId, Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
+    {
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
+        }
+        else
+        {
+            // Intentionally not disposed — see the Thinking branch above.
+#pragma warning disable CA2000 // Dispose objects before losing scope — owned by the returned agent
+            chatClient = new AnthropicClient(new ClientOptions { ApiKey = provider.ApiKey })
+                .AsIChatClient(defaultModelId: modelId)
+#pragma warning restore CA2000
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
+                .Build();
+        }
+
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
+
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+    }
+
+    private async Task<AIAgent> CreateAzureOpenAIAgentAsync(Models.Agents.Provider provider, string modelId, Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
+    {
+        if (string.IsNullOrWhiteSpace(provider.Endpoint))
+            throw new InvalidOperationException($"Provider '{provider.Name}' has no endpoint configured for Azure OpenAI.");
+
+        // AzureOpenAIClient appends legacy routes (/openai/deployments/... with a pinned preview
+        // api-version) onto the endpoint, which 404s against the modern /openai/v1 surface that
+        // Foundry-issued "Target URI" endpoints point at. The plain OpenAIClient against the
+        // normalized v1 base serves both chat completions and responses for these endpoints;
+        // the deployment name is resolved via the request's model field.
+        var azureClient = new OpenAIClient(
+            new ApiKeyCredential(provider.ApiKey ?? "placeholder"),
+            new OpenAIClientOptions { Endpoint = AzureOpenAIEndpoint.ToV1(provider.Endpoint) });
+
+        IChatClient chatClient;
+
+        if (agent.Mode == AgentMode.Thinking)
+        {
+            chatClient = CreateThinkingChatClient(provider, modelId, agent.Temperature, agent.MaxOutputTokens);
+        }
+        else
+        {
+            chatClient = azureClient
+                .GetChatClient(modelId)
+                .AsIChatClient()
+                .AsBuilder()
+                .UseFunctionInvocation()
+                .UseOpenTelemetry(sourceName: "NTG.Agent.Orchestrator", configure: (cfg) => cfg.EnableSensitiveData = true)
+                .ConfigureOptions(o =>
+                {
+                    o.Temperature = agent.Temperature.HasValue ? (float?)agent.Temperature.Value : null;
+                    o.MaxOutputTokens = agent.MaxOutputTokens;
+                })
+                .Build();
+        }
+
+        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
+        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
     }
 
     private async Task<List<AITool>> GetAgentToolsByAgentId(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
@@ -146,9 +437,24 @@ public class AgentFactory : IAgentFactory
 
     private async Task<AIAgent> CreateAgentFromConfigAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
-        var chatClient = ResolveClientFactory(agent.ProviderName).CreateChatClient(agent, enableThinking: true);
-        var tools = await GetAgentToolsByAgentId(agent, userId, isAdmin);
-        return Create(chatClient, instructions: agent.Instructions, name: agent.Name, description: GetAgentDescription(agent), tools: tools);
+        var provider = agent.ProviderId.HasValue
+            ? await _agentDbContext.Providers.FindAsync(agent.ProviderId.Value)
+            : null;
+        if (provider == null)
+            throw new InvalidOperationException($"Agent '{agent.Name}' has no provider configured.");
+
+        string modelId = agent.ModelOverride
+            ?? throw new InvalidOperationException($"No model configured for agent '{agent.Name}'.");
+
+        return provider.ProviderType switch
+        {
+            ProviderType.OpenAI => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
+            ProviderType.GoogleGemini => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
+            ProviderType.OpenAICompatible => await CreateOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
+            ProviderType.AzureOpenAI => await CreateAzureOpenAIAgentAsync(provider, modelId, agent, userId, isAdmin),
+            ProviderType.Anthropic => await CreateAnthropicAgentAsync(provider, modelId, agent, userId, isAdmin),
+            _ => throw new NotSupportedException($"Provider type '{provider.ProviderType}' is not supported."),
+        };
     }
 
     private static string? GetAgentDescription(Models.Agents.Agent agent)

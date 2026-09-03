@@ -111,4 +111,64 @@ public class AgentClient(HttpClient httpClient)
         var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/inner-agents", bindings);
         response.EnsureSuccessStatusCode();
     }
+
+    public async Task<IList<ProviderDto>> GetProvidersAsync()
+    {
+        var response = await httpClient.GetAsync("api/agentadmin/providers");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<IList<ProviderDto>>();
+        return result ?? [];
+    }
+
+    public async Task<ProviderDto?> GetProviderAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/providers/{id}");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProviderDto>();
+    }
+
+    public async Task<Guid> CreateProviderAsync(ProviderDto provider)
+    {
+        var response = await httpClient.PostAsJsonAsync("api/agentadmin/providers", provider);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<Guid>();
+    }
+
+    public async Task UpdateProviderAsync(ProviderDto provider)
+    {
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/providers/{provider.Id}", provider);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteProviderAsync(Guid id)
+    {
+        var response = await httpClient.DeleteAsync($"api/agentadmin/providers/{id}");
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException(error);
+        }
+    }
+
+    public async Task<IList<ModelItem>> GetProviderModelsAsync(Guid id)
+    {
+        var response = await httpClient.GetAsync($"api/agentadmin/providers/{id}/models");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<IList<ModelItem>>();
+        return result ?? [];
+    }
+
+    /// <summary>
+    /// Asks the backend to verify thinking support for a model by sending a small test request
+    /// (same payload shape as the chat path's Thinking mode) to the provider.
+    /// </summary>
+    public async Task<ThinkingSupportResult> TestModelThinkingAsync(Guid providerId, string modelId)
+    {
+        var response = await httpClient.PostAsJsonAsync(
+            $"api/agentadmin/providers/{providerId}/models/thinking-support",
+            new ThinkingSupportRequest { ModelId = modelId });
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ThinkingSupportResult>()
+            ?? new ThinkingSupportResult { SupportsThinking = false, Error = "Empty response from server." };
+    }
 }
