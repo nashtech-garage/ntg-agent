@@ -1,7 +1,6 @@
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Common.Knowledge;
 using System.ComponentModel;
 
 namespace NTG.Agent.Orchestrator.Plugins;
@@ -9,17 +8,17 @@ namespace NTG.Agent.Orchestrator.Plugins;
 /// <summary>
 /// Wraps an inner (document) agent as an AITool callable from a parent agent's chat.
 ///
-/// Two responsibilities main's bare <c>agent.AsAIFunction()</c> wrapper does not cover:
-/// 1. Re-checks role-gated access at call time (defense in depth — the inner agent is also
-///    filtered at registration in <see cref="AgentFactory.GetInnerAgentToolsAsync"/>).
-/// 2. Attaches the child's own LightRAG knowledge tool, scoped to the child agent's
-///    workspace, so the child answers from its documents rather than parametric knowledge.
+/// Responsibility main's bare <c>agent.AsAIFunction()</c> wrapper does not cover:
+/// re-checks role-gated access at call time (defense in depth — the inner agent is also
+/// filtered at registration in <see cref="AgentFactory.GetInnerAgentToolsAsync"/>).
+///
+/// Inner agents have no knowledge base of their own (no container, no workspace, no
+/// documents), so no knowledge/memory tool is attached here.
 /// </summary>
 public sealed class AgentToolPlugin
 {
     private readonly AIAgent _childAgent;
     private readonly AgentAccessService _accessService;
-    private readonly IKnowledgeService _knowledgeService;
     private readonly Guid _childAgentId;
     private readonly Guid? _userId;
     private readonly bool _isAdmin;
@@ -29,7 +28,6 @@ public sealed class AgentToolPlugin
     public AgentToolPlugin(
         AIAgent childAgent,
         AgentAccessService accessService,
-        IKnowledgeService knowledgeService,
         Guid childAgentId,
         Guid? userId,
         bool isAdmin,
@@ -38,7 +36,6 @@ public sealed class AgentToolPlugin
     {
         _childAgent = childAgent ?? throw new ArgumentNullException(nameof(childAgent));
         _accessService = accessService ?? throw new ArgumentNullException(nameof(accessService));
-        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _childAgentId = childAgentId;
         _userId = userId;
         _isAdmin = isAdmin;
@@ -59,18 +56,12 @@ public sealed class AgentToolPlugin
             return "You do not have permission to access this resource.";
         }
 
-        // Attach the child agent's own knowledge tool, scoped to its workspace, so the child
-        // searches its documents rather than answering from parametric knowledge. Tags are
-        // empty: LightRAG ignores tag filtering, so per-agent isolation is the scope.
-        var memoryTool = new KnowledgePlugin(_knowledgeService, [], _childAgentId).AsAITool();
-        var runOptions = new ChatClientAgentRunOptions(new ChatOptions { Tools = [memoryTool] });
-
         var chatHistory = new List<ChatMessage>
         {
             new(ChatRole.User, query)
         };
 
-        var result = await _childAgent.RunAsync(chatHistory, options: runOptions, cancellationToken: cancellationToken);
+        var result = await _childAgent.RunAsync(chatHistory, cancellationToken: cancellationToken);
         return result.Text ?? string.Empty;
     }
 

@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
-using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Models.Agents;
@@ -31,7 +30,6 @@ public class AgentFactoryTests
         _factory = new AgentFactory(
             new ConfigurationBuilder().Build(),
             _context,
-            new Mock<IKnowledgeService>().Object,
             new AgentAccessService(_context),
             new RenderableToolCapture(),
             new ServiceCollection().BuildServiceProvider());

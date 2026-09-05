@@ -8,7 +8,6 @@ using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Plugins;
-using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Services.Agents.Clients;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -17,7 +16,6 @@ public class AgentFactory : IAgentFactory
 {
     private readonly IConfiguration _configuration;
     private readonly AgentDbContext _agentDbContext;
-    private readonly IKnowledgeService _knowledgeService;
     private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly IServiceProvider _serviceProvider;
@@ -25,11 +23,10 @@ public class AgentFactory : IAgentFactory
 
     private Guid DefaultAgentId = new Guid("31CF1546-E9C9-4D95-A8E5-3C7C7570FEC5");
 
-    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, IKnowledgeService knowledgeService, AgentAccessService agentAccessService, RenderableToolCapture renderableToolCapture, IServiceProvider serviceProvider)
+    public AgentFactory(IConfiguration configuration, AgentDbContext agentDbContext, AgentAccessService agentAccessService, RenderableToolCapture renderableToolCapture, IServiceProvider serviceProvider)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
-        _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
         _agentAccessService = agentAccessService ?? throw new ArgumentNullException(nameof(agentAccessService));
         _renderableToolCapture = renderableToolCapture ?? throw new ArgumentNullException(nameof(renderableToolCapture));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -194,11 +191,10 @@ public class AgentFactory : IAgentFactory
                 ? innerAgent.Description
                 : (!string.IsNullOrWhiteSpace(innerAgent.Instructions) ? innerAgent.Instructions : innerAgent.Name);
 
-            // Wrap the child so that (a) access is re-checked at call time and (b) the child's
-            // own LightRAG knowledge tool is attached (scoped to its workspace) — the bare
-            // AsAIFunction() path would let the child answer only from parametric knowledge.
+            // Wrap the child so access is re-checked at call time. Inner agents have no
+            // knowledge base of their own, so no knowledge tool is attached.
             var plugin = new AgentToolPlugin(
-                child, _agentAccessService, _knowledgeService,
+                child, _agentAccessService,
                 innerAgent.Id, userId, isAdmin, toolName, toolDescription);
             tools.Add(plugin.AsAITool());
         }

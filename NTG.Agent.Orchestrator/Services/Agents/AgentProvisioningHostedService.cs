@@ -80,8 +80,10 @@ public sealed class AgentProvisioningHostedService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
         var provisioner = scope.ServiceProvider.GetRequiredService<IKnowledgeProvisioner>();
 
+        // Only Outer agents own a knowledge base (INV-2): inner agents have no container,
+        // no workspace and no documents, so they are never provisioned.
         var pending = await db.Agents
-            .Where(a => a.ProvisioningStatus == AgentProvisioningStatus.Provisioning)
+            .Where(a => a.ProvisioningStatus == AgentProvisioningStatus.Provisioning && a.AgentKind == AgentKind.Outer)
             .Select(a => a.Id)
             .ToListAsync(ct);
 

@@ -7,7 +7,6 @@ using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Plugins;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Common.Knowledge;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 
 namespace NTG.Agent.Orchestrator.Tests.Services;
@@ -55,7 +54,7 @@ public class AgentToolPluginTests
         // Strict mock: any call to the child agent fails the test — it must never run.
         var childAgent = new Mock<AIAgent>(MockBehavior.Strict);
         var plugin = new AgentToolPlugin(
-            childAgent.Object, _accessService, Mock.Of<IKnowledgeService>(),
+            childAgent.Object, _accessService,
             childAgentId, userId: Guid.NewGuid(), isAdmin: false,
             toolName: "hr_docs", toolDescription: "HR docs");
 
@@ -70,7 +69,7 @@ public class AgentToolPluginTests
     public void AsAITool_UsesProvidedNameAndDescription()
     {
         var plugin = new AgentToolPlugin(
-            Mock.Of<AIAgent>(), _accessService, Mock.Of<IKnowledgeService>(),
+            Mock.Of<AIAgent>(), _accessService,
             Guid.NewGuid(), userId: Guid.NewGuid(), isAdmin: false,
             toolName: "hr_docs", toolDescription: "Answers HR policy questions");
 
