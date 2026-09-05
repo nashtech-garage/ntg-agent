@@ -24,6 +24,7 @@ public class AgentAdminControllerTests
     private Mock<IAgentFactory> _mockAgentFactory;
     private Mock<IKnowledgeProvisioner> _mockKnowledgeProvisioner;
     private Mock<IKnowledgeService> _mockKnowledgeService;
+    private AgentProvisioningSignal _provisioningSignal;
 
     [SetUp]
     public void Setup()
@@ -38,6 +39,7 @@ public class AgentAdminControllerTests
         _mockAgentFactory = new();
         _mockKnowledgeProvisioner = new();
         _mockKnowledgeService = new();
+        _provisioningSignal = new AgentProvisioningSignal();
         // Mock the admin user principal
         var adminUser = new ClaimsPrincipal(new ClaimsIdentity(
         [
@@ -49,7 +51,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _accessService)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, _provisioningSignal, NullLogger<AgentAdminController>.Instance, _accessService)
         {
             ControllerContext = new ControllerContext
             {
@@ -61,6 +63,7 @@ public class AgentAdminControllerTests
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _provisioningSignal.Dispose();
     }
     [Test]
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
@@ -1612,6 +1615,277 @@ public class AgentAdminControllerTests
         var result = await _controller.UpdateInnerAgentBindings(outerAgentId, bindings);
 
         Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    #endregion
+
+    #region Knowledge base sharing
+
+    // Seeds an agent. A null knowledgeOwnerAgentId means it owns its own knowledge base.
+    private async Task<AgentModel> SeedAgentAsync(
+        string name,
+        AgentKind kind = AgentKind.Outer,
+        Guid? knowledgeOwnerAgentId = null)
+    {
+        var agent = new AgentModel
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Instructions = string.Empty,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId,
+            AgentKind = kind,
+            KnowledgeOwnerAgentId = knowledgeOwnerAgentId
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.SaveChangesAsync();
+        return agent;
+    }
+
+    // True when the provisioning worker was woken. Consumes the pending signal.
+    private bool ProvisioningWasSignalled()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        try
+        {
+            _provisioningSignal.WaitAsync(cts.Token).GetAwaiter().GetResult();
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenJoiningAnExistingKnowledgeBase_StoresTheOwner()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Guest Agent",
+            AgentKind = AgentKind.Outer,
+            KnowledgeOwnerAgentId = owner.Id
+        });
+
+        Assert.That(result, Is.TypeOf<AcceptedAtActionResult>());
+        var created = await _context.Agents.FirstAsync(a => a.Name == "Guest Agent");
+        Assert.Multiple(() =>
+        {
+            Assert.That(created.KnowledgeOwnerAgentId, Is.EqualTo(owner.Id));
+            Assert.That(created.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Provisioning));
+        });
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenJoinTargetDoesNotExist_ReturnsBadRequest()
+    {
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Orphan Guest",
+            AgentKind = AgentKind.Outer,
+            KnowledgeOwnerAgentId = Guid.NewGuid()
+        });
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenJoinTargetIsItselfAGuest_ReturnsBadRequest()
+    {
+        // Ownership must never chain: joining a guest would make the real owner ambiguous.
+        var owner = await SeedAgentAsync("Owner Agent");
+        var guest = await SeedAgentAsync("Existing Guest", knowledgeOwnerAgentId: owner.Id);
+
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Chained Guest",
+            AgentKind = AgentKind.Outer,
+            KnowledgeOwnerAgentId = guest.Id
+        });
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenJoinTargetIsAnInnerAgent_ReturnsBadRequest()
+    {
+        var inner = await SeedAgentAsync("Inner Tool", AgentKind.Inner);
+
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Confused Guest",
+            AgentKind = AgentKind.Outer,
+            KnowledgeOwnerAgentId = inner.Id
+        });
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenInnerAgentAsksForAKnowledgeBase_ReturnsBadRequest()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Inner With KB",
+            AgentKind = AgentKind.Inner,
+            KnowledgeOwnerAgentId = owner.Id
+        });
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task CreateAgent_WhenInnerAgent_IsReadyImmediatelyAndNotProvisioned()
+    {
+        // INV-2: an inner agent has no knowledge backend, so there is nothing to provision.
+        var result = await _controller.CreateAgent(new AgentDetail
+        {
+            Name = "Inner Tool",
+            AgentKind = AgentKind.Inner
+        });
+
+        Assert.That(result, Is.TypeOf<AcceptedAtActionResult>());
+        var created = await _context.Agents.FirstAsync(a => a.Name == "Inner Tool");
+        Assert.Multiple(() =>
+        {
+            Assert.That(created.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Ready));
+            Assert.That(created.KnowledgeOwnerAgentId, Is.Null);
+        });
+        Assert.That(ProvisioningWasSignalled(), Is.False, "an inner agent must not wake the provisioner");
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenOwnerStillHasGuests_ReturnsConflictNamingThem()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        await SeedAgentAsync("Guest One", knowledgeOwnerAgentId: owner.Id);
+
+        var result = await _controller.DeleteAgent(owner.Id);
+
+        Assert.That(result, Is.TypeOf<ConflictObjectResult>());
+        Assert.That(((ConflictObjectResult)result).Value?.ToString(), Does.Contain("Guest One"));
+    }
+
+    [Test]
+    public async Task DeleteAgent_WhenGuest_KeepsDocumentsAndDoesNotDeprovision()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        var guest = await SeedAgentAsync("Guest Agent", knowledgeOwnerAgentId: owner.Id);
+        // A document in the shared knowledge base that happens to have been uploaded via the guest.
+        _context.Documents.Add(new NTG.Agent.Orchestrator.Models.Documents.Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "shared.pdf",
+            AgentId = owner.Id,
+            UploadedViaAgentId = guest.Id,
+            UploadedViaAgentName = "Guest Agent"
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _controller.DeleteAgent(guest.Id);
+
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var doc = await _context.Documents.SingleAsync();
+        Assert.Multiple(() =>
+        {
+            Assert.That(doc.AgentId, Is.EqualTo(owner.Id), "the document belongs to the knowledge base, not the guest");
+            Assert.That(doc.UploadedViaAgentId, Is.Null, "the provenance link is dropped with the agent");
+            Assert.That(doc.UploadedViaAgentName, Is.EqualTo("Guest Agent"), "the name snapshot outlives the agent");
+        });
+        // The container is still in use by the owner and its other guests.
+        _mockKnowledgeProvisioner.Verify(x => x.DeprovisionAgentAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task MoveKnowledgeBase_WhenJoiningAnotherKnowledgeBase_UpdatesOwnerAndReprovisions()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        var mover = await SeedAgentAsync("Mover Agent");
+
+        var result = await _controller.MoveKnowledgeBase(mover.Id, new MoveKnowledgeBaseRequest(owner.Id));
+
+        Assert.That(result, Is.TypeOf<AcceptedResult>());
+        var moved = await _context.Agents.FirstAsync(a => a.Id == mover.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(moved.KnowledgeOwnerAgentId, Is.EqualTo(owner.Id));
+            Assert.That(moved.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Provisioning));
+            Assert.That(moved.ProvisioningError, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task MoveKnowledgeBase_WhenTargetIsNull_LeavesForItsOwnKnowledgeBase()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        var guest = await SeedAgentAsync("Guest Agent", knowledgeOwnerAgentId: owner.Id);
+
+        var result = await _controller.MoveKnowledgeBase(guest.Id, new MoveKnowledgeBaseRequest(null));
+
+        Assert.That(result, Is.TypeOf<AcceptedResult>());
+        var moved = await _context.Agents.FirstAsync(a => a.Id == guest.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(moved.KnowledgeOwnerAgentId, Is.Null, "it now owns its own knowledge base");
+            Assert.That(moved.ProvisioningStatus, Is.EqualTo(AgentProvisioningStatus.Provisioning));
+        });
+    }
+
+    [Test]
+    public async Task MoveKnowledgeBase_WhenAgentIsInner_ReturnsBadRequest()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        var inner = await SeedAgentAsync("Inner Tool", AgentKind.Inner);
+
+        var result = await _controller.MoveKnowledgeBase(inner.Id, new MoveKnowledgeBaseRequest(owner.Id));
+
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+
+    [Test]
+    public async Task MoveKnowledgeBase_WhenAgentOwnsAKnowledgeBaseWithGuests_ReturnsConflict()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        await SeedAgentAsync("Guest One", knowledgeOwnerAgentId: owner.Id);
+        var other = await SeedAgentAsync("Other Owner");
+
+        var result = await _controller.MoveKnowledgeBase(owner.Id, new MoveKnowledgeBaseRequest(other.Id));
+
+        Assert.That(result, Is.TypeOf<ConflictObjectResult>());
+    }
+
+    [Test]
+    public async Task GetKnowledgeBases_ReturnsOwnersOnlyWithAgentAndDocumentCounts()
+    {
+        var owner = await SeedAgentAsync("Owner Agent");
+        await SeedAgentAsync("Guest One", knowledgeOwnerAgentId: owner.Id);
+        await SeedAgentAsync("Inner Tool", AgentKind.Inner);
+        _context.Documents.Add(new NTG.Agent.Orchestrator.Models.Documents.Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "shared.pdf",
+            AgentId = owner.Id
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _controller.GetKnowledgeBases();
+
+        var ok = result as OkObjectResult;
+        Assert.That(ok, Is.Not.Null);
+        var bases = (ok!.Value as IEnumerable<KnowledgeBaseListItem>)!.ToList();
+        // The guest and the inner agent are not knowledge bases of their own.
+        var entry = bases.Single(b => b.OwnerAgentId == owner.Id);
+        Assert.Multiple(() =>
+        {
+            Assert.That(bases.Any(b => b.OwnerAgentName == "Guest One"), Is.False);
+            Assert.That(bases.Any(b => b.OwnerAgentName == "Inner Tool"), Is.False);
+            Assert.That(entry.AgentCount, Is.EqualTo(2), "the owner plus its one guest");
+            Assert.That(entry.DocumentCount, Is.EqualTo(1));
+        });
     }
 
     #endregion

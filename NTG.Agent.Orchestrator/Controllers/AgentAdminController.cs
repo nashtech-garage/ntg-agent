@@ -56,9 +56,34 @@ public class AgentAdminController : ControllerBase
         }
 
         var agents = await query
-            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind, x.ProvisioningStatus, x.ProvisioningError))
+            .Select(x => new AgentListItem(x.Id, x.Name, x.OwnerUser.Email, x.UpdatedByUser.Email, x.UpdatedAt, x.IsDefault, x.IsPublished, x.AgentKind, x.ProvisioningStatus, x.ProvisioningError,
+                x.KnowledgeOwnerAgentId,
+                x.KnowledgeOwnerAgentId == null
+                    ? null
+                    : _agentDbContext.Agents.Where(o => o.Id == x.KnowledgeOwnerAgentId).Select(o => o.Name).FirstOrDefault()))
             .ToListAsync();
         return Ok(agents);
+    }
+
+    /// <summary>
+    /// Lists the knowledge bases an agent can join — one entry per owning agent.
+    /// </summary>
+    /// <remarks>
+    /// Declared before <c>[HttpGet("{id}")]</c> so the literal segment wins the route match.
+    /// </remarks>
+    [HttpGet("knowledge-bases")]
+    public async Task<IActionResult> GetKnowledgeBases(CancellationToken cancellationToken = default)
+    {
+        var knowledgeBases = await _agentDbContext.Agents
+            .Where(a => a.AgentKind == AgentKind.Outer && a.KnowledgeOwnerAgentId == null)
+            .Select(a => new KnowledgeBaseListItem(
+                a.Id,
+                a.Name,
+                1 + _agentDbContext.Agents.Count(g => g.KnowledgeOwnerAgentId == a.Id),
+                _agentDbContext.Documents.Count(d => d.AgentId == a.Id)))
+            .ToListAsync(cancellationToken);
+
+        return Ok(knowledgeBases);
     }
 
     /// <summary>
@@ -80,7 +105,8 @@ public class AgentAdminController : ControllerBase
                 AgentKind = x.AgentKind,
                 Mode = x.Mode,
                 ProvisioningStatus = x.ProvisioningStatus,
-                ProvisioningError = x.ProvisioningError
+                ProvisioningError = x.ProvisioningError,
+                KnowledgeOwnerAgentId = x.KnowledgeOwnerAgentId
             })
             .FirstOrDefaultAsync();
 
@@ -286,6 +312,21 @@ public class AgentAdminController : ControllerBase
             return BadRequest("Invalid agent data.");
         }
 
+        // Inner agents have no knowledge base at all (INV-2), so they cannot join one.
+        if (updatedAgent.AgentKind == AgentKind.Inner && updatedAgent.KnowledgeOwnerAgentId is not null)
+        {
+            return BadRequest("Inner agents do not have a knowledge base.");
+        }
+
+        if (updatedAgent.AgentKind == AgentKind.Outer && updatedAgent.KnowledgeOwnerAgentId is Guid joinTarget)
+        {
+            var reason = await _agentDbContext.ValidateJoinTargetAsync(joinTarget, null, cancellationToken);
+            if (reason is not null)
+            {
+                return BadRequest(reason);
+            }
+        }
+
         var agent = new Models.Agents.Agent
         {
             Id = Guid.NewGuid(),
@@ -303,7 +344,11 @@ public class AgentAdminController : ControllerBase
             IsDefault = false,
             IsPublished = false,
             AgentKind = updatedAgent.AgentKind,
-            ProvisioningStatus = AgentProvisioningStatus.Provisioning,
+            KnowledgeOwnerAgentId = updatedAgent.AgentKind == AgentKind.Inner ? null : updatedAgent.KnowledgeOwnerAgentId,
+            // An inner agent has no knowledge backend to provision (INV-2), so it is Ready at once.
+            ProvisioningStatus = updatedAgent.AgentKind == AgentKind.Inner
+                ? AgentProvisioningStatus.Ready
+                : AgentProvisioningStatus.Provisioning,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -314,8 +359,15 @@ public class AgentAdminController : ControllerBase
         // Provisioning its lightRAG container can take seconds, so
         // it runs in the background: the agent is persisted as Provisioning and the worker boots the
         // container, then flips it to Ready/Failed. The create response returns immediately (202) with trackable status.
-        _provisioningSignal.Notify();
-        _logger.LogInformation("Agent {AgentId} created; queued for background provisioning.", agent.Id);
+        if (agent.AgentKind == AgentKind.Outer)
+        {
+            _provisioningSignal.Notify();
+            _logger.LogInformation("Agent {AgentId} created; queued for background provisioning.", agent.Id);
+        }
+        else
+        {
+            _logger.LogInformation("Inner agent {AgentId} created; it has no knowledge base to provision.", agent.Id);
+        }
 
         return AcceptedAtAction(nameof(GetAgentById), new { id = agent.Id }, agent.Id);
     }
@@ -339,6 +391,69 @@ public class AgentAdminController : ControllerBase
 
         _provisioningSignal.Notify();
         _logger.LogInformation("Agent {AgentId} queued for re-provisioning.", agent.Id);
+
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Moves an agent to another knowledge base, or out to a brand-new one of its own.
+    /// </summary>
+    /// <remarks>
+    /// A null <c>KnowledgeOwnerAgentId</c> means "create a new knowledge base for this agent",
+    /// which provisions a fresh container under its own id. Documents already in the old
+    /// knowledge base stay there either way — <c>Document.AgentId</c> still points at it.
+    /// </remarks>
+    [HttpPut("{id}/knowledge-base")]
+    public async Task<IActionResult> MoveKnowledgeBase(Guid id, [FromBody] MoveKnowledgeBaseRequest request, CancellationToken cancellationToken = default)
+    {
+        var agent = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+        if (agent is null)
+        {
+            return NotFound($"Agent with ID '{id}' not found.");
+        }
+
+        if (agent.AgentKind != AgentKind.Outer)
+        {
+            return BadRequest("Inner agents do not have a knowledge base.");
+        }
+
+        // Moving an owner out would strand the guests still reading from its knowledge base.
+        if (agent.KnowledgeOwnerAgentId is null)
+        {
+            var guests = await _agentDbContext.GetKnowledgeGuestsAsync(id, cancellationToken);
+            if (guests.Count > 0)
+            {
+                return Conflict(
+                    $"'{agent.Name}' owns a knowledge base still used by: {string.Join(", ", guests.Select(g => g.Name))}. " +
+                    "Move those agents to another knowledge base first.");
+            }
+        }
+
+        if (request?.KnowledgeOwnerAgentId is Guid target)
+        {
+            var reason = await _agentDbContext.ValidateJoinTargetAsync(target, id, cancellationToken);
+            if (reason is not null)
+            {
+                return BadRequest(reason);
+            }
+
+            agent.KnowledgeOwnerAgentId = target;
+        }
+        else
+        {
+            agent.KnowledgeOwnerAgentId = null;
+        }
+
+        agent.ProvisioningStatus = AgentProvisioningStatus.Provisioning;
+        agent.ProvisioningError = null;
+        agent.ProvisionedAt = null;
+        agent.UpdatedAt = DateTime.UtcNow;
+        await _agentDbContext.SaveChangesAsync(cancellationToken);
+
+        _provisioningSignal.Notify();
+        _logger.LogInformation(
+            "Agent {AgentId} moved to knowledge base {OwnerAgentId}; queued for provisioning.",
+            agent.Id, agent.KnowledgeOwnerAgentId ?? agent.Id);
 
         return Accepted();
     }
@@ -490,6 +605,20 @@ public class AgentAdminController : ControllerBase
             return BadRequest("Default agent cannot be deleted.");
         }
 
+        // Deleting the founding agent deletes its knowledge base, so it is blocked while other
+        // agents still read from it. Guests must be moved elsewhere first.
+        var isKbOwner = agent.AgentKind == AgentKind.Outer && agent.KnowledgeOwnerAgentId is null;
+        if (isKbOwner)
+        {
+            var guests = await _agentDbContext.GetKnowledgeGuestsAsync(id, cancellationToken);
+            if (guests.Count > 0)
+            {
+                return Conflict(
+                    $"'{agent.Name}' owns a knowledge base still used by: {string.Join(", ", guests.Select(g => g.Name))}. " +
+                    "Move those agents to another knowledge base before deleting this one.");
+            }
+        }
+
         // If this agent is linked as an inner agent of any outer agent, remove those
         // bindings first — the InnerAgentId FK is Restrict (no cascade), so the delete
         // would otherwise fail. OuterAgent bindings cascade automatically.
@@ -505,21 +634,39 @@ public class AgentAdminController : ControllerBase
         // backend while it is still alive, then drop the SQL rows, then tear down the
         // agent's backend resources. Document removal is best-effort so a single backend
         // hiccup can't block deleting the agent.
-        var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
-        foreach (var doc in documents)
+        if (isKbOwner)
         {
-            try
+            var documents = await _agentDbContext.Documents.Where(d => d.AgentId == id).ToListAsync(cancellationToken);
+            foreach (var doc in documents)
             {
-                await _knowledgeService.RemoveDocumentAsync(id, doc.Id, doc.KnowledgeDocId, doc.TrackId, cancellationToken);
+                try
+                {
+                    await _knowledgeService.RemoveDocumentAsync(id, doc.Id, doc.KnowledgeDocId, doc.TrackId, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to remove document {DocId} from the knowledge backend while deleting agent {AgentId}; continuing.", doc.Id, id);
+                }
             }
-            catch (Exception ex)
+            _agentDbContext.Documents.RemoveRange(documents);
+
+            // Must run before the agent row is removed: ownership resolution reads it.
+            await _knowledgeProvisioner.DeprovisionAgentAsync(id, cancellationToken);
+        }
+        else
+        {
+            // A guest (or an inner agent) owns no knowledge base: its documents belong to the
+            // knowledge base and stay there, and the container its siblings use must survive.
+            // Drop only the provenance link, keeping UploadedViaAgentName so the "uploaded via"
+            // label outlives the agent.
+            var uploaded = await _agentDbContext.Documents
+                .Where(d => d.UploadedViaAgentId == id)
+                .ToListAsync(cancellationToken);
+            foreach (var doc in uploaded)
             {
-                _logger.LogWarning(ex, "Failed to remove document {DocId} from the knowledge backend while deleting agent {AgentId}; continuing.", doc.Id, id);
+                doc.UploadedViaAgentId = null;
             }
         }
-        _agentDbContext.Documents.RemoveRange(documents);
-
-        await _knowledgeProvisioner.DeprovisionAgentAsync(id, cancellationToken);
 
         _agentDbContext.Agents.Remove(agent);
         await _agentDbContext.SaveChangesAsync(cancellationToken);
