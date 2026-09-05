@@ -34,6 +34,13 @@ public class AgentDetail
     /// <summary>Failure reason shown when <see cref="ProvisioningStatus"/> is Failed.</summary>
     public string? ProvisioningError { get; set; }
 
+    /// <summary>
+    /// The agent that owns this agent's knowledge base. Null means this agent owns its own
+    /// knowledge base; non-null means it is a guest in that agent's one. Always null for Inner
+    /// agents, which have no knowledge base at all.
+    /// </summary>
+    public Guid? KnowledgeOwnerAgentId { get; set; }
+
     public string ToolCount { get; set; } = "0";
 
     public AgentDetail()
