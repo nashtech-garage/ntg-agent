@@ -43,7 +43,15 @@ public class FoldersController : ControllerBase
 
         if (agentId.HasValue)
         {
-            query = query.Where(f => f.AgentId == agentId.Value);
+            // Folders are knowledge-base scoped, like the documents they hold: a guest must see the
+            // owner's folder tree, or the KB-wide document list would reference folders it cannot see.
+            var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId.Value);
+            if (ownerAgentId is null)
+            {
+                return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+            }
+
+            query = query.Where(f => f.AgentId == ownerAgentId);
         }
 
         return await query.ToListAsync();
@@ -92,11 +100,19 @@ public class FoldersController : ControllerBase
         }
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        // Folders are written against the knowledge base, matching the owner-scoped read in
+        // GetFolders — a folder stored under a guest's own id would be invisible to every reader.
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(folderToCreate.AgentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
         var folder = new Folder
         {
             Name = folderToCreate.Name,
             ParentId = folderToCreate.ParentId,
-            AgentId = folderToCreate.AgentId,
+            AgentId = ownerAgentId.Value,
             CreatedByUserId = userId,
             UpdatedByUserId = userId
         };
@@ -126,7 +142,15 @@ public class FoldersController : ControllerBase
         }
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
-        var isFolderExists = await _agentDbContext.Folders.AnyAsync(f => f.AgentId == agentId && f.ParentId == null);
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
+        // One root folder per knowledge base: a guest joining an existing one inherits its root
+        // rather than seeding a second, unreachable one.
+        var isFolderExists = await _agentDbContext.Folders.AnyAsync(f => f.AgentId == ownerAgentId && f.ParentId == null);
         if (isFolderExists)
         {
             return BadRequest("Default folder already exists for this agent.");
@@ -135,7 +159,7 @@ public class FoldersController : ControllerBase
         var folder = new Folder
         {
             Name = "All Folders",
-            AgentId = agentId,
+            AgentId = ownerAgentId.Value,
             ParentId = null,
             IsDeletable = false,
         };

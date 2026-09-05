@@ -40,6 +40,17 @@ public class DocumentsControllerTests
         _signal = new IngestionStatusSignal();
         _testUserId = Guid.NewGuid();
         _testAgentId = Guid.NewGuid();
+        // Documents are keyed on a knowledge base, which is resolved from a real Agent row:
+        // an agent with no row (or an inner one) has no knowledge base and is rejected.
+        _context.Agents.Add(new NTG.Agent.Orchestrator.Models.Agents.Agent
+        {
+            Id = _testAgentId,
+            Name = "Test Agent",
+            Instructions = string.Empty,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        });
+        _context.SaveChanges();
         var user = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.NameIdentifier, _testUserId.ToString()),
@@ -556,6 +567,138 @@ public class DocumentsControllerTests
         // This would normally test the HTTP download, but since we can't easily mock HttpClient
         // we're just verifying the method executes without null reference exceptions
         Assert.That(result, Is.Not.Null);
+    }
+    [Test]
+    public async Task UploadDocuments_WhenAgentIsGuest_StoresDocumentAgainstOwnerKnowledgeBase()
+    {
+        // Arrange — a guest agent whose knowledge base is owned by _testAgentId.
+        var guestAgentId = AddAgent("Guest Agent", knowledgeOwnerAgentId: _testAgentId);
+        var files = new FormFileCollection
+        {
+            CreateTestFile("guest.txt", "guest content")
+        };
+        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync("track-id");
+        // Act
+        var result = await _controller.UploadDocuments(guestAgentId, files, null, new List<string>());
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var savedDocument = await _context.Documents.FirstOrDefaultAsync();
+        Assert.That(savedDocument, Is.Not.Null);
+        // The row lands in the owner's knowledge base; the guest is recorded as provenance only.
+        Assert.That(savedDocument.AgentId, Is.EqualTo(_testAgentId));
+        Assert.That(savedDocument.UploadedViaAgentId, Is.EqualTo(guestAgentId));
+        Assert.That(savedDocument.UploadedViaAgentName, Is.EqualTo("Guest Agent"));
+    }
+    [Test]
+    public async Task GetDocumentsByAgentId_WhenAgentIsGuest_ReturnsWholeKnowledgeBaseWithUploadedViaNames()
+    {
+        // Arrange — one document uploaded via the owner, one via the guest, both in the owner's KB.
+        var guestAgentId = AddAgent("Guest Agent", knowledgeOwnerAgentId: _testAgentId);
+        var ownerDocument = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "Owner Document",
+            AgentId = _testAgentId,
+            UploadedViaAgentId = _testAgentId,
+            UploadedViaAgentName = "Test Agent"
+        };
+        var guestDocument = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "Guest Document",
+            AgentId = _testAgentId,
+            UploadedViaAgentId = guestAgentId,
+            UploadedViaAgentName = "Guest Agent"
+        };
+        _context.Documents.AddRange(ownerDocument, guestDocument);
+        await _context.SaveChangesAsync();
+        // Act
+        var result = await _controller.GetDocumentsByAgentId(guestAgentId, null);
+        // Assert
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        var documents = okResult.Value as List<DocumentListItem>;
+        Assert.That(documents, Is.Not.Null);
+        Assert.That(documents, Has.Count.EqualTo(2));
+        // The guest sees the sibling upload too, labelled with the agent it came in through.
+        var owned = documents.Single(d => d.Name == "Owner Document");
+        Assert.That(owned.UploadedViaAgentName, Is.EqualTo("Test Agent"));
+        var guested = documents.Single(d => d.Name == "Guest Document");
+        Assert.That(guested.UploadedViaAgentName, Is.EqualTo("Guest Agent"));
+    }
+    [Test]
+    public async Task GetDocumentsByAgentId_WhenAgentIsInner_ReturnsBadRequest()
+    {
+        // Arrange — inner agents have no knowledge base at all.
+        var innerAgentId = AddAgent("Inner Agent", agentKind: NTG.Agent.Common.Dtos.Agents.AgentKind.Inner);
+        // Act
+        var result = await _controller.GetDocumentsByAgentId(innerAgentId, null);
+        // Assert
+        Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
+    }
+    [Test]
+    public async Task DeleteDocument_WhenGuestDeletesDocumentUploadedViaOwner_DeletesSuccessfully()
+    {
+        // Arrange — the document belongs to the shared knowledge base, not to the guest.
+        var guestAgentId = AddAgent("Guest Agent", knowledgeOwnerAgentId: _testAgentId);
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "Owner Document",
+            AgentId = _testAgentId,
+            UploadedViaAgentId = _testAgentId,
+            UploadedViaAgentName = "Test Agent",
+            KnowledgeDocId = "knowledge-doc-id"
+        };
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+        // Act
+        var result = await _controller.DeleteDocument(document.Id, guestAgentId);
+        // Assert
+        Assert.That(result, Is.TypeOf<NoContentResult>());
+        var deletedDocument = await _context.Documents.FindAsync(document.Id);
+        Assert.That(deletedDocument, Is.Null);
+        // The calling (guest) agent id is what reaches the knowledge service; it resolves the owner.
+        _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(guestAgentId, document.Id, "knowledge-doc-id", It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+    [Test]
+    public async Task GetDocumentById_WhenDocumentBelongsToAnotherKnowledgeBase_ReturnsNotFound()
+    {
+        // Arrange — an unrelated agent owning its own knowledge base must not be readable.
+        var otherOwnerAgentId = AddAgent("Other Owner");
+        var document = new Document
+        {
+            Id = Guid.NewGuid(),
+            Name = "other.txt",
+            AgentId = otherOwnerAgentId,
+            Type = DocumentType.File
+        };
+        _context.Documents.Add(document);
+        await _context.SaveChangesAsync();
+        // Act — asked for through an agent that is not part of that knowledge base.
+        var result = await _controller.GetDocumentById(document.Id, _testAgentId, CancellationToken.None);
+        // Assert
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+        _mockKnowledgeService.Verify(x => x.ExportDocumentAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+    /// <summary>Seeds an extra agent row, since knowledge-base resolution reads a real Agent.</summary>
+    private Guid AddAgent(string name, Guid? knowledgeOwnerAgentId = null, NTG.Agent.Common.Dtos.Agents.AgentKind agentKind = NTG.Agent.Common.Dtos.Agents.AgentKind.Outer)
+    {
+        var agentId = Guid.NewGuid();
+        _context.Agents.Add(new NTG.Agent.Orchestrator.Models.Agents.Agent
+        {
+            Id = agentId,
+            Name = name,
+            Instructions = string.Empty,
+            AgentKind = agentKind,
+            KnowledgeOwnerAgentId = knowledgeOwnerAgentId,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        });
+        _context.SaveChanges();
+        return agentId;
     }
     private static FormFile CreateTestFile(string fileName, string content)
     {

@@ -52,8 +52,16 @@ public class DocumentsController : ControllerBase
         using var scope = _logger.BeginScope(new Dictionary<string, object> { ["AgentId"] = agentId });
         using var timer = _metrics.StartTimer("documents.get", ("agent_id", agentId.ToString()));
 
+        // Documents belong to the knowledge base, not to the calling agent: a guest lists (and sees)
+        // everything in the knowledge base it shares, including uploads made through sibling agents.
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
         var isRootfolder = await _agentDbContext.Folders
-            .Where(f => f.Id == folderId && f.AgentId == agentId && f.ParentId == null)
+            .Where(f => f.Id == folderId && f.AgentId == ownerAgentId && f.ParentId == null)
             .FirstOrDefaultAsync();
         if (isRootfolder is not null)
         {
@@ -61,7 +69,7 @@ public class DocumentsController : ControllerBase
             var defaultDocuments = await _agentDbContext.Documents
                 .Include(x => x.DocumentTags)
                 .ThenInclude(dt => dt.Tag)
-                .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
+                .Where(x => x.AgentId == ownerAgentId && (x.FolderId == folderId || x.FolderId == null))
                 .Select(x => new DocumentListItem(
                     x.Id,
                     x.Name,
@@ -69,14 +77,15 @@ public class DocumentsController : ControllerBase
                     x.UpdatedAt,
                     x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
                     x.Status,
-                    x.ErrorMessage))
+                    x.ErrorMessage,
+                    x.UploadedViaAgentName))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
         var documents = await _agentDbContext.Documents
         .Include(x => x.DocumentTags)
         .ThenInclude(dt => dt.Tag)
-        .Where(x => x.AgentId == agentId && x.FolderId == folderId)
+        .Where(x => x.AgentId == ownerAgentId && x.FolderId == folderId)
         .Select(x => new DocumentListItem(
             x.Id,
             x.Name,
@@ -84,7 +93,8 @@ public class DocumentsController : ControllerBase
             x.UpdatedAt,
             x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
             x.Status,
-            x.ErrorMessage))
+            x.ErrorMessage,
+            x.UploadedViaAgentName))
         .ToListAsync();
 
         _logger.LogBusinessEvent("DocumentsRetrieved", new { AgentId = agentId, DocumentCount = documents.Count });
@@ -118,6 +128,19 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        // The upload lands in the knowledge base, which may be owned by another agent. The calling
+        // agent is recorded as provenance only. One name lookup for the whole batch.
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
+        var uploadedViaAgentName = await _agentDbContext.Agents
+            .Where(a => a.Id == agentId)
+            .Select(a => a.Name)
+            .FirstOrDefaultAsync();
+
         // Ingestion is non-blocking: BeginImportDocumentAsync hands the file to the knowledge
         // backend and returns a tracking id immediately. The Document row is written right away
         // as Processing; the provider's background worker polls the backend and flips it to
@@ -134,7 +157,9 @@ public class DocumentsController : ControllerBase
             {
                 Id = Guid.NewGuid(),
                 Name = file.FileName,
-                AgentId = agentId,
+                AgentId = ownerAgentId.Value,
+                UploadedViaAgentId = agentId,
+                UploadedViaAgentName = uploadedViaAgentName,
                 FolderId = folderId,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
@@ -201,7 +226,16 @@ public class DocumentsController : ControllerBase
             return Unauthorized();
         }
 
-        var document = await _agentDbContext.Documents.FindAsync(id);
+        // Scoped to the knowledge base, so a guest can delete any document in the base it shares —
+        // and cannot reach a document in a base it is not part of.
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
+        var document = await _agentDbContext.Documents
+            .FirstOrDefaultAsync(d => d.Id == id && d.AgentId == ownerAgentId);
 
         if (document == null)
         {
@@ -240,13 +274,26 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
+        var uploadedViaAgentName = await _agentDbContext.Agents
+            .Where(a => a.Id == agentId)
+            .Select(a => a.Name)
+            .FirstOrDefaultAsync();
+
         try
         {
             var document = new Document
             {
                 Id = Guid.NewGuid(),
                 Name = request.Url,
-                AgentId = agentId,
+                AgentId = ownerAgentId.Value,
+                UploadedViaAgentId = agentId,
+                UploadedViaAgentName = uploadedViaAgentName,
                 FolderId = request.FolderId,
                 Url = request.Url,
                 CreatedByUserId = userId,
@@ -306,6 +353,17 @@ public class DocumentsController : ControllerBase
 
         var userId = User.GetUserId() ?? throw new UnauthorizedAccessException("User is not authenticated.");
 
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
+        var uploadedViaAgentName = await _agentDbContext.Agents
+            .Where(a => a.Id == agentId)
+            .Select(a => a.Name)
+            .FirstOrDefaultAsync();
+
         try
         {
             var fileName = string.IsNullOrWhiteSpace(request.Title) ? "Text Content.txt" : $"{request.Title}.txt";
@@ -314,7 +372,9 @@ public class DocumentsController : ControllerBase
             {
                 Id = Guid.NewGuid(),
                 Name = fileName,
-                AgentId = agentId,
+                AgentId = ownerAgentId.Value,
+                UploadedViaAgentId = agentId,
+                UploadedViaAgentName = uploadedViaAgentName,
                 FolderId = request.FolderId,
                 CreatedByUserId = userId,
                 UpdatedByUserId = userId,
@@ -373,9 +433,17 @@ public class DocumentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetDocumentById(Guid id, Guid agentId, CancellationToken ct)
     {
+        // Matched against the knowledge base, not the caller: a guest downloading a document that
+        // was uploaded through the owner (or a sibling) is still reading its own knowledge base.
+        var ownerAgentId = await _agentDbContext.GetKnowledgeOwnerIdAsync(agentId, ct);
+        if (ownerAgentId is null)
+        {
+            return BadRequest("This agent has no knowledge base. Inner agents cannot hold documents.");
+        }
+
         var document = await _agentDbContext.Documents
             .AsNoTracking()
-            .FirstOrDefaultAsync(d => d.Id == id && d.AgentId == agentId, ct);
+            .FirstOrDefaultAsync(d => d.Id == id && d.AgentId == ownerAgentId, ct);
 
         if (document is null) return NotFound();
 
@@ -393,6 +461,8 @@ public class DocumentsController : ControllerBase
 
         try
         {
+            // The raw calling agent id goes to the knowledge service, which resolves the owning
+            // knowledge base itself — the file store is keyed by owner, not by caller.
             var content = await _knowledgeService.ExportDocumentAsync(agentId, document.Id, document.KnowledgeDocId, fileName, ct);
             return File(content.Content, content.ContentType, content.FileName);
         }
