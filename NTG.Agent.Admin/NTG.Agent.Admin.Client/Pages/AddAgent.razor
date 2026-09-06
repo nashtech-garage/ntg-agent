@@ -4,6 +4,7 @@
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 
 @using NTG.Agent.Common.Dtos.Agents
+@using NTG.Agent.Admin.Client.Components
 @inject AgentClient AgentClient
 @inject FolderClient FolderClient
 @inject NavigationManager Navigation
@@ -159,10 +160,10 @@
 
                         <h5 class="mb-3">
                             <i class="bi bi-gear-fill me-2 text-primary"></i>
-                            Provider Configuration
+                            LLM Provider Configuration
                         </h5>
 
-                        <ProviderConfigSection Agent="agentDetail" Disabled="isSubmitting" />
+                        <ProviderModelSelector @bind-ProviderId="agentDetail.ProviderId" @bind-ModelOverride="agentDetail.ModelOverride" IsInner="@isInner" SupportsThinkingChanged="OnSupportsThinkingChanged" />
 
                         <div class="mb-4">
                             <label for="mcpServer" class="form-label fw-semibold">
@@ -199,13 +200,17 @@
                                         <input class="form-check-input" type="radio" name="agentMode" id="modeThinking"
                                                checked="@(agentDetail.Mode == AgentMode.Thinking)"
                                                @onchange="() => agentDetail.Mode = AgentMode.Thinking"
-                                               disabled="@isSubmitting" />
+                                               disabled="@(isSubmitting || !supportsThinking)" />
                                         <label class="form-check-label" for="modeThinking">
                                             <i class="bi bi-cpu-fill text-info me-1"></i><strong>Thinking</strong>
                                             <div class="text-muted small">Shows reasoning steps before the answer.</div>
                                         </label>
                                     </div>
                                 </div>
+                                @if (!supportsThinking)
+                                {
+                                    <div class="text-muted small mt-1">Not supported by this model.</div>
+                                }
                             </div>
                         }
 
@@ -248,6 +253,17 @@
     private bool isDuplicating => SourceAgentId.HasValue;
     private bool isInner => agentDetail.AgentKind == AgentKind.Inner;
     private string sourceAgentName = string.Empty;
+    private bool supportsThinking;
+
+    private Task OnSupportsThinkingChanged(bool supported)
+    {
+        supportsThinking = supported;
+        if (!supported && agentDetail.Mode == AgentMode.Thinking)
+        {
+            agentDetail.Mode = AgentMode.Fast;
+        }
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -271,10 +287,8 @@
                     Name = $"{sourceAgent.Name} (Copy)",
                     Description = sourceAgent.Description,
                     Instructions = sourceAgent.Instructions,
-                    ProviderName = sourceAgent.ProviderName,
-                    ProviderEndpoint = sourceAgent.ProviderEndpoint,
-                    ProviderApiKey = sourceAgent.ProviderApiKey,
-                    ProviderModelName = sourceAgent.ProviderModelName,
+                    ProviderId = sourceAgent.ProviderId,
+                    ModelOverride = sourceAgent.ModelOverride,
                     McpServer = sourceAgent.McpServer,
                     Mode = sourceAgent.Mode,
                     AgentKind = sourceAgent.AgentKind

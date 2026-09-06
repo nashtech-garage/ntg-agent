@@ -383,8 +383,13 @@ FodyWeavers.xsd
 # Local environment files (contain secrets — never commit)
 .env
 .env.example
+setup-secrets.sh
+start-local.sh
+local-appsettings-setup.md
 
 .claude/
+.opencode/
+.slim/deepwork/
 
 .idea/
 

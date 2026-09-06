@@ -246,7 +246,6 @@ public class AgUiControllerAccessTests
             Mock.Of<IIpAddressService>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<IDocumentAnalysisService>(),
-            new AgentAccessService(_context),
             new RenderableToolCapture(),
             new SkillRegistry(_context, new SkillPackageImporter(), NullLogger<SkillRegistry>.Instance),
             new SkillActivityLog(),

@@ -49,14 +49,13 @@ public class AgentsControllerTests
             Mock.Of<IIpAddressService>(),
             Mock.Of<IHttpContextAccessor>(),
             Mock.Of<IDocumentAnalysisService>(),
-            _accessService,
             new RenderableToolCapture(),
             new SkillRegistry(_context, new SkillPackageImporter(), Mock.Of<ILogger<SkillRegistry>>()),
             new SkillActivityLog(),
             Mock.Of<ILogger<AgentService>>()
         );
 
-        _controller = new AgentsController(_mockAgentService.Object, _context, _accessService)
+        _controller = new AgentsController(_mockAgentService.Object, _accessService)
         {
             ControllerContext = new ControllerContext
             {

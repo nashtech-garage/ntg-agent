@@ -2,7 +2,6 @@
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
-using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Dtos.TokenUsage;
@@ -31,7 +30,6 @@ public class AgentService
     private readonly IIpAddressService _ipAddressService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IDocumentAnalysisService _documentAnalysisService;
-    private readonly AgentAccessService _agentAccessService;
     private readonly RenderableToolCapture _renderableToolCapture;
     private readonly SkillRegistry _skillRegistry;
     private readonly SkillActivityLog _skillActivityLog;
@@ -46,7 +44,6 @@ public class AgentService
         IIpAddressService ipAddressService,
         IHttpContextAccessor httpContextAccessor,
         IDocumentAnalysisService documentAnalysisService,
-        AgentAccessService agentAccessService,
         RenderableToolCapture renderableToolCapture,
         SkillRegistry skillRegistry,
         SkillActivityLog skillActivityLog,
@@ -60,7 +57,6 @@ public class AgentService
         _httpContextAccessor = httpContextAccessor;
         _logger = logger;
         _documentAnalysisService = documentAnalysisService;
-        _agentAccessService = agentAccessService;
         _renderableToolCapture = renderableToolCapture;
         _skillRegistry = skillRegistry;
         _skillActivityLog = skillActivityLog;
@@ -776,27 +772,43 @@ public class AgentService
 
     private async Task<string> GenerateConversationName(string question, TokenUsageInfo tokenUsageInfo)
     {
-        var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
-        var results = await agent.RunAsync(question);
-        ExtractTokenUsage(results.Usage, tokenUsageInfo);
-        return results.Text;
+        try
+        {
+            var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
+            var results = await agent.RunAsync(question);
+            ExtractTokenUsage(results.Usage, tokenUsageInfo);
+            return results.Text;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to generate conversation name, using fallback.");
+            return "New Conversation";
+        }
     }
 
     private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages, TokenUsageInfo tokenUsageInfo)
     {
         if (messages.Count == 0) return string.Empty;
 
-        var chatHistory = new List<ChatMessage>();
-        foreach (var msg in messages)
+        try
         {
-            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
+            var chatHistory = new List<ChatMessage>();
+            foreach (var msg in messages)
+            {
+                chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
+            }
+
+            var agent = await _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
+            var runResults = await agent.RunAsync(chatHistory);
+
+            ExtractTokenUsage(runResults.Usage, tokenUsageInfo);
+            return runResults.Text;
         }
-
-        var agent = await _agentFactory.CreateBasicAgent("Summarize the following chat into a concise paragraph that captures key points.");
-        var runResults = await agent.RunAsync(chatHistory);
-
-        ExtractTokenUsage(runResults.Usage, tokenUsageInfo);
-        return runResults.Text;
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to summarize messages, returning empty.");
+            return string.Empty;
+        }
     }
 
     private static string BuildTextOnlyPrompt(string userPrompt) =>
@@ -834,7 +846,9 @@ public class AgentService
         TokenUsageInfo tokenUsageInfo,
         TimeSpan responseTime)
     {
-        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a => a.Id == agentId);
+        var agentConfig = await _agentDbContext.Agents
+            .Include(a => a.Provider)
+            .FirstOrDefaultAsync(a => a.Id == agentId);
         if (agentConfig == null) return;
 
         // The ResponseTime column is a SQL `time` (00:00:00–23:59:59). Durations computed from
@@ -852,8 +866,8 @@ public class AgentService
             ConversationId = conversation.Id,
             MessageId = messageId,
             AgentId = agentId,
-            ModelName = agentConfig.ProviderModelName,
-            ProviderName = agentConfig.ProviderName,
+            ModelName = agentConfig.ModelOverride ?? string.Empty,
+            ProviderName = agentConfig.Provider?.Name ?? string.Empty,
             InputTokens = tokenUsageInfo.InputTokens,
             OutputTokens = tokenUsageInfo.OutputTokens,
             ReasoningTokens = tokenUsageInfo.ReasoningTokens,

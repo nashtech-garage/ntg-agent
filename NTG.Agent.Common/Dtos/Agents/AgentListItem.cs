@@ -1,6 +1,6 @@
 namespace NTG.Agent.Common.Dtos.Agents;
 
-public record AgentListItem (Guid Id, string Name, string OwnerEmail, string UpdatedByEmail, DateTime UpdatedAt, bool IsDefault, bool IsPublished, AgentKind AgentKind = AgentKind.Outer, AgentProvisioningStatus ProvisioningStatus = AgentProvisioningStatus.Ready, string? ProvisioningError = null, Guid? KnowledgeOwnerAgentId = null, string? KnowledgeOwnerName = null)
+public record AgentListItem (Guid Id, string Name, string OwnerEmail, string UpdatedByEmail, DateTime UpdatedAt, bool IsDefault, bool IsPublished, AgentKind AgentKind = AgentKind.Outer, AgentProvisioningStatus ProvisioningStatus = AgentProvisioningStatus.Ready, string? ProvisioningError = null, string? ProviderName = null, Guid? KnowledgeOwnerAgentId = null, string? KnowledgeOwnerName = null)
 {
     /// <summary>User-facing provisioning label shown on the Admin agent card.</summary>
     public string ProvisioningLabel => ProvisioningStatus switch

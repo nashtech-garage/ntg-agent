@@ -114,7 +114,6 @@ public class ChatClientCapabilityTests
             Mock.Of<IIpAddressService>(),
             Mock.Of<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
             Mock.Of<IDocumentAnalysisService>(),
-            new AgentAccessService(_context),
             _capture,
             _registry,
             _activityLog,
