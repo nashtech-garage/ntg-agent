@@ -18,6 +18,10 @@ if ! command -v git >/dev/null 2>&1; then
     info "Installing git with sudo apt-get."
     sudo apt-get update -qq
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    echo "error: git is required. On macOS, run: xcode-select --install" >&2
+    echo "       (installs Command Line Tools, which include git), then re-run." >&2
+    exit 1
   else
     echo "error: git is required. Install it and re-run." >&2
     exit 1
