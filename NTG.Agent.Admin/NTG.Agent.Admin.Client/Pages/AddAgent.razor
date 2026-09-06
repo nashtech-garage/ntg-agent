@@ -107,7 +107,7 @@
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="agentKind" id="kindInner"
                                                checked="@(agentDetail.AgentKind == AgentKind.Inner)"
-                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Inner; agentDetail.Mode = AgentMode.Fast; }"
+                                               @onchange="SelectInnerKind"
                                                disabled="@isSubmitting" />
                                         <label class="form-check-label" for="kindInner">
                                             <i class="bi bi-tools text-success me-1"></i><strong>Inner Agent</strong>
@@ -115,6 +115,76 @@
                                         </label>
                                     </div>
                                 </div>
+                            </div>
+
+                            <hr class="my-4" />
+
+                            @* Knowledge base. Outer agents only: an inner agent has no knowledge
+                               base at all, so the whole section is withheld rather than disabled. *@
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="bi bi-journals me-2 text-primary"></i>
+                                    Knowledge Base
+                                </label>
+                                @if (isInner)
+                                {
+                                    <div class="form-text">
+                                        Inner agents answer from their instructions and tools. They have no knowledge base.
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="form-text mb-2">
+                                        Where this agent's documents live. A knowledge base can be shared by several agents.
+                                    </div>
+                                    <div class="d-flex gap-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="knowledgeBase" id="kbNew"
+                                                   checked="@(agentDetail.KnowledgeOwnerAgentId is null)"
+                                                   @onchange="() => agentDetail.KnowledgeOwnerAgentId = null"
+                                                   disabled="@isSubmitting" />
+                                            <label class="form-check-label" for="kbNew">
+                                                <i class="bi bi-plus-square text-primary me-1"></i><strong>Create a new knowledge base</strong>
+                                                <div class="text-muted small">This agent gets its own documents, private to it.</div>
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="knowledgeBase" id="kbJoin"
+                                                   checked="@(agentDetail.KnowledgeOwnerAgentId is not null)"
+                                                   @onchange="SelectFirstKnowledgeBase"
+                                                   disabled="@(isSubmitting || knowledgeBases.Count == 0)" />
+                                            <label class="form-check-label" for="kbJoin">
+                                                <i class="bi bi-people text-success me-1"></i><strong>Join an existing knowledge base</strong>
+                                                <div class="text-muted small">
+                                                    @(knowledgeBases.Count == 0
+                                                        ? "No knowledge bases available to join yet."
+                                                        : "Share documents with the agents already in it.")
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    @if (agentDetail.KnowledgeOwnerAgentId is not null)
+                                    {
+                                        <select class="form-select mb-2"
+                                                value="@agentDetail.KnowledgeOwnerAgentId"
+                                                @onchange="OnKnowledgeBaseChanged"
+                                                disabled="@isSubmitting">
+                                            @foreach (var kb in knowledgeBases)
+                                            {
+                                                <option value="@kb.OwnerAgentId">
+                                                    @kb.OwnerAgentName — @kb.AgentCount agent@(kb.AgentCount == 1 ? "" : "s"), @kb.DocumentCount document@(kb.DocumentCount == 1 ? "" : "s")
+                                                </option>
+                                            }
+                                        </select>
+                                        <div class="alert alert-warning py-2 mb-0" role="alert">
+                                            <i class="bi bi-exclamation-triangle me-1"></i>
+                                            <strong>Agents in a knowledge base share every document in it.</strong>
+                                            This agent will be able to read all documents already in the knowledge base,
+                                            and anything uploaded through it becomes readable by the other agents there.
+                                        </div>
+                                    }
+                                }
                             </div>
 
                             <hr class="my-4" />
@@ -254,6 +324,29 @@
     private bool isInner => agentDetail.AgentKind == AgentKind.Inner;
     private string sourceAgentName = string.Empty;
     private bool supportsThinking;
+    private IList<KnowledgeBaseListItem> knowledgeBases = [];
+
+    // Switching to Inner clears any knowledge base picked while Outer was selected — an inner
+    // agent has none, and the server rejects a create that asks for one.
+    private void SelectInnerKind()
+    {
+        agentDetail.AgentKind = AgentKind.Inner;
+        agentDetail.Mode = AgentMode.Fast;
+        agentDetail.KnowledgeOwnerAgentId = null;
+    }
+
+    private void SelectFirstKnowledgeBase()
+    {
+        if (knowledgeBases.Count > 0)
+        {
+            agentDetail.KnowledgeOwnerAgentId = knowledgeBases[0].OwnerAgentId;
+        }
+    }
+
+    private void OnKnowledgeBaseChanged(ChangeEventArgs e)
+    {
+        agentDetail.KnowledgeOwnerAgentId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
+    }
 
     private Task OnSupportsThinkingChanged(bool supported)
     {
@@ -267,6 +360,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Best-effort: the picker is an enhancement, so a failure here must not block agent
+        // creation. An empty list simply disables "join an existing knowledge base".
+        try
+        {
+            knowledgeBases = await AgentClient.GetKnowledgeBasesAsync();
+        }
+        catch (Exception)
+        {
+            knowledgeBases = [];
+        }
+
         if (SourceAgentId.HasValue)
         {
             await LoadSourceAgent(SourceAgentId.Value);

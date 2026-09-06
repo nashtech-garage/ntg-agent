@@ -67,6 +67,22 @@
                                     </span>
                                     break;
                             }
+                            @* Inner agents have no knowledge base, so they get no badge. *@
+                            @if (agentDetail.AgentKind == AgentKind.Outer)
+                            {
+                                @if (agentDetail.KnowledgeOwnerAgentId is null)
+                                {
+                                    <span class="badge bg-secondary ms-1" title="This agent owns its knowledge base">
+                                        <i class="bi bi-journals me-1"></i>Owns knowledge base
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary ms-1" title="Shares another agent's knowledge base">
+                                        <i class="bi bi-people me-1"></i>Shares a knowledge base
+                                    </span>
+                                }
+                            }
                             @if (agentDetail.IsPublished)
                             {
                                 <span class="badge bg-success ms-1">
@@ -112,6 +128,17 @@
                                     }
                                 </button>
                             </li>
+                            @if (agentDetail.AgentKind == AgentKind.Outer)
+                            {
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <button class="dropdown-item"
+                                            @onclick="ShowMoveKnowledgeBase"
+                                            title="Move this agent to a different knowledge base">
+                                        <i class="bi bi-journals me-2"></i>Move knowledge base
+                                    </button>
+                                </li>
+                            }
                             @if (!agentDetail.IsDefault)
                             {
                                 <li><hr class="dropdown-divider"></li>
@@ -349,6 +376,7 @@
 }
 
 <DeleteAgentConfirmationModal @ref="deleteModal" OnDeleted="HandleAgentDeleted" />
+<MoveKnowledgeBaseModal @ref="moveKnowledgeBaseModal" OnMoved="HandleKnowledgeBaseMoved" />
 
 @code {
     [Parameter]
@@ -357,6 +385,7 @@
     private bool isLoading = true;
     private bool showSidebar = false;
     private DeleteAgentConfirmationModal? deleteModal;
+    private MoveKnowledgeBaseModal? moveKnowledgeBaseModal;
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
@@ -531,9 +560,22 @@
         StateHasChanged();
     }
 
+    private async Task ShowMoveKnowledgeBase()
+    {
+        if (agentDetail is null || moveKnowledgeBaseModal is null) return;
+        await moveKnowledgeBaseModal.ShowAsync(Id, agentDetail.Name, agentDetail.KnowledgeOwnerAgentId);
+    }
+
+    // A move re-provisions the agent, so refetch to pick up the new knowledge base. PollAsync
+    // also re-arms the poll timer, which matters here: the agent goes back to Provisioning and
+    // the page needs to follow it to Ready.
+    private async Task HandleKnowledgeBaseMoved() => await PollAsync();
+
     private void ShowDeleteConfirmation()
     {
-        deleteModal?.ShowDeleteConfirmation(Id, agentDetail?.Name ?? string.Empty);
+        // Only an outer agent that owns its knowledge base loses documents on delete.
+        var ownsKnowledgeBase = agentDetail is { AgentKind: AgentKind.Outer, KnowledgeOwnerAgentId: null };
+        deleteModal?.ShowDeleteConfirmation(Id, agentDetail?.Name ?? string.Empty, ownsKnowledgeBase);
     }
 
     private void HandleAgentDeleted()

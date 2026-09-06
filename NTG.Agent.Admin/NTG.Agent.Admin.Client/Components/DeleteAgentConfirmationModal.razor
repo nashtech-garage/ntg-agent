@@ -19,6 +19,13 @@
                     <p class="mb-0">
                         Are you sure you want to delete the agent <strong>"@agentName"</strong>?
                     </p>
+                    @if (IsKnowledgeBaseOwner)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">
+                            <i class="bi bi-journals me-1"></i>
+                            Deleting this agent also deletes its knowledge base and every document in it.
+                        </div>
+                    }
                     <p class="text-danger mt-2 mb-0">
                         <i class="bi bi-info-circle me-1"></i>
                         This action cannot be undone.
@@ -78,15 +85,23 @@
     [Parameter]
     public EventCallback OnDeleted { get; set; }
 
+    /// <summary>
+    /// True when this agent owns its knowledge base, so deleting it destroys that knowledge base
+    /// and every document in it. Guests and inner agents leave their documents behind untouched.
+    /// </summary>
+    [Parameter]
+    public bool IsKnowledgeBaseOwner { get; set; }
+
     private bool showConfirmation;
     private bool showError;
     private string? agentName;
     private string? errorMessage;
 
-    public void ShowDeleteConfirmation(Guid agentId, string name)
+    public void ShowDeleteConfirmation(Guid agentId, string name, bool isKnowledgeBaseOwner = false)
     {
         AgentId = agentId;
         agentName = name;
+        IsKnowledgeBaseOwner = isKnowledgeBaseOwner;
         showConfirmation = true;
         errorMessage = null;
         showError = false;
@@ -123,7 +138,7 @@
         {
             Logger.LogError(ex, "Error deleting agent");
             
-            errorMessage = ex.Message.Contains("400")
+            errorMessage = ex.Message.Contains("400") || ex.Message.Contains("409")
                 ? ParseErrorMessage(ex)
                 : "An error occurred while deleting the agent. Please try again.";
             
@@ -141,12 +156,27 @@
 
     private string ParseErrorMessage(HttpRequestException ex)
     {
+        // A 409 means this agent owns a knowledge base other agents still share; the server's
+        // message names them, and moving them out is the admin's next step — so pass it through
+        // verbatim rather than replacing it with something vaguer.
+        if (ex.Message.Contains("409"))
+            return ExtractServerMessage(ex.Message);
+
         if (ex.Message.Contains("default"))
             return "This agent cannot be deleted because it is a default agent.";
         if (ex.Message.Contains("documents") || ex.Message.Contains("associated"))
             return "This agent cannot be deleted because it is associated with documents.";
-        
+
         return "Unable to delete the agent. Please check if it's associated with any documents.";
+    }
+
+    // AgentClient throws "Status: {code}, Error: {body}"; the body is the useful half.
+    private static string ExtractServerMessage(string message)
+    {
+        const string marker = "Error: ";
+        var index = message.IndexOf(marker, StringComparison.Ordinal);
+        var body = index >= 0 ? message[(index + marker.Length)..].Trim() : string.Empty;
+        return string.IsNullOrWhiteSpace(body) ? "Unable to delete the agent." : body;
     }
 
     private void CloseErrorDialog()

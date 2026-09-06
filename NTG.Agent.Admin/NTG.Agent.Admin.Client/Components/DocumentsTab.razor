@@ -32,17 +32,20 @@
                 <table class="table table-hover">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 40%;">
+                            <th style="width: 32%;">
                                 <i class="bi bi-file-text me-2"></i>Document Name
                             </th>
                             <th style="width: 10%;" class="text-center">
                                 <i class="bi bi-tag me-2"></i>Type
                             </th>
-                            <th style="width: 15%;">
+                            <th style="width: 13%;">
                                 <i class="bi bi-tags me-2"></i>Tags
                             </th>
-                            <th style="width: 15%;" class="text-center">
+                            <th style="width: 13%;" class="text-center">
                                 <i class="bi bi-calendar me-2"></i>Upload Date
+                            </th>
+                            <th style="width: 12%;" class="text-center">
+                                <i class="bi bi-person-badge me-2"></i>Uploaded Via
                             </th>
                             <th style="width: 10%;" class="text-center">
                                 <i class="bi bi-activity me-2"></i>Status
@@ -87,6 +90,18 @@
                                     }
                                 </td>
                                 <td class="text-center">@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
+                                @* Provenance only. Every agent sharing this knowledge base can read
+                                   every document in it, whichever agent it arrived through. *@
+                                <td class="text-center">
+                                    @if (string.IsNullOrWhiteSpace(doc.UploadedViaAgentName))
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">@doc.UploadedViaAgentName</span>
+                                    }
+                                </td>
                                 <td class="text-center">@RenderStatus(doc)</td>
                                 <td class="text-center">
                                     <div class="btn-group btn-group-sm" role="group">
@@ -145,6 +160,12 @@
                         <div class="mb-1">
                             <span class="text-muted">Uploaded:</span> @doc.UpdatedAt.ToString("MMM dd, yyyy")
                         </div>
+                        @if (!string.IsNullOrWhiteSpace(doc.UploadedViaAgentName))
+                        {
+                            <div class="mb-1">
+                                <span class="text-muted">Uploaded via:</span> @doc.UploadedViaAgentName
+                            </div>
+                        }
                         <div class="mb-1">
                             <span class="text-muted">Status:</span> @RenderStatus(doc)
                         </div>

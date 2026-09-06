@@ -14,15 +14,29 @@ namespace NTG.Agent.Orchestrator.Services.Knowledge;
 /// </summary>
 public sealed class LightRagEfAgentStore : ILightRagAgentStore
 {
-    private readonly AgentDbContext _db;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public LightRagEfAgentStore(AgentDbContext db) => _db = db;
+    // Deliberately NOT the request's AgentDbContext. Ownership is resolved from inside
+    // IKnowledgeService, and the chat path starts a knowledge search *concurrently* with building
+    // the agent (AgentService's speculative prefetch). Sharing the request-scoped context would put
+    // two EF queries on one DbContext at once — "A second operation was started on this context
+    // instance". Each lookup gets its own scope and context instead; it is one short read, and
+    // LightRagWorkspaceResolver caches the result for the rest of the request.
+    public LightRagEfAgentStore(IServiceScopeFactory scopeFactory) => _scopeFactory = scopeFactory;
 
-    public Task<IReadOnlyList<Guid>> GetKnowledgeOwnerIdsAsync(CancellationToken cancellationToken = default)
-        => _db.GetKnowledgeOwnerIdsAsync(cancellationToken);
+    public async Task<IReadOnlyList<Guid>> GetKnowledgeOwnerIdsAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        return await db.GetKnowledgeOwnerIdsAsync(cancellationToken);
+    }
 
-    public Task<Guid?> GetKnowledgeOwnerAsync(Guid agentId, CancellationToken cancellationToken = default)
-        => _db.GetKnowledgeOwnerIdAsync(agentId, cancellationToken);
+    public async Task<Guid?> GetKnowledgeOwnerAsync(Guid agentId, CancellationToken cancellationToken = default)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
+        return await db.GetKnowledgeOwnerIdAsync(agentId, cancellationToken);
+    }
 }
 
 /// <summary>EF-backed store the LightRAG ingestion-status worker polls and updates.</summary>

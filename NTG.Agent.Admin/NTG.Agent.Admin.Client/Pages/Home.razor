@@ -163,6 +163,23 @@
                                                             </span>
                                                             break;
                                                     }
+                                                    @* Inner agents have no knowledge base, so they get no badge at all. *@
+                                                    @if (agent.AgentKind == AgentKind.Outer)
+                                                    {
+                                                        @if (agent.KnowledgeOwnerAgentId is null)
+                                                        {
+                                                            <span class="badge bg-secondary-subtle text-secondary ms-1" title="Owns its knowledge base">
+                                                                <i class="bi bi-journals me-1"></i>Owns KB
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-secondary-subtle text-secondary ms-1"
+                                                                  title="Shares the knowledge base owned by @agent.KnowledgeOwnerName">
+                                                                <i class="bi bi-people me-1"></i>Shares "@agent.KnowledgeOwnerName"
+                                                            </span>
+                                                        }
+                                                    }
                                                     @if (agent.IsPublished)
                                                     {
                                                         <span class="badge bg-success-subtle text-success ms-1">Published</span>
@@ -222,7 +239,7 @@
                                     Manage
                                 </a>
                                 <button class="btn btn-danger" 
-                                        @onclick="() => ShowDeleteConfirmation(agent.Id, agent.Name)"
+                                        @onclick="() => ShowDeleteConfirmation(agent)"
                                         disabled="@agent.IsDefault"
                                         title="@(agent.IsDefault ? "Default agent cannot be deleted" : "Delete agent")">
                                     <i class="bi bi-trash"></i>
@@ -268,9 +285,12 @@
         StateHasChanged();
     }
 
-    private void ShowDeleteConfirmation(Guid agentId, string agentName)
+    private void ShowDeleteConfirmation(AgentListItem agent)
     {
-        deleteModal?.ShowDeleteConfirmation(agentId, agentName);
+        // Only an outer agent that owns its knowledge base loses documents on delete; a guest's
+        // documents stay with the knowledge base, and an inner agent never had one.
+        var ownsKnowledgeBase = agent.AgentKind == AgentKind.Outer && agent.KnowledgeOwnerAgentId is null;
+        deleteModal?.ShowDeleteConfirmation(agent.Id, agent.Name, ownsKnowledgeBase);
     }
 
     private async Task HandleAgentDeleted()

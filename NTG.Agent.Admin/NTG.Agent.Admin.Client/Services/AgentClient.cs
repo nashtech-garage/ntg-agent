@@ -97,6 +97,41 @@ public class AgentClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <summary>
+    /// The knowledge bases a new or existing agent can join — one entry per owning agent.
+    /// Inner agents and guests never appear: only agents that own a knowledge base can be joined.
+    /// </summary>
+    public async Task<IList<KnowledgeBaseListItem>> GetKnowledgeBasesAsync()
+    {
+        var response = await httpClient.GetAsync("api/agentadmin/knowledge-bases");
+        response.EnsureSuccessStatusCode();
+
+        var result = await response.Content.ReadFromJsonAsync<IList<KnowledgeBaseListItem>>();
+        return result ?? [];
+    }
+
+    /// <summary>
+    /// Moves an agent to another knowledge base, or to a brand-new one of its own when
+    /// <paramref name="knowledgeOwnerAgentId"/> is null. Documents stay behind with the old
+    /// knowledge base either way.
+    /// </summary>
+    /// <remarks>
+    /// Surfaces the server's message on failure rather than a bare status code: the 409 for
+    /// "this agent still has guests" names them, and the admin needs to read it.
+    /// </remarks>
+    public async Task MoveToKnowledgeBaseAsync(Guid agentId, Guid? knowledgeOwnerAgentId)
+    {
+        var response = await httpClient.PutAsJsonAsync(
+            $"api/agentadmin/{agentId}/knowledge-base",
+            new MoveKnowledgeBaseRequest(knowledgeOwnerAgentId));
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"Status: {(int)response.StatusCode}, Error: {errorContent}");
+        }
+    }
+
     public async Task<IList<InnerAgentBindingDto>> GetInnerAgentBindingsAsync(Guid agentId)
     {
         var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/inner-agents");

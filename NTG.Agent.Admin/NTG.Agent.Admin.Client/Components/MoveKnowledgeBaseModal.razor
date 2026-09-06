@@ -1,0 +1,194 @@
+@* Moves an agent to another knowledge base, or out to a brand-new one of its own. *@
+@using NTG.Agent.Admin.Client.Services
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+@inject ILogger<MoveKnowledgeBaseModal> Logger
+
+@if (isOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-journals me-2"></i>
+                        Move "@agentName"
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="Close" disabled="@isSaving"></button>
+                </div>
+                <div class="modal-body">
+                    @if (errorMessage is not null)
+                    {
+                        <div class="alert alert-warning" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>@errorMessage
+                        </div>
+                    }
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="moveTarget" id="moveJoin"
+                               checked="@(!leaveForOwnKnowledgeBase)"
+                               @onchange="() => leaveForOwnKnowledgeBase = false"
+                               disabled="@(isSaving || available.Count == 0)" />
+                        <label class="form-check-label" for="moveJoin">
+                            <strong>Move to another knowledge base</strong>
+                            <div class="text-muted small">
+                                @(available.Count == 0
+                                    ? "No other knowledge bases available."
+                                    : "Share documents with the agents already in it.")
+                            </div>
+                        </label>
+                    </div>
+
+                    @if (!leaveForOwnKnowledgeBase && available.Count > 0)
+                    {
+                        <select class="form-select mb-3" value="@selectedOwnerId" @onchange="OnTargetChanged" disabled="@isSaving">
+                            @foreach (var kb in available)
+                            {
+                                <option value="@kb.OwnerAgentId">
+                                    @kb.OwnerAgentName — @kb.AgentCount agent@(kb.AgentCount == 1 ? "" : "s"), @kb.DocumentCount document@(kb.DocumentCount == 1 ? "" : "s")
+                                </option>
+                            }
+                        </select>
+                    }
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="radio" name="moveTarget" id="moveNew"
+                               checked="@leaveForOwnKnowledgeBase"
+                               @onchange="() => leaveForOwnKnowledgeBase = true"
+                               disabled="@isSaving" />
+                        <label class="form-check-label" for="moveNew">
+                            <strong>Create a new knowledge base for this agent</strong>
+                            <div class="text-muted small">Starts empty, in a container of its own.</div>
+                        </label>
+                    </div>
+
+                    <div class="alert alert-warning mb-0" role="alert">
+                        <i class="bi bi-exclamation-triangle me-1"></i>
+                        Documents already in the current knowledge base stay there. This agent will no
+                        longer be able to read them.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="Close" disabled="@isSaving">
+                        <i class="bi bi-x-circle me-2"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="ConfirmMove" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-right-circle me-2"></i>
+                        }
+                        Move
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Raised after a successful move so the parent can refresh.</summary>
+    [Parameter]
+    public EventCallback OnMoved { get; set; }
+
+    private bool isOpen;
+    private bool isSaving;
+    private bool leaveForOwnKnowledgeBase;
+    private Guid agentId;
+    private string agentName = string.Empty;
+    private Guid? currentOwnerId;
+    private Guid? selectedOwnerId;
+    private string? errorMessage;
+    private IList<KnowledgeBaseListItem> available = [];
+
+    /// <summary>
+    /// Opens the dialog for one agent. <paramref name="currentKnowledgeOwnerAgentId"/> is the
+    /// agent's present knowledge base — null when it owns its own.
+    /// </summary>
+    public async Task ShowAsync(Guid id, string name, Guid? currentKnowledgeOwnerAgentId)
+    {
+        agentId = id;
+        agentName = name;
+        currentOwnerId = currentKnowledgeOwnerAgentId;
+        errorMessage = null;
+        isSaving = false;
+        isOpen = true;
+
+        try
+        {
+            var all = await AgentClient.GetKnowledgeBasesAsync();
+            // Neither the agent's current knowledge base nor its own is a move target: the first
+            // is a no-op, the second is what "create a new knowledge base" already does.
+            available = all
+                .Where(kb => kb.OwnerAgentId != agentId && kb.OwnerAgentId != currentOwnerId)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load knowledge bases");
+            available = [];
+            errorMessage = "Could not load the list of knowledge bases.";
+        }
+
+        // With nothing to join, the only meaningful action is leaving for a new one.
+        leaveForOwnKnowledgeBase = available.Count == 0;
+        selectedOwnerId = available.FirstOrDefault()?.OwnerAgentId;
+        StateHasChanged();
+    }
+
+    private void OnTargetChanged(ChangeEventArgs e)
+        => selectedOwnerId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
+
+    private void Close()
+    {
+        isOpen = false;
+        errorMessage = null;
+    }
+
+    private async Task ConfirmMove()
+    {
+        var target = leaveForOwnKnowledgeBase ? null : selectedOwnerId;
+        if (!leaveForOwnKnowledgeBase && target is null)
+        {
+            errorMessage = "Choose a knowledge base to move into.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+        try
+        {
+            await AgentClient.MoveToKnowledgeBaseAsync(agentId, target);
+            isOpen = false;
+            await OnMoved.InvokeAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Failed to move agent {AgentId} to a different knowledge base", agentId);
+            // The server's 409 names the guests still relying on this agent's knowledge base,
+            // which is exactly what the admin needs to act on — so show it rather than a generic line.
+            errorMessage = ExtractServerMessage(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to move agent {AgentId} to a different knowledge base", agentId);
+            errorMessage = "An unexpected error occurred. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    // AgentClient throws "Status: {code}, Error: {body}"; the body is the useful half.
+    private static string ExtractServerMessage(string message)
+    {
+        const string marker = "Error: ";
+        var index = message.IndexOf(marker, StringComparison.Ordinal);
+        var body = index >= 0 ? message[(index + marker.Length)..].Trim() : string.Empty;
+        return string.IsNullOrWhiteSpace(body) ? "Unable to move this agent." : body;
+    }
+}
