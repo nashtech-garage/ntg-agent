@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.StaticFiles;
 using NTG.Agent.Common.Dtos.Knowledge;
-using NTG.Agent.Common.Knowledge;
-
 namespace NTG.Agent.LightRag;
 
 public class LightRagFileStore

@@ -11,7 +11,7 @@ namespace NTG.Agent.Orchestrator.Services.Agents;
 /// not lost (the worker's next <see cref="WaitAsync"/> returns immediately). Mirrors
 /// <c>IngestionStatusSignal</c>.
 /// </summary>
-public sealed class AgentProvisioningSignal
+public sealed class AgentProvisioningSignal : IDisposable
 {
     private readonly SemaphoreSlim _signal = new(initialCount: 0, maxCount: 1);
 
@@ -28,4 +28,6 @@ public sealed class AgentProvisioningSignal
     }
 
     public Task WaitAsync(CancellationToken cancellationToken) => _signal.WaitAsync(cancellationToken);
+
+    public void Dispose() => _signal.Dispose();
 }

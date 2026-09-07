@@ -114,7 +114,7 @@ public class ProviderModelService : IProviderModelService
         }
     }
 
-    private HttpRequestMessage BuildRequest(ProviderProbeRequest request) => request.ProviderName switch
+    private static HttpRequestMessage BuildRequest(ProviderProbeRequest request) => request.ProviderName switch
     {
         "GitHubModel" => BuildGitHubCatalogRequest(request.ApiKey),
         "Anthropic" => BuildAnthropicRequest(request.Endpoint, request.ApiKey),

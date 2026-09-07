@@ -1,0 +1,88 @@
+{
+  "surfaceId": "tkt-tiers",
+  "components": [
+    { "id": "root", "component": "Column", "children": ["heading", "subheading", "tiers", "sep", "picker", "submit"] },
+
+    { "id": "heading", "component": "Text", "text": { "path": "/tiers/heading" }, "variant": "h4" },
+    { "id": "subheading", "component": "Text", "text": { "path": "/tiers/subheading" }, "variant": "caption" },
+
+    {
+      "id": "tiers",
+      "component": "Tabs",
+      "tabs": [
+        { "title": { "path": "/tiers/t1/name" }, "child": "t1-card" },
+        { "title": { "path": "/tiers/t2/name" }, "child": "t2-card" },
+        { "title": { "path": "/tiers/t3/name" }, "child": "t3-card" }
+      ]
+    },
+
+    { "id": "t1-card", "component": "Card", "child": "t1-body" },
+    { "id": "t1-body", "component": "Column", "children": ["t1-head", "t1-seats", "t1-perks"] },
+    { "id": "t1-head", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["t1-price", "t1-total"] },
+    { "id": "t1-price", "component": "Text", "text": { "path": "/tiers/t1/price" }, "variant": "h5" },
+    { "id": "t1-total", "component": "Text", "text": { "path": "/tiers/t1/total" }, "variant": "caption" },
+    { "id": "t1-seats", "component": "Text", "text": { "path": "/tiers/t1/seats" }, "variant": "body" },
+    { "id": "t1-perks", "component": "List", "direction": "vertical", "children": ["t1-p1", "t1-p2"] },
+    { "id": "t1-p1", "component": "Text", "text": { "path": "/tiers/t1/p1" }, "variant": "caption" },
+    { "id": "t1-p2", "component": "Text", "text": { "path": "/tiers/t1/p2" }, "variant": "caption" },
+
+    { "id": "t2-card", "component": "Card", "child": "t2-body" },
+    { "id": "t2-body", "component": "Column", "children": ["t2-head", "t2-seats", "t2-perks"] },
+    { "id": "t2-head", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["t2-price", "t2-total"] },
+    { "id": "t2-price", "component": "Text", "text": { "path": "/tiers/t2/price" }, "variant": "h5" },
+    { "id": "t2-total", "component": "Text", "text": { "path": "/tiers/t2/total" }, "variant": "caption" },
+    { "id": "t2-seats", "component": "Text", "text": { "path": "/tiers/t2/seats" }, "variant": "body" },
+    { "id": "t2-perks", "component": "List", "direction": "vertical", "children": ["t2-p1", "t2-p2"] },
+    { "id": "t2-p1", "component": "Text", "text": { "path": "/tiers/t2/p1" }, "variant": "caption" },
+    { "id": "t2-p2", "component": "Text", "text": { "path": "/tiers/t2/p2" }, "variant": "caption" },
+
+    { "id": "t3-card", "component": "Card", "child": "t3-body" },
+    { "id": "t3-body", "component": "Column", "children": ["t3-head", "t3-seats", "t3-perks"] },
+    { "id": "t3-head", "component": "Row", "justify": "spaceBetween", "align": "center", "children": ["t3-price", "t3-total"] },
+    { "id": "t3-price", "component": "Text", "text": { "path": "/tiers/t3/price" }, "variant": "h5" },
+    { "id": "t3-total", "component": "Text", "text": { "path": "/tiers/t3/total" }, "variant": "caption" },
+    { "id": "t3-seats", "component": "Text", "text": { "path": "/tiers/t3/seats" }, "variant": "body" },
+    { "id": "t3-perks", "component": "List", "direction": "vertical", "children": ["t3-p1", "t3-p2"] },
+    { "id": "t3-p1", "component": "Text", "text": { "path": "/tiers/t3/p1" }, "variant": "caption" },
+    { "id": "t3-p2", "component": "Text", "text": { "path": "/tiers/t3/p2" }, "variant": "caption" },
+
+    { "id": "sep", "component": "Divider", "axis": "horizontal" },
+
+    {
+      "id": "picker",
+      "component": "ChoicePicker",
+      "label": "Which tier?",
+      "variant": "mutuallyExclusive",
+      "value": { "path": "/tiers/choice" },
+      "options": [
+        { "label": { "path": "/tiers/t1/name" }, "value": "t1" },
+        { "label": { "path": "/tiers/t2/name" }, "value": "t2" },
+        { "label": { "path": "/tiers/t3/name" }, "value": "t3" }
+      ]
+    },
+
+    {
+      "id": "submit",
+      "component": "Button",
+      "variant": "primary",
+      "child": "submit-label",
+      "action": {
+        "event": {
+          "name": "ticket_tier_selected",
+          "context": { "choice": { "path": "/tiers/choice" } }
+        }
+      }
+    },
+    { "id": "submit-label", "component": "Text", "text": "Continue to review" }
+  ],
+  "data": {
+    "tiers": {
+      "heading": "Your seating tiers",
+      "subheading": "",
+      "t1": { "name": "Tier 1", "seats": "", "price": "", "total": "", "p1": "", "p2": "" },
+      "t2": { "name": "Tier 2", "seats": "", "price": "", "total": "", "p1": "", "p2": "" },
+      "t3": { "name": "Tier 3", "seats": "", "price": "", "total": "", "p1": "", "p2": "" },
+      "choice": []
+    }
+  }
+}

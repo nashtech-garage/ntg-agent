@@ -1,3 +1,5 @@
+using NTG.Agent.LightRag.BackgroundServices;
+
 namespace NTG.Agent.LightRag;
 
 /// <summary>

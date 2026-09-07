@@ -1,0 +1,129 @@
+@using NTG.Agent.Common.Dtos.Agents
+@inject AgentClient AgentClient
+
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-semibold">LLM Provider <span class="text-muted">(Optional)</span></label>
+        <select class="form-select" value="@ProviderId?.ToString()" @onchange="OnProviderIdChangedAsync">
+            <option value="">Select a provider...</option>
+            @if (providers != null)
+            {
+                @foreach (var p in providers)
+                {
+                    <option value="@p.Id">@p.Name (@p.ProviderType.ToDisplayName())</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label class="form-label fw-semibold">Model <span class="text-muted">(Optional)</span></label>
+        @if (selectedProvider == null)
+        {
+            <input type="text" class="form-control" value="@ModelOverride" @onchange="OnModelOverrideChangedAsync"
+                   placeholder="@(IsInner ? "e.g., gpt-4o-mini, claude-3-haiku" : "e.g., gpt-4, gpt-3.5-turbo")" />
+            <div class="form-text">No LLM provider selected — type any model id manually.</div>
+        }
+        else if (enabledModels == null || enabledModels.Count == 0)
+        {
+            <div class="alert alert-warning py-2 mb-0 small">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                No models enabled for this LLM provider yet. Enable models in the LLM Providers page first.
+            </div>
+        }
+        else
+        {
+            <select class="form-select" value="@ModelOverride" @onchange="OnModelOverrideChangedAsync">
+                <option value="">Select a model...</option>
+                @foreach (var m in enabledModels)
+                {
+                    <option value="@m.ModelId">
+                        @m.ModelId@(string.IsNullOrEmpty(m.DisplayName) ? "" : $" — {m.DisplayName}")@(m.AllowsThinking ? " (thinking)" : "")
+                    </option>
+                }
+            </select>
+            <div class="form-text">Only models enabled by the admin for this LLM provider are listed.</div>
+        }
+        @if (modelError != null)
+        {
+            <div class="text-danger small mt-1">@modelError</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public Guid? ProviderId { get; set; }
+    [Parameter] public EventCallback<Guid?> ProviderIdChanged { get; set; }
+    [Parameter] public string? ModelOverride { get; set; }
+    [Parameter] public EventCallback<string?> ModelOverrideChanged { get; set; }
+    [Parameter] public bool IsInner { get; set; }
+    [Parameter] public EventCallback<bool> SupportsThinkingChanged { get; set; }
+
+    private IList<ProviderDto>? providers;
+    private ProviderDto? selectedProvider;
+    private IList<ProviderModelDto>? enabledModels;
+    private string? modelError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            providers = await AgentClient.GetProvidersAsync();
+            if (ProviderId is { } providerId)
+            {
+                selectedProvider = providers?.FirstOrDefault(p => p.Id == providerId);
+                enabledModels = selectedProvider?.Models;
+            }
+        }
+        catch (Exception ex)
+        {
+            modelError = ex.Message;
+        }
+        await RecomputeThinkingSupportAsync();
+    }
+
+    private async Task OnProviderIdChangedAsync(ChangeEventArgs e)
+    {
+        var providerId = Guid.TryParse(e.Value?.ToString(), out var parsed) ? parsed : (Guid?)null;
+        await SetProviderAsync(providerId);
+    }
+
+    private async Task OnModelOverrideChangedAsync(ChangeEventArgs e)
+    {
+        await SetModelAsync(e.Value?.ToString());
+    }
+
+    private async Task SetProviderAsync(Guid? providerId)
+    {
+        ProviderId = providerId;
+        await ProviderIdChanged.InvokeAsync(providerId);
+        if (providerId is { } pid)
+        {
+            selectedProvider = providers?.FirstOrDefault(p => p.Id == pid);
+            enabledModels = selectedProvider?.Models;
+        }
+        else
+        {
+            selectedProvider = null;
+            enabledModels = null;
+        }
+        // A model enabled for the previous provider may not exist on the new one.
+        await SetModelAsync(null);
+    }
+
+    private async Task SetModelAsync(string? value)
+    {
+        ModelOverride = string.IsNullOrWhiteSpace(value) ? null : value;
+        await ModelOverrideChanged.InvokeAsync(ModelOverride);
+        await RecomputeThinkingSupportAsync();
+    }
+
+    // Thinking mode is available only when the admin allowed it for the selected model
+    // on the provider. No model / no provider / not-allowed all report false up to the parent
+    // so it can gate (and reset, if needed) the Fast/Thinking toggle.
+    private async Task RecomputeThinkingSupportAsync()
+    {
+        var model = enabledModels?.FirstOrDefault(m =>
+            string.Equals(m.ModelId, ModelOverride, StringComparison.OrdinalIgnoreCase));
+        await SupportsThinkingChanged.InvokeAsync(model?.AllowsThinking ?? false);
+    }
+}

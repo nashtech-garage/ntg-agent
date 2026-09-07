@@ -6,6 +6,7 @@ using NTG.Agent.Orchestrator.Models.Chat;
 using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Agents;
+using NTG.Agent.Orchestrator.Models.Skills;
 using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
@@ -22,11 +23,19 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<Models.Agents.Agent> Agents { get; set; } = null!;
 
+    public DbSet<Models.Agents.Provider> Providers { get; set; } = null!;
+
     public DbSet<Models.Agents.AgentTools> AgentTools { get; set; } = null!;
 
     public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
 
     public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
+
+    public DbSet<Skill> Skills { get; set; } = null!;
+
+    public DbSet<SkillAsset> SkillAssets { get; set; } = null!;
+
+    public DbSet<AgentSkill> AgentSkills { get; set; } = null!;
 
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
@@ -105,6 +114,49 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<Models.Agents.Provider>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Endpoint).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<Models.Agents.ProviderModel>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ModelId).IsRequired().HasMaxLength(300);
+            entity.Property(e => e.DisplayName).HasMaxLength(500);
+            entity.HasOne(e => e.Provider)
+                .WithMany(p => p.Models)
+                .HasForeignKey(e => e.ProviderId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Models.Agents.Agent>()
+            .HasOne(a => a.Provider)
+            .WithMany(p => p.Agents)
+            .HasForeignKey(a => a.ProviderId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        var defaultProviderId = new Guid("00000000-0000-0000-0000-000000000001");
+
+        modelBuilder.Entity<Models.Agents.Provider>().HasData(new Models.Agents.Provider
+        {
+            Id = defaultProviderId,
+            Name = "Default Provider",
+            ProviderType = Common.Dtos.Agents.ProviderType.OpenAI,
+            CreatedAt = new DateTime(2025, 6, 24),
+            UpdatedAt = new DateTime(2025, 6, 24)
+        });
+
+        modelBuilder.Entity<Models.Agents.ProviderModel>().HasData(new Models.Agents.ProviderModel
+        {
+            Id = new Guid("00000000-0000-0000-0000-000000000002"),
+            ProviderId = defaultProviderId,
+            ModelId = "gpt-4o",
+            AllowsThinking = false
+        });
+
         modelBuilder.Entity<Models.Agents.Agent>().HasData(new Models.Agents.Agent
         {
             Id = new Guid("31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"),
@@ -117,6 +169,8 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             IsDefault = true,
             IsPublished = true,
             AgentKind = Common.Dtos.Agents.AgentKind.Outer,
+            ModelOverride = "gpt-4o",
+            ProviderId = defaultProviderId,
             ProvisioningStatus = Common.Dtos.Agents.AgentProvisioningStatus.Ready
         });
 
@@ -233,6 +287,51 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 .WithMany(a => a.OuterAgentBindings)
                 .HasForeignKey(x => x.InnerAgentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Agent Skills (https://agentskills.io). Name is unique so re-importing a package with the
+        // same name replaces the existing skill rather than creating a second one; SQL Server's
+        // default case-insensitive collation also blocks near-duplicates such as "Travel"/"travel",
+        // which the spec forbids anyway (names are lowercase-only).
+        modelBuilder.Entity<Skill>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Name).IsRequired().HasMaxLength(64);
+            e.HasIndex(x => x.Name).IsUnique();
+            e.Property(x => x.Description).IsRequired().HasMaxLength(1024);
+            e.Property(x => x.Compatibility).HasMaxLength(500);
+            e.Property(x => x.License).HasMaxLength(256);
+            e.Property(x => x.Version).HasMaxLength(64);
+            e.Property(x => x.SourceFileName).HasMaxLength(260);
+
+            e.HasMany(x => x.Assets)
+                .WithOne(a => a.Skill)
+                .HasForeignKey(a => a.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // The unique (SkillId, RelativePath) index is defence in depth: duplicate entry names in a
+        // crafted archive fail at the database even if importer validation is bypassed or regressed.
+        modelBuilder.Entity<SkillAsset>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.RelativePath).IsRequired().HasMaxLength(512);
+            e.HasIndex(x => new { x.SkillId, x.RelativePath }).IsUnique();
+        });
+
+        modelBuilder.Entity<AgentSkill>(e =>
+        {
+            e.HasKey(x => new { x.AgentId, x.SkillId });
+
+            e.HasOne(x => x.Agent)
+                .WithMany(a => a.SkillBindings)
+                .HasForeignKey(x => x.AgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Skill)
+                .WithMany(s => s.AgentBindings)
+                .HasForeignKey(x => x.SkillId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // UserPreference configuration

@@ -7,11 +7,12 @@ using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
 using NTG.Agent.Orchestrator.Models.Configuration;
+using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
-using NTG.Agent.Orchestrator.Services.Agents.Clients;
 using NTG.Agent.Orchestrator.Services.AnonymousSessions;
 using NTG.Agent.Orchestrator.Services.DocumentAnalysis;
 using NTG.Agent.Orchestrator.Services.Knowledge;
+using NTG.Agent.Orchestrator.Services.Skills;
 using NTG.Agent.Orchestrator.Services.TokenTracking;
 using NTG.Agent.ServiceDefaults;
 using OpenTelemetry;
@@ -89,13 +90,8 @@ builder.Services.AddDataProtection()
 builder.Services.Configure<AnonymousUserSettings>(
     builder.Configuration.GetSection("AnonymousUserSettings"));
 
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GitHubModel");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("GoogleGemini");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("OpenAI");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, OpenAICompatibleClientFactory>("AzureOpenAI");
-builder.Services.AddKeyedSingleton<IAgentClientFactory, AnthropicClientFactory>("Anthropic");
-
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
+builder.Services.AddScoped<IThinkingSupportProbe, ThinkingSupportProbe>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddHostedService<DefaultAgentProviderSeeder>();
 // Provider probing (test connection / list models) for the admin agent screens.
@@ -114,9 +110,24 @@ builder.Services.AddScoped<IAnonymousSessionService, AnonymousSessionService>();
 builder.Services.AddScoped<IIpAddressService, IpAddressService>();
 builder.Services.AddHttpContextAccessor();
 
+// Agent Skills import. The importer is stateless and holds no dependencies, so it is a singleton;
+// the registry takes the request-scoped DbContext. See docs/skill-import-security.md.
+builder.Services.AddSingleton<SkillPackageImporter>();
+builder.Services.AddScoped<SkillRegistry>();
+// Request-scoped, same lifetime and sharing rationale as RenderableToolCapture above: it narrates
+// skill activity (a skill loading, a surface rendering) for the "Thought for N seconds" panel.
+builder.Services.AddScoped<SkillActivityLog>();
+// Imports seed/skills/*.zip on startup through that same registry, skipping any skill name already
+// stored so an admin's edits are never overwritten. Repo-only by default (the seed tree does not
+// ship in a published build) and contained so it can never prevent startup — see SkillSeeder.
+builder.Services.AddHostedService<SkillSeeder>();
+
 // Provider-neutral knowledge plumbing: the upload endpoints signal the active provider's
 // ingestion worker through this regardless of which provider is configured.
 builder.Services.AddSingleton<IngestionStatusSignal>();
+
+builder.Services.AddHttpClient("ModelDiscovery");
+builder.Services.AddScoped<ModelDiscoveryService>();
 
 // Agent-provisioning lifecycle: CreateAgent/reprovision persist an agent in Provisioning state and
 // signal this worker, which boots the knowledge backend in the background and flips the row to

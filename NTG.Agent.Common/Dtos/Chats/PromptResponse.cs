@@ -9,7 +9,11 @@ public enum PromptContentType
     ToolCall = 2,
     /// <summary>The result of a server-side tool call, surfaced so the browser can render it.
     /// Content is JSON: {"callId","result"}.</summary>
-    ToolResult = 3
+    ToolResult = 3,
+    /// <summary>Our own narration of skill activity (a skill loading, a surface rendering), rendered
+    /// as reasoning so the user can see which skill the agent used. Deliberately not counted as
+    /// provider reasoning: it is text we wrote, not text the model thought.</summary>
+    SkillNotice = 4
 }
 
 /// <summary>

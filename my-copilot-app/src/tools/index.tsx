@@ -1,6 +1,7 @@
 "use client";
 
 import ChangeBackgroundTool from "./ChangeBackgroundTool";
+import SkillSurfaceTool from "./SkillSurfaceTool";
 import WeatherCardTool from "./WeatherCardTool";
 
 export interface FrontendToolsProps {
@@ -15,6 +16,7 @@ export default function FrontendTools({ onChangeBackground }: FrontendToolsProps
     <>
       <ChangeBackgroundTool onChange={onChangeBackground} />
       <WeatherCardTool />
+      <SkillSurfaceTool />
     </>
   );
 }

@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Data;
+using NTG.Agent.Orchestrator.Models.Agents;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
 
 /// <summary>
 /// Backfills the seeded Default Agent's provider at startup so a fresh install can chat
-/// immediately, without the manual Admin UI provider step. Only rows whose ProviderName is
+/// immediately, without the manual Admin UI provider step. Only providers whose ApiKey is
 /// still empty are touched — admin edits are never overwritten.
 /// </summary>
 public sealed class DefaultAgentProviderSeeder(
@@ -16,8 +18,6 @@ public sealed class DefaultAgentProviderSeeder(
     // The default agent rides the developer's own Azure resource/key/deployment that LightRAG
     // already requires (one resource serves chat + embeddings), so no extra secret is needed. GitHub Models
     // was the previous default but is being retired (410 retirement brownouts).
-    private const string ProviderName = "AzureOpenAI";
-
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var apiKey = configuration["LightRag:LlmApiKey"];
@@ -30,25 +30,28 @@ public sealed class DefaultAgentProviderSeeder(
         var db = scope.ServiceProvider.GetRequiredService<AgentDbContext>();
 
         var agents = await db.Agents
-            .Where(a => a.IsDefault && a.ProviderName == "")
+            .Include(a => a.Provider!).ThenInclude(p => p.Models)
+            .Where(a => a.IsDefault && a.Provider != null && string.IsNullOrEmpty(a.Provider.ApiKey))
             .ToListAsync(cancellationToken);
         if (agents.Count == 0) return;
 
-        // The chat client factory points the OpenAI SDK at Azure's /openai/v1 surface.
-        var providerEndpoint = $"{endpoint.TrimEnd('/')}/openai/v1";
-
         foreach (var agent in agents)
         {
-            agent.ProviderName = ProviderName;
-            agent.ProviderEndpoint = providerEndpoint;
-            agent.ProviderModelName = model;
-            agent.ProviderApiKey = apiKey;
+            var provider = agent.Provider!;
+            provider.ProviderType = ProviderType.AzureOpenAI;
+            // Stored raw; the chat factory normalizes it to the /openai/v1 surface (AzureOpenAIEndpoint.ToV1).
+            provider.Endpoint = endpoint;
+            provider.ApiKey = apiKey;
+            provider.UpdatedAt = DateTime.UtcNow;
+            if (!provider.Models.Any(m => m.ModelId == model))
+                db.Add(new ProviderModel { Id = Guid.NewGuid(), ProviderId = provider.Id, ModelId = model });
+            agent.ModelOverride = model;
         }
 
         await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation(
-            "Seeded provider {Provider}/{Model} on {Count} default agent(s) with an empty provider.",
-            ProviderName, model, agents.Count);
+            "Seeded {Provider}/{Model} on {Count} default agent(s) whose provider had no API key.",
+            ProviderType.AzureOpenAI, model, agents.Count);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

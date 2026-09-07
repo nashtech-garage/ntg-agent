@@ -19,13 +19,11 @@ public class Agent
 
     public string Instructions { get; set; } = string.Empty;
 
-    public string ProviderName { get; set; } = string.Empty;
+    public Guid? ProviderId { get; set; }
 
-    public string ProviderModelName { get; set; } = string.Empty;
+    public string? ModelOverride { get; set; }
 
-    public string ProviderEndpoint { get; set; } = string.Empty;
-
-    public string ProviderApiKey { get; set; } = string.Empty;
+    public Provider? Provider { get; set; }
 
     public bool IsPublished { get; set; }
 
@@ -33,6 +31,12 @@ public class Agent
 
     /// <summary>Whether this agent uses Fast or Thinking (reasoning) mode.</summary>
     public AgentMode Mode { get; set; } = AgentMode.Fast;
+
+    /// <summary>Sampling temperature for generation. Null = provider/model default.</summary>
+    public double? Temperature { get; set; }
+
+    /// <summary>Maximum output tokens for generation. Null = provider/model default.</summary>
+    public int? MaxOutputTokens { get; set; }
 
     public AgentKind AgentKind { get; set; } = AgentKind.Outer;
 
@@ -66,5 +70,8 @@ public class Agent
 
     /// <summary>Bindings where this agent is used as an inner agent.</summary>
     public ICollection<AgentInnerAgent> OuterAgentBindings { get; set; } = new List<AgentInnerAgent>();
+
+    /// <summary>Agent Skills bound to this agent. Only enabled bindings reach the model's catalog.</summary>
+    public ICollection<Skills.AgentSkill> SkillBindings { get; set; } = new List<Skills.AgentSkill>();
 
 }
