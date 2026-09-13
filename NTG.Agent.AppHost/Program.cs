@@ -3,13 +3,16 @@ using System.Runtime.InteropServices;
 var builder = DistributedApplication.CreateBuilder(args);
 
 var saPassword = builder.AddParameter("sql-sa-password", secret: true);
-var githubToken = builder.AddParameter("github-token", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
-// Dedicated Azure key for LightRAG — used for BOTH its embedding and LLM bindings (the
-// hcm resource exposes one key for chat + embeddings).
+// One Azure OpenAI resource serves LightRAG's LLM and embedding bindings (one endpoint,
+// one key); the two model values are that resource's deployment names. The Default
+// Agent seeder reuses the LLM trio.
+var lightragAzureOpenAiEndpoint = builder.AddParameter("lightrag-azure-openai-endpoint", secret: true);
+var lightragLlmModel = builder.AddParameter("lightrag-llm-model", secret: true);
+var lightragEmbeddingModel = builder.AddParameter("lightrag-embedding-model", secret: true);
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 
 // LightRAG + its Postgres live on a dedicated Ubuntu server reached directly over TLS.
@@ -71,7 +74,6 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	// Docker daemon (over the SSH tunnel) against the standalone Postgres there. That
 	// server is provisioned independently, so there is no local resource to wait on.
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
-	.WithEnvironment("GitHub__Models__GitHubToken", githubToken)
 	// LightRAG per-agent container provisioning config (see LightRagSettings /
 	// LightRagContainerManager). These replace the old singleton "lightrag" container
 	// env — the Orchestrator now applies them to each spawned lightrag-agent-{id}.
@@ -92,11 +94,11 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__ServerHost", lightragServerHost)
 	.WithEnvironment("LightRag__GatewayUrl", lightragGatewayUrl)
 	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
-	.WithEnvironment("LightRag__LlmModel", "gpt-5.1")
-	.WithEnvironment("LightRag__LlmEndpoint", "https://rmit-capstone-2026-hcm--resource.openai.azure.com/")
+	.WithEnvironment("LightRag__LlmModel", lightragLlmModel)
+	.WithEnvironment("LightRag__LlmEndpoint", lightragAzureOpenAiEndpoint)
 	.WithEnvironment("LightRag__LlmApiKey", lightragEmbeddingApiKey)
-	.WithEnvironment("LightRag__EmbeddingModel", "text-embedding-3-large")
-	.WithEnvironment("LightRag__EmbeddingEndpoint", "https://rmit-capstone-2026-hcm--resource.openai.azure.com/")
+	.WithEnvironment("LightRag__EmbeddingModel", lightragEmbeddingModel)
+	.WithEnvironment("LightRag__EmbeddingEndpoint", lightragAzureOpenAiEndpoint)
 	.WithEnvironment("LightRag__EmbeddingApiKey", lightragEmbeddingApiKey)
 	.WithEnvironment("LightRag__AzureApiVersion", "2024-08-01-preview")
 	.WithEnvironment("LightRag__EmbeddingDim", "1536")

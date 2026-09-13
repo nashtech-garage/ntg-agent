@@ -93,6 +93,7 @@ builder.Services.Configure<AnonymousUserSettings>(
 builder.Services.AddScoped<IAgentFactory,AgentFactory>();
 builder.Services.AddScoped<IThinkingSupportProbe, ThinkingSupportProbe>();
 builder.Services.AddScoped<AgentService>();
+builder.Services.AddHostedService<DefaultAgentProviderSeeder>();
 // Provider probing (test connection / list models) for the admin agent screens.
 // Uses a typed HttpClient so the standard ServiceDefaults resilience pipeline applies.
 builder.Services.AddHttpClient<IProviderModelService, ProviderModelService>(c =>

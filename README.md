@@ -28,6 +28,28 @@ Details about the project can be referenced at DeepWiki: https://deepwiki.com/na
 
 Run the project **locally with .NET Aspire**.
 
+### Quick start (Linux/macOS)
+
+One command on a fresh machine — clones the repo and runs the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash
+```
+
+Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 10 SDK, Docker, Node ≥ 20) and installs the missing ones automatically: on Ubuntu/Debian with `sudo apt` (Node via NodeSource); on macOS with Homebrew (`brew install --cask dotnet-sdk`, `brew install node`, etc. — Homebrew must be installed first; if git is missing, run `xcode-select --install`). **On macOS, Docker must already be running** (Docker Desktop or Colima — it is not auto-installed; the script prints how to get it if it's missing). Other systems get install instructions instead. The script then activates the repo git hooks, installs `dotnet-ef`, asks for your Azure OpenAI endpoint + key (one resource serves LightRAG and the Default Agent; deployment names default to `gpt-5.1` / `text-embedding-3-large`, override in `.env`), auto-generates the remaining secrets, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
+
+Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. The steps below describe the same setup done manually.
+
+### Quick start (Windows via WSL2)
+
+The same script is the supported path on Windows — it runs inside WSL2:
+
+1. Install WSL2 with the default Ubuntu distro: `wsl --install` in an admin PowerShell, then reboot and create your Linux user.
+2. Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) with the **WSL2 backend**, and enable your distro under *Settings → Resources → WSL integration*.
+3. Inside the WSL shell, run the one-liner above. It clones **into the WSL filesystem** (`~/ntg-agent`, not `/mnt/c/...` — file watching and builds are unreliable and slow on the Windows mount) and apt-installs the remaining prerequisites (.NET 10 SDK, Node ≥ 20, git); Docker itself is left to Docker Desktop.
+
+The dashboard is reachable from your Windows browser at `https://localhost:17050` (WSL2 forwards localhost automatically). The HTTPS dev certificate is generated inside WSL and won't be trusted by the Windows browser — accept the certificate warning, or run `dotnet dev-certs https --export-path` in WSL and import it into the Windows certificate store.
+
 The AppHost orchestrates everything: it starts a SQL Server container, runs EF migrations for Admin and Orchestrator, then launches all 5 services with service discovery and config wiring. No local SQL Server install required.
 
 Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Docker (used by Aspire to run the SQL Server container), and the `dotnet-ef` global tool:
@@ -35,9 +57,7 @@ Prerequisites: [.NET 10 SDK](https://dotnet.microsoft.com/download), Docker (use
 dotnet tool install --global dotnet-ef
 ```
 
-1. Create a [GitHub fine-grained personal access token](https://github.com/settings/personal-access-tokens) with **models:read** permission.
-
-2. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
+1. Set AppHost user-secrets once per developer. Use the helper script (recommended) or set them manually.
 
    **Helper script** — prompts for any value not already provided via env var or `.env`, auto-generates the LightRAG keys if missing, and writes everything to user-secrets:
    ```bash
@@ -45,7 +65,7 @@ dotnet tool install --global dotnet-ef
    ```
    Resolution per value: exported env var → interactive prompt (TTY only) → `$REPO_ROOT/.env` → default. Non-interactive example (skips all prompts):
    ```bash
-   GITHUB_TOKEN=ghp_xxx ./scripts/init-apphost-user-secrets.sh
+   LIGHTRAG_AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com/ LIGHTRAG_EMBEDDING_API_KEY=xxx ./scripts/init-apphost-user-secrets.sh
    ```
    Useful flags: `--dry-run` to preview without writing, `--help` for details.
 
@@ -53,15 +73,17 @@ dotnet tool install --global dotnet-ef
    ```bash
    cd NTG.Agent.AppHost
    dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong!"
-   dotnet user-secrets set "Parameters:github-token"                "<your GitHub token>"
    dotnet user-secrets set "Parameters:google-api-key"              "<google CSE api key, or placeholder>"
    dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
    dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"
    dotnet user-secrets set "Parameters:lightrag-api-key"            "<32+ char random string>"
-   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for LightRAG>"
+   dotnet user-secrets set "Parameters:lightrag-azure-openai-endpoint" "https://<resource>.openai.azure.com/"
+   dotnet user-secrets set "Parameters:lightrag-embedding-api-key"  "<Azure OpenAI key for that resource>"
+   dotnet user-secrets set "Parameters:lightrag-llm-model"          "gpt-5.1"
+   dotnet user-secrets set "Parameters:lightrag-embedding-model"    "text-embedding-3-large"
    ```
 
-3. Run the AppHost:
+2. Run the AppHost:
    ```bash
    dotnet run --project NTG.Agent.AppHost
    ```
@@ -71,18 +93,14 @@ dotnet tool install --global dotnet-ef
    ./ntg run
    ```
 
-4. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
+3. Open the Aspire Dashboard URL printed at startup. Resources you'll see:
    - `sqlserver` — SQL Server 2022 container with a persistent volume
    - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
    - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
    - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
    - `ntg-agent-admin` — admin dashboard
 
-5. In the Admin dashboard, open **Agent Management > Agent Default** and set the GitHub Model provider using the token from step 1:
-   - Provider Name: `GitHub Model`
-   - Provider Endpoint: `https://models.github.ai/inference`
-   - Provider API Key: your GitHub token
-   - Model Name: `openai/gpt-4.1` (or another model your token supports)
+4. The Default Agent's provider is configured automatically on first startup (Azure OpenAI, your endpoint/key and chat deployment from the LightRAG settings above — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
 ## Dev shortcuts (`ntg`)
 

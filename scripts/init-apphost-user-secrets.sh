@@ -9,7 +9,7 @@
 #   ./scripts/init-apphost-user-secrets.sh
 #   ./scripts/init-apphost-user-secrets.sh --dry-run
 #
-# Setting the corresponding env var (e.g. GITHUB_TOKEN=xyz ./init-...) skips the prompt.
+# Setting the corresponding env var (e.g. SA_PASSWORD=xyz ./init-...) skips the prompt.
 # Without a TTY (e.g. CI): prompts are skipped; each value uses env, then .env, then defaults.
 
 set -euo pipefail
@@ -44,7 +44,7 @@ fi
 
 if ! docker info >/dev/null 2>&1; then
   echo "error: cannot access Docker daemon (permission denied or daemon not running)." >&2
-  echo "Ensure Docker is running and your user has permission (for Linux/WSL: add user to docker group, then re-login)." >&2
+  echo "Ensure Docker is running and your user has permission (for Linux/WSL: add user to docker group, then re-login; macOS: start Docker Desktop or run 'colima start')." >&2
   exit 1
 fi
 
@@ -55,10 +55,11 @@ Usage: init-apphost-user-secrets.sh [-n|--dry-run] [-h|--help]
 Sets NTG.Agent.AppHost user secrets. Per value:
   exported env var → prompt (TTY only) → $REPO_ROOT/.env → default.
 
-Env/.env keys: GITHUB_TOKEN,
+Env/.env keys: SA_PASSWORD,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
-LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_AZURE_OPENAI_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_LLM_MODEL, LIGHTRAG_EMBEDDING_MODEL,
 LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
 LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL,
 LIGHTRAG_POSTGRES_PORT.
@@ -181,15 +182,16 @@ set_secret() {
   echo "set $key"
 }
 
-resolve_field GITHUB_TOKEN \
-  "GitHub PAT (models:read) [Enter for .env]: " \
+resolve_field SA_PASSWORD \
+  "SQL Server SA password (complexity rules apply) [Enter for .env]: " \
   1 \
-  "GITHUB_TOKEN" \
-  "GITHUB_TOKEN" \
+  "SA_PASSWORD" \
+  "SA_PASSWORD" \
   "__EMPTY__"
 
-if [[ -z "$GITHUB_TOKEN" ]]; then
-  echo "error: GITHUB_TOKEN is required (prompt, .env GITHUB_TOKEN, or export GITHUB_TOKEN)" >&2
+if [[ -z "$SA_PASSWORD" ]]; then
+  echo "error: SA_PASSWORD is required (prompt, .env SA_PASSWORD, or export SA_PASSWORD)" >&2
+  echo "Without Parameters:sql-sa-password, Aspire silently holds every app at the parameter prompt." >&2
   exit 1
 fi
 
@@ -241,8 +243,22 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
   fi
 fi
 
+# One Azure OpenAI resource serves LightRAG's LLM + embedding bindings and the seeded
+# Default Agent: one endpoint, one key, two deployment names.
+resolve_field LIGHTRAG_AZURE_OPENAI_ENDPOINT \
+  "Azure OpenAI endpoint (https://<resource>.openai.azure.com/) [Enter for .env]: " \
+  0 \
+  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
+  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
+  "__EMPTY__"
+
+if [[ -z "$LIGHTRAG_AZURE_OPENAI_ENDPOINT" ]]; then
+  echo "error: LIGHTRAG_AZURE_OPENAI_ENDPOINT is required (prompt, .env LIGHTRAG_AZURE_OPENAI_ENDPOINT, or export LIGHTRAG_AZURE_OPENAI_ENDPOINT)" >&2
+  exit 1
+fi
+
 resolve_field LIGHTRAG_EMBEDDING_API_KEY \
-  "Azure OpenAI API key (LightRAG LLM + embeddings, hcm resource) [Enter for .env]: " \
+  "Azure OpenAI API key (LightRAG LLM + embeddings) [Enter for .env]: " \
   1 \
   "LIGHTRAG_EMBEDDING_API_KEY" \
   "LIGHTRAG_EMBEDDING_API_KEY" \
@@ -252,6 +268,20 @@ if [[ -z "$LIGHTRAG_EMBEDDING_API_KEY" ]]; then
   echo "error: LIGHTRAG_EMBEDDING_API_KEY is required (prompt, .env LIGHTRAG_EMBEDDING_API_KEY, or export LIGHTRAG_EMBEDDING_API_KEY)" >&2
   exit 1
 fi
+
+resolve_field LIGHTRAG_LLM_MODEL \
+  "Azure OpenAI chat deployment name [Enter for gpt-5.1]: " \
+  0 \
+  "LIGHTRAG_LLM_MODEL" \
+  "LIGHTRAG_LLM_MODEL" \
+  "gpt-5.1"
+
+resolve_field LIGHTRAG_EMBEDDING_MODEL \
+  "Azure OpenAI embedding deployment name [Enter for text-embedding-3-large]: " \
+  0 \
+  "LIGHTRAG_EMBEDDING_MODEL" \
+  "LIGHTRAG_EMBEDDING_MODEL" \
+  "text-embedding-3-large"
 
 # --- Remote LightRAG server (TLS) -------------------------------------------------
 # All optional: leave every value empty for a plain all-local run against the local
@@ -312,12 +342,15 @@ if [[ -n "$LIGHTRAG_DOCKER_CERT_PATH" && ! -f "$LIGHTRAG_DOCKER_CERT_PATH" ]]; t
   exit 1
 fi
 
-set_secret "Parameters:github-token" "$GITHUB_TOKEN"
+set_secret "Parameters:sql-sa-password" "$SA_PASSWORD"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+set_secret "Parameters:lightrag-azure-openai-endpoint" "$LIGHTRAG_AZURE_OPENAI_ENDPOINT"
 set_secret "Parameters:lightrag-embedding-api-key" "$LIGHTRAG_EMBEDDING_API_KEY"
+set_secret "Parameters:lightrag-llm-model" "$LIGHTRAG_LLM_MODEL"
+set_secret "Parameters:lightrag-embedding-model" "$LIGHTRAG_EMBEDDING_MODEL"
 set_secret "Parameters:lightrag-docker-host" "$LIGHTRAG_DOCKER_HOST"
 set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
 set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"
