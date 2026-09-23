@@ -122,14 +122,12 @@ builder.AddProject<Projects.NTG_Agent_Admin>("ntg-agent-admin")
 	.WaitForCompletion(migrateOrchestrator)
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db);
 
-// TEMP-DISABLED (local run without my-copilot-app): CopilotKit chat frontend (AG-UI).
-// Re-enable when ../my-copilot-app is present. See PR #287 merge session.
-// builder.AddNextJsApp("ntg-agent-ag-ui-webclient", "../my-copilot-app")
-//     .WithReference(orchestrator)
-//     .WaitFor(orchestrator)
-//     // route.ts resolves the backend via ORCHESTRATOR_URL (service-discovery env vars contain
-//     // dashes from the resource name, which the Next.js code does not read).
-//     .WithEnvironment("ORCHESTRATOR_URL", orchestrator.GetEndpoint("https"))
-//     .WithExternalHttpEndpoints();
+builder.AddNextJsApp("ntg-agent-ag-ui-webclient", "../my-copilot-app")
+    .WithReference(orchestrator)
+    .WaitFor(orchestrator)
+    // route.ts resolves the backend via ORCHESTRATOR_URL (service-discovery env vars contain
+    // dashes from the resource name, which the Next.js code does not read).
+    .WithEnvironment("ORCHESTRATOR_URL", orchestrator.GetEndpoint("https"))
+    .WithExternalHttpEndpoints();
 
 builder.Build().Run();
