@@ -70,6 +70,7 @@ Open the Aspire Dashboard URL printed at startup. Resources you'll see:
 - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
 - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
 - `ntg-agent-admin` — admin dashboard
+- `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI
 
 The Default Agent's provider is configured automatically on first startup (Azure OpenAI, your endpoint/key and chat deployment from the LightRAG settings above — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
