@@ -20,6 +20,8 @@ This project aims to practice building a chatbot in C#
 - LightRAG
 - Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
 - SQL Server
+- NextJs
+- Docker & Docker Compose
 
 ## Documentation
 Details about the project can be referenced at DeepWiki: https://deepwiki.com/nashtech-garage/ntg-agent
@@ -69,8 +71,8 @@ Open the Aspire Dashboard URL printed at startup. Resources you'll see:
 - `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
 - `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
 - `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
-- `ntg-agent-admin` — admin dashboard
-- `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI
+- `ntg-agent-admin` — admin dashboard (default admin account: `admin@ntgagent.com` / `Ntg@123`)
+- `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
 
 The Default Agent's provider is configured automatically on first startup (Azure OpenAI, your endpoint/key and chat deployment from the LightRAG settings above — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
 
