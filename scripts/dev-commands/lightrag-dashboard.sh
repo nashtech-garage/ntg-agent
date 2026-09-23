@@ -33,7 +33,7 @@ build_name_map() {
   [ -n "$mssql" ] || return 0
   sa_pw="$(dotnet user-secrets list --project "$APPHOST_CSPROJ" 2>/dev/null \
             | sed -n 's/^Parameters:sql-sa-password = //p')"
-  [ -n "$sa_pw" ] || sa_pw='Admin123_Strong!'
+  [ -n "$sa_pw" ] || sa_pw='Admin123_Strong@'
   sqlcmd='/opt/mssql-tools18/bin/sqlcmd'
   # No -i on these execs: they don't read stdin, and -i would steal the script's
   # stdin (breaking the numbered prompt's `read`).

@@ -72,7 +72,7 @@ dotnet tool install --global dotnet-ef
    **Manual equivalent** — if you prefer not to run the script:
    ```bash
    cd NTG.Agent.AppHost
-   dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong!"
+   dotnet user-secrets set "Parameters:sql-sa-password"             "Admin123_Strong@"
    dotnet user-secrets set "Parameters:google-api-key"              "<google CSE api key, or placeholder>"
    dotnet user-secrets set "Parameters:google-search-engine-id"     "<google CSE id, or placeholder>"
    dotnet user-secrets set "Parameters:lightrag-pg-password"        "<postgres password>"

@@ -198,7 +198,7 @@ info "Ensuring ASP.NET Core HTTPS dev certificate."
 dotnet dev-certs https >/dev/null 2>&1 || true
 if ! dotnet dev-certs https --trust >/dev/null 2>&1; then
   warn "Could not mark the HTTPS dev cert as trusted (common on Linux)."
-  warn "The stack still runs; your browser may warn on https://localhost:17050."
+  warn "The stack still runs; your browser may warn on https://0.0.0.0:17050."
 fi
 
 # --- Phase 3: .env (create if missing, fill only empty keys) -----------------
@@ -305,12 +305,12 @@ if [[ "$status" != "healthy" ]]; then
   exit 1
 fi
 
-info "Waiting for the nginx gateway on http://localhost:8080/gateway-health."
+info "Waiting for the nginx gateway on http://0.0.0.0:8080/gateway-health."
 for i in $(seq 1 30); do
-  curl -fs http://localhost:8080/gateway-health >/dev/null 2>&1 && break
+  curl -fs http://0.0.0.0:8080/gateway-health >/dev/null 2>&1 && break
   sleep 2
 done
-if ! curl -fs http://localhost:8080/gateway-health >/dev/null 2>&1; then
+if ! curl -fs http://0.0.0.0:8080/gateway-health >/dev/null 2>&1; then
   echo "error: gateway health check failed. Check: docker logs lightrag-gateway" >&2
   exit 1
 fi
@@ -322,11 +322,11 @@ cat <<'EOF'
 
 Setup complete. Launching the Aspire AppHost...
 
-  Dashboard:   https://localhost:17050
+  Dashboard:   https://0.0.0.0:17050
   Admin login: admin@ntgagent.com / Ntg@123 (seeded)
 
 The Default Agent's provider (Azure OpenAI, gpt-5.1, via the LightRAG key) is
 configured automatically on first startup; change it any time in the Admin UI.
 
 EOF
-exec ./start-local-lightrag.sh
+exec ./start-local-lightrag.sh 
