@@ -25,14 +25,14 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore src/NTG.Agent.sln
 
       - name: Build
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build src/NTG.Agent.sln --configuration Release --no-restore
 
       - name: Run tests with coverage
         run: |
-          dotnet test --configuration Release --no-build \
+          dotnet test src/NTG.Agent.sln --configuration Release --no-build \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --logger trx \
@@ -44,7 +44,7 @@ jobs:
           sonarProjectKey: ${{ secrets.SONAR_PROJECT_KEY }}
           sonarProjectName: ntg-agent
           sonarOrganization: ${{ secrets.SONARCLOUD_ORGANIZATION_KEY }}
-          dotnetTestArguments: --logger trx --collect:"XPlat Code Coverage" --results-directory ./TestResults -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          dotnetTestArguments: src/NTG.Agent.sln --logger trx --collect:"XPlat Code Coverage" --results-directory ./TestResults -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
           sonarBeginArguments: /d:sonar.cs.opencover.reportsPaths="**/TestResults/**/coverage.opencover.xml" /d:sonar.coverage.exclusions="**/NTG.Agent.AppHost/**,**/Program.cs,**/Migrations/**,**/*Migration*.cs,**/*Migration*.Designer.cs,**/AgentDbContextModelSnapshot.cs,**/*.razor.css,**/wwwroot/**"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
