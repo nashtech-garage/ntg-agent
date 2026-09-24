@@ -18,7 +18,6 @@ useDefault = true
 description = "global allow list"
 paths = [
   '''\.env\.example''',
-  '''\.env\.test-ntg''',
   '''bin''',
   '''obj''',
   # EF Core migrations are generated code; seed data contains GUIDs
