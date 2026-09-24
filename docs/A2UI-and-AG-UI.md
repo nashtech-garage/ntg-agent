@@ -13,7 +13,7 @@ and in what order* have been folded in here and retired; their durable content i
 disagreements are called out in "Claims that have expired" at the end.
 
 **Why any of this exists.** The project already shipped a generative-UI capability, but it was
-per-tool hardcoded React: `my-copilot-app/src/tools/WeatherCardTool.tsx` matches the `get_weather`
+per-tool hardcoded React: `src/NTG.Agent.CopilotKitApp/src/tools/WeatherCardTool.tsx` matches the `get_weather`
 tool by name and renders a bespoke card. That does not generalise — every new visual answer needs a
 new React component and a deploy. A2UI replaces the hardcoding with a declarative catalog the model
 can compose against, and Agent Skills replaces the model's composition with pre-authored templates
@@ -46,7 +46,7 @@ npm package.
 
 ### The four packages
 
-All four are direct dependencies of `my-copilot-app` (versions from `my-copilot-app/package.json`):
+All four are direct dependencies of `src/NTG.Agent.CopilotKitApp` (versions from `src/NTG.Agent.CopilotKitApp/package.json`):
 
 | Package | Version | What it does here |
 |---|---|---|
@@ -66,7 +66,7 @@ Two paths get A2UI into the browser. They differ only in **who writes the compon
 everything downstream of the SSE stream is shared.
 
 ```
- NTG.Agent.Orchestrator (.NET)                        my-copilot-app (Next.js)          browser
+NTG.Agent.Orchestrator (.NET)                        NTG.Agent.CopilotKitApp (Next.js) browser
  ─────────────────────────────                        ────────────────────────          ───────
                                                     ┌──────────────────────────┐
  AgentService.ChatStreamingAsync                     │ /api/copilotkit/[id]     │
@@ -135,12 +135,12 @@ Two hops in that diagram post-date the original A2UI build: the whole Path B bra
 | `NTG.Agent.Orchestrator/Services/Skills/SurfaceValidator.cs` | Import-time validation of a skill's surface templates. |
 | `NTG.Agent.Orchestrator/Services/Skills/A2uiCatalog.cs` | A C# snapshot of `basic_catalog.json` that the validator checks against. |
 | `NTG.Agent.Orchestrator/Services/Agents/RenderableToolCapture.cs` | Side channel: server-side tool output destined for the browser, not for the model. |
-| `my-copilot-app/app/api/copilotkit/[[...integrationId]]/route.ts` | The bridge. `HttpAgent` + the two middlewares + the feature switches. |
-| `my-copilot-app/src/a2ui/activityRenderer.ts` | The **live** renderer (one stable module-scope instance). |
-| `my-copilot-app/src/a2ui/interactiveCatalog.tsx` | The component catalog: `basicCatalog` with five components overridden. |
-| `my-copilot-app/src/tools/SkillSurfaceTool.tsx` | The **reload** renderer for skill surfaces. |
-| `my-copilot-app/src/utils/agentMessages.ts` | Rebuilds persisted tool calls into AG-UI messages on reload. |
-| `my-copilot-app/app/globals.css` | `.a2ui-surface` scoped styling ("Ink & Iris"), external `!important` beating the catalog's inline styles. |
+| `src/NTG.Agent.CopilotKitApp/app/api/copilotkit/[[...integrationId]]/route.ts` | The bridge. `HttpAgent` + the two middlewares + the feature switches. |
+| `src/NTG.Agent.CopilotKitApp/src/a2ui/activityRenderer.ts` | The **live** renderer (one stable module-scope instance). |
+| `src/NTG.Agent.CopilotKitApp/src/a2ui/interactiveCatalog.tsx` | The component catalog: `basicCatalog` with five components overridden. |
+| `src/NTG.Agent.CopilotKitApp/src/tools/SkillSurfaceTool.tsx` | The **reload** renderer for skill surfaces. |
+| `src/NTG.Agent.CopilotKitApp/src/utils/agentMessages.ts` | Rebuilds persisted tool calls into AG-UI messages on reload. |
+| `src/NTG.Agent.CopilotKitApp/app/globals.css` | `.a2ui-surface` scoped styling ("Ink & Iris"), external `!important` beating the catalog's inline styles. |
 
 ---
 
@@ -150,7 +150,7 @@ A **surface** is one addressable piece of UI, identified by a `surfaceId`. Every
 operation against a surface. There are four; three matter here.
 
 The authoritative shapes are in
-`my-copilot-app/node_modules/@a2ui/web_core/src/v0_9/schemas/server_to_client.json`. Every message
+`src/NTG.Agent.CopilotKitApp/node_modules/@a2ui/web_core/src/v0_9/schemas/server_to_client.json`. Every message
 carries `"version": "v0.9"` and exactly one operation key — the schema is a `oneOf` with
 `additionalProperties: false`, so a message with two operations in it is invalid.
 
@@ -639,7 +639,7 @@ Known and unfixed. Security-specific gaps are in `docs/skill-import-security.md`
 
 ## 13. Manual end-to-end checks
 
-Builds: `dotnet build NTG.Agent.Orchestrator`, and `npm run build` in `my-copilot-app`.
+Builds: `dotnet build src/NTG.Agent.Orchestrator`, and `npm run build` in `src/NTG.Agent.CopilotKitApp`.
 
 **Path A** — AppHost running, agent with `render_a2ui` available:
 
@@ -678,8 +678,8 @@ Upstream specs:
 
 In-repo schemas (the authority when a doc and a schema disagree):
 
-- `my-copilot-app/node_modules/@a2ui/web_core/src/v0_9/schemas/server_to_client.json` — the four operations
-- `my-copilot-app/node_modules/@a2ui/web_core/src/v0_9/schemas/basic_catalog.json` — every component and prop
+- `src/NTG.Agent.CopilotKitApp/node_modules/@a2ui/web_core/src/v0_9/schemas/server_to_client.json` — the four operations
+- `src/NTG.Agent.CopilotKitApp/node_modules/@a2ui/web_core/src/v0_9/schemas/basic_catalog.json` — every component and prop
 
 Sibling documents:
 

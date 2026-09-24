@@ -39,7 +39,7 @@ Browser
 ## Project Structure
 
 ```
-my-copilot-app/
+NTG.Agent.CopilotKitApp/
 ├── app/
 │   ├── api/
 │   │   ├── agents/

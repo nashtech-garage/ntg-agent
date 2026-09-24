@@ -27,11 +27,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.MCP.Server.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.Orchestrator.Tests", "tests\NTG.Agent.Orchestrator.Tests\NTG.Agent.Orchestrator.Tests.csproj", "{5873153C-DC8A-9618-A96C-9DB09F5D803D}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AITools", "AITools", "{55F88B21-571A-464F-8D69-3C16FEF76432}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "NTG.Agent.AITools", "NTG.Agent.AITools", "{55F88B21-571A-464F-8D69-3C16FEF76432}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.AITools.SimpleTools", "AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj", "{9A2B9B21-A601-48DF-973C-767218C81FF4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.AITools.SimpleTools", "NTG.Agent.AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj", "{9A2B9B21-A601-48DF-973C-767218C81FF4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.AITools.SearchOnlineTool", "AITools\NTG.Agent.AITools.SearchOnlineTool\NTG.Agent.AITools.SearchOnlineTool.csproj", "{1C1330BC-8BCD-4700-A400-9161FC52659F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.AITools.SearchOnlineTool", "NTG.Agent.AITools\NTG.Agent.AITools.SearchOnlineTool\NTG.Agent.AITools.SearchOnlineTool.csproj", "{1C1330BC-8BCD-4700-A400-9161FC52659F}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NTG.Agent.LightRag", "NTG.Agent.LightRag\NTG.Agent.LightRag.csproj", "{5A0C98CC-A355-49D0-A233-91130BD05B7E}"
 EndProject

@@ -420,7 +420,7 @@ describe it — the user can see it. Stop now and wait for them to submit it."*
 
 ## 7. Conventions
 
-These live in `my-copilot-app/src/a2ui/interactiveCatalog.tsx`, which replaces five stock components
+These live in `src/NTG.Agent.CopilotKitApp/src/a2ui/interactiveCatalog.tsx`, which replaces five stock components
 with versions that round-trip reliably. None of it is in the A2UI schema; it is all data-model
 convention, which is why it costs nothing when unused.
 

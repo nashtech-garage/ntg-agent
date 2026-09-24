@@ -32,8 +32,8 @@ import uuid
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-GUIDE = REPO / "NTG.Agent.Orchestrator" / "Services" / "Agents" / "A2uiPrompt.cs"
-SCHEMA = REPO / "my-copilot-app" / "node_modules" / "@a2ui" / "web_core" / "src" / "v0_9" / "schemas" / "basic_catalog.json"
+GUIDE = REPO / "src" / "NTG.Agent.Orchestrator" / "Services" / "Agents" / "A2uiPrompt.cs"
+SCHEMA = REPO / "src" / "NTG.Agent.CopilotKitApp" / "node_modules" / "@a2ui" / "web_core" / "src" / "v0_9" / "schemas" / "basic_catalog.json"
 
 DEFAULT_AGENT = "31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"  # AgentFactory.DefaultAgentId
 LAYOUT = {"Column", "Row", "Card", "List"}
@@ -232,7 +232,7 @@ def run_static(catalog: dict) -> bool:
     check(len(examples) >= 2, f"found {len(examples)} render_a2ui example(s)")
 
     if not catalog:
-        print(f"  SKIP  catalog schema not found at {SCHEMA} — run npm install in my-copilot-app")
+        print(f"  SKIP  catalog schema not found at {SCHEMA} — run npm install in src/NTG.Agent.CopilotKitApp")
 
     for index, example in enumerate(examples, start=1):
         label = f"example {index}"

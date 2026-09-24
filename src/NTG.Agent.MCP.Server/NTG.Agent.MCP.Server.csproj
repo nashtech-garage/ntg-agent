@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AITools\NTG.Agent.AITools.SearchOnlineTool\NTG.Agent.AITools.SearchOnlineTool.csproj" />
+    <ProjectReference Include="..\NTG.Agent.AITools\NTG.Agent.AITools.SearchOnlineTool\NTG.Agent.AITools.SearchOnlineTool.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
   </ItemGroup>
 
