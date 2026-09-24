@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
-APPHOST_CSPROJ="NTG.Agent.AppHost/NTG.Agent.AppHost.csproj"
+APPHOST_CSPROJ="src/NTG.Agent.AppHost/NTG.Agent.AppHost.csproj"
 
 # --- find running per-agent LightRAG containers (portable: no mapfile) ---
 CONTAINERS=()
@@ -20,7 +20,7 @@ while IFS= read -r line; do
 done < <(docker ps --filter "name=lightrag-agent-" --format '{{.Names}}' 2>/dev/null | sort)
 if [ "${#CONTAINERS[@]}" -eq 0 ]; then
   echo "No running LightRAG agent containers found."
-  echo "Start the stack first:  ./ntg run   (or: dotnet run --project NTG.Agent.AppHost)"
+  echo "Start the stack first:  ./ntg run   (or: dotnet run --project src/NTG.Agent.AppHost)"
   exit 0
 fi
 

@@ -16,7 +16,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-APPHOST_PROJ="$REPO_ROOT/NTG.Agent.AppHost/NTG.Agent.AppHost.csproj"
+APPHOST_PROJ="$REPO_ROOT/src/NTG.Agent.AppHost/NTG.Agent.AppHost.csproj"
 ENV_FILE="$REPO_ROOT/.env"
 
 if [[ ! -f "$APPHOST_PROJ" ]]; then
@@ -361,5 +361,5 @@ set_secret "Parameters:lightrag-postgres-port" "$LIGHTRAG_POSTGRES_PORT"
 if [[ "$DRY_RUN" -eq 1 ]]; then
   echo "Dry run finished; no secrets were written."
 else
-  echo "Done. Run: dotnet run --project NTG.Agent.AppHost"
+  echo "Done. Run: dotnet run --project src/NTG.Agent.AppHost"
 fi

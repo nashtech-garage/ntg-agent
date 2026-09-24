@@ -16,4 +16,4 @@ exec env \
   "Parameters__lightrag-server-host= " \
   "Parameters__lightrag-socks-proxy= " \
   "Parameters__lightrag-postgres-port=5432" \
-  dotnet run --project NTG.Agent.AppHost --launch-profile https "$@"
+  dotnet run --project src/NTG.Agent.AppHost --launch-profile https "$@"
