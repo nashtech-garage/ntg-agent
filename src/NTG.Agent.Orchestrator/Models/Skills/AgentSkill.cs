@@ -2,7 +2,7 @@ namespace NTG.Agent.Orchestrator.Models.Skills;
 
 /// <summary>
 /// Binds a <see cref="Skill"/> to an agent. Only skills bound and enabled for an agent appear in
-/// the catalog injected into that agent's runs, mirroring how <c>AgentInnerAgent</c> scopes
+/// the catalog injected into that agent's runs, mirroring how <c>AgentSubAgent</c> scopes
 /// inner-agent tools.
 /// </summary>
 /// <remarks>

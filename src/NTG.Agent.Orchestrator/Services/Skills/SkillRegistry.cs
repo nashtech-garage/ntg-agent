@@ -244,7 +244,7 @@ public sealed class SkillRegistry(
     /// </summary>
     /// <remarks>
     /// Returns all skills rather than only bound ones, mirroring
-    /// <c>AgentAdminController.GetInnerAgentBindings</c>: the caller renders one toggle per row, so
+    /// <c>AgentAdminController.GetSubAgentBindings</c>: the caller renders one toggle per row, so
     /// returning only the bound ones would make an unbound skill impossible to bind.
     /// </remarks>
     public async Task<IReadOnlyList<(Guid SkillId, string Name, string Description, bool IsEnabled)>>

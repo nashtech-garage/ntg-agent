@@ -1,4 +1,4 @@
-﻿using Anthropic;
+using Anthropic;
 using Anthropic.Core;
 using Anthropic.Models.Messages;
 using Microsoft.Agents.AI;
@@ -41,7 +41,7 @@ public class AgentFactory : IAgentFactory
     public async Task<AIAgent> CreateAgent(Guid agentId)
     {
         var agentConfig = await _agentDbContext.Agents
-            .FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished && a.AgentKind == AgentKind.Outer)
+            .FirstOrDefaultAsync(a => a.Id == agentId && a.IsPublished && a.AgentKind == AgentKind.Agent)
             ?? throw new ArgumentException($"Agent with ID '{agentId}' not found.");
 
         return await CreateAgentFromConfigAsync(agentConfig);
@@ -50,9 +50,9 @@ public class AgentFactory : IAgentFactory
     /// <summary>
     /// Creates a published <b>Outer</b> agent the caller is allowed to use (owner, admin,
     /// or granted via a role in <c>AgentRoles</c>). Exists for the user-facing chat path,
-    /// where <paramref name="agentId"/> is user-supplied: inner agents are tool-only and
+    /// where <paramref name="agentId"/> is user-supplied: sub-agents are tool-only and
     /// must never be directly chattable, so — like the <see cref="CreateAgent(Guid)"/>
-    /// overload — this filters to <see cref="AgentKind.Outer"/> and throws
+    /// overload — this filters to <see cref="AgentKind.Agent"/> and throws
     /// <see cref="AgentAccessDeniedException"/> when the agent is missing, unpublished,
     /// inner, or not accessible to the caller.
     /// </summary>
@@ -61,7 +61,7 @@ public class AgentFactory : IAgentFactory
         var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
             a.Id == agentId
             && a.IsPublished
-            && a.AgentKind == AgentKind.Outer // inner agents are tool-only, never directly chattable
+            && a.AgentKind == AgentKind.Agent // sub-agents are tool-only, never directly chattable
             && (a.OwnerUserId == userId || isAdmin
                 || _agentDbContext.AgentRoles.Any(ar =>
                     ar.AgentId == a.Id
@@ -393,10 +393,10 @@ public class AgentFactory : IAgentFactory
                 .Where(t => enabledToolNames.Contains(t.Name))
                 .ToList();
 
-            if (agent.AgentKind == AgentKind.Outer)
+            if (agent.AgentKind == AgentKind.Agent)
             {
-                var innerAgentTools = await GetInnerAgentToolsAsync(agent, userId, isAdmin);
-                tools.AddRange(innerAgentTools);
+                var subAgentTools = await GetSubAgentToolsAsync(agent, userId, isAdmin);
+                tools.AddRange(subAgentTools);
             }
         }
 
@@ -415,7 +415,7 @@ public class AgentFactory : IAgentFactory
 
         // 2. Add MCP tools (from remote MCP server). Renderable tools (e.g. get_weather) are wrapped so
         //    their result is captured for the browser to render — works whether this agent is the outer
-        //    agent or an inner agent the outer one delegates to.
+        //    agent or an sub-agent the outer one delegates to.
         if (!string.IsNullOrEmpty(agent.McpServer?.Trim()))
         {
             var mcpTools = await GetMcpToolsAsync(agent.McpServer);
@@ -467,11 +467,11 @@ public class AgentFactory : IAgentFactory
         return string.IsNullOrWhiteSpace(agent.Instructions) ? null : agent.Instructions;
     }
 
-    private async Task<List<AITool>> GetInnerAgentToolsAsync(Models.Agents.Agent outerAgent, Guid? userId = null, bool isAdmin = false)
+    private async Task<List<AITool>> GetSubAgentToolsAsync(Models.Agents.Agent agent, Guid? userId = null, bool isAdmin = false)
     {
-        var bindings = await _agentDbContext.AgentInnerAgents
-            .Where(b => b.OuterAgentId == outerAgent.Id && b.IsEnabled)
-            .Select(b => b.InnerAgentId)
+        var bindings = await _agentDbContext.AgentSubAgents
+            .Where(b => b.AgentId == agent.Id && b.IsEnabled)
+            .Select(b => b.SubAgentId)
             .ToListAsync();
 
         if (bindings.Count == 0)
@@ -479,32 +479,32 @@ public class AgentFactory : IAgentFactory
             return [];
         }
 
-        var innerAgents = await _agentDbContext.Agents
-            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.Inner && a.IsPublished)
+        var subAgents = await _agentDbContext.Agents
+            .Where(a => bindings.Contains(a.Id) && a.AgentKind == AgentKind.SubAgent && a.IsPublished)
             .ToListAsync();
 
         var tools = new List<AITool>();
-        foreach (var innerAgent in innerAgents)
+        foreach (var subAgent in subAgents)
         {
-            // Per-role access gate: only expose an inner agent the caller may use.
+            // Per-role access gate: only expose an sub-agent the caller may use.
             // The plugin re-checks access at call time as defense in depth.
-            if (!await _agentAccessService.HasAccessAsync(innerAgent.Id, userId, isAdmin))
+            if (!await _agentAccessService.HasAccessAsync(subAgent.Id, userId, isAdmin))
             {
                 continue;
             }
 
-            var child = await CreateAgentFromConfigAsync(innerAgent, userId, isAdmin);
-            var toolName = ToToolName(innerAgent.Name, innerAgent.Id);
-            var toolDescription = !string.IsNullOrWhiteSpace(innerAgent.Description)
-                ? innerAgent.Description
-                : (!string.IsNullOrWhiteSpace(innerAgent.Instructions) ? innerAgent.Instructions : innerAgent.Name);
+            var child = await CreateAgentFromConfigAsync(subAgent, userId, isAdmin);
+            var toolName = ToToolName(subAgent.Name, subAgent.Id);
+            var toolDescription = !string.IsNullOrWhiteSpace(subAgent.Description)
+                ? subAgent.Description
+                : (!string.IsNullOrWhiteSpace(subAgent.Instructions) ? subAgent.Instructions : subAgent.Name);
 
             // Wrap the child so that (a) access is re-checked at call time and (b) the child's
             // own LightRAG knowledge tool is attached (scoped to its workspace) — the bare
             // AsAIFunction() path would let the child answer only from parametric knowledge.
             var plugin = new AgentToolPlugin(
                 child, _agentAccessService, _knowledgeService,
-                innerAgent.Id, userId, isAdmin, toolName, toolDescription);
+                subAgent.Id, userId, isAdmin, toolName, toolDescription);
             tools.Add(plugin.AsAITool());
         }
 

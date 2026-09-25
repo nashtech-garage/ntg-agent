@@ -1,8 +1,8 @@
 namespace NTG.Agent.Common.Dtos.Agents;
 
-public class InnerAgentBindingDto
+public class SubAgentBindingDto
 {
-    public Guid InnerAgentId { get; set; }
+    public Guid SubAgentId { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string? ProviderName { get; set; }

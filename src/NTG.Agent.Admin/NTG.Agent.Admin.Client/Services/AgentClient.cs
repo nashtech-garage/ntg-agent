@@ -1,4 +1,4 @@
-﻿using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Agents;
 using System.Net.Http.Json;
 
 namespace NTG.Agent.Admin.Client.Services;
@@ -97,18 +97,18 @@ public class AgentClient(HttpClient httpClient)
         response.EnsureSuccessStatusCode();
     }
 
-    public async Task<IList<InnerAgentBindingDto>> GetInnerAgentBindingsAsync(Guid agentId)
+    public async Task<IList<SubAgentBindingDto>> GetSubAgentBindingsAsync(Guid agentId)
     {
-        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/inner-agents");
+        var response = await httpClient.GetAsync($"api/agentadmin/{agentId}/sub-agents");
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content.ReadFromJsonAsync<IList<InnerAgentBindingDto>>();
+        var result = await response.Content.ReadFromJsonAsync<IList<SubAgentBindingDto>>();
         return result ?? [];
     }
 
-    public async Task UpdateInnerAgentBindingsAsync(Guid agentId, IList<InnerAgentBindingDto> bindings)
+    public async Task UpdateSubAgentBindingsAsync(Guid agentId, IList<SubAgentBindingDto> bindings)
     {
-        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/inner-agents", bindings);
+        var response = await httpClient.PutAsJsonAsync($"api/agentadmin/{agentId}/sub-agents", bindings);
         response.EnsureSuccessStatusCode();
     }
 

@@ -163,7 +163,7 @@ public class AgUiControllerAccessTests
     /// exactly the path that used to end in "An internal error occurred."
     /// </summary>
     /// <remarks>
-    /// Driven by making the factory throw rather than by seeding an inner agent, because the fake
+    /// Driven by making the factory throw rather than by seeding an sub-agent, because the fake
     /// factory here is not the one that inspects <c>AgentKind</c>. That inspection is
     /// <c>AgentFactoryTests</c>' subject; this fixture's subject is what the controller does with
     /// the exception once it arrives.

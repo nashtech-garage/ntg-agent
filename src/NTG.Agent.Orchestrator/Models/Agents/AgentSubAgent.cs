@@ -1,20 +1,20 @@
 namespace NTG.Agent.Orchestrator.Models.Agents;
 
-public class AgentInnerAgent
+public class AgentSubAgent
 {
-    public AgentInnerAgent()
+    public AgentSubAgent()
     {
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public Guid OuterAgentId { get; set; }
+    public Guid AgentId { get; set; }
 
-    public Agent OuterAgent { get; set; } = null!;
+    public Agent Agent { get; set; } = null!;
 
-    public Guid InnerAgentId { get; set; }
+    public Guid SubAgentId { get; set; }
 
-    public Agent InnerAgent { get; set; } = null!;
+    public Agent SubAgent { get; set; } = null!;
 
     public bool IsEnabled { get; set; }
 

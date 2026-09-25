@@ -1,4 +1,4 @@
-﻿@page "/agents/new"
+@page "/agents/new"
 @page "/agents/duplicate/{sourceAgentId:guid}"
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
@@ -25,7 +25,7 @@
                     }
                     else
                     {
-                        <li class="breadcrumb-item active" aria-current="page">@(isInner ? "Create Inner Agent" : "Create New Agent")</li>
+                        <li class="breadcrumb-item active" aria-current="page">@(isInner ? "Create Sub-Agent" : "Create New Agent")</li>
                     }
                 </ol>
             </nav>
@@ -36,7 +36,7 @@
                     <i class="bi @(isDuplicating ? "bi-copy" : "bi-plus-circle") text-white" style="font-size: 1.2rem;"></i>
                 </div>
                 <div>
-                    <h1 class="h3 mb-0">@(isDuplicating ? "Duplicate Agent" : (isInner ? "Create Inner Agent" : "Create New Agent"))</h1>
+                    <h1 class="h3 mb-0">@(isDuplicating ? "Duplicate Agent" : (isInner ? "Create Sub-Agent" : "Create New Agent"))</h1>
                     @if (isDuplicating && !string.IsNullOrEmpty(sourceAgentName))
                     {
                         <small class="text-muted">Creating a copy of "@sourceAgentName"</small>
@@ -96,22 +96,22 @@
                                 <div class="d-flex gap-4">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="agentKind" id="kindOuter"
-                                               checked="@(agentDetail.AgentKind == AgentKind.Outer)"
-                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Outer; }"
+                                               checked="@(agentDetail.AgentKind == AgentKind.Agent)"
+                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Agent; }"
                                                disabled="@isSubmitting" />
                                         <label class="form-check-label" for="kindOuter">
-                                            <i class="bi bi-people-fill text-primary me-1"></i><strong>Outer Agent</strong>
+                                            <i class="bi bi-people-fill text-primary me-1"></i><strong>Agent</strong>
                                             <div class="text-muted small">User-facing agent that conversations are routed to.</div>
                                         </label>
                                     </div>
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="agentKind" id="kindInner"
-                                               checked="@(agentDetail.AgentKind == AgentKind.Inner)"
-                                               @onchange="() => { agentDetail.AgentKind = AgentKind.Inner; agentDetail.Mode = AgentMode.Fast; }"
+                                               checked="@(agentDetail.AgentKind == AgentKind.SubAgent)"
+                                               @onchange="() => { agentDetail.AgentKind = AgentKind.SubAgent; agentDetail.Mode = AgentMode.Fast; }"
                                                disabled="@isSubmitting" />
                                         <label class="form-check-label" for="kindInner">
-                                            <i class="bi bi-tools text-success me-1"></i><strong>Inner Agent</strong>
-                                            <div class="text-muted small">Specialized sub-agent callable as a tool by outer agents.</div>
+                                            <i class="bi bi-tools text-success me-1"></i><strong>Sub-Agent</strong>
+                                            <div class="text-muted small">Specialized sub-agent callable as a tool by agents.</div>
                                         </label>
                                     </div>
                                 </div>
@@ -230,7 +230,7 @@
                                 else
                                 {
                                     <i class="bi bi-check-circle me-2"></i>
-                                    <span>@(isInner ? "Create Inner Agent" : "Create Agent")</span>
+                                    <span>@(isInner ? "Create Sub-Agent" : "Create Agent")</span>
                                 }
                             </button>
                         </div>
@@ -251,7 +251,7 @@
     private bool isLoadingSource = false;
     private string? errorMessage;
     private bool isDuplicating => SourceAgentId.HasValue;
-    private bool isInner => agentDetail.AgentKind == AgentKind.Inner;
+    private bool isInner => agentDetail.AgentKind == AgentKind.SubAgent;
     private string sourceAgentName = string.Empty;
     private bool supportsThinking;
 
@@ -333,7 +333,7 @@
                 }
             }
 
-            if (agentDetail.AgentKind == AgentKind.Inner)
+            if (agentDetail.AgentKind == AgentKind.SubAgent)
             {
                 Navigation.NavigateTo($"/agents/{newAgentId}");
             }

@@ -101,7 +101,7 @@ builder.Services.AddHttpClient<IProviderModelService, ProviderModelService>(c =>
     c.Timeout = TimeSpan.FromSeconds(30);
 });
 builder.Services.AddScoped<AgentAccessService>();
-// Request-scoped buffer shared by the outer agent and any inner agents it delegates to, used to
+// Request-scoped buffer shared by the agent and any sub-agents it delegates to, used to
 // surface renderable server-side tool results (e.g. get_weather) to the browser. See RenderableToolCapture.
 builder.Services.AddScoped<RenderableToolCapture>();
 builder.Services.AddScoped<IDocumentAnalysisService, DocumentAnalysisService>();

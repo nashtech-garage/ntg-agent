@@ -242,7 +242,7 @@ public class ChatClientCapabilityTests
     }
 
     /// <summary>
-    /// Withheld, not merely unread. The capture is request-scoped and shared with inner agents, so a
+    /// Withheld, not merely unread. The capture is request-scoped and shared with sub-agents, so a
     /// call left sitting in it is not inert — it is the next thing whatever drains next will hand to
     /// the browser, against an unrelated part of the stream.
     /// </summary>
@@ -291,7 +291,7 @@ public class ChatClientCapabilityTests
     /// <summary>
     /// Nothing narrates on a text-only run today, because the skill tools are the log's only two
     /// writers and they are not attached. These cover the gate itself rather than that chain: the
-    /// buffer is deliberately shared with inner agents, so the day a skill tool is baked in by
+    /// buffer is deliberately shared with sub-agents, so the day a skill tool is baked in by
     /// AgentFactory instead of attached per request, the chain breaks and only the gate is left.
     /// </summary>
     [Test]

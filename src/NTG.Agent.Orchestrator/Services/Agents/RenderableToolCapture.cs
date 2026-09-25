@@ -12,8 +12,8 @@ public sealed record CapturedToolCall(string CallId, string Name, IReadOnlyDicti
 
 /// <summary>
 /// Request-scoped buffer of renderable tool calls captured during a chat run. Because the buffer is
-/// scoped, both the outer agent and any inner agents it delegates to (created within the same request)
-/// write to the same instance — so a tool invoked deep inside an inner agent still surfaces to the UI.
+/// scoped, both the agent and any sub-agents it delegates to (created within the same request)
+/// write to the same instance — so a tool invoked deep inside an sub-agent still surfaces to the UI.
 /// <see cref="AgentService"/> drains it while streaming and forwards each entry to the browser.
 /// </summary>
 public sealed class RenderableToolCapture

@@ -4,7 +4,7 @@
 <div>
     <div class="mb-4">
         <h5 class="mb-1">MCP Server Connection</h5>
-        <p class="text-muted mb-0">Connect to an MCP server and select skills for this inner agent.</p>
+        <p class="text-muted mb-0">Connect to an MCP server and select skills for this sub-agent.</p>
     </div>
 
     <EditForm Model="this" OnValidSubmit="ConnectToMcpServer">
@@ -80,7 +80,7 @@
 
 @code {
     [Parameter]
-    public AgentDetail InnerAgent { get; set; } = null!;
+    public AgentDetail SubAgent { get; set; } = null!;
 
     private string mcpEndpoint = "http://localhost:5136";
     private bool isConnecting = false;
@@ -92,12 +92,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var tools = await AgentClient.GetAgentToolsByAgentId(InnerAgent.Id);
+        var tools = await AgentClient.GetAgentToolsByAgentId(SubAgent.Id);
         mcpTools = tools.Where(x => x.AgentToolType == AgentToolType.MCP).ToList();
 
-        if (!string.IsNullOrEmpty(InnerAgent.McpServer))
+        if (!string.IsNullOrEmpty(SubAgent.McpServer))
         {
-            mcpEndpoint = InnerAgent.McpServer;
+            mcpEndpoint = SubAgent.McpServer;
             await ConnectToMcpServer();
             if (isConnected)
             {
@@ -110,7 +110,7 @@
     {
         var newValue = e.Value?.ToString() ?? string.Empty;
 
-        if (newValue != InnerAgent.McpServer)
+        if (newValue != SubAgent.McpServer)
         {
             hasEndpointChanged = true;
             isConnected = false;
@@ -129,7 +129,7 @@
             statusMessage = string.Empty;
             isConnected = false;
 
-            mcpTools = (await AgentClient.ConnectToMcpServerAsync(InnerAgent.Id, mcpEndpoint)).ToList();
+            mcpTools = (await AgentClient.ConnectToMcpServerAsync(SubAgent.Id, mcpEndpoint)).ToList();
 
             isConnected = true;
             hasEndpointChanged = false;
@@ -165,12 +165,12 @@
             }
         }
 
-        InnerAgent.McpServer = mcpEndpoint;
-        await AgentClient.UpdateAgent(InnerAgent);
+        SubAgent.McpServer = mcpEndpoint;
+        await AgentClient.UpdateAgent(SubAgent);
 
         if (mcpTools != null)
         {
-            await AgentClient.UpdateAgentToolsAsync(InnerAgent.Id, mcpTools);
+            await AgentClient.UpdateAgentToolsAsync(SubAgent.Id, mcpTools);
             statusMessage = $"Saved {mcpTools.Count(t => t.IsEnabled)} MCP tools as enabled.";
         }
 

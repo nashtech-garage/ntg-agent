@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @attribute [Authorize]
 @rendermode @(new InteractiveWebAssemblyRenderMode(prerender: false))
 @implements IDisposable
@@ -36,22 +36,22 @@
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link @(filterKind == AgentKind.Outer ? "active" : "")"
-                            @onclick="() => SetFilter(AgentKind.Outer)">
-                        <i class="bi bi-people-fill me-1"></i> Outer Agents
+                    <button class="nav-link @(filterKind == AgentKind.Agent ? "active" : "")"
+                            @onclick="() => SetFilter(AgentKind.Agent)">
+                        <i class="bi bi-people-fill me-1"></i> Agents
                         @if (allAgents != null)
                         {
-                            <span class="badge bg-primary ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.Outer)</span>
+                            <span class="badge bg-primary ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.Agent)</span>
                         }
                     </button>
                 </li>
                 <li class="nav-item">
-                    <button class="nav-link @(filterKind == AgentKind.Inner ? "active" : "")"
-                            @onclick="() => SetFilter(AgentKind.Inner)">
-                        <i class="bi bi-tools me-1"></i> Inner Agents
+                    <button class="nav-link @(filterKind == AgentKind.SubAgent ? "active" : "")"
+                            @onclick="() => SetFilter(AgentKind.SubAgent)">
+                        <i class="bi bi-tools me-1"></i> Sub-Agents
                         @if (allAgents != null)
                         {
-                            <span class="badge bg-success ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.Inner)</span>
+                            <span class="badge bg-success ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.SubAgent)</span>
                         }
                     </button>
                 </li>
@@ -85,13 +85,13 @@
                         {
                             <span>No agents found. Create your first agent to get started!</span>
                         }
-                        else if (filterKind == AgentKind.Outer)
+                        else if (filterKind == AgentKind.Agent)
                         {
-                            <span>No outer agents found. <a href="/agents/new" class="alert-link">Create an outer agent</a> to get started.</span>
+                            <span>No agents found. <a href="/agents/new" class="alert-link">Create an agent</a> to get started.</span>
                         }
                         else
                         {
-                            <span>No inner agents found. <a href="/agents/new" class="alert-link">Create an inner agent</a> to get started.</span>
+                            <span>No sub-agents found. <a href="/agents/new" class="alert-link">Create an sub-agent</a> to get started.</span>
                         }
                     </div>
                 </div>
@@ -103,7 +103,7 @@
         <div class="row g-4">
             @foreach (var agent in displayedAgents)
             {
-                var isInnerKind = agent.AgentKind == AgentKind.Inner;
+                var isInnerKind = agent.AgentKind == AgentKind.SubAgent;
                 <div class="col-12 col-md-6 col-lg-4">
                     <div class="card h-100 shadow-sm border-0" style="border-left: 4px solid @(isInnerKind ? "#198754" : "#1b6ec2") !important;">
                         <div class="card-body">
@@ -119,7 +119,7 @@
 
                             <div class="mb-2">
                                 <span class="badge @(isInnerKind ? "bg-success-subtle text-success" : "bg-info-subtle text-info")">
-                                    @(isInnerKind ? "Inner Agent" : "Outer Agent")
+                                    @(isInnerKind ? "Sub-Agent" : "Agent")
                                 </span>
                                 @if (!string.IsNullOrEmpty(agent.ProviderName))
                                 {
