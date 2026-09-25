@@ -177,7 +177,7 @@ running, chat-ready AppHost — identical to the Linux experience.
 | 3 — .env | `Creating .env from .env.example`, then prompts: `Azure OpenAI endpoint (...)` and `Azure OpenAI API key` (hidden input). Auto-generates `SA_PASSWORD`, `LIGHTRAG_PG_PASSWORD`, `LIGHTRAG_API_KEY`. | interactive |
 | 4 — User-secrets | `Writing AppHost user-secrets from .env.` | ~2s |
 | 5 — LightRAG | `Starting the local LightRAG stack (first build compiles Apache AGE — can take several minutes).` Builds the Postgres image with pgvector + AGE, then waits for health checks on Postgres (port 5432) and the nginx gateway (port 8080). | first run: 5-10 min; subsequent: ~30s |
-| 6 — Launch | `Setup complete. Launching the Aspire AppHost...` then `exec ./start-local-lightrag.sh` starts `dotnet run --project NTG.Agent.AppHost`. | AppHost startup: ~30-60s |
+| 6 — Launch | `Setup complete. Launching the Aspire AppHost...` then `exec ./start-local-lightrag.sh` starts `dotnet run --project src/NTG.Agent.AppHost`. | AppHost startup: ~30-60s |
 
 5. Once the AppHost is up, open the Aspire dashboard:
 

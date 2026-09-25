@@ -8,7 +8,7 @@ namespace NTG.Agent.Orchestrator.Dtos;
 /// The two chat clients arrive through two different endpoints, and that — not a header, a user
 /// agent, or a field on the request — is the signal. <c>AgentsController</c>'s form endpoint serves
 /// the Blazor web client, whose chat renders markdown text and nothing else.
-/// <c>AgUiController</c>'s AG-UI endpoint serves <c>my-copilot-app</c>, which mounts the A2UI
+/// <c>AgUiController</c>'s AG-UI endpoint serves <c>NTG.Agent.CopilotKitApp</c>, which mounts the A2UI
 /// renderer and executes frontend tools. A controller states which one it is; nothing downstream
 /// has to guess.
 /// </para>

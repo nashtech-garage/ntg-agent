@@ -275,7 +275,7 @@ The last step. Read-only summary, then a decision.
 ## 8. The visual contract
 
 Styling is not a template concern. Surfaces are painted by scoped `.a2ui-surface` rules in
-`my-copilot-app/app/globals.css` — the "Ink & Iris" theme, iris accent `#5b5bd6`, light and dark
+`src/NTG.Agent.CopilotKitApp/app/globals.css` — the "Ink & Iris" theme, iris accent `#5b5bd6`, light and dark
 variants, reduced-motion support. Templates never carry colours, sizes or spacing.
 
 What a template *does* control is the semantic slots the CSS keys off:
@@ -447,5 +447,5 @@ than rendered.
 | Skill package import security | `docs/skill-import-security.md` |
 | The catalog, verbatim | `NTG.Agent.Orchestrator/Services/Skills/A2uiCatalog.cs` |
 | The rules, verbatim | `NTG.Agent.Orchestrator/Services/Skills/SurfaceValidator.cs` |
-| The styling | `my-copilot-app/app/globals.css` |
+| The styling | `src/NTG.Agent.CopilotKitApp/app/globals.css` |
 | A2UI v0.9 spec | https://a2ui.org/specification/v0.9-a2ui/ |

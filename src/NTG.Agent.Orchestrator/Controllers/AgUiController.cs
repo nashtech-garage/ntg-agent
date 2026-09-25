@@ -118,7 +118,7 @@ public class AgUiController : ControllerBase
 
         try
         {
-            // my-copilot-app: an AG-UI client with the A2UI renderer mounted. This is the one
+            // NTG.Agent.CopilotKitApp: an AG-UI client with the A2UI renderer mounted. This is the one
             // endpoint where a rendered surface, a frontend tool call and a tool-render card all
             // have somewhere to land.
             await foreach (var chunk in _agentService.ChatStreamingAsync(

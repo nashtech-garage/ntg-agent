@@ -32,7 +32,7 @@ public class A2uiCatalogDriftTests
 
     /// <summary>Held as a field rather than inlined so the path is built once, on any platform.</summary>
     private static readonly string[] SchemaDirectorySegments =
-        ["my-copilot-app", "node_modules", "@a2ui", "web_core", "src", "v0_9", "schemas"];
+        ["src", "NTG.Agent.CopilotKitApp", "node_modules", "@a2ui", "web_core", "src", "v0_9", "schemas"];
 
     private static readonly string SchemaDirectory = Path.Combine(SchemaDirectorySegments);
 
@@ -267,7 +267,7 @@ public class A2uiCatalogDriftTests
         {
             Assert.Ignore(
                 $"{Path.Combine(SchemaDirectory, CatalogFileName)} not found from the test output directory — " +
-                "run 'npm install' in my-copilot-app to enable the catalog drift check");
+                "run 'npm install' in src/NTG.Agent.CopilotKitApp to enable the catalog drift check");
         }
 
         return derived!;

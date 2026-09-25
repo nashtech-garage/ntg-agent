@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj" />
+    <ProjectReference Include="..\NTG.Agent.AITools\NTG.Agent.AITools.SimpleTools\NTG.Agent.AITools.SimpleTools.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" />
     <ProjectReference Include="..\NTG.Agent.Common\NTG.Agent.Common.csproj" />
     <ProjectReference Include="..\NTG.Agent.LightRag\NTG.Agent.LightRag.csproj" />

@@ -39,7 +39,7 @@ Browser
 ## Project Structure
 
 ```
-my-copilot-app/
+NTG.Agent.CopilotKitApp/
 ├── app/
 │   ├── api/
 │   │   ├── agents/
@@ -133,7 +133,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ### Run via .NET Aspire AppHost
 
 ```bash
-dotnet run --project NTG.Agent.AppHost
+dotnet run --project src/NTG.Agent.AppHost
 ```
 
 The AppHost starts all services including the Next.js dev server.

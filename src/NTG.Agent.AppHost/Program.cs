@@ -122,7 +122,7 @@ builder.AddProject<Projects.NTG_Agent_Admin>("ntg-agent-admin")
 	.WaitForCompletion(migrateOrchestrator)
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db);
 
-builder.AddNextJsApp("ntg-agent-ag-ui-webclient", "../my-copilot-app")
+builder.AddNextJsApp("ntg-agent-ag-ui-webclient", "../NTG.Agent.CopilotKitApp")
     .WithReference(orchestrator)
     .WaitFor(orchestrator)
     // route.ts resolves the backend via ORCHESTRATOR_URL (service-discovery env vars contain

@@ -6,7 +6,7 @@ using NTG.Agent.Orchestrator.Extentions;
 namespace NTG.Agent.Orchestrator.Controllers;
 
 /// <summary>
-/// JSON authentication endpoints used by SPA clients (e.g. my-copilot-app) to sign in
+/// JSON authentication endpoints used by SPA clients (e.g. NTG.Agent.CopilotKitApp) to sign in
 /// against the shared ASP.NET Identity accounts. Issues/clears the
 /// <c>.AspNetCore.Identity.Application</c> cookie via <see cref="SignInManager{TUser}"/>.
 /// </summary>
