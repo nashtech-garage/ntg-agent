@@ -10,8 +10,8 @@ namespace NTG.Agent.Orchestrator.Plugins;
 /// Wraps an inner (document) agent as an AITool callable from a parent agent's chat.
 ///
 /// Two responsibilities main's bare <c>agent.AsAIFunction()</c> wrapper does not cover:
-/// 1. Re-checks role-gated access at call time (defense in depth — the inner agent is also
-///    filtered at registration in <see cref="AgentFactory.GetInnerAgentToolsAsync"/>).
+/// 1. Re-checks role-gated access at call time (defense in depth — the sub-agent is also
+///    filtered at registration in <see cref="AgentFactory.GetSubAgentToolsAsync"/>).
 /// 2. Attaches the child's own LightRAG knowledge tool, scoped to the child agent's
 ///    workspace, so the child answers from its documents rather than parametric knowledge.
 /// </summary>

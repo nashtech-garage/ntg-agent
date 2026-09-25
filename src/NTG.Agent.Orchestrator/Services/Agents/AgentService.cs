@@ -1,4 +1,4 @@
-﻿using Microsoft.Agents.AI;
+using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -62,7 +62,7 @@ public class AgentService
         _skillActivityLog = skillActivityLog;
     }
 
-    // Turns tool results captured during the run (get_weather, possibly inside an inner agent)
+    // Turns tool results captured during the run (get_weather, possibly inside an sub-agent)
     // into ToolCall + ToolResult chunks the AG-UI controller forwards to the browser to render.
     //
     // Only a client that can render them gets them. Nothing in the Blazor chat renders a ToolCall
@@ -104,13 +104,13 @@ public class AgentService
     }
 
     // Turns skill narration captured during the run (a skill loading, a surface rendering,
-    // possibly inside an inner agent) into SkillNotice chunks the AG-UI controller forwards to the
+    // possibly inside an sub-agent) into SkillNotice chunks the AG-UI controller forwards to the
     // browser as reasoning content, so the "Thought for N seconds" panel says which skill acted.
     //
     // Gated on the same terms as the tool-render chunks above, though nothing writes to the log on
     // a text-only run today: the only two writers are the skill tools, and those are not attached.
     // The gate is here because that reasoning is a chain through three files, and the buffer is
-    // deliberately shared with inner agents — the moment a skill tool is baked in by AgentFactory
+    // deliberately shared with sub-agents — the moment a skill tool is baked in by AgentFactory
     // rather than attached per request, the chain breaks and this is where it would leak.
     private IEnumerable<PromptResponse> DrainSkillNotices(ChatClientCapabilities capabilities)
     {
@@ -529,10 +529,10 @@ public class AgentService
 
             AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
 
-            // The outer agent's own knowledge tool is attached per-request here; inner-agent
+            // The agent's own knowledge tool is attached per-request here; inner-agent
             // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory
-            // (GetInnerAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
-            // CreateAgent above. Each inner agent is wrapped by AgentToolPlugin, which re-checks
+            // (GetSubAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
+            // CreateAgent above. Each sub-agent is wrapped by AgentToolPlugin, which re-checks
             // access at call time and scopes the child to its own LightRAG workspace.
             var tools = new List<AITool> { memorySearch };
 
@@ -645,7 +645,7 @@ public class AgentService
             await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
             {
                 // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
-                // including ones executed inside an inner agent — so the browser can render them.
+                // including ones executed inside an sub-agent — so the browser can render them.
                 foreach (var chunk in DrainRenderableToolCalls(capabilities))
                 {
                     yield return chunk;

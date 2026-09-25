@@ -46,7 +46,7 @@ public class AgentToolPluginTests
             Name = "HR Docs",
             Instructions = "HR",
             IsPublished = true,
-            AgentKind = AgentKind.Inner,
+            AgentKind = AgentKind.SubAgent,
             OwnerUserId = Guid.NewGuid(),
             UpdatedByUserId = Guid.NewGuid()
         });

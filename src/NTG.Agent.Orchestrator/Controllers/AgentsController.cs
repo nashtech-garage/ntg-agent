@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Chats;
@@ -63,7 +63,7 @@ public class AgentsController : ControllerBase
         Guid? userId = User.GetUserId();
         bool isAdmin = User.IsInRole("Admin");
         var agents = await _agentAccessService.AccessibleAgentsQuery(userId, isAdmin)
-            .Where(a => a.AgentKind == AgentKind.Outer)
+            .Where(a => a.AgentKind == AgentKind.Agent)
             .Select(a => new AgentListItemDto(a.Id, a.Name, a.IsDefault, a.Mode))
             .ToListAsync();
         return Ok(agents);

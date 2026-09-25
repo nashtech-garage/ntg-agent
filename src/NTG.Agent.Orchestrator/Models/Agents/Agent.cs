@@ -1,4 +1,4 @@
-﻿using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
 
 namespace NTG.Agent.Orchestrator.Models.Agents;
@@ -38,7 +38,7 @@ public class Agent
     /// <summary>Maximum output tokens for generation. Null = provider/model default.</summary>
     public int? MaxOutputTokens { get; set; }
 
-    public AgentKind AgentKind { get; set; } = AgentKind.Outer;
+    public AgentKind AgentKind { get; set; } = AgentKind.Agent;
 
     public string? McpServer { get; set; } = string.Empty;
 
@@ -65,11 +65,11 @@ public class Agent
 
     public ICollection<AgentTools> AgentTools { get; set; } = new List<AgentTools>();
 
-    /// <summary>Bindings where this agent is the outer agent.</summary>
-    public ICollection<AgentInnerAgent> InnerAgentBindings { get; set; } = new List<AgentInnerAgent>();
+    /// <summary>Bindings where this agent is the agent.</summary>
+    public ICollection<AgentSubAgent> SubAgentBindings { get; set; } = new List<AgentSubAgent>();
 
-    /// <summary>Bindings where this agent is used as an inner agent.</summary>
-    public ICollection<AgentInnerAgent> OuterAgentBindings { get; set; } = new List<AgentInnerAgent>();
+    /// <summary>Bindings where this agent is used as an sub-agent.</summary>
+    public ICollection<AgentSubAgent> AgentBindings { get; set; } = new List<AgentSubAgent>();
 
     /// <summary>Agent Skills bound to this agent. Only enabled bindings reach the model's catalog.</summary>
     public ICollection<Skills.AgentSkill> SkillBindings { get; set; } = new List<Skills.AgentSkill>();

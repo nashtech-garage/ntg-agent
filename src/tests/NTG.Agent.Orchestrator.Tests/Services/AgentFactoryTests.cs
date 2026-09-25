@@ -73,23 +73,23 @@ public class AgentFactoryTests
     }
 
     [Test]
-    public void CreateAgent_WithUser_InnerAgentWithRoleGrant_ThrowsAccessDenied()
+    public void CreateAgent_WithUser_SubAgentWithRoleGrant_ThrowsAccessDenied()
     {
-        // Inner agents are tool-only: even with a valid role grant, the user-facing
+        // Sub-agents are tool-only: even with a valid role grant, the user-facing
         // overload must refuse to instantiate one directly (PR #277 review fix).
-        var agentId = SeedGrantedAgent(AgentKind.Inner);
+        var agentId = SeedGrantedAgent(AgentKind.SubAgent);
 
         Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));
     }
 
     [Test]
-    public void CreateAgent_WithUser_OuterAgentWithRoleGrant_PassesAccessGate()
+    public void CreateAgent_WithUser_AgentWithRoleGrant_PassesAccessGate()
     {
-        // Control for the test above: an identical Outer agent gets through the access
+        // Control for the test above: an identical Agent gets through the access
         // gate and only fails later at provider creation (no provider configured) — proving
         // the Inner refusal is kind-based, not access-based.
-        var agentId = SeedGrantedAgent(AgentKind.Outer);
+        var agentId = SeedGrantedAgent(AgentKind.Agent);
 
         Assert.ThrowsAsync<InvalidOperationException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));

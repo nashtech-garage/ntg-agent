@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Models.AnonymousSessions;
@@ -29,7 +29,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
 
     public DbSet<AgentRole> AgentRoles => Set<AgentRole>();
 
-    public DbSet<Models.Agents.AgentInnerAgent> AgentInnerAgents { get; set; } = null!;
+    public DbSet<Models.Agents.AgentSubAgent> AgentSubAgents { get; set; } = null!;
 
     public DbSet<Skill> Skills { get; set; } = null!;
 
@@ -168,7 +168,7 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             Instructions = "You are a helpful assistant. Answer questions to the best of your ability.",
             IsDefault = true,
             IsPublished = true,
-            AgentKind = Common.Dtos.Agents.AgentKind.Outer,
+            AgentKind = Common.Dtos.Agents.AgentKind.Agent,
             ModelOverride = "gpt-4o",
             ProviderId = defaultProviderId,
             ProvisioningStatus = Common.Dtos.Agents.AgentProvisioningStatus.Ready
@@ -274,18 +274,18 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         .HasForeignKey(t => t.AgentId)
         .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<Models.Agents.AgentInnerAgent>(entity =>
+        modelBuilder.Entity<Models.Agents.AgentSubAgent>(entity =>
         {
-            entity.HasKey(x => new { x.OuterAgentId, x.InnerAgentId });
+            entity.HasKey(x => new { x.AgentId, x.SubAgentId });
 
-            entity.HasOne(x => x.OuterAgent)
-                .WithMany(a => a.InnerAgentBindings)
-                .HasForeignKey(x => x.OuterAgentId)
+            entity.HasOne(x => x.Agent)
+                .WithMany(a => a.SubAgentBindings)
+                .HasForeignKey(x => x.AgentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(x => x.InnerAgent)
-                .WithMany(a => a.OuterAgentBindings)
-                .HasForeignKey(x => x.InnerAgentId)
+            entity.HasOne(x => x.SubAgent)
+                .WithMany(a => a.AgentBindings)
+                .HasForeignKey(x => x.SubAgentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

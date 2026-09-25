@@ -1191,31 +1191,31 @@ public class AgentAdminControllerTests
 
     #endregion
 
-    #region Inner Agent Bindings Tests
+    #region Sub-Agent Bindings Tests
 
     [Test]
-    public async Task GetInnerAgentBindings_WhenOuterAgentNotFound_ReturnsNotFound()
+    public async Task GetSubAgentBindings_WhenAgentNotFound_ReturnsNotFound()
     {
-        var result = await _controller.GetInnerAgentBindings(Guid.NewGuid());
+        var result = await _controller.GetSubAgentBindings(Guid.NewGuid());
 
         Assert.That(result, Is.TypeOf<NotFoundObjectResult>());
     }
 
     [Test]
-    public async Task GetInnerAgentBindings_ReturnsOnlyPublishedInnerAgents()
+    public async Task GetSubAgentBindings_ReturnsOnlyPublishedSubAgents()
     {
-        var outerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
         var publishedInnerId = Guid.NewGuid();
         var draftInnerId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer,
+                AgentKind = AgentKind.Agent,
                 IsPublished = true
             },
             new AgentModel
@@ -1225,7 +1225,7 @@ public class AgentAdminControllerTests
                 Instructions = "Pub",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             },
             new AgentModel
@@ -1235,107 +1235,107 @@ public class AgentAdminControllerTests
                 Instructions = "Draft",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = false
             }
         );
         await _context.SaveChangesAsync();
 
-        var result = await _controller.GetInnerAgentBindings(outerAgentId);
+        var result = await _controller.GetSubAgentBindings(agentId);
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var bindings = okResult.Value as List<InnerAgentBindingDto>;
+        var bindings = okResult.Value as List<SubAgentBindingDto>;
         Assert.That(bindings, Is.Not.Null);
         Assert.That(bindings.Count, Is.EqualTo(1));
-        Assert.That(bindings[0].InnerAgentId, Is.EqualTo(publishedInnerId));
+        Assert.That(bindings[0].SubAgentId, Is.EqualTo(publishedInnerId));
         Assert.That(bindings[0].IsEnabled, Is.False);
     }
 
     [Test]
-    public async Task GetInnerAgentBindings_ReturnsCorrectIsEnabledState()
+    public async Task GetSubAgentBindings_ReturnsCorrectIsEnabledState()
     {
-        var outerAgentId = Guid.NewGuid();
-        var innerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
+        var subAgentId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer,
+                AgentKind = AgentKind.Agent,
                 IsPublished = true
             },
             new AgentModel
             {
-                Id = innerAgentId,
-                Name = "Inner Agent",
+                Id = subAgentId,
+                Name = "Sub-Agent",
                 Instructions = "Inner",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             }
         );
-        await _context.AgentInnerAgents.AddAsync(new AgentInnerAgent
+        await _context.AgentSubAgents.AddAsync(new AgentSubAgent
         {
-            OuterAgentId = outerAgentId,
-            InnerAgentId = innerAgentId,
+            AgentId = agentId,
+            SubAgentId = subAgentId,
             IsEnabled = true
         });
         await _context.SaveChangesAsync();
 
-        var result = await _controller.GetInnerAgentBindings(outerAgentId);
+        var result = await _controller.GetSubAgentBindings(agentId);
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var bindings = okResult.Value as List<InnerAgentBindingDto>;
+        var bindings = okResult.Value as List<SubAgentBindingDto>;
         Assert.That(bindings, Is.Not.Null);
         Assert.That(bindings.Count, Is.EqualTo(1));
         Assert.That(bindings[0].IsEnabled, Is.True);
     }
 
     [Test]
-    public async Task GetInnerAgentBindings_WhenNoInnerAgents_ReturnsEmptyList()
+    public async Task GetSubAgentBindings_WhenNoSubAgents_ReturnsEmptyList()
     {
-        var outerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
         await _context.Agents.AddAsync(new AgentModel
         {
-            Id = outerAgentId,
-            Name = "Outer Agent",
+            Id = agentId,
+            Name = "Agent",
             Instructions = "Outer",
             OwnerUserId = _testUserId,
             UpdatedByUserId = _testUserId,
-            AgentKind = AgentKind.Outer,
+            AgentKind = AgentKind.Agent,
             IsPublished = true
         });
         await _context.SaveChangesAsync();
 
-        var result = await _controller.GetInnerAgentBindings(outerAgentId);
+        var result = await _controller.GetSubAgentBindings(agentId);
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var bindings = okResult.Value as List<InnerAgentBindingDto>;
+        var bindings = okResult.Value as List<SubAgentBindingDto>;
         Assert.That(bindings, Is.Not.Null);
         Assert.That(bindings, Is.Empty);
     }
 
     [Test]
-    public async Task GetInnerAgentBindings_AllDraftInnerAgents_ReturnsEmptyList()
+    public async Task GetSubAgentBindings_AllDraftSubAgents_ReturnsEmptyList()
     {
-        var outerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
         var draftInnerId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer,
+                AgentKind = AgentKind.Agent,
                 IsPublished = true
             },
             new AgentModel
@@ -1345,140 +1345,140 @@ public class AgentAdminControllerTests
                 Instructions = "Draft",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = false
             }
         );
-        await _context.AgentInnerAgents.AddAsync(new AgentInnerAgent
+        await _context.AgentSubAgents.AddAsync(new AgentSubAgent
         {
-            OuterAgentId = outerAgentId,
-            InnerAgentId = draftInnerId,
+            AgentId = agentId,
+            SubAgentId = draftInnerId,
             IsEnabled = true
         });
         await _context.SaveChangesAsync();
 
-        var result = await _controller.GetInnerAgentBindings(outerAgentId);
+        var result = await _controller.GetSubAgentBindings(agentId);
 
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
-        var bindings = okResult.Value as List<InnerAgentBindingDto>;
+        var bindings = okResult.Value as List<SubAgentBindingDto>;
         Assert.That(bindings, Is.Not.Null);
         Assert.That(bindings, Is.Empty);
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_WhenOuterAgentNotFound_ReturnsNotFound()
+    public async Task UpdateSubAgentBindings_WhenAgentNotFound_ReturnsNotFound()
     {
-        var result = await _controller.UpdateInnerAgentBindings(Guid.NewGuid(), []);
+        var result = await _controller.UpdateSubAgentBindings(Guid.NewGuid(), []);
 
         Assert.That(result, Is.TypeOf<NotFoundObjectResult>());
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_CreatesNewBindings()
+    public async Task UpdateSubAgentBindings_CreatesNewBindings()
     {
-        var outerAgentId = Guid.NewGuid();
-        var innerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
+        var subAgentId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer
+                AgentKind = AgentKind.Agent
             },
             new AgentModel
             {
-                Id = innerAgentId,
-                Name = "Inner Agent",
+                Id = subAgentId,
+                Name = "Sub-Agent",
                 Instructions = "Inner",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             }
         );
         await _context.SaveChangesAsync();
 
-        var bindings = new List<InnerAgentBindingDto>
+        var bindings = new List<SubAgentBindingDto>
         {
-            new() { InnerAgentId = innerAgentId, IsEnabled = true }
+            new() { SubAgentId = subAgentId, IsEnabled = true }
         };
 
-        var result = await _controller.UpdateInnerAgentBindings(outerAgentId, bindings);
+        var result = await _controller.UpdateSubAgentBindings(agentId, bindings);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        var savedBinding = await _context.AgentInnerAgents
-            .FirstOrDefaultAsync(b => b.OuterAgentId == outerAgentId && b.InnerAgentId == innerAgentId);
+        var savedBinding = await _context.AgentSubAgents
+            .FirstOrDefaultAsync(b => b.AgentId == agentId && b.SubAgentId == subAgentId);
         Assert.That(savedBinding, Is.Not.Null);
         Assert.That(savedBinding.IsEnabled, Is.True);
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_UpdatesExistingBindings()
+    public async Task UpdateSubAgentBindings_UpdatesExistingBindings()
     {
-        var outerAgentId = Guid.NewGuid();
-        var innerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
+        var subAgentId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer
+                AgentKind = AgentKind.Agent
             },
             new AgentModel
             {
-                Id = innerAgentId,
-                Name = "Inner Agent",
+                Id = subAgentId,
+                Name = "Sub-Agent",
                 Instructions = "Inner",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             }
         );
-        await _context.AgentInnerAgents.AddAsync(new AgentInnerAgent
+        await _context.AgentSubAgents.AddAsync(new AgentSubAgent
         {
-            OuterAgentId = outerAgentId,
-            InnerAgentId = innerAgentId,
+            AgentId = agentId,
+            SubAgentId = subAgentId,
             IsEnabled = true
         });
         await _context.SaveChangesAsync();
 
-        var bindings = new List<InnerAgentBindingDto>
+        var bindings = new List<SubAgentBindingDto>
         {
-            new() { InnerAgentId = innerAgentId, IsEnabled = false }
+            new() { SubAgentId = subAgentId, IsEnabled = false }
         };
 
-        var result = await _controller.UpdateInnerAgentBindings(outerAgentId, bindings);
+        var result = await _controller.UpdateSubAgentBindings(agentId, bindings);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        var savedBinding = await _context.AgentInnerAgents
-            .FirstOrDefaultAsync(b => b.OuterAgentId == outerAgentId && b.InnerAgentId == innerAgentId);
+        var savedBinding = await _context.AgentSubAgents
+            .FirstOrDefaultAsync(b => b.AgentId == agentId && b.SubAgentId == subAgentId);
         Assert.That(savedBinding, Is.Not.Null);
         Assert.That(savedBinding.IsEnabled, Is.False);
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_PreservesBindingsForDraftInnerAgents()
+    public async Task UpdateSubAgentBindings_PreservesBindingsForDraftSubAgents()
     {
-        var outerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
         var publishedInnerId = Guid.NewGuid();
         var draftInnerId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer
+                AgentKind = AgentKind.Agent
             },
             new AgentModel
             {
@@ -1487,7 +1487,7 @@ public class AgentAdminControllerTests
                 Instructions = "Pub",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             },
             new AgentModel
@@ -1497,39 +1497,39 @@ public class AgentAdminControllerTests
                 Instructions = "Draft",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = false
             }
         );
-        await _context.AgentInnerAgents.AddRangeAsync(
-            new AgentInnerAgent
+        await _context.AgentSubAgents.AddRangeAsync(
+            new AgentSubAgent
             {
-                OuterAgentId = outerAgentId,
-                InnerAgentId = publishedInnerId,
+                AgentId = agentId,
+                SubAgentId = publishedInnerId,
                 IsEnabled = true
             },
-            new AgentInnerAgent
+            new AgentSubAgent
             {
-                OuterAgentId = outerAgentId,
-                InnerAgentId = draftInnerId,
+                AgentId = agentId,
+                SubAgentId = draftInnerId,
                 IsEnabled = true
             }
         );
         await _context.SaveChangesAsync();
 
-        // Only the published inner agent is in the PUT request
-        var bindings = new List<InnerAgentBindingDto>
+        // Only the published sub-agent is in the PUT request
+        var bindings = new List<SubAgentBindingDto>
         {
-            new() { InnerAgentId = publishedInnerId, IsEnabled = false }
+            new() { SubAgentId = publishedInnerId, IsEnabled = false }
         };
 
-        var result = await _controller.UpdateInnerAgentBindings(outerAgentId, bindings);
+        var result = await _controller.UpdateSubAgentBindings(agentId, bindings);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        var savedPublished = await _context.AgentInnerAgents
-            .FirstOrDefaultAsync(b => b.OuterAgentId == outerAgentId && b.InnerAgentId == publishedInnerId);
-        var savedDraft = await _context.AgentInnerAgents
-            .FirstOrDefaultAsync(b => b.OuterAgentId == outerAgentId && b.InnerAgentId == draftInnerId);
+        var savedPublished = await _context.AgentSubAgents
+            .FirstOrDefaultAsync(b => b.AgentId == agentId && b.SubAgentId == publishedInnerId);
+        var savedDraft = await _context.AgentSubAgents
+            .FirstOrDefaultAsync(b => b.AgentId == agentId && b.SubAgentId == draftInnerId);
         Assert.That(savedPublished, Is.Not.Null);
         Assert.That(savedPublished.IsEnabled, Is.False);
         Assert.That(savedDraft, Is.Not.Null);
@@ -1537,68 +1537,68 @@ public class AgentAdminControllerTests
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_DeletesBindingsForRemovedPublishedInnerAgents()
+    public async Task UpdateSubAgentBindings_DeletesBindingsForRemovedPublishedSubAgents()
     {
-        var outerAgentId = Guid.NewGuid();
-        var innerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
+        var subAgentId = Guid.NewGuid();
         await _context.Agents.AddRangeAsync(
             new AgentModel
             {
-                Id = outerAgentId,
-                Name = "Outer Agent",
+                Id = agentId,
+                Name = "Agent",
                 Instructions = "Outer",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Outer
+                AgentKind = AgentKind.Agent
             },
             new AgentModel
             {
-                Id = innerAgentId,
-                Name = "Inner Agent",
+                Id = subAgentId,
+                Name = "Sub-Agent",
                 Instructions = "Inner",
                 OwnerUserId = _testUserId,
                 UpdatedByUserId = _testUserId,
-                AgentKind = AgentKind.Inner,
+                AgentKind = AgentKind.SubAgent,
                 IsPublished = true
             }
         );
-        await _context.AgentInnerAgents.AddAsync(new AgentInnerAgent
+        await _context.AgentSubAgents.AddAsync(new AgentSubAgent
         {
-            OuterAgentId = outerAgentId,
-            InnerAgentId = innerAgentId,
+            AgentId = agentId,
+            SubAgentId = subAgentId,
             IsEnabled = true
         });
         await _context.SaveChangesAsync();
 
-        var result = await _controller.UpdateInnerAgentBindings(outerAgentId, []);
+        var result = await _controller.UpdateSubAgentBindings(agentId, []);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        var deletedBinding = await _context.AgentInnerAgents
-            .FirstOrDefaultAsync(b => b.OuterAgentId == outerAgentId && b.InnerAgentId == innerAgentId);
+        var deletedBinding = await _context.AgentSubAgents
+            .FirstOrDefaultAsync(b => b.AgentId == agentId && b.SubAgentId == subAgentId);
         Assert.That(deletedBinding, Is.Null);
     }
 
     [Test]
-    public async Task UpdateInnerAgentBindings_WithInvalidInnerAgentId_ReturnsBadRequest()
+    public async Task UpdateSubAgentBindings_WithInvalidSubAgentId_ReturnsBadRequest()
     {
-        var outerAgentId = Guid.NewGuid();
+        var agentId = Guid.NewGuid();
         await _context.Agents.AddAsync(new AgentModel
         {
-            Id = outerAgentId,
-            Name = "Outer Agent",
+            Id = agentId,
+            Name = "Agent",
             Instructions = "Outer",
             OwnerUserId = _testUserId,
             UpdatedByUserId = _testUserId,
-            AgentKind = AgentKind.Outer
+            AgentKind = AgentKind.Agent
         });
         await _context.SaveChangesAsync();
 
-        var bindings = new List<InnerAgentBindingDto>
+        var bindings = new List<SubAgentBindingDto>
         {
-            new() { InnerAgentId = Guid.NewGuid(), IsEnabled = true }
+            new() { SubAgentId = Guid.NewGuid(), IsEnabled = true }
         };
 
-        var result = await _controller.UpdateInnerAgentBindings(outerAgentId, bindings);
+        var result = await _controller.UpdateSubAgentBindings(agentId, bindings);
 
         Assert.That(result, Is.TypeOf<BadRequestObjectResult>());
     }

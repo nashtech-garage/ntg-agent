@@ -21,7 +21,7 @@ data model). A skill's template is A2UI; it travels over AG-UI.
 
 | Document | What it answers |
 |---|---|
-| [agents-as-tools-architecture.md](agents-as-tools-architecture.md) | How outer agents delegate to inner agents, the single-table `AgentKind` design, the admin API and UI |
+| [agents-as-tools-architecture.md](agents-as-tools-architecture.md) | How agents delegate to sub-agents, the single-table `AgentKind` design, the admin API and UI |
 | [monitoring-setup.md](monitoring-setup.md) | Logging, metrics, traces, health checks — and which of them are wired up where |
 
 ## LightRAG (HTML diagrams)

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -308,7 +308,7 @@ public class AgentAdminController : ControllerBase
             ProviderId = updatedAgent.ProviderId,
             ModelOverride = updatedAgent.ModelOverride,
             McpServer = updatedAgent.McpServer,
-            Mode = updatedAgent.AgentKind == AgentKind.Inner ? AgentMode.Fast : updatedAgent.Mode,
+            Mode = updatedAgent.AgentKind == AgentKind.SubAgent ? AgentMode.Fast : updatedAgent.Mode,
             Temperature = updatedAgent.Temperature,
             MaxOutputTokens = updatedAgent.MaxOutputTokens,
             UpdatedByUserId = userId,
@@ -503,15 +503,15 @@ public class AgentAdminController : ControllerBase
             return BadRequest("Default agent cannot be deleted.");
         }
 
-        // If this agent is linked as an inner agent of any outer agent, remove those
-        // bindings first — the InnerAgentId FK is Restrict (no cascade), so the delete
-        // would otherwise fail. OuterAgent bindings cascade automatically.
-        var innerBindings = await _agentDbContext.AgentInnerAgents
-            .Where(b => b.InnerAgentId == id)
+        // If this agent is linked as an sub-agent of any agent, remove those
+        // bindings first — the SubAgentId FK is Restrict (no cascade), so the delete
+        // would otherwise fail. Agent bindings cascade automatically.
+        var innerBindings = await _agentDbContext.AgentSubAgents
+            .Where(b => b.SubAgentId == id)
             .ToListAsync(cancellationToken);
         if (innerBindings.Count > 0)
         {
-            _agentDbContext.AgentInnerAgents.RemoveRange(innerBindings);
+            _agentDbContext.AgentSubAgents.RemoveRange(innerBindings);
         }
 
         // Cascade-delete the agent's knowledge: remove each document from the knowledge
@@ -541,20 +541,20 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves inner agent bindings for an outer agent.
+    /// Retrieves sub-agent bindings for an agent.
     /// </summary>
-    [HttpGet("{id}/inner-agents")]
-    public async Task<IActionResult> GetInnerAgentBindings(Guid id)
+    [HttpGet("{id}/sub-agents")]
+    public async Task<IActionResult> GetSubAgentBindings(Guid id)
     {
-        var outerAgentExists = await _agentDbContext.Agents.AnyAsync(a => a.Id == id && a.AgentKind == AgentKind.Outer);
-        if (!outerAgentExists)
+        var agentExists = await _agentDbContext.Agents.AnyAsync(a => a.Id == id && a.AgentKind == AgentKind.Agent);
+        if (!agentExists)
         {
             return NotFound($"Agent with ID '{id}' not found.");
         }
 
-        var innerAgents = await _agentDbContext.Agents
+        var subAgents = await _agentDbContext.Agents
             .Include(a => a.Provider)
-            .Where(a => a.AgentKind == AgentKind.Inner && a.IsPublished)
+            .Where(a => a.AgentKind == AgentKind.SubAgent && a.IsPublished)
             .Select(a => new
             {
                 a.Id,
@@ -566,15 +566,15 @@ public class AgentAdminController : ControllerBase
             })
             .ToListAsync();
 
-        var bindings = await _agentDbContext.AgentInnerAgents
-            .Where(b => b.OuterAgentId == id)
+        var bindings = await _agentDbContext.AgentSubAgents
+            .Where(b => b.AgentId == id)
             .ToListAsync();
 
-        var bindingMap = bindings.ToDictionary(b => b.InnerAgentId, b => b.IsEnabled);
+        var bindingMap = bindings.ToDictionary(b => b.SubAgentId, b => b.IsEnabled);
 
-        var result = innerAgents.Select(agent => new InnerAgentBindingDto
+        var result = subAgents.Select(agent => new SubAgentBindingDto
         {
-            InnerAgentId = agent.Id,
+            SubAgentId = agent.Id,
             Name = agent.Name,
             Description = string.IsNullOrWhiteSpace(agent.Description) ? agent.Instructions ?? string.Empty : agent.Description,
             ProviderName = agent.ProviderName,
@@ -586,47 +586,47 @@ public class AgentAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Updates inner agent bindings for an outer agent.
+    /// Updates sub-agent bindings for an agent.
     /// </summary>
-    [HttpPut("{id}/inner-agents")]
-    public async Task<IActionResult> UpdateInnerAgentBindings(Guid id, [FromBody] List<InnerAgentBindingDto> bindings)
+    [HttpPut("{id}/sub-agents")]
+    public async Task<IActionResult> UpdateSubAgentBindings(Guid id, [FromBody] List<SubAgentBindingDto> bindings)
     {
-        var outerAgent = await _agentDbContext.Agents
-            .Include(a => a.InnerAgentBindings)
-            .FirstOrDefaultAsync(a => a.Id == id && a.AgentKind == AgentKind.Outer);
+        var agent = await _agentDbContext.Agents
+            .Include(a => a.SubAgentBindings)
+            .FirstOrDefaultAsync(a => a.Id == id && a.AgentKind == AgentKind.Agent);
 
-        if (outerAgent == null)
+        if (agent == null)
         {
             return NotFound($"Agent with ID '{id}' not found.");
         }
 
-        var requestedIds = bindings.Select(b => b.InnerAgentId).Distinct().ToList();
+        var requestedIds = bindings.Select(b => b.SubAgentId).Distinct().ToList();
         var validIds = await _agentDbContext.Agents
-            .Where(a => requestedIds.Contains(a.Id) && a.AgentKind == AgentKind.Inner)
+            .Where(a => requestedIds.Contains(a.Id) && a.AgentKind == AgentKind.SubAgent)
             .Select(a => a.Id)
             .ToListAsync();
 
         if (validIds.Count != requestedIds.Count)
         {
-            return BadRequest("One or more inner agents are invalid.");
+            return BadRequest("One or more sub-agents are invalid.");
         }
 
         var now = DateTime.UtcNow;
-        var existingBindings = outerAgent.InnerAgentBindings.ToDictionary(b => b.InnerAgentId);
+        var existingBindings = agent.SubAgentBindings.ToDictionary(b => b.SubAgentId);
 
         foreach (var bindingDto in bindings)
         {
-            if (existingBindings.TryGetValue(bindingDto.InnerAgentId, out var binding))
+            if (existingBindings.TryGetValue(bindingDto.SubAgentId, out var binding))
             {
                 binding.IsEnabled = bindingDto.IsEnabled;
                 binding.UpdatedAt = now;
             }
             else
             {
-                outerAgent.InnerAgentBindings.Add(new Models.Agents.AgentInnerAgent
+                agent.SubAgentBindings.Add(new Models.Agents.AgentSubAgent
                 {
-                    OuterAgentId = id,
-                    InnerAgentId = bindingDto.InnerAgentId,
+                    AgentId = id,
+                    SubAgentId = bindingDto.SubAgentId,
                     IsEnabled = bindingDto.IsEnabled,
                     CreatedAt = now,
                     UpdatedAt = now
@@ -635,22 +635,22 @@ public class AgentAdminController : ControllerBase
         }
 
         var draftIds = await _agentDbContext.Agents
-            .Where(a => a.AgentKind == AgentKind.Inner && !a.IsPublished)
+            .Where(a => a.AgentKind == AgentKind.SubAgent && !a.IsPublished)
             .Select(a => a.Id)
             .ToListAsync();
 
-        var removed = outerAgent.InnerAgentBindings
-            .Where(b => !requestedIds.Contains(b.InnerAgentId) && !draftIds.Contains(b.InnerAgentId))
+        var removed = agent.SubAgentBindings
+            .Where(b => !requestedIds.Contains(b.SubAgentId) && !draftIds.Contains(b.SubAgentId))
             .ToList();
 
         if (removed.Count > 0)
         {
-            _agentDbContext.AgentInnerAgents.RemoveRange(removed);
+            _agentDbContext.AgentSubAgents.RemoveRange(removed);
         }
 
         await _agentDbContext.SaveChangesAsync();
 
-        return Ok("Inner agent bindings updated successfully.");
+        return Ok("Sub-agent bindings updated successfully.");
     }
 
     /// <summary>
