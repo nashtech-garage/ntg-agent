@@ -61,8 +61,7 @@ LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
 LIGHTRAG_AZURE_OPENAI_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
 LIGHTRAG_LLM_MODEL, LIGHTRAG_EMBEDDING_MODEL,
 LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
-LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL,
-LIGHTRAG_WEBUI_GATEWAY_URL,
+LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL, LIGHTRAG_WEBUI_GATEWAY_URL,
 LIGHTRAG_POSTGRES_PORT.
 
 Leave the LIGHTRAG_DOCKER_* / LIGHTRAG_SERVER_* / LIGHTRAG_GATEWAY_* values empty
@@ -324,11 +323,23 @@ resolve_field LIGHTRAG_GATEWAY_URL \
   "__EMPTY__"
 
 resolve_field LIGHTRAG_WEBUI_GATEWAY_URL \
-  "LightRAG WebUI gateway base URL (e.g. https://lightrag.example.com) [Enter to use gateway URL]: " \
+  "LightRAG WebUI gateway base URL (e.g. https://lightrag.example.com) [required for remote; Enter for local default]: " \
   0 \
   "LIGHTRAG_WEBUI_GATEWAY_URL" \
   "LIGHTRAG_WEBUI_GATEWAY_URL" \
   "__EMPTY__"
+
+case "$LIGHTRAG_GATEWAY_URL" in
+  ""|http://localhost|http://localhost/*|https://localhost|https://localhost/*|http://127.0.0.1|http://127.0.0.1/*|https://127.0.0.1|https://127.0.0.1/*|http://[::1]|http://[::1]/*|https://[::1]|https://[::1]/*)
+    ;;
+  *)
+    if [[ -z "$LIGHTRAG_WEBUI_GATEWAY_URL" ]]; then
+      echo "error: LIGHTRAG_WEBUI_GATEWAY_URL is required when LIGHTRAG_GATEWAY_URL points to a remote gateway." >&2
+      echo "Set it to the wildcard WebUI base, for example https://lightrag.example.com." >&2
+      exit 1
+    fi
+    ;;
+esac
 
 resolve_field LIGHTRAG_POSTGRES_PORT \
   "LightRAG Postgres port [Enter for 5432]: " \

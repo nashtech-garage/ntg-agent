@@ -31,6 +31,19 @@ public class LightRagSettingsTests
     }
 
     [Test]
+    public void ResolveWebUiUrl_WhenRemoteGatewayHasNoWebUiBase_ThrowsConfigurationError()
+    {
+        var settings = new LightRagSettings
+        {
+            GatewayUrl = "https://4.193.109.6"
+        };
+
+        var exception = Assert.Throws<InvalidOperationException>(() => settings.ResolveWebUiUrl(Guid.NewGuid()));
+
+        Assert.That(exception!.Message, Does.Contain("WebUiGatewayUrl is required"));
+    }
+
+    [Test]
     public void ResolveWebUiUrl_WhenGatewayUrlIsInvalid_ThrowsInvalidOperationException()
     {
         var settings = new LightRagSettings

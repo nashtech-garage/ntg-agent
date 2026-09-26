@@ -113,12 +113,18 @@ scp ntgagent@4.193.109.6:~/docker-certs/client.pfx ./client.pfx   # gitignored (
 | `lightrag-docker-cert-password` | the PFX password |
 | `lightrag-server-host` | `4.193.109.6` |
 | `lightrag-gateway-url` | `https://4.193.109.6` |
+| `lightrag-webui-gateway-url` | `https://lightrag.example.com` (the wildcard DNS/TLS base) |
 | `lightrag-postgres-port` | `5432` |
 | `lightrag-pg-password` | the same value as `POSTGRES_PASSWORD` above |
 
+For remote deployments, `lightrag-webui-gateway-url` is mandatory. It must be the base host
+covered by the wildcard DNS record and TLS certificate; do not derive it from the API gateway
+IP, because `agent-{id}.4.193.109.6` is not a valid substitute for the wildcard hostname.
+
 Leave every `lightrag-docker-*` / `lightrag-server-*` / `lightrag-gateway-*` value empty for a
 plain all-local dev run (local Docker socket + the `deploy/lightrag-local` compose stack, whose
-gateway serves plain HTTP on `http://localhost:8080` — the code's default `GatewayUrl`).
+gateway serves plain HTTP on `http://localhost:8080` — the code's default `GatewayUrl` and
+WebUI fallback).
 
 ## 6. Start the NTG-Agent as usual (on the main machine)
 
@@ -138,6 +144,7 @@ manual database cleanup is needed.
 - [ ] `curl -k https://127.0.0.1/gateway-health` → ok
 - [ ] NSG inbound rules for 2376, 443, 5432 — restricted to team IPs; 20000-20999 deleted
 - [ ] `client.pfx` copied down and the AppHost parameters set
+- [ ] `lightrag-webui-gateway-url` set to the wildcard DNS/TLS base
 - [ ] Orchestrator spawns a `lightrag-agent-*` on the VM, reachable via the gateway
 - [ ] Wildcard DNS for `*.lightrag.<your-domain>` points to the gateway
 

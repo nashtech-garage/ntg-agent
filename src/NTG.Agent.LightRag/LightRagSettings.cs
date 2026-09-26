@@ -63,7 +63,8 @@ public class LightRagSettings
 
     // Browser-facing base host for the WebUI gateway route. The agent ID is inserted as a
     // subdomain, for example https://agent-{agentId}.lightrag.example.com/webui/. Empty
-    // falls back to GatewayUrl, which produces the local agent-{id}.localhost URL by default.
+    // is valid only for a loopback GatewayUrl; remote deployments must configure the
+    // wildcard-DNS base explicitly.
     public string WebUiGatewayUrl { get; set; } = string.Empty;
 
     // Fallback Postgres host when PostgresHost is not set. The server's public
@@ -80,12 +81,20 @@ public class LightRagSettings
 
     public string ResolveWebUiUrl(Guid agentId)
     {
-        var gatewayUrl = string.IsNullOrWhiteSpace(WebUiGatewayUrl)
-            ? ResolveGatewayUrl()
-            : WebUiGatewayUrl.TrimEnd('/');
+        var hasDedicatedWebUiGateway = !string.IsNullOrWhiteSpace(WebUiGatewayUrl);
+        var gatewayUrl = hasDedicatedWebUiGateway
+            ? WebUiGatewayUrl.TrimEnd('/')
+            : ResolveGatewayUrl();
 
         if (!Uri.TryCreate(gatewayUrl, UriKind.Absolute, out var gatewayUri))
             throw new InvalidOperationException($"LightRag:WebUiGatewayUrl '{gatewayUrl}' is not a valid absolute URL.");
+
+        if (!hasDedicatedWebUiGateway && !gatewayUri.IsLoopback)
+        {
+            throw new InvalidOperationException(
+                "LightRag:WebUiGatewayUrl is required when LightRag:GatewayUrl points to a remote gateway. " +
+                "Configure the wildcard WebUI base URL, for example https://lightrag.example.com.");
+        }
 
         var webUiUri = new UriBuilder(gatewayUri)
         {
