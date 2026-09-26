@@ -396,17 +396,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
             HostConfig = new HostConfig
             {
                 NetworkMode = network,
-                RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped },
-                PortBindings = new Dictionary<string, IList<PortBinding>>
-                {
-                    {
-                        ContainerPort, // Must match the key used in ExposedPorts
-                        new List<PortBinding>
-                        {
-                            new PortBinding { HostPort = "9621" }
-                        }
-                    }
-                }
+                RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.UnlessStopped }
             },
             // Explicitly attach to the shared network at creation. Relying on NetworkMode
             // alone does not reliably connect the container to a user-defined network.
