@@ -13,7 +13,7 @@ exec env \
   "Parameters__lightrag-docker-cert-path= " \
   "Parameters__lightrag-docker-cert-password= " \
   "Parameters__lightrag-gateway-url= " \
-  "Parameters__lightrag-webui-gateway-url= " \
+  "Parameters__lightrag-webui-gateway-url=http://localhost:8080" \
   "Parameters__lightrag-server-host= " \
   "Parameters__lightrag-socks-proxy= " \
   "Parameters__lightrag-postgres-port=5432" \
