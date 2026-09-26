@@ -10,6 +10,7 @@ LIGHTRAG_COMPOSE_DIR="$REPO_ROOT/deploy/lightrag-local"
 LIGHTRAG_COMPOSE_FILE="$LIGHTRAG_COMPOSE_DIR/docker-compose.yml"
 LIGHTRAG_VOLUME="lightrag-local_lightrag-postgres-data"
 SQLSERVER_VOLUME="ntg-agent-local-dev-sqlserver-data"
+LIGHTRAG_NETWORK="ntg-agent-lightrag"
 ENV_FILES=(
   "$REPO_ROOT/.env"
   "$LIGHTRAG_COMPOSE_DIR/.env"
@@ -48,6 +49,15 @@ fi
 remove_container lightrag-postgres
 remove_container lightrag-gateway
 
+# The Orchestrator creates one persistent container per agent outside Compose.
+# Their stable prefix is defined by LightRagContainerManager.ContainerName.
+mapfile -t agent_containers < <(
+  docker ps -aq --filter "name=lightrag-agent-" 2>/dev/null || true
+)
+for container_id in "${agent_containers[@]}"; do
+  [[ -n "$container_id" ]] && docker rm -f "$container_id" >/dev/null
+done
+
 # Aspire does not give the SQL resource a stable container_name. Find only
 # containers attached to this repository's explicitly named SQL data volume.
 mapfile -t sql_containers < <(
@@ -63,6 +73,11 @@ for volume_name in "$LIGHTRAG_VOLUME" "$SQLSERVER_VOLUME"; do
     docker volume rm "$volume_name" >/dev/null
   fi
 done
+
+if docker network inspect "$LIGHTRAG_NETWORK" >/dev/null 2>&1; then
+  info "Removing network $LIGHTRAG_NETWORK."
+  docker network rm "$LIGHTRAG_NETWORK" >/dev/null || true
+fi
 
 for env_file in "${ENV_FILES[@]}"; do
   if [[ -f "$env_file" ]]; then
