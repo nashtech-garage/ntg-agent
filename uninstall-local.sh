@@ -37,6 +37,24 @@ remove_container() {
   fi
 }
 
+confirm_uninstall() {
+  local answer
+  if [[ ! -t 0 ]]; then
+    echo "error: uninstall confirmation requires an interactive terminal." >&2
+    exit 1
+  fi
+
+  while true; do
+    read -r -p "This will clear all local LightRAG, agent, SQL Server data, volumes, and .env files. Continue? (Y/N): " answer
+    case "${answer,,}" in
+      y | yes) return ;;
+      n | no) echo "Uninstallation cancelled."; exit 0 ;;
+      *) echo "Please enter Y for Yes or N for No." >&2 ;;
+    esac
+  done
+}
+
+confirm_uninstall
 require_docker
 
 info "Removing the local LightRAG Compose stack."
