@@ -322,6 +322,13 @@ resolve_field LIGHTRAG_GATEWAY_URL \
   "LIGHTRAG_GATEWAY_URL" \
   "__EMPTY__"
 
+resolve_field LIGHTRAG_WEBUI_GATEWAY_URL \
+  "LightRAG WebUI gateway base URL (e.g. https://lightrag.example.com) [Enter to use gateway URL]: " \
+  0 \
+  "LIGHTRAG_WEBUI_GATEWAY_URL" \
+  "LIGHTRAG_WEBUI_GATEWAY_URL" \
+  "__EMPTY__"
+
 resolve_field LIGHTRAG_POSTGRES_PORT \
   "LightRAG Postgres port [Enter for 5432]: " \
   0 \
@@ -356,6 +363,7 @@ set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
 set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"
 set_secret "Parameters:lightrag-server-host" "$LIGHTRAG_SERVER_HOST"
 set_secret "Parameters:lightrag-gateway-url" "$LIGHTRAG_GATEWAY_URL"
+set_secret "Parameters:lightrag-webui-gateway-url" "$LIGHTRAG_WEBUI_GATEWAY_URL"
 set_secret "Parameters:lightrag-postgres-port" "$LIGHTRAG_POSTGRES_PORT"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then

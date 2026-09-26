@@ -23,6 +23,7 @@ var lightragCertPath = builder.AddParameter("lightrag-docker-cert-path", secret:
 var lightragCertPassword = builder.AddParameter("lightrag-docker-cert-password", secret: true);
 var lightragServerHost = builder.AddParameter("lightrag-server-host", secret: true);          // e.g. 4.193.109.6
 var lightragGatewayUrl = builder.AddParameter("lightrag-gateway-url", secret: true);          // e.g. https://4.193.109.6; empty => http://localhost:8080
+var lightragWebUiGatewayUrl = builder.AddParameter("lightrag-webui-gateway-url", secret: true); // e.g. https://lightrag.example.com; empty => GatewayUrl
 var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);      // 5432 direct
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
@@ -93,6 +94,7 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__DockerCertPassword", lightragCertPassword)
 	.WithEnvironment("LightRag__ServerHost", lightragServerHost)
 	.WithEnvironment("LightRag__GatewayUrl", lightragGatewayUrl)
+	.WithEnvironment("LightRag__WebUiGatewayUrl", lightragWebUiGatewayUrl)
 	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
 	.WithEnvironment("LightRag__LlmModel", lightragLlmModel)
 	.WithEnvironment("LightRag__LlmEndpoint", lightragAzureOpenAiEndpoint)
