@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Knowledge;
+using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
@@ -26,6 +28,8 @@ public class AgentAdminController : ControllerBase
     private readonly ILogger<AgentAdminController> _logger;
     private readonly ModelDiscoveryService _modelDiscoveryService;
     private readonly IThinkingSupportProbe _thinkingSupportProbe;
+    private readonly ILightRagContainerManager _lightRagContainerManager;
+    private readonly LightRagSettings _lightRagSettings;
 
     public AgentAdminController(AgentDbContext agentDbContext,
         IAgentFactory agentFactory,
@@ -34,7 +38,9 @@ public class AgentAdminController : ControllerBase
         AgentProvisioningSignal provisioningSignal,
         ILogger<AgentAdminController> logger,
         ModelDiscoveryService modelDiscoveryService,
-        IThinkingSupportProbe thinkingSupportProbe
+        IThinkingSupportProbe thinkingSupportProbe,
+        ILightRagContainerManager lightRagContainerManager,
+        IOptions<LightRagSettings> lightRagSettings
         )
     {
         _agentDbContext = agentDbContext ?? throw new ArgumentNullException(nameof(agentDbContext));
@@ -45,6 +51,8 @@ public class AgentAdminController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _modelDiscoveryService = modelDiscoveryService ?? throw new ArgumentNullException(nameof(modelDiscoveryService));
         _thinkingSupportProbe = thinkingSupportProbe ?? throw new ArgumentNullException(nameof(thinkingSupportProbe));
+        _lightRagContainerManager = lightRagContainerManager ?? throw new ArgumentNullException(nameof(lightRagContainerManager));
+        _lightRagSettings = lightRagSettings?.Value ?? throw new ArgumentNullException(nameof(lightRagSettings));
     }
 
     /// <summary>
@@ -102,6 +110,22 @@ public class AgentAdminController : ControllerBase
             return NotFound();
         }
         return Ok(agent);
+    }
+
+    /// <summary>
+    /// Ensures the agent's LightRAG container is ready and redirects to its WebUI in a new tab.
+    /// </summary>
+    [HttpGet("{id}/lightrag-webui")]
+    public async Task<IActionResult> OpenLightRagWebUi(Guid id, CancellationToken cancellationToken = default)
+    {
+        var exists = await _agentDbContext.Agents.AnyAsync(agent => agent.Id == id, cancellationToken);
+        if (!exists)
+        {
+            return NotFound();
+        }
+
+        await _lightRagContainerManager.EnsureContainerAsync(id, cancellationToken);
+        return Redirect(_lightRagSettings.ResolveWebUiUrl(id));
     }
 
     /// <summary>

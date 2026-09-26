@@ -8,7 +8,8 @@ tunnel at runtime, so nothing has to be kept alive before the Orchestrator start
 | Channel | Endpoint | Transport |
 |---|---|---|
 | Docker daemon | `https://4.193.109.6:2376` | Mutual TLS — the daemon runs with `tlsverify` and admits only CA-signed client certificates |
-| nginx gateway | `https://4.193.109.6/agents/{agentId}/*` | TLS, gated by the `X-API-Key` header |
+| nginx gateway API | `https://4.193.109.6/agents/{agentId}/*` | TLS, gated by the `X-API-Key` header |
+| nginx gateway WebUI | `https://agent-{agentId}.lightrag.<your-domain>/webui/` | TLS, wildcard DNS, LightRAG login |
 | Postgres | `4.193.109.6:5432` | TLS when offered (`SSL Mode=Prefer`) |
 
 Server: `ntgagent@4.193.109.6` (has sudo; Docker already installed).
@@ -17,6 +18,14 @@ The gateway routes `/agents/{agentId}/*` to the `lightrag-agent-{agentId}` conta
 over the `ntg-agent-lightrag` Docker network — agent containers publish no host ports, so the
 gateway is the only inbound path to them. The Orchestrator attaches the gateway (and Postgres)
 to that network automatically at runtime.
+
+The WebUI uses a separate host-based route because LightRAG builds its frontend with absolute
+`/webui/` asset and API URLs. Create a wildcard DNS record such as
+`*.lightrag.example.com` pointing to the gateway and issue a TLS certificate covering that
+wildcard, then open
+`https://agent-{agentId}.lightrag.example.com/webui/`. The WebUI still requires the configured
+LightRAG API key at login. The agent container must be running; the gateway does not provision
+or restart containers.
 
 > **Server certificates are not validated by the client.** They are signed by a private CA
 > (`docker-ca`) whose root is deliberately not distributed, so there is no trust anchor to check
@@ -130,6 +139,7 @@ manual database cleanup is needed.
 - [ ] NSG inbound rules for 2376, 443, 5432 — restricted to team IPs; 20000-20999 deleted
 - [ ] `client.pfx` copied down and the AppHost parameters set
 - [ ] Orchestrator spawns a `lightrag-agent-*` on the VM, reachable via the gateway
+- [ ] Wildcard DNS for `*.lightrag.<your-domain>` points to the gateway
 
 ## Troubleshooting
 

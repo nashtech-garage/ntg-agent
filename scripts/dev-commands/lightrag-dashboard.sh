@@ -3,7 +3,9 @@
 #
 # Lists the running per-agent LightRAG containers (lightrag-agent-{guid}) as a
 # numbered menu, prints the API key for the WebUI login, and opens the chosen
-# agent's WebUI (http://localhost:{port}/webui/) in your default browser.
+# agent's WebUI through the gateway in your default browser. Set
+# LIGHTRAG_WEBUI_SCHEME, LIGHTRAG_WEBUI_HOST_SUFFIX, and LIGHTRAG_WEBUI_PORT
+# when using a remote gateway with wildcard DNS.
 # Everything is discovered from Docker + user-secrets — no app/API changes.
 #
 set -euo pipefail
@@ -12,6 +14,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 APPHOST_CSPROJ="src/NTG.Agent.AppHost/NTG.Agent.AppHost.csproj"
+WEBUI_SCHEME="${LIGHTRAG_WEBUI_SCHEME:-http}"
+WEBUI_HOST_SUFFIX="${LIGHTRAG_WEBUI_HOST_SUFFIX:-.localhost}"
+WEBUI_PORT="${LIGHTRAG_WEBUI_PORT:-8080}"
 
 # --- find running per-agent LightRAG containers (portable: no mapfile) ---
 CONTAINERS=()
@@ -59,17 +64,14 @@ labels=()
 urls=()
 for c in "${CONTAINERS[@]}"; do
   guid="${c#lightrag-agent-}"
-  portline="$(docker port "$c" 9621/tcp 2>/dev/null | head -n 1 || true)"
-  port="${portline##*:}"
-  [ -n "$port" ] || continue
   label="$(name_of "$guid")"
   [ -n "$label" ] || label="$guid"
   labels+=("$label")
-  urls+=("http://localhost:${port}/webui/")
+  urls+=("${WEBUI_SCHEME}://agent-${guid}${WEBUI_HOST_SUFFIX}:${WEBUI_PORT}/webui/")
 done
 
 if [ "${#urls[@]}" -eq 0 ]; then
-  echo "Found agent containers but none publish port 9621 yet — is the stack still starting?"
+  echo "No running LightRAG agent containers found."
   exit 0
 fi
 
