@@ -475,224 +475,214 @@ public class AgentService
         bool isAdmin,
         ChatClientCapabilities capabilities)
     {
-        if (promptRequest.AgentId == new Guid("760887e0-babd-41ae-aec1-b6ac3803d348"))
-        {
-            await foreach (var response in TestOrchestratorInvokePromptStreamingInternalAsync(promptRequest, history, tags, userId, isAdmin))
-            {
-                yield return new PromptResponse(response);
-            }
-        }
-        else
-        {
-            // Speculative prefetch: start the knowledge search now, using the raw user prompt,
-            // so it runs concurrently with agent construction (incl. the MCP ListToolsAsync hop)
-            // and the first "decide to search" LLM call. KnowledgePlugin reuses this warm result
-            // when the model's memory-tool query matches the prompt, and falls back to a fresh
-            // query otherwise. If the model never searches, the task's result is simply discarded.
-            var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId, tags);
+        // Speculative prefetch: start the knowledge search now, using the raw user prompt,
+        // so it runs concurrently with agent construction (incl. the MCP ListToolsAsync hop)
+        // and the first "decide to search" LLM call. KnowledgePlugin reuses this warm result
+        // when the model's memory-tool query matches the prompt, and falls back to a fresh
+        // query otherwise. If the model never searches, the task's result is simply discarded.
+        var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId, tags);
 
-            // Build the agent up front. A misconfigured agent (e.g. no model provider
-            // selected) throws here; catch it so we can stream a friendly message
-            // instead of letting the exception corrupt the JSON response stream — a
-            // mid-stream throw surfaces on the client as a confusing deserialization
-            // error rather than the real cause.
-            AIAgent? agent = null;
-            string? configError = null;
+        // Build the agent up front. A misconfigured agent (e.g. no model provider
+        // selected) throws here; catch it so we can stream a friendly message
+        // instead of letting the exception corrupt the JSON response stream — a
+        // mid-stream throw surfaces on the client as a confusing deserialization
+        // error rather than the real cause.
+        AIAgent? agent = null;
+        string? configError = null;
+        try
+        {
+            agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+        }
+        catch (NotSupportedException)
+        {
+            // C# disallows yield inside a catch, so record the message and emit it below.
+            configError = "This agent has no model provider configured. Open the agent settings and select a provider, model, and API key before chatting.";
+        }
+
+        if (configError is not null)
+        {
+            yield return new PromptResponse(configError);
+            yield break;
+        }
+
+        var chatHistory = new List<ChatMessage>();
+
+        foreach (var msg in history.OrderBy(m => m.CreatedAt))
+        {
+            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
+        }
+
+        var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
+
+        var userMessage = BuildUserMessage(promptRequest, prompt);
+
+        chatHistory.Add(userMessage);
+
+        AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
+
+        // The agent's own knowledge tool is attached per-request here; inner-agent
+        // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory
+        // (GetSubAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
+        // CreateAgent above. Each sub-agent is wrapped by AgentToolPlugin, which re-checks
+        // access at call time and scopes the child to its own LightRAG workspace.
+        var tools = new List<AITool> { memorySearch };
+
+        // Agent Skills. Gated by the AgentSkills bindings rather than the AgentTools table that
+        // GetAgentToolsByAgentId filters on, so they are attached here alongside the knowledge
+        // tool rather than baked in by AgentFactory. An agent with no bound skills gets neither
+        // the tools nor the catalog message, leaving its runs byte-identical to before.
+        //
+        // Withheld outright from a text-only client, rather than trimmed down to the tools it
+        // could technically run. What the skills we ship produce is an A2UI surface, and only
+        // the AG-UI client mounts a renderer for one: render_skill_surface there would draw
+        // something nobody can see, and its result — the surface's whole component tree,
+        // routinely ~100 KB of JSON — would arrive in the Blazor chat as text. Leaving
+        // load_skill on by itself is the worse half-measure, because it hands the model a
+        // step-by-step flow whose every step names a tool it was not given. So the tier stack
+        // goes as a unit, and a text-only run stays byte-identical to a run on an agent with no
+        // skills bound.
+        IReadOnlyList<SkillRegistry.ActiveSkill> activeSkills = [];
+
+        if (capabilities == ChatClientCapabilities.GenerativeUi)
+        {
+            // Guarded for the same reason conversation naming is: this runs before the first
+            // yield of an async iterator, so an exception escapes ChatStreamingAsync entirely
+            // and surfaces as RUN_ERROR with no answer — for every agent, including the ones
+            // with no skills bound. Skills are decoration on a run; they degrade, they do not
+            // abort it.
             try
             {
-                agent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
+                activeSkills = await _skillRegistry.GetActiveSkillsAsync(promptRequest.AgentId);
             }
-            catch (NotSupportedException)
+            catch (Exception ex)
             {
-                // C# disallows yield inside a catch, so record the message and emit it below.
-                configError = "This agent has no model provider configured. Open the agent settings and select a provider, model, and API key before chatting.";
+                _logger.LogWarning(ex, "Could not load skills for agent {AgentId}; running without them", promptRequest.AgentId);
             }
+        }
 
-            if (configError is not null)
+        if (activeSkills.Count > 0)
+        {
+            tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, _skillActivityLog, promptRequest.AgentId, _logger));
+            tools.Add(SkillTools.CreateRenderSurface(
+                _skillRegistry, _renderableToolCapture, _skillActivityLog, promptRequest.AgentId, _logger));
+        }
+
+        var chatOptions = new ChatOptions
+        {
+            Tools = tools
+        };
+
+        // AG-UI frontend tools: declared to the LLM but executed in the browser.
+        // Declaration-only tools are not invocable, so the model's call surfaces below
+        // as FunctionCallContent instead of being executed server-side.
+        var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Read only for the client that owns it. A text-only client executes no frontend tool,
+        // so a declaration from one could only ever produce a call nothing answers. It is also
+        // the field's only protection: PromptRequestForm is [FromForm]-bound on that endpoint,
+        // so FrontendToolsJson is caller-supplied there, and a crafted form post naming
+        // render_a2ui would otherwise pull the entire A2UI render guide into a run whose client
+        // cannot draw a surface.
+        if (capabilities == ChatClientCapabilities.GenerativeUi
+            && !string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
+        {
+            // FrontendToolsJson comes from the request body, so a client can declare any tool
+            // name it likes — including one already registered server-side. Providers reject
+            // duplicate function names outright, which would turn a crafted request into a
+            // failed run for that user. Server-side tools win; a collision is dropped, not
+            // added, and logged rather than silently ignored.
+            var serverToolNames = chatOptions.Tools
+                .OfType<AIFunction>()
+                .Select(t => t.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
             {
-                yield return new PromptResponse(configError);
-                yield break;
-            }
-
-            var chatHistory = new List<ChatMessage>();
-
-            foreach (var msg in history.OrderBy(m => m.CreatedAt))
-            {
-                chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
-            }
-
-            var prompt = BuildPromptAsync(promptRequest, ocrDocuments);
-
-            var userMessage = BuildUserMessage(promptRequest, prompt);
-
-            chatHistory.Add(userMessage);
-
-            AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
-
-            // The agent's own knowledge tool is attached per-request here; inner-agent
-            // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory
-            // (GetSubAgentToolsAsync), gated to the caller via the userId/isAdmin passed to
-            // CreateAgent above. Each sub-agent is wrapped by AgentToolPlugin, which re-checks
-            // access at call time and scopes the child to its own LightRAG workspace.
-            var tools = new List<AITool> { memorySearch };
-
-            // Agent Skills. Gated by the AgentSkills bindings rather than the AgentTools table that
-            // GetAgentToolsByAgentId filters on, so they are attached here alongside the knowledge
-            // tool rather than baked in by AgentFactory. An agent with no bound skills gets neither
-            // the tools nor the catalog message, leaving its runs byte-identical to before.
-            //
-            // Withheld outright from a text-only client, rather than trimmed down to the tools it
-            // could technically run. What the skills we ship produce is an A2UI surface, and only
-            // the AG-UI client mounts a renderer for one: render_skill_surface there would draw
-            // something nobody can see, and its result — the surface's whole component tree,
-            // routinely ~100 KB of JSON — would arrive in the Blazor chat as text. Leaving
-            // load_skill on by itself is the worse half-measure, because it hands the model a
-            // step-by-step flow whose every step names a tool it was not given. So the tier stack
-            // goes as a unit, and a text-only run stays byte-identical to a run on an agent with no
-            // skills bound.
-            IReadOnlyList<SkillRegistry.ActiveSkill> activeSkills = [];
-
-            if (capabilities == ChatClientCapabilities.GenerativeUi)
-            {
-                // Guarded for the same reason conversation naming is: this runs before the first
-                // yield of an async iterator, so an exception escapes ChatStreamingAsync entirely
-                // and surfaces as RUN_ERROR with no answer — for every agent, including the ones
-                // with no skills bound. Skills are decoration on a run; they degrade, they do not
-                // abort it.
-                try
+                if (!serverToolNames.Add(tool.Name))
                 {
-                    activeSkills = await _skillRegistry.GetActiveSkillsAsync(promptRequest.AgentId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Could not load skills for agent {AgentId}; running without them", promptRequest.AgentId);
-                }
-            }
-
-            if (activeSkills.Count > 0)
-            {
-                tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, _skillActivityLog, promptRequest.AgentId, _logger));
-                tools.Add(SkillTools.CreateRenderSurface(
-                    _skillRegistry, _renderableToolCapture, _skillActivityLog, promptRequest.AgentId, _logger));
-            }
-
-            var chatOptions = new ChatOptions
-            {
-                Tools = tools
-            };
-
-            // AG-UI frontend tools: declared to the LLM but executed in the browser.
-            // Declaration-only tools are not invocable, so the model's call surfaces below
-            // as FunctionCallContent instead of being executed server-side.
-            var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            // Read only for the client that owns it. A text-only client executes no frontend tool,
-            // so a declaration from one could only ever produce a call nothing answers. It is also
-            // the field's only protection: PromptRequestForm is [FromForm]-bound on that endpoint,
-            // so FrontendToolsJson is caller-supplied there, and a crafted form post naming
-            // render_a2ui would otherwise pull the entire A2UI render guide into a run whose client
-            // cannot draw a surface.
-            if (capabilities == ChatClientCapabilities.GenerativeUi
-                && !string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
-            {
-                // FrontendToolsJson comes from the request body, so a client can declare any tool
-                // name it likes — including one already registered server-side. Providers reject
-                // duplicate function names outright, which would turn a crafted request into a
-                // failed run for that user. Server-side tools win; a collision is dropped, not
-                // added, and logged rather than silently ignored.
-                var serverToolNames = chatOptions.Tools
-                    .OfType<AIFunction>()
-                    .Select(t => t.Name)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
-                {
-                    if (!serverToolNames.Add(tool.Name))
-                    {
-                        _logger.LogWarning(
-                            "Frontend tool '{ToolName}' collides with a server-side tool and was ignored", tool.Name);
-                        continue;
-                    }
-
-                    chatOptions.Tools.Add(tool);
-                    frontendToolNames.Add(tool.Name);
-                }
-            }
-
-            // A2UI: when the client's middleware has injected the render_a2ui tool, give the
-            // model the A2UI v0.9 component catalog so it can generate valid UI surfaces.
-            // (The middleware ships this guidance via the AG-UI context channel, which this
-            // backend does not forward — so we inject it as a leading system message here.)
-            // Tier 1 of the skill spec's progressive disclosure: names and descriptions only. The
-            // bodies stay in the database until the model calls load_skill, so binding ten skills
-            // to an agent costs ten lines of context per run rather than ten documents.
-            //
-            // Inserted BEFORE the render guide so that, after both Insert(0, …) calls, the final
-            // order is [render guide, skill catalog, …history…]. Each insert pushes the previous
-            // one further from the user's turn, so writing them in the intuitive order would bury
-            // the catalog behind 131 lines of A2UI guidance.
-            var skillCatalog = SkillPrompt.BuildCatalog(activeSkills);
-            if (skillCatalog is not null)
-            {
-                chatHistory.Insert(0, new ChatMessage(ChatRole.System, skillCatalog));
-            }
-
-            if (frontendToolNames.Contains(A2uiPrompt.RenderToolName))
-            {
-                chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
-            }
-
-            await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
-            {
-                // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
-                // including ones executed inside an sub-agent — so the browser can render them.
-                foreach (var chunk in DrainRenderableToolCalls(capabilities))
-                {
-                    yield return chunk;
+                    _logger.LogWarning(
+                        "Frontend tool '{ToolName}' collides with a server-side tool and was ignored", tool.Name);
+                    continue;
                 }
 
-                // Drained before this update's own content so a notice ("Using the X skill.")
-                // lands before the reasoning for the step it describes, rather than after it.
-                foreach (var chunk in DrainSkillNotices(capabilities))
-                {
-                    yield return chunk;
-                }
-
-                foreach (var item in update.Contents)
-                {
-                    if (item is TextReasoningContent reasoningContent)
-                    {
-                        yield return new PromptResponse(reasoningContent.Text, PromptContentType.Thinking);
-                    }
-                    else if (item is TextContent textContent)
-                    {
-                        yield return new PromptResponse(textContent.Text);
-                    }
-                    else if (item is FunctionCallContent functionCall && frontendToolNames.Contains(functionCall.Name))
-                    {
-                        var payload = JsonSerializer.Serialize(new
-                        {
-                            callId = functionCall.CallId,
-                            name = functionCall.Name,
-                            arguments = functionCall.Arguments
-                        });
-                        yield return new PromptResponse(payload, PromptContentType.ToolCall);
-                    }
-                }
-                ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
+                chatOptions.Tools.Add(tool);
+                frontendToolNames.Add(tool.Name);
             }
+        }
 
-            // Flush any tool captures that arrived during/after the final streamed update.
+        // A2UI: when the client's middleware has injected the render_a2ui tool, give the
+        // model the A2UI v0.9 component catalog so it can generate valid UI surfaces.
+        // (The middleware ships this guidance via the AG-UI context channel, which this
+        // backend does not forward — so we inject it as a leading system message here.)
+        // Tier 1 of the skill spec's progressive disclosure: names and descriptions only. The
+        // bodies stay in the database until the model calls load_skill, so binding ten skills
+        // to an agent costs ten lines of context per run rather than ten documents.
+        //
+        // Inserted BEFORE the render guide so that, after both Insert(0, …) calls, the final
+        // order is [render guide, skill catalog, …history…]. Each insert pushes the previous
+        // one further from the user's turn, so writing them in the intuitive order would bury
+        // the catalog behind 131 lines of A2UI guidance.
+        var skillCatalog = SkillPrompt.BuildCatalog(activeSkills);
+        if (skillCatalog is not null)
+        {
+            chatHistory.Insert(0, new ChatMessage(ChatRole.System, skillCatalog));
+        }
+
+        if (frontendToolNames.Contains(A2uiPrompt.RenderToolName))
+        {
+            chatHistory.Insert(0, new ChatMessage(ChatRole.System, A2uiPrompt.RenderGuide));
+        }
+
+        await foreach (var update in agent.RunStreamingAsync(chatHistory, options: new ChatClientAgentRunOptions(chatOptions)))
+        {
+            // Emit any renderable server-side tool calls (e.g. get_weather) captured so far —
+            // including ones executed inside an sub-agent — so the browser can render them.
             foreach (var chunk in DrainRenderableToolCalls(capabilities))
             {
                 yield return chunk;
             }
 
-            // Flush any skill narration that arrived during/after the final streamed update.
+            // Drained before this update's own content so a notice ("Using the X skill.")
+            // lands before the reasoning for the step it describes, rather than after it.
             foreach (var chunk in DrainSkillNotices(capabilities))
             {
                 yield return chunk;
             }
+
+            foreach (var item in update.Contents)
+            {
+                if (item is TextReasoningContent reasoningContent)
+                {
+                    yield return new PromptResponse(reasoningContent.Text, PromptContentType.Thinking);
+                }
+                else if (item is TextContent textContent)
+                {
+                    yield return new PromptResponse(textContent.Text);
+                }
+                else if (item is FunctionCallContent functionCall && frontendToolNames.Contains(functionCall.Name))
+                {
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        callId = functionCall.CallId,
+                        name = functionCall.Name,
+                        arguments = functionCall.Arguments
+                    });
+                    yield return new PromptResponse(payload, PromptContentType.ToolCall);
+                }
+            }
+            ExtractTokenUsage(update.RawRepresentation, tokenUsageInfo);
+        }
+
+        // Flush any tool captures that arrived during/after the final streamed update.
+        foreach (var chunk in DrainRenderableToolCalls(capabilities))
+        {
+            yield return chunk;
+        }
+
+        // Flush any skill narration that arrived during/after the final streamed update.
+        foreach (var chunk in DrainSkillNotices(capabilities))
+        {
+            yield return chunk;
         }
     }
 
@@ -709,47 +699,6 @@ public class AgentService
         tokenUsage.OutputTokens = usageDetails.OutputTokenCount;
         tokenUsage.ReasoningTokens = usageDetails.ReasoningTokenCount;
         tokenUsage.TotalTokens = usageDetails.TotalTokenCount;
-    }
-
-    private async IAsyncEnumerable<string> TestOrchestratorInvokePromptStreamingInternalAsync(
-        PromptRequestForm promptRequest,
-        List<PChatMessage> history,
-        List<string> tags,
-        Guid? userId,
-        bool isAdmin = false)
-    {
-        var triageAgent = await _agentFactory.CreateAgent(promptRequest.AgentId, userId, isAdmin);
-        var csharpAgent = await _agentFactory.CreateAgent(new Guid("684604F0-3362-4499-A9B9-24AF973DCEBA"), userId, isAdmin); // Gemini Agent ID
-        var javaAgent = await _agentFactory.CreateAgent(new Guid("25ACDA2A-413F-49B6-BBE3-CE1435885F3F"), userId, isAdmin); // Azure OpenAI Agent ID
-        
-        // Suppress MAAIW001 as CreateHandoffBuilderWith is marked for evaluation purposes
-        #pragma warning disable MAAIW001
-        var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(triageAgent)
-            .WithHandoffs(triageAgent, [csharpAgent, javaAgent])
-            .Build();
-        #pragma warning restore MAAIW001
-
-        var chatHistory = new List<ChatMessage>();
-        foreach (var msg in history.OrderBy(m => m.CreatedAt))
-        {
-            chatHistory.Add(new ChatMessage(msg.Role, msg.Content));
-        }
-
-        var prompt = BuildPromptAsync(promptRequest, []);
-
-        var userMessage = BuildUserMessage(promptRequest, prompt);
-
-        chatHistory.Add(userMessage);
-        StreamingRun run = await InProcessExecution.RunStreamingAsync(workflow, chatHistory);
-        await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
-        await foreach (WorkflowEvent evt in run.WatchStreamAsync().ConfigureAwait(false))
-        {
-            if (evt is WorkflowOutputEvent e)
-            {
-                yield return e.Data?.ToString() ?? string.Empty;
-            }
-        }
-        // TODO: Extract token usage from workflow run if possible
     }
 
     private static ChatMessage BuildUserMessage(PromptRequestForm promptRequest, string prompt)

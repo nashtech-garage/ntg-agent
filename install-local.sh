@@ -283,10 +283,8 @@ info "Writing AppHost user-secrets from .env."
 # --- Phase 5: local LightRAG stack (Postgres + nginx gateway) ----------------
 
 LIGHTRAG_ENV="$LIGHTRAG_COMPOSE_DIR/.env"
-if [[ ! -f "$LIGHTRAG_ENV" ]] || ! grep -q '^POSTGRES_PASSWORD=..*' "$LIGHTRAG_ENV"; then
-  info "Writing $LIGHTRAG_ENV (POSTGRES_PASSWORD must match lightrag-pg-password)."
-  printf 'POSTGRES_PASSWORD=%s\n' "$(env_get LIGHTRAG_PG_PASSWORD)" > "$LIGHTRAG_ENV"
-fi
+info "Synchronizing $LIGHTRAG_ENV (POSTGRES_PASSWORD must match lightrag-pg-password)."
+printf 'POSTGRES_PASSWORD=%s\n' "$(env_get LIGHTRAG_PG_PASSWORD)" > "$LIGHTRAG_ENV"
 
 info "Starting the local LightRAG stack (first build compiles Apache AGE — can take several minutes)."
 docker compose -f "$LIGHTRAG_COMPOSE_DIR/docker-compose.yml" up -d --build
