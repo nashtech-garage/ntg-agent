@@ -46,7 +46,7 @@ confirm_uninstall() {
 
   while true; do
     read -r -p "This will clear all local LightRAG, agent, SQL Server data, volumes, and .env files. Continue? (Y/N): " answer
-    case "${answer,,}" in
+    case "$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')" in
       y | yes) return ;;
       n | no) echo "Uninstallation cancelled."; exit 0 ;;
       *) echo "Please enter Y for Yes or N for No." >&2 ;;
