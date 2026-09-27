@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Tags;
@@ -12,6 +13,7 @@ using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Services;
 using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Common.Knowledge;
+using NTG.Agent.LightRag;
 using System.Security.Claims;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 
@@ -66,7 +68,9 @@ public class AgentAdminControllerAccessTests
             new AgentProvisioningSignal(),
             NullLogger<AgentAdminController>.Instance,
             new ModelDiscoveryService(Mock.Of<IHttpClientFactory>()),
-            Mock.Of<IThinkingSupportProbe>())
+            Mock.Of<IThinkingSupportProbe>(),
+            Mock.Of<ILightRagContainerManager>(),
+            Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {

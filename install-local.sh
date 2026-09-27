@@ -271,6 +271,7 @@ gen_if_empty() {
 gen_if_empty SA_PASSWORD "$(openssl rand -base64 24 | tr -d '\n\r=/+')Aa1!"
 gen_if_empty LIGHTRAG_PG_PASSWORD "$(openssl rand -base64 32 | tr -d '\n\r')"
 gen_if_empty LIGHTRAG_API_KEY "$(openssl rand -base64 48 | tr -d '\n\r')"
+gen_if_empty LIGHTRAG_WEBUI_GATEWAY_URL "http://localhost:8080"
 
 # --- Phase 4: AppHost user-secrets -------------------------------------------
 

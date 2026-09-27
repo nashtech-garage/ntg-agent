@@ -8,7 +8,8 @@ tunnel at runtime, so nothing has to be kept alive before the Orchestrator start
 | Channel | Endpoint | Transport |
 |---|---|---|
 | Docker daemon | `https://4.193.109.6:2376` | Mutual TLS — the daemon runs with `tlsverify` and admits only CA-signed client certificates |
-| nginx gateway | `https://4.193.109.6/agents/{agentId}/*` | TLS, gated by the `X-API-Key` header |
+| nginx gateway API | `https://4.193.109.6/agents/{agentId}/*` | TLS, gated by the `X-API-Key` header |
+| nginx gateway WebUI | `https://agent-{agentId}.lightrag.<your-domain>/webui/` | TLS, wildcard DNS, LightRAG login |
 | Postgres | `4.193.109.6:5432` | TLS when offered (`SSL Mode=Prefer`) |
 
 Server: `ntgagent@4.193.109.6` (has sudo; Docker already installed).
@@ -17,6 +18,14 @@ The gateway routes `/agents/{agentId}/*` to the `lightrag-agent-{agentId}` conta
 over the `ntg-agent-lightrag` Docker network — agent containers publish no host ports, so the
 gateway is the only inbound path to them. The Orchestrator attaches the gateway (and Postgres)
 to that network automatically at runtime.
+
+The WebUI uses a separate host-based route because LightRAG builds its frontend with absolute
+`/webui/` asset and API URLs. Create a wildcard DNS record such as
+`*.lightrag.example.com` pointing to the gateway and issue a TLS certificate covering that
+wildcard, then open
+`https://agent-{agentId}.lightrag.example.com/webui/`. The WebUI still requires the configured
+LightRAG API key at login. The agent container must be running; the gateway does not provision
+or restart containers.
 
 > **Server certificates are not validated by the client.** They are signed by a private CA
 > (`docker-ca`) whose root is deliberately not distributed, so there is no trust anchor to check
@@ -104,12 +113,18 @@ scp ntgagent@4.193.109.6:~/docker-certs/client.pfx ./client.pfx   # gitignored (
 | `lightrag-docker-cert-password` | the PFX password |
 | `lightrag-server-host` | `4.193.109.6` |
 | `lightrag-gateway-url` | `https://4.193.109.6` |
+| `lightrag-webui-gateway-url` | `https://lightrag.example.com` (the wildcard DNS/TLS base) |
 | `lightrag-postgres-port` | `5432` |
 | `lightrag-pg-password` | the same value as `POSTGRES_PASSWORD` above |
 
+For remote deployments, `lightrag-webui-gateway-url` is mandatory. It must be the base host
+covered by the wildcard DNS record and TLS certificate; do not derive it from the API gateway
+IP, because `agent-{id}.4.193.109.6` is not a valid substitute for the wildcard hostname.
+
 Leave every `lightrag-docker-*` / `lightrag-server-*` / `lightrag-gateway-*` value empty for a
 plain all-local dev run (local Docker socket + the `deploy/lightrag-local` compose stack, whose
-gateway serves plain HTTP on `http://localhost:8080` — the code's default `GatewayUrl`).
+gateway serves plain HTTP on `http://localhost:8080` — the code's default `GatewayUrl` and
+WebUI fallback).
 
 ## 6. Start the NTG-Agent as usual (on the main machine)
 
@@ -129,7 +144,9 @@ manual database cleanup is needed.
 - [ ] `curl -k https://127.0.0.1/gateway-health` → ok
 - [ ] NSG inbound rules for 2376, 443, 5432 — restricted to team IPs; 20000-20999 deleted
 - [ ] `client.pfx` copied down and the AppHost parameters set
+- [ ] `lightrag-webui-gateway-url` set to the wildcard DNS/TLS base
 - [ ] Orchestrator spawns a `lightrag-agent-*` on the VM, reachable via the gateway
+- [ ] Wildcard DNS for `*.lightrag.<your-domain>` points to the gateway
 
 ## Troubleshooting
 

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Orchestrator.Services;
@@ -11,6 +12,7 @@ using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
+using NTG.Agent.LightRag;
 using System.Security.Claims;
 using AgentModel = NTG.Agent.Orchestrator.Models.Agents.Agent;
 namespace NTG.Agent.Orchestrator.Tests.Controllers;
@@ -26,6 +28,7 @@ public class AgentAdminControllerTests
     private Mock<IKnowledgeProvisioner> _mockKnowledgeProvisioner;
     private Mock<IKnowledgeService> _mockKnowledgeService;
     private Mock<IThinkingSupportProbe> _mockThinkingProbe;
+    private Mock<ILightRagContainerManager> _mockLightRagContainerManager;
     private ModelDiscoveryService _modelDiscoveryService;
 
     [SetUp]
@@ -42,6 +45,7 @@ public class AgentAdminControllerTests
         _mockKnowledgeProvisioner = new();
         _mockKnowledgeService = new();
         _mockThinkingProbe = new();
+        _mockLightRagContainerManager = new();
         var httpClientFactoryMock = new Mock<IHttpClientFactory>();
         _modelDiscoveryService = new ModelDiscoveryService(httpClientFactoryMock.Object);
         // Mock the admin user principal
@@ -55,7 +59,7 @@ public class AgentAdminControllerTests
 
     // Builds a controller wired with the in-memory context and mocked dependencies.
     private AgentAdminController NewController(ClaimsPrincipal user) =>
-        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        new(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, _mockLightRagContainerManager.Object, Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {
@@ -72,13 +76,13 @@ public class AgentAdminControllerTests
     public void Constructor_WhenAgentDbContextIsNull_ThrowsArgumentNullException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object));
+        Assert.Throws<ArgumentNullException>(() => new AgentAdminController(null!, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings())));
     }
     [Test]
     public void Constructor_WhenValidParameters_CreatesInstance()
     {
         // Act
-        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object);
+        var controller = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()));
         // Assert
         Assert.That(controller, Is.Not.Null);
     }
@@ -104,6 +108,28 @@ public class AgentAdminControllerTests
             Assert.That(agentList[0].UpdatedByEmail, Is.EqualTo("updater@test.com"));
             Assert.That(agentList[1].Name, Is.EqualTo("Test Agent 2"));
         }
+    }
+
+    [Test]
+    public async Task OpenLightRagWebUi_WhenAgentExists_EnsuresContainerAndRedirectsToWebUi()
+    {
+        var agentId = await SeedSingleAgentData();
+
+        var result = await _controller.OpenLightRagWebUi(agentId);
+
+        var redirect = result as RedirectResult;
+        Assert.That(redirect, Is.Not.Null);
+        Assert.That(redirect!.Url, Is.EqualTo($"http://agent-{agentId:D}.localhost:8080/webui/"));
+        _mockLightRagContainerManager.Verify(manager => manager.EnsureContainerAsync(agentId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Test]
+    public async Task OpenLightRagWebUi_WhenAgentDoesNotExist_ReturnsNotFoundWithoutStartingContainer()
+    {
+        var result = await _controller.OpenLightRagWebUi(Guid.NewGuid());
+
+        Assert.That(result, Is.TypeOf<NotFoundResult>());
+        _mockLightRagContainerManager.Verify(manager => manager.EnsureContainerAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
     [Test]
     public async Task GetAgents_WhenNoAgentsExist_ReturnsOkWithEmptyList()
@@ -204,7 +230,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {
@@ -228,7 +254,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "User"), // Not Admin role
         ], "mock"));
-        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        var nonAdminController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {
@@ -523,7 +549,7 @@ public class AgentAdminControllerTests
     public async Task CreateAgent_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {
@@ -548,7 +574,7 @@ public class AgentAdminControllerTests
             new Claim(ClaimTypes.Role, "Admin"),
         ], "mock"));
 
-        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        var controllerWithSpecificUser = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {
@@ -735,7 +761,7 @@ public class AgentAdminControllerTests
     public async Task UpdateAgentPublishStatus_WhenUserIsNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
-        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object)
+        var unauthenticatedController = new AgentAdminController(_context, _mockAgentFactory.Object, _mockKnowledgeProvisioner.Object, _mockKnowledgeService.Object, new AgentProvisioningSignal(), NullLogger<AgentAdminController>.Instance, _modelDiscoveryService, _mockThinkingProbe.Object, Mock.Of<ILightRagContainerManager>(), Options.Create(new LightRagSettings()))
         {
             ControllerContext = new ControllerContext
             {

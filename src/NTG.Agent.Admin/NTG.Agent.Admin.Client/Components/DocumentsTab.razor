@@ -3,6 +3,7 @@
 @inject ILogger<DocumentsTab> Logger
 @inject DocumentClient DocumentClient
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 @implements IDisposable
 
 <div class="tab-pane fade show active">
@@ -11,9 +12,18 @@
         <div>
             <p class="text-muted mb-0">Manage documents and knowledge for this folder</p>
         </div>
-        <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">
-            <i class="bi bi-plus-circle me-2"></i>Add Knowledge
-        </button>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary"
+               href="@GetLightRagWebUiEndpoint()"
+               target="_blank"
+               rel="noopener noreferrer"
+               title="Open LightRAG WebUI in a new tab">
+                <i class="bi bi-box-arrow-up-right me-2"></i>Open LightRAG WebUI
+            </a>
+            <button class="btn btn-primary" @onclick="OpenAddKnowledgeDialog">
+                <i class="bi bi-plus-circle me-2"></i>Add Knowledge
+            </button>
+        </div>
     </div>
 
     <!-- Documents List -->
@@ -364,6 +374,9 @@
         await LoadDocuments();
         CloseAddKnowledgeDialog();
     }
+
+    private string GetLightRagWebUiEndpoint()
+        => $"{NavigationManager.BaseUri.TrimEnd('/')}/api/agentadmin/{AgentId}/lightrag-webui";
 
     private void RemoveDocument(DocumentListItem document)
     {

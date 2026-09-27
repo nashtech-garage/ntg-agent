@@ -61,6 +61,12 @@ public class LightRagSettings
     // empty/whitespace => the local gateway ("http://localhost:8080", deploy/lightrag-local).
     public string GatewayUrl { get; set; } = string.Empty;
 
+    // Browser-facing base host for the WebUI gateway route. The agent ID is inserted as a
+    // subdomain, for example https://agent-{agentId}.lightrag.example.com/webui/. Empty
+    // is valid only for a loopback GatewayUrl; remote deployments must configure the
+    // wildcard-DNS base explicitly.
+    public string WebUiGatewayUrl { get; set; } = string.Empty;
+
     // Fallback Postgres host when PostgresHost is not set. The server's public
     // address, e.g. "4.193.109.6".
     public string ServerHost { get; set; } = "localhost";
@@ -72,6 +78,34 @@ public class LightRagSettings
 
     internal string ResolveGatewayUrl()
         => (string.IsNullOrWhiteSpace(GatewayUrl) ? "http://localhost:8080" : GatewayUrl).TrimEnd('/');
+
+    public string ResolveWebUiUrl(Guid agentId)
+    {
+        var hasDedicatedWebUiGateway = !string.IsNullOrWhiteSpace(WebUiGatewayUrl);
+        var gatewayUrl = hasDedicatedWebUiGateway
+            ? WebUiGatewayUrl.TrimEnd('/')
+            : ResolveGatewayUrl();
+
+        if (!Uri.TryCreate(gatewayUrl, UriKind.Absolute, out var gatewayUri))
+            throw new InvalidOperationException($"LightRag:WebUiGatewayUrl '{gatewayUrl}' is not a valid absolute URL.");
+
+        if (!hasDedicatedWebUiGateway && !gatewayUri.IsLoopback)
+        {
+            throw new InvalidOperationException(
+                "LightRag:WebUiGatewayUrl is required when LightRag:GatewayUrl points to a remote gateway. " +
+                "Configure the wildcard WebUI base URL, for example https://lightrag.example.com.");
+        }
+
+        var webUiUri = new UriBuilder(gatewayUri)
+        {
+            Host = $"agent-{agentId:D}.{gatewayUri.Host}",
+            Path = "/webui/",
+            Query = string.Empty,
+            Fragment = string.Empty
+        };
+
+        return webUiUri.Uri.AbsoluteUri;
+    }
 
     // Direct Postgres connection used by ResetVectorSchemaAsync and the port-reservation
     // ledger. Empty PostgresHost => fall back to ServerHost.
