@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Remove the local LightRAG stack and the local Aspire SQL Server data.
-# Configuration files and Docker images are intentionally preserved.
+# Runtime .env files are removed; Docker images and .env.example files are intentionally preserved.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
