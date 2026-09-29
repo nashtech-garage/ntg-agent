@@ -7,13 +7,23 @@ var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
-// One Azure OpenAI resource serves LightRAG's LLM and embedding bindings (one endpoint,
-// one key); the two model values are that resource's deployment names. The Default
-// Agent seeder reuses the LLM trio.
-var lightragAzureOpenAiEndpoint = builder.AddParameter("lightrag-azure-openai-endpoint", secret: true);
+// LightRAG's global LLM and embedding bindings are selected independently during setup.
+var lightragLlmBinding = builder.AddParameter("lightrag-llm-binding", secret: true);
+var lightragLlmEndpoint = builder.AddParameter("lightrag-llm-endpoint", secret: true);
+var lightragLlmApiKey = builder.AddParameter("lightrag-llm-api-key", secret: true);
 var lightragLlmModel = builder.AddParameter("lightrag-llm-model", secret: true);
+var lightragEmbeddingBinding = builder.AddParameter("lightrag-embedding-binding", secret: true);
+var lightragEmbeddingEndpoint = builder.AddParameter("lightrag-embedding-endpoint", secret: true);
 var lightragEmbeddingModel = builder.AddParameter("lightrag-embedding-model", secret: true);
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
+var lightragAzureApiVersion = builder.AddParameter("lightrag-azure-api-version", secret: true);
+var lightragAzureEmbeddingApiVersion = builder.AddParameter("lightrag-azure-embedding-api-version", secret: true);
+var lightragAwsRegion = builder.AddParameter("lightrag-aws-region", secret: true);
+var lightragAwsBearerToken = builder.AddParameter("lightrag-aws-bearer-token-bedrock", secret: true);
+var lightragAwsAccessKeyId = builder.AddParameter("lightrag-aws-access-key-id", secret: true);
+var lightragAwsSecretAccessKey = builder.AddParameter("lightrag-aws-secret-access-key", secret: true);
+var lightragAwsSessionToken = builder.AddParameter("lightrag-aws-session-token", secret: true);
+var lightragOllamaLlmNumCtx = builder.AddParameter("lightrag-ollama-llm-num-ctx", secret: true);
 
 // LightRAG + its Postgres live on a dedicated Ubuntu server reached directly over TLS.
 // All default to empty = plain local run (local Docker socket, localhost:5432); set them
@@ -96,13 +106,22 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__GatewayUrl", lightragGatewayUrl)
 	.WithEnvironment("LightRag__WebUiGatewayUrl", lightragWebUiGatewayUrl)
 	.WithEnvironment("LightRag__PostgresPort", lightragPostgresPort)
+	.WithEnvironment("LightRag__LlmBinding", lightragLlmBinding)
 	.WithEnvironment("LightRag__LlmModel", lightragLlmModel)
-	.WithEnvironment("LightRag__LlmEndpoint", lightragAzureOpenAiEndpoint)
-	.WithEnvironment("LightRag__LlmApiKey", lightragEmbeddingApiKey)
+	.WithEnvironment("LightRag__LlmEndpoint", lightragLlmEndpoint)
+	.WithEnvironment("LightRag__LlmApiKey", lightragLlmApiKey)
+	.WithEnvironment("LightRag__EmbeddingBinding", lightragEmbeddingBinding)
 	.WithEnvironment("LightRag__EmbeddingModel", lightragEmbeddingModel)
-	.WithEnvironment("LightRag__EmbeddingEndpoint", lightragAzureOpenAiEndpoint)
+	.WithEnvironment("LightRag__EmbeddingEndpoint", lightragEmbeddingEndpoint)
 	.WithEnvironment("LightRag__EmbeddingApiKey", lightragEmbeddingApiKey)
-	.WithEnvironment("LightRag__AzureApiVersion", "2024-08-01-preview")
+	.WithEnvironment("LightRag__AzureApiVersion", lightragAzureApiVersion)
+	.WithEnvironment("LightRag__AzureEmbeddingApiVersion", lightragAzureEmbeddingApiVersion)
+	.WithEnvironment("LightRag__AwsRegion", lightragAwsRegion)
+	.WithEnvironment("LightRag__AwsBearerTokenBedrock", lightragAwsBearerToken)
+	.WithEnvironment("LightRag__AwsAccessKeyId", lightragAwsAccessKeyId)
+	.WithEnvironment("LightRag__AwsSecretAccessKey", lightragAwsSecretAccessKey)
+	.WithEnvironment("LightRag__AwsSessionToken", lightragAwsSessionToken)
+	.WithEnvironment("LightRag__OllamaLlmNumCtx", lightragOllamaLlmNumCtx)
 	.WithEnvironment("LightRag__EmbeddingDim", "1536")
 	.WithEnvironment("LightRag__ChunkSize", "1500")
 	.WithEnvironment("LightRag__ChunkOverlap", "100")

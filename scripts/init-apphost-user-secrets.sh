@@ -58,8 +58,11 @@ Sets NTG.Agent.AppHost user secrets. Per value:
 Env/.env keys: SA_PASSWORD,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
-LIGHTRAG_AZURE_OPENAI_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
-LIGHTRAG_LLM_MODEL, LIGHTRAG_EMBEDDING_MODEL,
+LIGHTRAG_LLM_BINDING, LIGHTRAG_LLM_ENDPOINT, LIGHTRAG_LLM_API_KEY, LIGHTRAG_LLM_MODEL,
+LIGHTRAG_EMBEDDING_BINDING, LIGHTRAG_EMBEDDING_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
+LIGHTRAG_EMBEDDING_MODEL, LIGHTRAG_AZURE_API_VERSION, LIGHTRAG_AZURE_EMBEDDING_API_VERSION,
+LIGHTRAG_AWS_REGION, LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK, LIGHTRAG_AWS_ACCESS_KEY_ID,
+LIGHTRAG_AWS_SECRET_ACCESS_KEY, LIGHTRAG_AWS_SESSION_TOKEN, LIGHTRAG_OLLAMA_LLM_NUM_CTX,
 LIGHTRAG_DOCKER_HOST, LIGHTRAG_DOCKER_CERT_PATH, LIGHTRAG_DOCKER_CERT_PASSWORD,
 LIGHTRAG_SERVER_HOST, LIGHTRAG_GATEWAY_URL, LIGHTRAG_WEBUI_GATEWAY_URL,
 LIGHTRAG_POSTGRES_PORT.
@@ -243,45 +246,74 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
   fi
 fi
 
-# One Azure OpenAI resource serves LightRAG's LLM + embedding bindings and the seeded
-# Default Agent: one endpoint, one key, two deployment names.
-resolve_field LIGHTRAG_AZURE_OPENAI_ENDPOINT \
-  "Azure OpenAI endpoint (https://<resource>.openai.azure.com/) [Enter for .env]: " \
-  0 \
-  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
-  "LIGHTRAG_AZURE_OPENAI_ENDPOINT" \
-  "__EMPTY__"
+# LightRAG lets the global LLM and embedding provider be selected independently.
+choose_binding() {
+  local key="$1" prompt="$2" current selected
+  current="${!key:-$(env_get "$key")}"
+  if [[ -t 0 ]]; then
+    read -r -p "$prompt [${current:-openai}]: " selected || true
+    selected="${selected:-${current:-openai}}"
+  else
+    selected="${current:-openai}"
+  fi
+  selected="${selected,,}"
+  case "$selected" in
+    openai|azure_openai|ollama|gemini|bedrock|lollms) ;;
+    *) echo "error: $key must be one of openai, azure_openai, ollama, gemini, bedrock, lollms." >&2; exit 1 ;;
+  esac
+  printf -v "$key" '%s' "$selected"
+  env_set "$key" "$selected"
+}
 
-if [[ -z "$LIGHTRAG_AZURE_OPENAI_ENDPOINT" ]]; then
-  echo "error: LIGHTRAG_AZURE_OPENAI_ENDPOINT is required (prompt, .env LIGHTRAG_AZURE_OPENAI_ENDPOINT, or export LIGHTRAG_AZURE_OPENAI_ENDPOINT)" >&2
+choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
+choose_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
+if [[ "$LIGHTRAG_EMBEDDING_BINDING" == gemini ]]; then
+  echo "error: the current LightRAG EMBEDDING_BINDING contract does not support gemini; choose openai, azure_openai, ollama, bedrock, or lollms for embeddings." >&2
   exit 1
 fi
 
-resolve_field LIGHTRAG_EMBEDDING_API_KEY \
-  "Azure OpenAI API key (LightRAG LLM + embeddings) [Enter for .env]: " \
-  1 \
-  "LIGHTRAG_EMBEDDING_API_KEY" \
-  "LIGHTRAG_EMBEDDING_API_KEY" \
-  "__EMPTY__"
+provider_value() {
+  local binding="$1" role="$2" key model_default endpoint_default
+  if [[ "$role" == llm ]]; then key=LIGHTRAG_LLM_API_KEY; model_default=gpt-5.1; endpoint_default=https://api.openai.com/v1
+  else key=LIGHTRAG_EMBEDDING_API_KEY; model_default=text-embedding-3-large; endpoint_default=https://api.openai.com/v1; fi
+  case "$binding" in
+    azure_openai) endpoint_default=https://resource.openai.azure.com/ ;;
+    ollama) endpoint_default=http://localhost:11434; [[ "$role" == llm ]] && model_default=qwen3.5:9b || model_default=nomic-embed-text ;;
+    gemini) endpoint_default=DEFAULT_GEMINI_ENDPOINT; [[ "$role" == llm ]] && model_default=gemini-flash-latest || model_default=gemini-embedding-001 ;;
+    bedrock) endpoint_default=DEFAULT_BEDROCK_ENDPOINT; [[ "$role" == llm ]] && model_default=us.amazon.nova-lite-v1:0 || model_default=amazon.titan-embed-text-v2:0 ;;
+    lollms) endpoint_default=http://localhost:9600 ;;
+  esac
+  local endpoint_key model_key
+  [[ "$role" == llm ]] && endpoint_key=LIGHTRAG_LLM_ENDPOINT || endpoint_key=LIGHTRAG_EMBEDDING_ENDPOINT
+  [[ "$role" == llm ]] && model_key=LIGHTRAG_LLM_MODEL || model_key=LIGHTRAG_EMBEDDING_MODEL
+  resolve_field "$endpoint_key" "$role provider endpoint [Enter for $endpoint_default]: " 0 "$endpoint_key" "$endpoint_key" "$endpoint_default"
+  resolve_field "$model_key" "$role model/deployment [Enter for $model_default]: " 0 "$model_key" "$model_key" "$model_default"
+  if [[ "$binding" == openai || "$binding" == azure_openai || "$binding" == gemini ]]; then
+    resolve_field "$key" "$role provider API key: " 1 "$key" "$key" "__EMPTY__"
+    [[ -n "${!key}" ]] || { echo "error: $key is required for $binding." >&2; exit 1; }
+  else
+    resolve_field "$key" "$role provider API key [Enter to use ambient credentials]: " 1 "$key" "$key" "__EMPTY__"
+  fi
+}
 
-if [[ -z "$LIGHTRAG_EMBEDDING_API_KEY" ]]; then
-  echo "error: LIGHTRAG_EMBEDDING_API_KEY is required (prompt, .env LIGHTRAG_EMBEDDING_API_KEY, or export LIGHTRAG_EMBEDDING_API_KEY)" >&2
-  exit 1
+provider_value "$LIGHTRAG_LLM_BINDING" llm
+provider_value "$LIGHTRAG_EMBEDDING_BINDING" embedding
+
+resolve_field LIGHTRAG_AZURE_API_VERSION "Azure LLM API version [Enter for 2024-08-01-preview]: " 0 "LIGHTRAG_AZURE_API_VERSION" "LIGHTRAG_AZURE_API_VERSION" "2024-08-01-preview"
+resolve_field LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version [Enter for 2024-08-01-preview]: " 0 "LIGHTRAG_AZURE_EMBEDDING_API_VERSION" "LIGHTRAG_AZURE_EMBEDDING_API_VERSION" "2024-08-01-preview"
+resolve_field LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window [Enter for 32768]: " 0 "LIGHTRAG_OLLAMA_LLM_NUM_CTX" "LIGHTRAG_OLLAMA_LLM_NUM_CTX" "32768"
+
+if [[ "$LIGHTRAG_LLM_BINDING" == bedrock || "$LIGHTRAG_EMBEDDING_BINDING" == bedrock ]]; then
+  resolve_field LIGHTRAG_AWS_REGION "AWS region for Bedrock: " 0 "LIGHTRAG_AWS_REGION" "LIGHTRAG_AWS_REGION" "__EMPTY__"
+  [[ -n "$LIGHTRAG_AWS_REGION" ]] || { echo "error: LIGHTRAG_AWS_REGION is required for bedrock." >&2; exit 1; }
+  resolve_field LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK "AWS Bedrock bearer token [Enter to use IAM credentials]: " 1 "LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK" "LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK" "__EMPTY__"
+  resolve_field LIGHTRAG_AWS_ACCESS_KEY_ID "AWS access key ID [Enter to use ambient credentials]: " 0 "LIGHTRAG_AWS_ACCESS_KEY_ID" "LIGHTRAG_AWS_ACCESS_KEY_ID" "__EMPTY__"
+  resolve_field LIGHTRAG_AWS_SECRET_ACCESS_KEY "AWS secret access key [Enter to use ambient credentials]: " 1 "LIGHTRAG_AWS_SECRET_ACCESS_KEY" "LIGHTRAG_AWS_SECRET_ACCESS_KEY" "__EMPTY__"
+  resolve_field LIGHTRAG_AWS_SESSION_TOKEN "AWS session token [Enter if not using temporary credentials]: " 1 "LIGHTRAG_AWS_SESSION_TOKEN" "LIGHTRAG_AWS_SESSION_TOKEN" "__EMPTY__"
+  if [[ -z "$LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK" && ( -z "$LIGHTRAG_AWS_ACCESS_KEY_ID" || -z "$LIGHTRAG_AWS_SECRET_ACCESS_KEY" ) ]]; then
+    echo "error: configure an AWS Bedrock bearer token or both access and secret keys." >&2; exit 1
+  fi
 fi
-
-resolve_field LIGHTRAG_LLM_MODEL \
-  "Azure OpenAI chat deployment name [Enter for gpt-5.1]: " \
-  0 \
-  "LIGHTRAG_LLM_MODEL" \
-  "LIGHTRAG_LLM_MODEL" \
-  "gpt-5.1"
-
-resolve_field LIGHTRAG_EMBEDDING_MODEL \
-  "Azure OpenAI embedding deployment name [Enter for text-embedding-3-large]: " \
-  0 \
-  "LIGHTRAG_EMBEDDING_MODEL" \
-  "LIGHTRAG_EMBEDDING_MODEL" \
-  "text-embedding-3-large"
 
 # --- Remote LightRAG server (TLS) -------------------------------------------------
 # All optional: leave every value empty for a plain all-local run against the local
@@ -366,10 +398,22 @@ set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
-set_secret "Parameters:lightrag-azure-openai-endpoint" "$LIGHTRAG_AZURE_OPENAI_ENDPOINT"
+set_secret "Parameters:lightrag-llm-binding" "$LIGHTRAG_LLM_BINDING"
+set_secret "Parameters:lightrag-llm-endpoint" "$LIGHTRAG_LLM_ENDPOINT"
+set_secret "Parameters:lightrag-llm-api-key" "$LIGHTRAG_LLM_API_KEY"
 set_secret "Parameters:lightrag-embedding-api-key" "$LIGHTRAG_EMBEDDING_API_KEY"
 set_secret "Parameters:lightrag-llm-model" "$LIGHTRAG_LLM_MODEL"
+set_secret "Parameters:lightrag-embedding-binding" "$LIGHTRAG_EMBEDDING_BINDING"
+set_secret "Parameters:lightrag-embedding-endpoint" "$LIGHTRAG_EMBEDDING_ENDPOINT"
 set_secret "Parameters:lightrag-embedding-model" "$LIGHTRAG_EMBEDDING_MODEL"
+set_secret "Parameters:lightrag-azure-api-version" "$LIGHTRAG_AZURE_API_VERSION"
+set_secret "Parameters:lightrag-azure-embedding-api-version" "$LIGHTRAG_AZURE_EMBEDDING_API_VERSION"
+set_secret "Parameters:lightrag-aws-region" "$LIGHTRAG_AWS_REGION"
+set_secret "Parameters:lightrag-aws-bearer-token-bedrock" "$LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK"
+set_secret "Parameters:lightrag-aws-access-key-id" "$LIGHTRAG_AWS_ACCESS_KEY_ID"
+set_secret "Parameters:lightrag-aws-secret-access-key" "$LIGHTRAG_AWS_SECRET_ACCESS_KEY"
+set_secret "Parameters:lightrag-aws-session-token" "$LIGHTRAG_AWS_SESSION_TOKEN"
+set_secret "Parameters:lightrag-ollama-llm-num-ctx" "$LIGHTRAG_OLLAMA_LLM_NUM_CTX"
 set_secret "Parameters:lightrag-docker-host" "$LIGHTRAG_DOCKER_HOST"
 set_secret "Parameters:lightrag-docker-cert-path" "$LIGHTRAG_DOCKER_CERT_PATH"
 set_secret "Parameters:lightrag-docker-cert-password" "$LIGHTRAG_DOCKER_CERT_PASSWORD"
