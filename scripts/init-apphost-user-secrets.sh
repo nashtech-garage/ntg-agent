@@ -58,6 +58,7 @@ Sets NTG.Agent.AppHost user secrets. Per value:
 Env/.env keys: SA_PASSWORD,
 GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID,
 LIGHTRAG_PG_PASSWORD, LIGHTRAG_API_KEY,
+LIGHTRAG_IMAGE_TAG,
 LIGHTRAG_LLM_BINDING, LIGHTRAG_LLM_ENDPOINT, LIGHTRAG_LLM_API_KEY, LIGHTRAG_LLM_MODEL,
 LIGHTRAG_EMBEDDING_BINDING, LIGHTRAG_EMBEDDING_ENDPOINT, LIGHTRAG_EMBEDDING_API_KEY,
 LIGHTRAG_EMBEDDING_MODEL, LIGHTRAG_AZURE_API_VERSION, LIGHTRAG_AZURE_EMBEDDING_API_VERSION,
@@ -246,6 +247,13 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
   fi
 fi
 
+# The image tag is configuration-only: keep installation non-interactive for this value.
+LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-}"
+if [[ -z "$LIGHTRAG_IMAGE_TAG" ]]; then
+  LIGHTRAG_IMAGE_TAG="$(read_dotenv_value LIGHTRAG_IMAGE_TAG "$ENV_FILE" 2>/dev/null || true)"
+fi
+LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-v1.4.16}"
+
 # LightRAG lets the global LLM and embedding provider be selected independently.
 # Initialize optional provider values because this script runs with `set -u` and
 # non-selected providers do not pass through resolve_field below.
@@ -409,6 +417,7 @@ set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
 set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+set_secret "Parameters:lightrag-image-tag" "$LIGHTRAG_IMAGE_TAG"
 set_secret "Parameters:lightrag-llm-binding" "$LIGHTRAG_LLM_BINDING"
 set_secret "Parameters:lightrag-llm-endpoint" "$LIGHTRAG_LLM_ENDPOINT"
 set_secret "Parameters:lightrag-llm-api-key" "$LIGHTRAG_LLM_API_KEY"

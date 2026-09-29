@@ -7,6 +7,7 @@ var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
 var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
+var lightragImageTag = builder.AddParameter("lightrag-image-tag", secret: false);
 // LightRAG's global LLM and embedding bindings are selected independently during setup.
 var lightragLlmBinding = builder.AddParameter("lightrag-llm-binding", secret: true);
 var lightragLlmEndpoint = builder.AddParameter("lightrag-llm-endpoint", secret: true);
@@ -90,7 +91,7 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	// env — the Orchestrator now applies them to each spawned lightrag-agent-{id}.
 	.WithEnvironment("LightRag__ApiKey", lightragApiKey)
 	.WithEnvironment("LightRag__ImageRef", "ghcr.io/hkuds/lightrag")
-	.WithEnvironment("LightRag__ImageTag", "v1.4.16")
+	.WithEnvironment("LightRag__ImageTag", lightragImageTag)
 	.WithEnvironment("LightRag__PostgresHostAlias", "lightrag-postgres")
 	.WithEnvironment("LightRag__PostgresPassword", pgPassword)
 	.WithEnvironment("LightRag__PostgresDatabase", "uploaded-documents")
