@@ -249,7 +249,10 @@ fi
 # LightRAG lets the global LLM and embedding provider be selected independently.
 choose_binding() {
   local key="$1" prompt="$2" current selected
-  current="${!key:-$(env_get "$key")}"
+  current="${!key:-}"
+  if [[ -z "$current" ]]; then
+    current="$(read_dotenv_value "$key" "$ENV_FILE" 2>/dev/null || true)"
+  fi
   if [[ -t 0 ]]; then
     read -r -p "$prompt [${current:-openai}]: " selected || true
     selected="${selected:-${current:-openai}}"
@@ -262,7 +265,6 @@ choose_binding() {
     *) echo "error: $key must be one of openai, ollama, lollms, azure_openai, bedrock, or gemini." >&2; exit 1 ;;
   esac
   printf -v "$key" '%s' "$selected"
-  env_set "$key" "$selected"
 }
 
 choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
