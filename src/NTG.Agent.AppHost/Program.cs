@@ -18,11 +18,11 @@ var lightragEmbeddingModel = builder.AddParameter("lightrag-embedding-model", se
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 var lightragAzureApiVersion = builder.AddParameter("lightrag-azure-api-version", secret: true);
 var lightragAzureEmbeddingApiVersion = builder.AddParameter("lightrag-azure-embedding-api-version", secret: true);
-var lightragAwsRegion = builder.AddParameter("lightrag-aws-region", secret: true);
-var lightragAwsBearerToken = builder.AddParameter("lightrag-aws-bearer-token-bedrock", secret: true);
-var lightragAwsAccessKeyId = builder.AddParameter("lightrag-aws-access-key-id", secret: true);
-var lightragAwsSecretAccessKey = builder.AddParameter("lightrag-aws-secret-access-key", secret: true);
-var lightragAwsSessionToken = builder.AddParameter("lightrag-aws-session-token", secret: true);
+var lightragAwsRegion = builder.AddParameter("lightrag-aws-region", secret: true, value: "");
+var lightragAwsBearerToken = builder.AddParameter("lightrag-aws-bearer-token-bedrock", secret: true, value: "");
+var lightragAwsAccessKeyId = builder.AddParameter("lightrag-aws-access-key-id", secret: true, value: "");
+var lightragAwsSecretAccessKey = builder.AddParameter("lightrag-aws-secret-access-key", secret: true, value: "");
+var lightragAwsSessionToken = builder.AddParameter("lightrag-aws-session-token", secret: true, value: "");
 var lightragOllamaLlmNumCtx = builder.AddParameter("lightrag-ollama-llm-num-ctx", secret: true);
 
 // LightRAG + its Postgres live on a dedicated Ubuntu server reached directly over TLS.
