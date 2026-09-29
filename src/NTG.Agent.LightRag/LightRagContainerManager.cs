@@ -356,7 +356,7 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         "LIGHTRAG_GRAPH_STORAGE=PGGraphStorage",
         "LIGHTRAG_DOC_STATUS_STORAGE=PGDocStatusStorage",
         $"POSTGRES_HOST={_settings.PostgresHostAlias}",
-        "POSTGRES_PORT=5432",
+        $"POSTGRES_PORT={_settings.PostgresPort}",
         "POSTGRES_USER=postgres",
         $"POSTGRES_PASSWORD={_settings.PostgresPassword}",
         $"POSTGRES_DATABASE={_settings.PostgresDatabase}",

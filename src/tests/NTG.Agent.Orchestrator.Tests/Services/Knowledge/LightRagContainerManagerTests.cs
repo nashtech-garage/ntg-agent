@@ -131,6 +131,7 @@ public class LightRagContainerManagerTests
 		{
 			LlmBinding = "ollama",
 			EmbeddingBinding = "bedrock",
+			PostgresPort = 55432,
 			AwsRegion = "us-east-1",
 			AwsBearerTokenBedrock = "bedrock-token",
 			OllamaLlmNumCtx = "16384"
@@ -143,6 +144,7 @@ public class LightRagContainerManagerTests
 			It.Is<CreateContainerParameters>(p =>
 				p.Env.Contains("LLM_BINDING=ollama")
 				&& p.Env.Contains("EMBEDDING_BINDING=bedrock")
+				&& p.Env.Contains("POSTGRES_PORT=55432")
 				&& p.Env.Contains("AWS_REGION=us-east-1")
 				&& p.Env.Contains("AWS_BEARER_TOKEN_BEDROCK=bedrock-token")
 				&& p.Env.Contains("OLLAMA_LLM_NUM_CTX=16384")),

@@ -7,9 +7,9 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.2.0" />
-		<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" Version="1.72.0-alpha" />
-		<PackageReference Include="System.Memory.Data" Version="10.0.5" />
+		<PackageReference Include="ModelContextProtocol.AspNetCore" />
+		<PackageReference Include="Microsoft.SemanticKernel.Plugins.Web" />
+		<PackageReference Include="System.Memory.Data" />
 	</ItemGroup>
 
 	<ItemGroup>
