@@ -229,11 +229,16 @@ env_set() {
   fi
 }
 
+FIRST_RUN=0
 if [[ ! -f "$ENV_FILE" ]]; then
   info "Creating .env from .env.example."
   cp .env.example "$ENV_FILE"
+  FIRST_RUN=1
 else
   info ".env already exists; filling only missing values."
+  # An interrupted first run has no completion marker, so do not silently treat
+  # the template's openai defaults as the user's provider choice on retry.
+  [[ "$(env_get LIGHTRAG_SETUP_COMPLETE)" == true ]] || FIRST_RUN=1
 fi
 
 prompt_value() {
@@ -256,7 +261,7 @@ prompt_value() {
 prompt_default() {
   local key="$1" prompt="$2" default="$3" val
   val="$(env_get "$key")"
-  if [[ -z "$val" && -t 0 ]]; then read -r -p "$prompt [$default]: " val; fi
+  if [[ ( "$FIRST_RUN" == 1 || -z "$val" ) && -t 0 ]]; then read -r -p "$prompt [$default]: " val; fi
   env_set "$key" "${val:-$default}"
 }
 
@@ -272,14 +277,14 @@ prompt_optional() {
 prompt_binding() {
   local key="$1" prompt="$2" binding
   binding="$(env_get "$key")"
-  if [[ -z "$binding" && -t 0 ]]; then read -r -p "$prompt [openai]: " binding; fi
+  if [[ ( "$FIRST_RUN" == 1 || -z "$binding" ) && -t 0 ]]; then read -r -p "$prompt [openai]: " binding; fi
   binding="${binding:-openai}"; binding="${binding,,}"
   case "$binding" in openai|azure_openai|ollama|gemini|bedrock|lollms) ;; *) echo "error: unsupported LightRAG provider '$binding'." >&2; exit 1 ;; esac
   env_set "$key" "$binding"
 }
 
-prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
-prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
+prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (OpenAI, Azure OpenAI, Ollama, Gemini, Bedrock, lollms)"
+prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (OpenAI, Azure OpenAI, Ollama, Bedrock, lollms)"
 [[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" != gemini ]] || { echo "error: LightRAG does not support gemini as EMBEDDING_BINDING." >&2; exit 1; }
 
 configure_provider() {
@@ -295,14 +300,20 @@ configure_provider() {
   prompt_default "${prefix}_ENDPOINT" "$role provider endpoint" "$endpoint_default"
   prompt_default "${prefix}_MODEL" "$role model/deployment" "$model_default"
   api_key="${prefix}_API_KEY"
-  if [[ "$binding" == openai || "$binding" == azure_openai || "$binding" == gemini ]]; then prompt_value "$api_key" "$role provider API key" secret; fi
+  if [[ "$binding" == openai || "$binding" == azure_openai || "$binding" == gemini ]]; then prompt_value "$api_key" "$role provider API key (required for $binding)" secret; fi
 }
 
 configure_provider LIGHTRAG_LLM "$(env_get LIGHTRAG_LLM_BINDING)" llm
 configure_provider LIGHTRAG_EMBEDDING "$(env_get LIGHTRAG_EMBEDDING_BINDING)" embedding
-prompt_default LIGHTRAG_AZURE_API_VERSION "Azure LLM API version" "2024-08-01-preview"
-prompt_default LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version" "2024-08-01-preview"
-prompt_default LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window" "32768"
+if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == azure_openai ]]; then
+  prompt_default LIGHTRAG_AZURE_API_VERSION "Azure LLM API version" "2024-08-01-preview"
+fi
+if [[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" == azure_openai ]]; then
+  prompt_default LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version" "2024-08-01-preview"
+fi
+if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == ollama ]]; then
+  prompt_default LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window" "32768"
+fi
 
 if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == bedrock || "$(env_get LIGHTRAG_EMBEDDING_BINDING)" == bedrock ]]; then
   prompt_value LIGHTRAG_AWS_REGION "AWS region for Bedrock"
@@ -374,6 +385,7 @@ if ! curl -fs http://localhost:8080/gateway-health >/dev/null 2>&1; then
   exit 1
 fi
 info "LightRAG stack is up (Postgres 127.0.0.1:5432, gateway 127.0.0.1:8080)."
+env_set LIGHTRAG_SETUP_COMPLETE true
 
 # --- Phase 6: launch ----------------------------------------------------------
 
