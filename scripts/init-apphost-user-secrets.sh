@@ -259,14 +259,14 @@ choose_binding() {
   selected="${selected,,}"
   case "$selected" in
     openai|azure_openai|ollama|gemini|bedrock|lollms) ;;
-    *) echo "error: $key must be one of openai, azure_openai, ollama, gemini, bedrock, lollms." >&2; exit 1 ;;
+    *) echo "error: $key must be one of openai, ollama, lollms, azure_openai, bedrock, or gemini." >&2; exit 1 ;;
   esac
   printf -v "$key" '%s' "$selected"
   env_set "$key" "$selected"
 }
 
-choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
-choose_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, azure_openai, ollama, gemini, bedrock, lollms)"
+choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
+choose_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
 if [[ "$LIGHTRAG_EMBEDDING_BINDING" == gemini ]]; then
   echo "error: the current LightRAG EMBEDDING_BINDING contract does not support gemini; choose openai, azure_openai, ollama, bedrock, or lollms for embeddings." >&2
   exit 1

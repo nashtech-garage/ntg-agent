@@ -279,12 +279,12 @@ prompt_binding() {
   binding="$(env_get "$key")"
   if [[ ( "$FIRST_RUN" == 1 || -z "$binding" ) && -t 0 ]]; then read -r -p "$prompt [openai]: " binding; fi
   binding="${binding:-openai}"; binding="${binding,,}"
-  case "$binding" in openai|azure_openai|ollama|gemini|bedrock|lollms) ;; *) echo "error: unsupported LightRAG provider '$binding'." >&2; exit 1 ;; esac
+  case "$binding" in openai|ollama|lollms|azure_openai|bedrock|gemini) ;; *) echo "error: provider must be one of openai, ollama, lollms, azure_openai, bedrock, or gemini." >&2; exit 1 ;; esac
   env_set "$key" "$binding"
 }
 
-prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (OpenAI, Azure OpenAI, Ollama, Gemini, Bedrock, lollms)"
-prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (OpenAI, Azure OpenAI, Ollama, Bedrock, lollms)"
+prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
+prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
 [[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" != gemini ]] || { echo "error: LightRAG does not support gemini as EMBEDDING_BINDING." >&2; exit 1; }
 
 configure_provider() {

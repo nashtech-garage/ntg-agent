@@ -80,7 +80,7 @@ The Default Agent's provider is configured automatically on first startup from t
 
 ### LightRAG provider configuration
 
-The installer follows LightRAG's `LLM_BINDING` and `EMBEDDING_BINDING` environment contract. The global LLM supports `openai`, `azure_openai`, `ollama`, `gemini`, `bedrock`, and `lollms`. The current LightRAG embedding contract supports `openai`, `azure_openai`, `ollama`, `bedrock`, and `lollms`; Gemini embedding is rejected by the installer because LightRAG does not advertise `gemini` as an embedding binding.
+The installer follows LightRAG's `LLM_BINDING` and `EMBEDDING_BINDING` environment contract. The global LLM supports `openai`, `ollama`, `lollms`, `azure_openai`, `bedrock`, and `gemini`. The current LightRAG embedding contract supports `openai`, `ollama`, `lollms`, `azure_openai`, and `bedrock`; Gemini embedding is rejected by the installer because LightRAG does not advertise `gemini` as an embedding binding. The default for both selections is `openai` when left blank.
 
 The main values are stored in `.env` and copied into AppHost user-secrets:
 
