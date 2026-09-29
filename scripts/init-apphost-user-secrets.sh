@@ -247,6 +247,15 @@ if [[ -z "$LIGHTRAG_API_KEY" ]]; then
 fi
 
 # LightRAG lets the global LLM and embedding provider be selected independently.
+# Initialize optional provider values because this script runs with `set -u` and
+# non-selected providers do not pass through resolve_field below.
+LIGHTRAG_AWS_REGION=""
+LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK=""
+LIGHTRAG_AWS_ACCESS_KEY_ID=""
+LIGHTRAG_AWS_SECRET_ACCESS_KEY=""
+LIGHTRAG_AWS_SESSION_TOKEN=""
+LIGHTRAG_OLLAMA_LLM_NUM_CTX=""
+
 choose_binding() {
   local key="$1" prompt="$2" current selected
   current="${!key:-}"
