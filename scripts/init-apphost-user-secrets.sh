@@ -252,7 +252,7 @@ LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-}"
 if [[ -z "$LIGHTRAG_IMAGE_TAG" ]]; then
   LIGHTRAG_IMAGE_TAG="$(read_dotenv_value LIGHTRAG_IMAGE_TAG "$ENV_FILE" 2>/dev/null || true)"
 fi
-LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-v1.4.16}"
+LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-v1.5.7}"
 
 # LightRAG lets the global LLM and embedding provider be selected independently.
 # Initialize optional provider values because this script runs with `set -u` and
@@ -349,7 +349,7 @@ LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-}"
 if [[ -z "$LIGHTRAG_IMAGE_TAG" ]]; then
   LIGHTRAG_IMAGE_TAG="$(read_dotenv_value LIGHTRAG_IMAGE_TAG "$ENV_FILE" 2>/dev/null || true)"
 fi
-LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-v1.4.16}"
+LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-v1.5.7}"
 
 # LightRAG lets the global LLM and embedding provider be selected independently.
 # Initialize optional provider values because this script runs with `set -u` and
