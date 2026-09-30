@@ -81,14 +81,18 @@ public class LightRagContainerManagerTests
 	[
 		$"EMBEDDING_DIM={s.EmbeddingDim}",
 		$"EMBEDDING_SEND_DIM={s.EmbeddingSendDim.ToString().ToLowerInvariant()}",
+		$"EMBEDDING_BINDING={s.EmbeddingBinding}",
 		$"EMBEDDING_MODEL={s.EmbeddingModel}",
 		$"EMBEDDING_BINDING_HOST={s.EmbeddingEndpoint}",
+		$"EMBEDDING_BINDING_API_KEY={s.EmbeddingApiKey}",
 		$"CHUNK_SIZE={s.ChunkSize}",
 		$"CHUNK_OVERLAP_SIZE={s.ChunkOverlap}",
 		$"MAX_ASYNC={s.MaxAsync}",
 		$"MAX_PARALLEL_INSERT={s.MaxParallelInsert}",
+		$"LLM_BINDING={s.LlmBinding}",
 		$"LLM_MODEL={s.LlmModel}",
 		$"LLM_BINDING_HOST={s.LlmEndpoint}",
+		$"LLM_BINDING_API_KEY={s.LlmApiKey}",
 		$"LIGHTRAG_API_KEY={s.ApiKey}",
 	];
 
@@ -113,6 +117,38 @@ public class LightRagContainerManagerTests
 				&& !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))),
 			It.IsAny<CancellationToken>()), Times.Once);
 		containers.Verify(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()), Times.Once);
+	}
+
+	[Test]
+	public async Task EnsureContainerAsync_UsesSelectedBindingsAndProviderOptions()
+	{
+		var (docker, containers) = BuildDocker([PgContainer(), GatewayContainer()]);
+		containers.Setup(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(new CreateContainerResponse { ID = "new" });
+		containers.Setup(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()))
+			.ReturnsAsync(true);
+		var settings = new LightRagSettings
+		{
+			LlmBinding = "ollama",
+			EmbeddingBinding = "bedrock",
+			PostgresPort = 55432,
+			AwsRegion = "us-east-1",
+			AwsBearerTokenBedrock = "bedrock-token",
+			OllamaLlmNumCtx = "16384"
+		};
+
+		var manager = NewManager(docker.Object, settings);
+		await manager.EnsureContainerAsync(Guid.NewGuid());
+
+		containers.Verify(c => c.CreateContainerAsync(
+			It.Is<CreateContainerParameters>(p =>
+				p.Env.Contains("LLM_BINDING=ollama")
+				&& p.Env.Contains("EMBEDDING_BINDING=bedrock")
+				&& p.Env.Contains("POSTGRES_PORT=55432")
+				&& p.Env.Contains("AWS_REGION=us-east-1")
+				&& p.Env.Contains("AWS_BEARER_TOKEN_BEDROCK=bedrock-token")
+				&& p.Env.Contains("OLLAMA_LLM_NUM_CTX=16384")),
+			It.IsAny<CancellationToken>()), Times.Once);
 	}
 
 	[Test]

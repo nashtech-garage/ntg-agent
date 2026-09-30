@@ -347,25 +347,26 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     }
 
     // TLS terminates at the nginx gateway; containers serve plain HTTP on the Docker network.
-    private List<string> BuildEnv(Guid agentId) =>
-    [
+    private List<string> BuildEnv(Guid agentId)
+    {
+        var env = new List<string>
+        {
         "LIGHTRAG_KV_STORAGE=PGKVStorage",
         "LIGHTRAG_VECTOR_STORAGE=PGVectorStorage",
         "LIGHTRAG_GRAPH_STORAGE=PGGraphStorage",
         "LIGHTRAG_DOC_STATUS_STORAGE=PGDocStatusStorage",
         $"POSTGRES_HOST={_settings.PostgresHostAlias}",
-        "POSTGRES_PORT=5432",
+        $"POSTGRES_PORT={_settings.PostgresPort}",
         "POSTGRES_USER=postgres",
         $"POSTGRES_PASSWORD={_settings.PostgresPassword}",
         $"POSTGRES_DATABASE={_settings.PostgresDatabase}",
         // The isolation boundary: every row this container writes is scoped to this workspace.
         $"WORKSPACE={Workspace(agentId)}",
-        "LLM_BINDING=azure_openai",
+        $"LLM_BINDING={_settings.LlmBinding}",
         $"LLM_MODEL={_settings.LlmModel}",
         $"LLM_BINDING_HOST={_settings.LlmEndpoint}",
         $"LLM_BINDING_API_KEY={_settings.LlmApiKey}",
-        $"AZURE_OPENAI_API_VERSION={_settings.AzureApiVersion}",
-        "EMBEDDING_BINDING=azure_openai",
+        $"EMBEDDING_BINDING={_settings.EmbeddingBinding}",
         $"EMBEDDING_MODEL={_settings.EmbeddingModel}",
         $"EMBEDDING_BINDING_HOST={_settings.EmbeddingEndpoint}",
         $"EMBEDDING_BINDING_API_KEY={_settings.EmbeddingApiKey}",
@@ -375,14 +376,35 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         // the Azure OpenAI call, gets full 3072-dim vectors back, and the count/reshape mismatch
         // (expected N vectors, got 2×N) is triggered.
         $"EMBEDDING_SEND_DIM={_settings.EmbeddingSendDim.ToString().ToLowerInvariant()}",
-        $"AZURE_EMBEDDING_API_VERSION={_settings.AzureApiVersion}",
         $"CHUNK_SIZE={_settings.ChunkSize}",
         $"CHUNK_OVERLAP_SIZE={_settings.ChunkOverlap}",
         $"MAX_ASYNC={_settings.MaxAsync}",
         $"MAX_PARALLEL_INSERT={_settings.MaxParallelInsert}",
         $"EMBEDDING_FUNC_MAX_ASYNC={_settings.EmbeddingFuncMaxAsync}",
         $"LIGHTRAG_API_KEY={_settings.ApiKey}",
-    ];
+        };
+
+        AddIfConfigured(env, "AZURE_OPENAI_API_VERSION", _settings.AzureApiVersion, _settings.LlmBinding, "azure_openai");
+        AddIfConfigured(env, "AZURE_EMBEDDING_API_VERSION", _settings.AzureEmbeddingApiVersion, _settings.EmbeddingBinding, "azure_openai");
+        AddIfConfigured(env, "AWS_REGION", _settings.AwsRegion, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
+        AddIfConfigured(env, "AWS_BEARER_TOKEN_BEDROCK", _settings.AwsBearerTokenBedrock, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
+        AddIfConfigured(env, "AWS_ACCESS_KEY_ID", _settings.AwsAccessKeyId, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
+        AddIfConfigured(env, "AWS_SECRET_ACCESS_KEY", _settings.AwsSecretAccessKey, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
+        AddIfConfigured(env, "AWS_SESSION_TOKEN", _settings.AwsSessionToken, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
+        AddIfConfigured(env, "OLLAMA_LLM_NUM_CTX", _settings.OllamaLlmNumCtx, _settings.LlmBinding, "ollama");
+
+        return env;
+    }
+
+    private static void AddIfConfigured(List<string> env, string key, string value, string primaryBinding, string binding, string? secondaryBinding = null)
+    {
+        if (!string.IsNullOrWhiteSpace(value)
+            && (string.Equals(primaryBinding, binding, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(secondaryBinding, binding, StringComparison.OrdinalIgnoreCase)))
+        {
+            env.Add($"{key}={value}");
+        }
+    }
 
     private CreateContainerParameters BuildCreateParameters(string name, Guid agentId, string network) =>
         new()
@@ -412,9 +434,11 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
     // tracked to force its recreate.
     private static readonly HashSet<string> TrackedEnvKeys =
     [
-        "EMBEDDING_DIM", "EMBEDDING_SEND_DIM", "EMBEDDING_MODEL", "EMBEDDING_BINDING_HOST",
+        "EMBEDDING_DIM", "EMBEDDING_SEND_DIM", "EMBEDDING_BINDING", "EMBEDDING_MODEL", "EMBEDDING_BINDING_HOST", "EMBEDDING_BINDING_API_KEY",
         "CHUNK_SIZE", "CHUNK_OVERLAP_SIZE", "MAX_ASYNC", "MAX_PARALLEL_INSERT",
-        "LLM_MODEL", "LLM_BINDING_HOST",
+        "LLM_BINDING", "LLM_MODEL", "LLM_BINDING_HOST", "LLM_BINDING_API_KEY",
+        "AZURE_OPENAI_API_VERSION", "AZURE_EMBEDDING_API_VERSION", "AWS_REGION", "AWS_BEARER_TOKEN_BEDROCK",
+        "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN", "OLLAMA_LLM_NUM_CTX",
         "LIGHTRAG_API_KEY",
         "SSL",
     ];

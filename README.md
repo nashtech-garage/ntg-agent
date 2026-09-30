@@ -42,6 +42,8 @@ Or, from an existing checkout, `./install-local.sh`. Either way the script does 
 
 Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. After the first setup, stop the application with `Ctrl+C` and use `./ntg run` for subsequent runs. The shortcut refreshes the AppHost secrets, starts the local LightRAG stack, and launches the Aspire AppHost.
 
+The installer now selects the global LLM and embedding providers independently; the Azure-only wording in older setup notes is obsolete. See [LightRAG provider configuration](#lightrag-provider-configuration) for the supported bindings and variables.
+
 ### Quick start (Windows via WSL2)
 
 The same script is the supported path on Windows — it runs inside WSL2:
@@ -74,7 +76,26 @@ Open the Aspire Dashboard URL printed at startup. Resources you'll see:
 - `ntg-agent-admin` — admin dashboard (default admin account: `admin@ntgagent.com` / `Ntg@123`)
 - `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
 
-The Default Agent's provider is configured automatically on first startup (Azure OpenAI, your endpoint/key and chat deployment from the LightRAG settings above — no extra secret needed). To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
+The Default Agent's provider is configured automatically on first startup from the selected global LLM settings. To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
+
+### LightRAG provider configuration
+
+The installer follows LightRAG's `LLM_BINDING` and `EMBEDDING_BINDING` environment contract. The global LLM supports `openai`, `ollama`, `lollms`, `azure_openai`, `bedrock`, and `gemini`. The current LightRAG embedding contract supports `openai`, `ollama`, `lollms`, `azure_openai`, and `bedrock`; Gemini embedding is rejected by the installer because LightRAG does not advertise `gemini` as an embedding binding. The default for both selections is `openai` when left blank.
+
+The main values are stored in `.env` and copied into AppHost user-secrets:
+
+| Purpose | Variables |
+| --- | --- |
+| Global LLM | `LIGHTRAG_LLM_BINDING`, `LIGHTRAG_LLM_ENDPOINT`, `LIGHTRAG_LLM_API_KEY`, `LIGHTRAG_LLM_MODEL` |
+| Embeddings | `LIGHTRAG_EMBEDDING_BINDING`, `LIGHTRAG_EMBEDDING_ENDPOINT`, `LIGHTRAG_EMBEDDING_API_KEY`, `LIGHTRAG_EMBEDDING_MODEL` |
+| LightRAG image | `LIGHTRAG_IMAGE_TAG` |
+| Azure OpenAI | `LIGHTRAG_AZURE_API_VERSION`, `LIGHTRAG_AZURE_EMBEDDING_API_VERSION` |
+| AWS Bedrock | `LIGHTRAG_AWS_REGION` plus either `LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK` or an access-key/secret-key pair |
+| Ollama | `LIGHTRAG_OLLAMA_LLM_NUM_CTX` |
+
+Provider defaults include OpenAI at `https://api.openai.com/v1`, Ollama at `http://localhost:11434`, Gemini at `DEFAULT_GEMINI_ENDPOINT`, Bedrock at `DEFAULT_BEDROCK_ENDPOINT`, and lollms at `http://localhost:9600`. For Docker-hosted Ollama or lollms, use an address reachable from the container, such as `http://host.docker.internal:11434`.
+
+These settings are applied to every per-agent LightRAG container. Changing a binding, endpoint, model, credential, or provider-specific option causes that container to be recreated; changing `EMBEDDING_DIM` also resets that agent's vector schema because existing vectors cannot be mixed across dimensions. The authoritative upstream examples are [LightRAG `env.example`](https://github.com/HKUDS/LightRAG/blob/main/env.example) and [LightRAG `env.docker-compose-full`](https://github.com/HKUDS/LightRAG/blob/main/env.docker-compose-full).
 
 ## Dev shortcuts (`ntg`)
 

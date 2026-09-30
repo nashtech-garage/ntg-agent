@@ -119,14 +119,23 @@ public class LightRagSettings
     public string PostgresPassword { get; set; } = string.Empty;
     public string PostgresDatabase { get; set; } = "uploaded-documents";
 
-    // Azure OpenAI bindings (mirrors what the old singleton lightrag container used).
+    // LightRAG supports independent providers for the global LLM and embeddings.
+    public string LlmBinding { get; set; } = "openai";
     public string LlmModel { get; set; } = "gpt-5.4";
-    public string LlmEndpoint { get; set; } = string.Empty;
+    public string LlmEndpoint { get; set; } = "https://api.openai.com/v1";
     public string LlmApiKey { get; set; } = string.Empty;
+    public string EmbeddingBinding { get; set; } = "openai";
     public string EmbeddingModel { get; set; } = "text-embedding-3-large";
-    public string EmbeddingEndpoint { get; set; } = string.Empty;
+    public string EmbeddingEndpoint { get; set; } = "https://api.openai.com/v1";
     public string EmbeddingApiKey { get; set; } = string.Empty;
     public string AzureApiVersion { get; set; } = "2024-08-01-preview";
+    public string AzureEmbeddingApiVersion { get; set; } = "2024-08-01-preview";
+    public string AwsRegion { get; set; } = string.Empty;
+    public string AwsBearerTokenBedrock { get; set; } = string.Empty;
+    public string AwsAccessKeyId { get; set; } = string.Empty;
+    public string AwsSecretAccessKey { get; set; } = string.Empty;
+    public string AwsSessionToken { get; set; } = string.Empty;
+    public string OllamaLlmNumCtx { get; set; } = "32768";
 
     // Ingestion tuning knobs (mirror the old AppHost env wiring).
     public int EmbeddingDim { get; set; } = 1536;

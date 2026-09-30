@@ -229,11 +229,16 @@ env_set() {
   fi
 }
 
+FIRST_RUN=0
 if [[ ! -f "$ENV_FILE" ]]; then
   info "Creating .env from .env.example."
   cp .env.example "$ENV_FILE"
+  FIRST_RUN=1
 else
   info ".env already exists; filling only missing values."
+  # An interrupted first run has no completion marker, so do not silently treat
+  # the template's openai defaults as the user's provider choice on retry.
+  [[ "$(env_get LIGHTRAG_SETUP_COMPLETE)" == true ]] || FIRST_RUN=1
 fi
 
 prompt_value() {
@@ -253,11 +258,77 @@ prompt_value() {
   done
 }
 
-# One Azure OpenAI resource serves LightRAG (LLM + embeddings) and the seeded Default Agent.
-prompt_value LIGHTRAG_AZURE_OPENAI_ENDPOINT "Azure OpenAI endpoint (https://<resource>.openai.azure.com/)"
-prompt_value LIGHTRAG_EMBEDDING_API_KEY "Azure OpenAI API key" secret
-llm_model="$(env_get LIGHTRAG_LLM_MODEL)"; emb_model="$(env_get LIGHTRAG_EMBEDDING_MODEL)"
-info "Azure deployments: chat=${llm_model:-gpt-5.1} embeddings=${emb_model:-text-embedding-3-large} (set LIGHTRAG_LLM_MODEL / LIGHTRAG_EMBEDDING_MODEL in .env to change)."
+prompt_default() {
+  local key="$1" prompt="$2" default="$3" val
+  val="$(env_get "$key")"
+  if [[ ( "$FIRST_RUN" == 1 || -z "$val" ) && -t 0 ]]; then read -r -p "$prompt [$default]: " val; fi
+  env_set "$key" "${val:-$default}"
+}
+
+prompt_optional() {
+  local key="$1" prompt="$2" val
+  val="$(env_get "$key")"
+  if [[ -z "$val" && -t 0 ]]; then
+    if [[ "${3:-}" == secret ]]; then read -r -s -p "$prompt: " val; echo; else read -r -p "$prompt: " val; fi
+  fi
+  [[ -n "$val" ]] && env_set "$key" "$val"
+}
+
+prompt_binding() {
+  local key="$1" prompt="$2" binding
+  binding="$(env_get "$key")"
+  if [[ ( "$FIRST_RUN" == 1 || -z "$binding" ) && -t 0 ]]; then read -r -p "$prompt [openai]: " binding; fi
+  binding="${binding:-openai}"; binding="${binding,,}"
+  case "$binding" in openai|ollama|lollms|azure_openai|bedrock|gemini) ;; *) echo "error: provider must be one of openai, ollama, lollms, azure_openai, bedrock, or gemini." >&2; exit 1 ;; esac
+  env_set "$key" "$binding"
+}
+
+prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
+prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
+[[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" != gemini ]] || { echo "error: LightRAG does not support gemini as EMBEDDING_BINDING." >&2; exit 1; }
+
+configure_provider() {
+  local prefix="$1" binding="$2" role="$3" endpoint_default model_default api_key
+  case "$binding" in
+    openai) endpoint_default=https://api.openai.com/v1; [[ "$role" == llm ]] && model_default=gpt-5.1 || model_default=text-embedding-3-large ;;
+    azure_openai) endpoint_default=https://resource.openai.azure.com/; [[ "$role" == llm ]] && model_default=gpt-5.1 || model_default=text-embedding-3-large ;;
+    ollama) endpoint_default=http://localhost:11434; [[ "$role" == llm ]] && model_default=qwen3.5:9b || model_default=nomic-embed-text ;;
+    gemini) endpoint_default=DEFAULT_GEMINI_ENDPOINT; model_default=gemini-flash-latest ;;
+    bedrock) endpoint_default=DEFAULT_BEDROCK_ENDPOINT; [[ "$role" == llm ]] && model_default=us.amazon.nova-lite-v1:0 || model_default=amazon.titan-embed-text-v2:0 ;;
+    lollms) endpoint_default=http://localhost:9600; [[ "$role" == llm ]] && model_default=gpt-4 || model_default=all-MiniLM-L6-v2 ;;
+  esac
+  prompt_default "${prefix}_ENDPOINT" "$role provider endpoint" "$endpoint_default"
+  prompt_default "${prefix}_MODEL" "$role model/deployment" "$model_default"
+  api_key="${prefix}_API_KEY"
+  if [[ "$binding" == openai || "$binding" == azure_openai || "$binding" == gemini ]]; then prompt_value "$api_key" "$role provider API key (required for $binding)" secret; fi
+}
+
+configure_provider LIGHTRAG_LLM "$(env_get LIGHTRAG_LLM_BINDING)" llm
+configure_provider LIGHTRAG_EMBEDDING "$(env_get LIGHTRAG_EMBEDDING_BINDING)" embedding
+if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == azure_openai ]]; then
+  prompt_default LIGHTRAG_AZURE_API_VERSION "Azure LLM API version" "2024-08-01-preview"
+fi
+if [[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" == azure_openai ]]; then
+  prompt_default LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version" "2024-08-01-preview"
+fi
+if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == ollama ]]; then
+  prompt_default LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window" "32768"
+fi
+
+if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == bedrock || "$(env_get LIGHTRAG_EMBEDDING_BINDING)" == bedrock ]]; then
+  prompt_value LIGHTRAG_AWS_REGION "AWS region for Bedrock"
+  prompt_optional LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK "AWS Bedrock bearer token (leave empty to use IAM credentials)" secret
+  prompt_optional LIGHTRAG_AWS_ACCESS_KEY_ID "AWS access key ID (leave empty to use ambient credentials)"
+  prompt_optional LIGHTRAG_AWS_SECRET_ACCESS_KEY "AWS secret access key (leave empty to use ambient credentials)" secret
+  prompt_optional LIGHTRAG_AWS_SESSION_TOKEN "AWS session token (optional)" secret
+  aws_bearer="$(env_get LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK)"
+  aws_access="$(env_get LIGHTRAG_AWS_ACCESS_KEY_ID)"
+  aws_secret="$(env_get LIGHTRAG_AWS_SECRET_ACCESS_KEY)"
+  if [[ -z "$aws_bearer" && ( -z "$aws_access" || -z "$aws_secret" ) ]]; then
+    echo "error: configure an AWS Bedrock bearer token or both access and secret keys." >&2
+    exit 1
+  fi
+fi
 
 gen_if_empty() {
   # $1 = key, $2 = generated value
@@ -314,6 +385,7 @@ if ! curl -fs http://localhost:8080/gateway-health >/dev/null 2>&1; then
   exit 1
 fi
 info "LightRAG stack is up (Postgres 127.0.0.1:5432, gateway 127.0.0.1:8080)."
+env_set LIGHTRAG_SETUP_COMPLETE true
 
 # --- Phase 6: launch ----------------------------------------------------------
 
@@ -324,8 +396,8 @@ Setup complete. Launching the Aspire AppHost...
   Dashboard:   https://localhost:17050
   Admin login: admin@ntgagent.com / Ntg@123 (seeded)
 
-The Default Agent's provider (Azure OpenAI, gpt-5.1, via the LightRAG key) is
-configured automatically on first startup; change it any time in the Admin UI.
+The Default Agent's provider is configured from the selected global LLM settings
+on first startup; change it any time in the Admin UI.
 
 EOF
 exec ./start-local-lightrag.sh
