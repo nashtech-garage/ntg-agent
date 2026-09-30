@@ -186,6 +186,16 @@ set_secret() {
   echo "set $key"
 }
 
+remove_secret() {
+  local key="$1"
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "[dry-run] would remove $key"
+    return 0
+  fi
+  dotnet user-secrets remove "$key" --project "$APPHOST_PROJ" >/dev/null 2>&1 || true
+  echo "removed $key"
+}
+
 resolve_field SA_PASSWORD \
   "SQL Server SA password (complexity rules apply) [Enter for .env]: " \
   1 \
@@ -231,21 +241,11 @@ if [[ -z "$LIGHTRAG_PG_PASSWORD" ]]; then
 fi
 
 resolve_field LIGHTRAG_API_KEY \
-  "LightRAG API key (32+ chars) [Enter for .env or auto-generate]: " \
+  "LightRAG API key (optional; Enter to disable API-key authentication): " \
   1 \
   "LIGHTRAG_API_KEY" \
   "LIGHTRAG_API_KEY" \
   "__EMPTY__"
-
-if [[ -z "$LIGHTRAG_API_KEY" ]]; then
-  if command -v openssl >/dev/null 2>&1; then
-    LIGHTRAG_API_KEY="$(openssl rand -base64 48 | tr -d '\n\r')"
-    echo "Generated LIGHTRAG_API_KEY (${#LIGHTRAG_API_KEY} characters)."
-  else
-    echo "error: LIGHTRAG_API_KEY missing; install openssl for auto-generation or set in .env" >&2
-    exit 1
-  fi
-fi
 
 # The image tag is configuration-only: keep installation non-interactive for this value.
 LIGHTRAG_IMAGE_TAG="${LIGHTRAG_IMAGE_TAG:-}"
@@ -284,13 +284,6 @@ choose_binding() {
   printf -v "$key" '%s' "$selected"
 }
 
-choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
-choose_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
-if [[ "$LIGHTRAG_EMBEDDING_BINDING" == gemini ]]; then
-  echo "error: the current LightRAG EMBEDDING_BINDING contract does not support gemini; choose openai, azure_openai, ollama, bedrock, or lollms for embeddings." >&2
-  exit 1
-fi
-
 provider_value() {
   local binding="$1" role="$2" key model_default endpoint_default
   if [[ "$role" == llm ]]; then key=LIGHTRAG_LLM_API_KEY; model_default=gpt-5.1; endpoint_default=https://api.openai.com/v1
@@ -315,11 +308,28 @@ provider_value() {
   fi
 }
 
+choose_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
 provider_value "$LIGHTRAG_LLM_BINDING" llm
+
+choose_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
+if [[ "$LIGHTRAG_EMBEDDING_BINDING" == gemini ]]; then
+  echo "error: the current LightRAG EMBEDDING_BINDING contract does not support gemini; choose openai, azure_openai, ollama, bedrock, or lollms for embeddings." >&2
+  exit 1
+fi
 provider_value "$LIGHTRAG_EMBEDDING_BINDING" embedding
 
-resolve_field LIGHTRAG_AZURE_API_VERSION "Azure LLM API version [Enter for 2024-08-01-preview]: " 0 "LIGHTRAG_AZURE_API_VERSION" "LIGHTRAG_AZURE_API_VERSION" "2024-08-01-preview"
-resolve_field LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version [Enter for 2024-08-01-preview]: " 0 "LIGHTRAG_AZURE_EMBEDDING_API_VERSION" "LIGHTRAG_AZURE_EMBEDDING_API_VERSION" "2024-08-01-preview"
+# Azure API versions are fixed defaults from .env.example, not interactive settings.
+LIGHTRAG_AZURE_API_VERSION="${LIGHTRAG_AZURE_API_VERSION:-}"
+if [[ -z "$LIGHTRAG_AZURE_API_VERSION" ]]; then
+  LIGHTRAG_AZURE_API_VERSION="$(read_dotenv_value LIGHTRAG_AZURE_API_VERSION "$ENV_FILE" 2>/dev/null || true)"
+fi
+LIGHTRAG_AZURE_API_VERSION="${LIGHTRAG_AZURE_API_VERSION:-2024-08-01-preview}"
+
+LIGHTRAG_AZURE_EMBEDDING_API_VERSION="${LIGHTRAG_AZURE_EMBEDDING_API_VERSION:-}"
+if [[ -z "$LIGHTRAG_AZURE_EMBEDDING_API_VERSION" ]]; then
+  LIGHTRAG_AZURE_EMBEDDING_API_VERSION="$(read_dotenv_value LIGHTRAG_AZURE_EMBEDDING_API_VERSION "$ENV_FILE" 2>/dev/null || true)"
+fi
+LIGHTRAG_AZURE_EMBEDDING_API_VERSION="${LIGHTRAG_AZURE_EMBEDDING_API_VERSION:-2024-08-01-preview}"
 resolve_field LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window [Enter for 32768]: " 0 "LIGHTRAG_OLLAMA_LLM_NUM_CTX" "LIGHTRAG_OLLAMA_LLM_NUM_CTX" "32768"
 
 if [[ "$LIGHTRAG_LLM_BINDING" == bedrock || "$LIGHTRAG_EMBEDDING_BINDING" == bedrock ]]; then
@@ -416,7 +426,11 @@ set_secret "Parameters:sql-sa-password" "$SA_PASSWORD"
 set_secret "Parameters:google-api-key" "$GOOGLE_API_KEY"
 set_secret "Parameters:google-search-engine-id" "$GOOGLE_SEARCH_ENGINE_ID"
 set_secret "Parameters:lightrag-pg-password" "$LIGHTRAG_PG_PASSWORD"
-set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+if [[ -n "$LIGHTRAG_API_KEY" ]]; then
+  set_secret "Parameters:lightrag-api-key" "$LIGHTRAG_API_KEY"
+else
+  remove_secret "Parameters:lightrag-api-key"
+fi
 set_secret "Parameters:lightrag-image-tag" "$LIGHTRAG_IMAGE_TAG"
 set_secret "Parameters:lightrag-llm-binding" "$LIGHTRAG_LLM_BINDING"
 set_secret "Parameters:lightrag-llm-endpoint" "$LIGHTRAG_LLM_ENDPOINT"

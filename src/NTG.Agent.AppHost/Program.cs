@@ -6,7 +6,7 @@ var saPassword = builder.AddParameter("sql-sa-password", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
-var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true);
+var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true, value: "");
 var lightragImageTag = builder.AddParameter("lightrag-image-tag", secret: false);
 // LightRAG's global LLM and embedding bindings are selected independently during setup.
 var lightragLlmBinding = builder.AddParameter("lightrag-llm-binding", secret: true);

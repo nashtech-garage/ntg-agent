@@ -283,10 +283,6 @@ prompt_binding() {
   env_set "$key" "$binding"
 }
 
-prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
-prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
-[[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" != gemini ]] || { echo "error: LightRAG does not support gemini as EMBEDDING_BINDING." >&2; exit 1; }
-
 configure_provider() {
   local prefix="$1" binding="$2" role="$3" endpoint_default model_default api_key
   case "$binding" in
@@ -303,14 +299,16 @@ configure_provider() {
   if [[ "$binding" == openai || "$binding" == azure_openai || "$binding" == gemini ]]; then prompt_value "$api_key" "$role provider API key (required for $binding)" secret; fi
 }
 
+prompt_binding LIGHTRAG_LLM_BINDING "Global LLM provider (openai, ollama, lollms, azure_openai, bedrock, gemini); default: openai"
 configure_provider LIGHTRAG_LLM "$(env_get LIGHTRAG_LLM_BINDING)" llm
+
+prompt_binding LIGHTRAG_EMBEDDING_BINDING "Embedding provider (openai, ollama, lollms, azure_openai, bedrock); default: openai"
+[[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" != gemini ]] || { echo "error: LightRAG does not support gemini as EMBEDDING_BINDING." >&2; exit 1; }
 configure_provider LIGHTRAG_EMBEDDING "$(env_get LIGHTRAG_EMBEDDING_BINDING)" embedding
-if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == azure_openai ]]; then
-  prompt_default LIGHTRAG_AZURE_API_VERSION "Azure LLM API version" "2024-08-01-preview"
-fi
-if [[ "$(env_get LIGHTRAG_EMBEDDING_BINDING)" == azure_openai ]]; then
-  prompt_default LIGHTRAG_AZURE_EMBEDDING_API_VERSION "Azure embedding API version" "2024-08-01-preview"
-fi
+
+# Azure API versions are fixed defaults from .env.example and are not interactive settings.
+[[ -n "$(env_get LIGHTRAG_AZURE_API_VERSION)" ]] || env_set LIGHTRAG_AZURE_API_VERSION "2024-08-01-preview"
+[[ -n "$(env_get LIGHTRAG_AZURE_EMBEDDING_API_VERSION)" ]] || env_set LIGHTRAG_AZURE_EMBEDDING_API_VERSION "2024-08-01-preview"
 if [[ "$(env_get LIGHTRAG_LLM_BINDING)" == ollama ]]; then
   prompt_default LIGHTRAG_OLLAMA_LLM_NUM_CTX "Ollama LLM context window" "32768"
 fi
@@ -341,7 +339,6 @@ gen_if_empty() {
 # Aa1! suffix guarantees SQL Server password complexity after base64.
 gen_if_empty SA_PASSWORD "$(openssl rand -base64 24 | tr -d '\n\r=/+')Aa1!"
 gen_if_empty LIGHTRAG_PG_PASSWORD "$(openssl rand -base64 32 | tr -d '\n\r')"
-gen_if_empty LIGHTRAG_API_KEY "$(openssl rand -base64 48 | tr -d '\n\r')"
 gen_if_empty LIGHTRAG_WEBUI_GATEWAY_URL "http://localhost:8080"
 
 # --- Phase 4: AppHost user-secrets -------------------------------------------
