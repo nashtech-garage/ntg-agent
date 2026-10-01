@@ -381,9 +381,9 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         $"MAX_ASYNC={_settings.MaxAsync}",
         $"MAX_PARALLEL_INSERT={_settings.MaxParallelInsert}",
         $"EMBEDDING_FUNC_MAX_ASYNC={_settings.EmbeddingFuncMaxAsync}",
-        $"LIGHTRAG_API_KEY={_settings.ApiKey}",
         };
 
+        AddIfConfigured(env, "LIGHTRAG_API_KEY", _settings.ApiKey);
         AddIfConfigured(env, "AZURE_OPENAI_API_VERSION", _settings.AzureApiVersion, _settings.LlmBinding, "azure_openai");
         AddIfConfigured(env, "AZURE_EMBEDDING_API_VERSION", _settings.AzureEmbeddingApiVersion, _settings.EmbeddingBinding, "azure_openai");
         AddIfConfigured(env, "AWS_REGION", _settings.AwsRegion, _settings.LlmBinding, "bedrock", _settings.EmbeddingBinding);
@@ -394,6 +394,12 @@ public sealed class LightRagContainerManager : ILightRagContainerManager, IDispo
         AddIfConfigured(env, "OLLAMA_LLM_NUM_CTX", _settings.OllamaLlmNumCtx, _settings.LlmBinding, "ollama");
 
         return env;
+    }
+
+    private static void AddIfConfigured(List<string> env, string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+            env.Add($"{key}={value}");
     }
 
     private static void AddIfConfigured(List<string> env, string key, string value, string primaryBinding, string binding, string? secondaryBinding = null)

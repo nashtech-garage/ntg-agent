@@ -77,8 +77,10 @@ public class LightRagContainerManagerTests
 
 	// The tracked env keys the manager compares (mirrors LightRagContainerManager.BuildEnv),
 	// so a healthy container shows no env drift.
-	private static List<string> TrackedEnv(LightRagSettings s) =>
-	[
+	private static List<string> TrackedEnv(LightRagSettings s)
+	{
+		var env = new List<string>
+		{
 		$"EMBEDDING_DIM={s.EmbeddingDim}",
 		$"EMBEDDING_SEND_DIM={s.EmbeddingSendDim.ToString().ToLowerInvariant()}",
 		$"EMBEDDING_BINDING={s.EmbeddingBinding}",
@@ -93,8 +95,11 @@ public class LightRagContainerManagerTests
 		$"LLM_MODEL={s.LlmModel}",
 		$"LLM_BINDING_HOST={s.LlmEndpoint}",
 		$"LLM_BINDING_API_KEY={s.LlmApiKey}",
-		$"LIGHTRAG_API_KEY={s.ApiKey}",
-	];
+		};
+		if (!string.IsNullOrWhiteSpace(s.ApiKey))
+			env.Add($"LIGHTRAG_API_KEY={s.ApiKey}");
+		return env;
+	}
 
 	[Test]
 	public async Task EnsureContainerAsync_CreatesContainer_WithoutHostPortsOrSsl()
@@ -114,7 +119,8 @@ public class LightRagContainerManagerTests
 			It.Is<CreateContainerParameters>(p =>
 				p.HostConfig.PortBindings == null
 				&& p.HostConfig.Binds == null
-				&& !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))),
+				&& !p.Env.Any(e => e.StartsWith("SSL", StringComparison.Ordinal))
+				&& !p.Env.Contains("LIGHTRAG_API_KEY=")),
 			It.IsAny<CancellationToken>()), Times.Once);
 		containers.Verify(c => c.StartContainerAsync("new", It.IsAny<ContainerStartParameters>(), It.IsAny<CancellationToken>()), Times.Once);
 	}

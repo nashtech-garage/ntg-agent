@@ -32,7 +32,7 @@ public class LightRagSettings
     // the single shared lightrag-postgres and isolated by WORKSPACE={agentId}.
 
     public string ImageRef { get; set; } = "ghcr.io/hkuds/lightrag";
-    public string ImageTag { get; set; } = "v1.4.16";
+    public string ImageTag { get; set; } = "v1.5.7";
 
     // ---- Remote Docker host (TLS) -------------------------------------------
     // The LightRAG stack (Postgres + the nginx gateway + the per-agent containers) lives on
