@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Identity;
@@ -53,6 +54,12 @@ public class AgentAccessServiceTests
             OwnerUserId = _ownerId,
             UpdatedByUserId = _ownerId
         });
+        _context.AgentRoles.Add(new AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = _agentId,
+            RoleId = new Guid(Constants.AnonymousRoleId)
+        });
 
         _context.SaveChanges();
     }
@@ -99,10 +106,21 @@ public class AgentAccessServiceTests
     }
 
     [Test]
-    public async Task HasAccessAsync_NullUserId_ReturnsPublishedAgentAccess()
+    public async Task HasAccessAsync_NullUserId_ReturnsAnonymousRoleGrantedAgent()
     {
         var result = await _service.HasAccessAsync(_agentId, null, isAdmin: false, CancellationToken.None);
         Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task HasAccessAsync_NullUserId_WithoutAnonymousRole_ReturnsFalse()
+    {
+        _context.AgentRoles.RemoveRange(_context.AgentRoles);
+        await _context.SaveChangesAsync();
+
+        var result = await _service.HasAccessAsync(_agentId, null, isAdmin: false, CancellationToken.None);
+
+        Assert.That(result, Is.False);
     }
 
     [Test]
@@ -167,7 +185,7 @@ public class AgentAccessServiceTests
     }
 
     [Test]
-    public async Task AccessibleAgentsQuery_NullUserId_ReturnsEmpty()
+    public async Task AccessibleAgentsQuery_NullUserId_ReturnsAnonymousRoleGrantedAgents()
     {
         var agents = await _service.AccessibleAgentsQuery(null, isAdmin: false).ToListAsync();
         Assert.That(agents, Has.Count.EqualTo(1));

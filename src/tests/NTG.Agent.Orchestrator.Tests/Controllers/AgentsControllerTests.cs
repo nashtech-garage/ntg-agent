@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Agents;
@@ -155,6 +156,29 @@ public class AgentsControllerTests
             UpdatedByUserId = _testUserId
         };
         await _context.Agents.AddAsync(agent);
+        await _context.AgentRoles.AddAsync(new Models.Agents.AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agent.Id,
+            RoleId = new Guid(Constants.AnonymousRoleId)
+        });
+        var subAgent = new Models.Agents.Agent
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Sub-agent",
+            Instructions = "Test instructions",
+            IsPublished = true,
+            AgentKind = AgentKind.SubAgent,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        };
+        await _context.Agents.AddAsync(subAgent);
+        await _context.AgentRoles.AddAsync(new Models.Agents.AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = subAgent.Id,
+            RoleId = new Guid(Constants.AnonymousRoleId)
+        });
         await _context.SaveChangesAsync();
 
         var result = await _controller.GetAgents();
