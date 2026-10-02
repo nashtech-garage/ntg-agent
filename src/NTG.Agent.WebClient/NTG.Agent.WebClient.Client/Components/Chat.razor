@@ -330,6 +330,11 @@ else
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
 
+        if (!isAuthenticated)
+        {
+            currentSessionId = await GetOrCreateAnonymousSessionIdAsync();
+        }
+
         // Load available agents
         availableAgents = await ChatClient.GetAgentsAsync();
 
@@ -344,7 +349,6 @@ else
         // Load rate limit status for anonymous users
         if (!isAuthenticated)
         {
-            currentSessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId") ?? string.Empty;
             await LoadRateLimitStatus();
         }
 
@@ -415,8 +419,7 @@ else
         {
             if (!isAuthenticated)
             {
-                currentSessionId = Guid.NewGuid().ToString();
-                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", currentSessionId);
+                currentSessionId = await GetOrCreateAnonymousSessionIdAsync();
             }
             var conversation = await ConversationClient.Create(currentSessionId);
             ConversationId = conversation.Id;
@@ -748,7 +751,7 @@ else
         try
         {
             // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
-            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            var sessionId = isAuthenticated ? null : await GetOrCreateAnonymousSessionIdAsync();
             
             // Try to load preference from the server
             var preference = await PreferenceClient.GetPreferenceAsync(sessionId);
@@ -789,15 +792,7 @@ else
         try
         {
             // Get the session ID for anonymous users (stored in localStorage for cross-tab persistence)
-            var sessionId = isAuthenticated ? null : await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
-            
-            // If anonymous user doesn't have a session ID yet, create one
-            if (!isAuthenticated && string.IsNullOrEmpty(sessionId))
-            {
-                sessionId = Guid.NewGuid().ToString();
-                await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
-                Logger.LogInformation("Created new session ID: {SessionId}", sessionId);
-            }
+            var sessionId = isAuthenticated ? null : await GetOrCreateAnonymousSessionIdAsync();
             
             // Save preference to the server
             var success = await PreferenceClient.SavePreferenceAsync(agentId, null, null, sessionId);
@@ -831,6 +826,20 @@ else
         {
             Logger.LogError(ex, "Error loading rate limit status");
         }
+    }
+
+    private async Task<string> GetOrCreateAnonymousSessionIdAsync()
+    {
+        var sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+        if (Guid.TryParse(sessionId, out _))
+        {
+            return sessionId;
+        }
+
+        sessionId = Guid.NewGuid().ToString();
+        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
+        Logger.LogInformation("Created new anonymous session ID: {SessionId}", sessionId);
+        return sessionId;
     }
 
     /// <summary>

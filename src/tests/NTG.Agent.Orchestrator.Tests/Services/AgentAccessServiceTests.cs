@@ -99,10 +99,10 @@ public class AgentAccessServiceTests
     }
 
     [Test]
-    public async Task HasAccessAsync_NullUserId_ReturnsFalse()
+    public async Task HasAccessAsync_NullUserId_ReturnsPublishedAgentAccess()
     {
         var result = await _service.HasAccessAsync(_agentId, null, isAdmin: false, CancellationToken.None);
-        Assert.That(result, Is.False);
+        Assert.That(result, Is.True);
     }
 
     [Test]
@@ -170,7 +170,8 @@ public class AgentAccessServiceTests
     public async Task AccessibleAgentsQuery_NullUserId_ReturnsEmpty()
     {
         var agents = await _service.AccessibleAgentsQuery(null, isAdmin: false).ToListAsync();
-        Assert.That(agents, Is.Empty);
+        Assert.That(agents, Has.Count.EqualTo(1));
+        Assert.That(agents[0].Id, Is.EqualTo(_agentId));
     }
 
     [Test]

@@ -142,6 +142,30 @@ public class AgentsControllerTests
     }
 
     [Test]
+    public async Task GetAgents_WhenAnonymous_ReturnsPublishedAgents()
+    {
+        _controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        var agent = new Models.Agents.Agent
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Agent",
+            Instructions = "Test instructions",
+            IsPublished = true,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.SaveChangesAsync();
+
+        var result = await _controller.GetAgents();
+
+        var okResult = result as OkObjectResult;
+        var agents = okResult!.Value as List<AgentListItemDto>;
+        Assert.That(agents, Has.Count.EqualTo(1));
+        Assert.That(agents[0].Id, Is.EqualTo(agent.Id));
+    }
+
+    [Test]
     public async Task GetAgents_WhenNoPublishedAgentsExist_ReturnsOkWithEmptyList()
     {
         // Arrange

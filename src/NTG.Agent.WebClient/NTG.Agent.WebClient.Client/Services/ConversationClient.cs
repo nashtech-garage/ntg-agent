@@ -93,8 +93,13 @@ public class ConversationClient(HttpClient httpClient)
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<RateLimitStatus?> GetAnonymousRateLimitStatusAsync(string currentSessionId)
+    public async Task<RateLimitStatus?> GetAnonymousRateLimitStatusAsync(string? currentSessionId)
     {
+        if (!Guid.TryParse(currentSessionId, out _))
+        {
+            return null;
+        }
+
         string url = $"/api/conversations/anonymous/rate-limit-status?sessionId={Uri.EscapeDataString(currentSessionId)}";
 
         var response = await httpClient.GetAsync(url);
