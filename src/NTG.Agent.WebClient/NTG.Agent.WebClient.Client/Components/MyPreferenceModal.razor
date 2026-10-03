@@ -232,7 +232,8 @@
             selectedTheme  = await JS.InvokeAsync<string>("getTheme");
             selectedAccent = await JS.InvokeAsync<string>("getAccentColor");
 
-            var preference = await PreferenceClient.GetPreferenceAsync(null);
+            var sessionId = await GetOrCreateAnonymousSessionIdAsync();
+            var preference = await PreferenceClient.GetPreferenceAsync(sessionId);
             if (preference != null)
             {
                 selectedAgentId = preference.SelectedAgentId;
@@ -316,7 +317,7 @@
                 selectedAgentId,
                 isMemoryEnabled,
                 isMemorySearchEnabled,
-                null,
+                await GetOrCreateAnonymousSessionIdAsync(),
                 selectedTheme,
                 selectedAccent
             );
@@ -337,6 +338,7 @@
                 errorMessage = "Failed to save preferences. Please try again.";
             }
         }
+
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error saving preferences");
@@ -346,5 +348,18 @@
         {
             isSaving = false;
         }
+    }
+
+    private async Task<string> GetOrCreateAnonymousSessionIdAsync()
+    {
+        var sessionId = await JS.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+        if (Guid.TryParse(sessionId, out _))
+        {
+            return sessionId;
+        }
+
+        sessionId = Guid.NewGuid().ToString();
+        await JS.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
+        return sessionId;
     }
 }

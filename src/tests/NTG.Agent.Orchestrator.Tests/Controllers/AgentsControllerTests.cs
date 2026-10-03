@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Services.Agents;
@@ -139,6 +140,53 @@ public class AgentsControllerTests
         var customAgent = agents.FirstOrDefault(a => !a.IsDefault);
         Assert.That(customAgent, Is.Not.Null, "Custom agent should be in the list");
         Assert.That(customAgent!.Name, Is.EqualTo("Custom Agent"));
+    }
+
+    [Test]
+    public async Task GetAgents_WhenAnonymous_ReturnsPublishedAgents()
+    {
+        _controller.ControllerContext.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        var agent = new Models.Agents.Agent
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Agent",
+            Instructions = "Test instructions",
+            IsPublished = true,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        };
+        await _context.Agents.AddAsync(agent);
+        await _context.AgentRoles.AddAsync(new Models.Agents.AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agent.Id,
+            RoleId = new Guid(Constants.AnonymousRoleId)
+        });
+        var subAgent = new Models.Agents.Agent
+        {
+            Id = Guid.NewGuid(),
+            Name = "Anonymous Sub-agent",
+            Instructions = "Test instructions",
+            IsPublished = true,
+            AgentKind = AgentKind.SubAgent,
+            OwnerUserId = _testUserId,
+            UpdatedByUserId = _testUserId
+        };
+        await _context.Agents.AddAsync(subAgent);
+        await _context.AgentRoles.AddAsync(new Models.Agents.AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = subAgent.Id,
+            RoleId = new Guid(Constants.AnonymousRoleId)
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _controller.GetAgents();
+
+        var okResult = result as OkObjectResult;
+        var agents = okResult!.Value as List<AgentListItemDto>;
+        Assert.That(agents, Has.Count.EqualTo(1));
+        Assert.That(agents[0].Id, Is.EqualTo(agent.Id));
     }
 
     [Test]
