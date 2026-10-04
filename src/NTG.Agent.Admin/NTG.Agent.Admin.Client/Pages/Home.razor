@@ -26,16 +26,6 @@
 
             <ul class="nav nav-tabs mb-4">
                 <li class="nav-item">
-                    <button class="nav-link @(filterKind == null ? "active" : "")"
-                            @onclick="() => SetFilter(null)">
-                        <i class="bi bi-grid me-1"></i> All
-                        @if (allAgents != null)
-                        {
-                            <span class="badge bg-secondary ms-1">@allAgents.Count</span>
-                        }
-                    </button>
-                </li>
-                <li class="nav-item">
                     <button class="nav-link @(filterKind == AgentKind.Agent ? "active" : "")"
                             @onclick="() => SetFilter(AgentKind.Agent)">
                         <i class="bi bi-people-fill me-1"></i> Agents
@@ -52,6 +42,16 @@
                         @if (allAgents != null)
                         {
                             <span class="badge bg-success ms-1">@allAgents.Count(a => a.AgentKind == AgentKind.SubAgent)</span>
+                        }
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(filterKind == null ? "active" : "")"
+                            @onclick="() => SetFilter(null)">
+                        <i class="bi bi-grid me-1"></i> All
+                        @if (allAgents != null)
+                        {
+                            <span class="badge bg-secondary ms-1">@allAgents.Count</span>
                         }
                     </button>
                 </li>
@@ -240,7 +240,7 @@
 
 @code {
     private IList<AgentListItem>? allAgents;
-    private AgentKind? filterKind;
+    private AgentKind? filterKind = AgentKind.Agent;
     private DeleteAgentConfirmationModal? deleteModal;
 
     // Re-fetch the list while any agent is still Provisioning so the badge flips to Ready/Failed
