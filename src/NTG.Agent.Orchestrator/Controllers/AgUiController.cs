@@ -99,6 +99,7 @@ public class AgUiController : ControllerBase
         try
         {
             var conversationId = await GetOrCreateConversationAsync(userId, threadId);
+            input.Messages = NormalizeMessagesForSdk(input.Messages);
             var requestContext = input.ToChatRequestContext(_jsonOptions.Value.SerializerOptions);
             var prompt = ExtractPrompt(requestContext.Input.Messages);
             var frontendToolsJson = BuildFrontendToolsJson(requestContext.Input.Tools);
@@ -392,6 +393,23 @@ public class AgUiController : ControllerBase
         });
 
         return JsonSerializer.Serialize(items, _camelCase);
+    }
+
+    private List<AGUIMessage> NormalizeMessagesForSdk(IList<AGUIMessage> messages)
+    {
+        var normalized = messages
+            .Where(message => !string.Equals(message.Role, "reasoning", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var removedCount = messages.Count - normalized.Count;
+        if (removedCount > 0)
+        {
+            _logger.LogDebug(
+                "Removed {Count} non-protocol reasoning message(s) before AG-UI SDK request conversion",
+                removedCount);
+        }
+
+        return normalized;
     }
 
     private static long Now() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
