@@ -85,24 +85,24 @@ public class AgUiController : ControllerBase
             _logger.LogInformation(
                 "AG-UI run refused for agent {AgentId} on thread {ThreadId}: caller has no access", agentId, threadId);
 
-            await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
-            await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.RunStarted, threadId, runId, timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.StepStarted, stepName = "chat", timestamp = Now() });
             await WriteAssistantMessageAsync(AccessDeniedMessage);
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.RunFinished, threadId, runId, timestamp = Now() });
             return;
         }
 
         var runStarted = false;
         var stepStarted = false;
         var stepFinished = false;
+        var terminalEventEmitted = false;
         try
         {
             var conversationId = await GetOrCreateConversationAsync(userId, threadId);
             input.Messages = NormalizeMessagesForSdk(input.Messages);
             var requestContext = input.ToChatRequestContext(_jsonOptions.Value.SerializerOptions);
             var prompt = ExtractPrompt(requestContext.Input.Messages);
-            var frontendToolsJson = BuildFrontendToolsJson(requestContext.Input.Tools);
 
             // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
             // it as a user message (otherwise the instruction text shows up as a user message).
@@ -116,7 +116,12 @@ public class AgUiController : ControllerBase
                 Documents: null,
                 AgentId: agentId)
             {
-                FrontendToolsJson = frontendToolsJson,
+                FrontendTools = requestContext.Input.Tools?
+                    .Select(tool => new FrontendToolDefinition(
+                        tool.Name,
+                        tool.Description,
+                        tool.Parameters ?? default))
+                    .ToList(),
                 PersistUserMessage = !isToolResultTurn
             };
 
@@ -139,29 +144,33 @@ public class AgUiController : ControllerBase
                 if (!stepStarted && agUiEvent is RunStartedEvent)
                 {
                     await WriteEventAsync(agUiEvent);
-                    await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+                    await WriteEventAsync(new { type = AGUIEventTypes.StepStarted, stepName = "chat", timestamp = Now() });
                     stepStarted = true;
                     runStarted = true;
                     continue;
                 }
 
-                if (!stepFinished && agUiEvent is RunFinishedEvent or RunErrorEvent)
+                if (agUiEvent is RunFinishedEvent or RunErrorEvent)
                 {
-                    await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-                    stepFinished = true;
+                    terminalEventEmitted = true;
+                    if (!stepFinished)
+                    {
+                        await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
+                        stepFinished = true;
+                    }
                 }
 
                 await WriteEventAsync(agUiEvent);
             }
 
             if (!stepFinished)
-                await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+                await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
         }
         catch (AnonymousRateLimitExceededException)
         {
             await WriteAssistantMessageAsync(
                 "⚠️ You've reached the message limit for anonymous users. Please sign in to continue.");
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
         }
         catch (AgentAccessDeniedException)
         {
@@ -175,7 +184,7 @@ public class AgUiController : ControllerBase
                 threadId, agentId);
 
             await WriteAssistantMessageAsync(AccessDeniedMessage);
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -185,20 +194,26 @@ public class AgUiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AG-UI agent run failed for thread {ThreadId}", threadId);
+            // AGUI.Server emits RUN_ERROR when the response stream itself fails. Only synthesize
+            // the lifecycle here for failures that happen outside that adapter, otherwise the
+            // frontend can receive two terminal events for one run.
+            if (terminalEventEmitted)
+                return;
+
             if (!runStarted)
             {
-                await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
+                await WriteEventAsync(new { type = AGUIEventTypes.RunStarted, threadId, runId, timestamp = Now() });
                 runStarted = true;
             }
 
             if (!stepStarted)
             {
-                await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+                await WriteEventAsync(new { type = AGUIEventTypes.StepStarted, stepName = "chat", timestamp = Now() });
                 stepStarted = true;
             }
 
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_ERROR", message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.StepFinished, stepName = "chat", timestamp = Now() });
+            await WriteEventAsync(new { type = AGUIEventTypes.RunError, message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
         }
     }
 
@@ -215,9 +230,9 @@ public class AgUiController : ControllerBase
     private async Task WriteAssistantMessageAsync(string text)
     {
         var id = NewId();
-        await WriteEventAsync(new { type = "TEXT_MESSAGE_START", messageId = id, role = "assistant", timestamp = Now() });
-        await WriteEventAsync(new { type = "TEXT_MESSAGE_CONTENT", messageId = id, delta = text, timestamp = Now() });
-        await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId = id, timestamp = Now() });
+        await WriteEventAsync(new { type = AGUIEventTypes.TextMessageStart, messageId = id, role = "assistant", timestamp = Now() });
+        await WriteEventAsync(new { type = AGUIEventTypes.TextMessageContent, messageId = id, delta = text, timestamp = Now() });
+        await WriteEventAsync(new { type = AGUIEventTypes.TextMessageEnd, messageId = id, timestamp = Now() });
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -376,23 +391,6 @@ public class AgUiController : ControllerBase
         // Normal user turn: last user message
         var lastUser = messages.OfType<AGUIUserMessage>().LastOrDefault();
         return lastUser?.Content.ToString() ?? "";
-    }
-
-    private static string? BuildFrontendToolsJson(IEnumerable<AGUITool>? tools)
-    {
-        if (tools is null) return null;
-
-        var toolList = tools.ToList();
-        if (toolList.Count == 0) return null;
-
-        var items = toolList.Select(t => new
-        {
-            name = t.Name,
-            description = t.Description ?? "",
-            parameters = t.Parameters
-        });
-
-        return JsonSerializer.Serialize(items, _camelCase);
     }
 
     private List<AGUIMessage> NormalizeMessagesForSdk(IList<AGUIMessage> messages)

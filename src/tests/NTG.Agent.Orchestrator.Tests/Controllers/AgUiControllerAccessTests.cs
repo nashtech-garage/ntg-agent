@@ -113,13 +113,13 @@ public class AgUiControllerAccessTests
 
         Assert.That(EventTypes(events), Is.EqualTo(new[]
         {
-            "RUN_STARTED",
-            "STEP_STARTED",
-            "TEXT_MESSAGE_START",
-            "TEXT_MESSAGE_CONTENT",
-            "TEXT_MESSAGE_END",
-            "STEP_FINISHED",
-            "RUN_FINISHED",
+            AGUIEventTypes.RunStarted,
+            AGUIEventTypes.StepStarted,
+            AGUIEventTypes.TextMessageStart,
+            AGUIEventTypes.TextMessageContent,
+            AGUIEventTypes.TextMessageEnd,
+            AGUIEventTypes.StepFinished,
+            AGUIEventTypes.RunFinished,
         }));
     }
 
@@ -153,7 +153,7 @@ public class AgUiControllerAccessTests
         Assert.Multiple(() =>
         {
             Assert.That(Deltas(events), Has.Some.Contains("do not have access to this agent"));
-            Assert.That(EventTypes(events), Has.No.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.No.Member(AGUIEventTypes.RunError));
         });
     }
 
@@ -179,9 +179,9 @@ public class AgUiControllerAccessTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(EventTypes(events), Has.No.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.No.Member(AGUIEventTypes.RunError));
             Assert.That(Deltas(events), Has.Some.Contains("do not have access to this agent"));
-            Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunFinished));
         });
     }
 
@@ -195,7 +195,8 @@ public class AgUiControllerAccessTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(EventTypes(events), Has.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunError));
+            Assert.That(EventTypes(events).Count(type => type == AGUIEventTypes.RunError), Is.EqualTo(1));
             Assert.That(Deltas(events), Has.None.Contains("do not have access to this agent"));
         });
     }
@@ -216,9 +217,9 @@ public class AgUiControllerAccessTests
         {
             Assert.That(Deltas(events), Has.None.Contains("do not have access to this agent"));
             Assert.That(_agentFactory.Agent.Messages, Is.Not.Empty, "the agent should have been run");
-            Assert.That(EventTypes(events), Has.Member("TEXT_MESSAGE_CONTENT"));
-            Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
-            Assert.That(eventTypes.IndexOf("STEP_FINISHED"), Is.LessThan(eventTypes.IndexOf("RUN_FINISHED")));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.TextMessageContent));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunFinished));
+            Assert.That(eventTypes.IndexOf(AGUIEventTypes.StepFinished), Is.LessThan(eventTypes.IndexOf(AGUIEventTypes.RunFinished)));
         });
     }
 
@@ -272,10 +273,10 @@ public class AgUiControllerAccessTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(eventTypes, Has.Member("TEXT_MESSAGE_CONTENT"));
-            Assert.That(eventTypes, Has.Member("RUN_FINISHED"));
-            Assert.That(eventTypes.IndexOf("STEP_FINISHED"), Is.LessThan(eventTypes.IndexOf("RUN_FINISHED")));
-            Assert.That(eventTypes, Has.No.Member("RUN_ERROR"));
+            Assert.That(eventTypes, Has.Member(AGUIEventTypes.TextMessageContent));
+            Assert.That(eventTypes, Has.Member(AGUIEventTypes.RunFinished));
+            Assert.That(eventTypes.IndexOf(AGUIEventTypes.StepFinished), Is.LessThan(eventTypes.IndexOf(AGUIEventTypes.RunFinished)));
+            Assert.That(eventTypes, Has.No.Member(AGUIEventTypes.RunError));
         });
     }
 

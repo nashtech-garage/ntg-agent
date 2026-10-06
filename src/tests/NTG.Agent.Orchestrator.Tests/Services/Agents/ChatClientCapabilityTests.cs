@@ -55,7 +55,7 @@ public class ChatClientCapabilityTests
         }
         """;
 
-    /// <summary>A frontend tool list shaped the way <c>AgUiController.BuildFrontendToolsJson</c> emits one.</summary>
+    /// <summary>A frontend tool list shaped like the AG-UI client declarations.</summary>
     private const string FrontendTools = """
         [
           { "name": "render_a2ui", "description": "Render a surface", "parameters": { "type": "object", "properties": {} } },
@@ -212,6 +212,33 @@ public class ChatClientCapabilityTests
         {
             Assert.That(ToolNames(), Has.Member(A2uiPrompt.RenderToolName).And.Member("change_background"));
             Assert.That(SystemMessages(), Has.Some.Contains("A2UI v0.9"));
+        });
+    }
+
+    [Test]
+    public async Task GenerativeUiClient_DirectFrontendDefinitions_PreserveToolMetadata()
+    {
+        using var schemaDocument = JsonDocument.Parse(
+            """{"type":"object","properties":{"color":{"type":"string"}}}""");
+
+        await RunAsync(
+            ChatClientCapabilities.GenerativeUi,
+            frontendTools:
+            [
+                new FrontendToolDefinition(
+                    "change_background",
+                    "Recolour the page",
+                    schemaDocument.RootElement.Clone())
+            ]);
+
+        var tool = _agentFactory.Agent.Tools
+            .OfType<AIFunctionDeclaration>()
+            .Single(tool => tool.Name == "change_background");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(tool.Description, Is.EqualTo("Recolour the page"));
+            Assert.That(tool.JsonSchema.GetProperty("properties").GetProperty("color").GetProperty("type").GetString(), Is.EqualTo("string"));
         });
     }
 
@@ -389,12 +416,13 @@ public class ChatClientCapabilityTests
     private async Task<List<PromptResponse>> RunAsync(
         ChatClientCapabilities capabilities,
         string? frontendToolsJson = null,
+        IReadOnlyList<FrontendToolDefinition>? frontendTools = null,
         bool persistUserMessage = true)
     {
         var chunks = new List<PromptResponse>();
 
         await foreach (var chunk in _service.ChatStreamingAsync(
-            _userId, Request(frontendToolsJson, persistUserMessage), isAdmin: false, capabilities))
+            _userId, Request(frontendToolsJson, frontendTools, persistUserMessage), isAdmin: false, capabilities))
         {
             chunks.Add(chunk);
         }
@@ -402,13 +430,17 @@ public class ChatClientCapabilityTests
         return chunks;
     }
 
-    private PromptRequestForm Request(string? frontendToolsJson, bool persistUserMessage = true) => new(
+    private PromptRequestForm Request(
+        string? frontendToolsJson,
+        IReadOnlyList<FrontendToolDefinition>? frontendTools = null,
+        bool persistUserMessage = true) => new(
         Prompt: "Book me two tickets.",
         ConversationId: _conversationId,
         SessionId: null,
         Documents: null,
         AgentId: _agentId)
     {
+        FrontendTools = frontendTools,
         FrontendToolsJson = frontendToolsJson,
         PersistUserMessage = persistUserMessage,
     };

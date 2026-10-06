@@ -1,4 +1,5 @@
 using Microsoft.Extensions.AI;
+using NTG.Agent.Common.Dtos.Chats;
 using System.Text.Json;
 
 namespace NTG.Agent.Orchestrator.Plugins;
@@ -28,6 +29,22 @@ public sealed class FrontendToolDeclaration : AIFunctionDeclaration
 
     private static readonly JsonElement EmptyObjectSchema =
         JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement;
+
+    /// <summary>
+    /// Converts client-tool metadata already parsed by the AG-UI boundary into declaration-only
+    /// tools without serializing and parsing the metadata again.
+    /// </summary>
+    public static List<AITool> FromDefinitions(IEnumerable<FrontendToolDefinition> definitions) =>
+        definitions
+            .Where(definition => !string.IsNullOrWhiteSpace(definition.Name))
+            .Select(definition => new FrontendToolDeclaration(
+                definition.Name,
+                definition.Description,
+                definition.Parameters.ValueKind == JsonValueKind.Object
+                    ? definition.Parameters.Clone()
+                    : EmptyObjectSchema))
+            .Cast<AITool>()
+            .ToList();
 
     /// <summary>
     /// Parses the CopilotKit frontend tools JSON array ([{name, description, parameters}, ...],
