@@ -44,6 +44,58 @@ function captureValue(context: any, value: unknown) {
   try { context?.dataContext?.dataModel?.set(`/__inputs/${id}`, value); } catch { /* ignore */ }
 }
 
+function validateTripSearch(dataModel: any): string[] {
+  const read = (path: string) => {
+    try { return dataModel?.get(path); } catch { return undefined; }
+  };
+
+  const errors: string[] = [];
+  const destination = typeof read("/trip/destination") === "string"
+    ? read("/trip/destination").trim()
+    : "";
+  const departDate = read("/trip/departDate");
+  const returnDate = read("/trip/returnDate");
+  const adults = Number(read("/trip/adults"));
+  const kids = Number(read("/trip/kids"));
+
+  if (!destination) errors.push("Where to is required.");
+  if (!Number.isInteger(adults) || adults < 1) {
+    errors.push("Adults must be a whole number of at least 1.");
+  }
+  if (!Number.isInteger(kids) || kids < 0) {
+    errors.push("Kids must be a non-negative whole number.");
+  }
+
+  const today = new Date();
+  const todayString = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  const isIsoDate = (value: unknown): value is string =>
+    typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+
+  if (!isIsoDate(departDate)) {
+    errors.push("Departing must be a valid future date.");
+  } else if (departDate <= todayString) {
+    errors.push("Departing must be a future date.");
+  }
+
+  if (!isIsoDate(returnDate)) {
+    errors.push("Returning must be a valid future date.");
+  } else if (returnDate <= todayString) {
+    errors.push("Returning must be a future date.");
+  }
+
+  if (isIsoDate(departDate) && isIsoDate(returnDate) && returnDate < departDate) {
+    errors.push("Returning must be on or after Departing.");
+  }
+
+  return errors;
+}
+
 const InteractiveTextField = createReactComponent(TextFieldApi as any, ({ props, context }: any) => {
   const [value, setValue] = React.useState<string>(props.value ?? "");
   const id = React.useId();
@@ -129,24 +181,36 @@ const InteractiveChoicePicker = createReactComponent(ChoicePickerApi as any, ({ 
 // always reach the agent. Uses the correct A2UI payload shape: { event: { name, context } }.
 const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, buildChild, context }: any) => {
   const [validationAttempted, setValidationAttempted] = React.useState(false);
+  const [localValidationErrors, setLocalValidationErrors] = React.useState<string[]>([]);
   const validationErrors: string[] = Array.isArray(props.validationErrors)
     ? props.validationErrors
     : [];
+  const displayedValidationErrors = [...validationErrors, ...localValidationErrors];
   const isValid = props.isValid !== false;
 
   const onClick = () => {
-    if (!isValid) {
+    const dataModel = context?.dataContext?.dataModel;
+    const actionDef = context?.componentModel?.properties?.action?.event;
+    const isTripSearchSubmit =
+      actionDef?.name === "trip_search_submit"
+      || context?.componentModel?.id === "trip-submit";
+    const localErrors = isTripSearchSubmit
+      ? validateTripSearch(dataModel)
+      : [];
+    const errors = [...validationErrors, ...localErrors];
+
+    if (!isValid || errors.length > 0) {
       setValidationAttempted(true);
+      setLocalValidationErrors(localErrors);
       return;
     }
 
-    const actionDef = context?.componentModel?.properties?.action?.event;
     if (!actionDef) {
       props.action?.(); // decorative button with no action — keep default behavior
       return;
     }
 
-    const dataModel = context?.dataContext?.dataModel;
+    setLocalValidationErrors([]);
     let formData: Record<string, any> = {};
     try { formData = dataModel?.get("/") ?? {}; } catch { /* ignore */ }
 
@@ -208,9 +272,9 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
       >
         {props.child ? buildChild(props.child) : null}
       </button>
-      {validationAttempted && validationErrors.length > 0 ? (
+      {validationAttempted && displayedValidationErrors.length > 0 ? (
         <div role="alert" style={{ color: "#b91c1c", fontSize: 13 }}>
-          {validationErrors.map((error, index) => (
+          {displayedValidationErrors.map((error, index) => (
             <div key={`${error}-${index}`}>{error}</div>
           ))}
         </div>
