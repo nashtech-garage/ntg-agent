@@ -24,6 +24,7 @@
 //
 // Visual styling comes from the scoped `.a2ui-surface` rules in app/globals.css.
 import React from "react";
+import { z } from "zod/v3";
 import { Catalog } from "@a2ui/web_core/v0_9";
 import {
   TextFieldApi,
@@ -32,7 +33,11 @@ import {
   ButtonApi,
   TabsApi,
 } from "@a2ui/web_core/v0_9/basic_catalog";
-import { basicCatalog, createReactComponent } from "@copilotkit/a2ui-renderer";
+import { createFunctionImplementation } from "@a2ui/web_core/v0_9";
+import {
+  basicCatalog,
+  createReactComponent,
+} from "@copilotkit/a2ui-renderer";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -42,58 +47,6 @@ function captureValue(context: any, value: unknown) {
   const id = context?.componentModel?.id;
   if (!id) return;
   try { context?.dataContext?.dataModel?.set(`/__inputs/${id}`, value); } catch { /* ignore */ }
-}
-
-function validateTripSearch(dataModel: any): string[] {
-  const read = (path: string) => {
-    try { return dataModel?.get(path); } catch { return undefined; }
-  };
-
-  const errors: string[] = [];
-  const destination = typeof read("/trip/destination") === "string"
-    ? read("/trip/destination").trim()
-    : "";
-  const departDate = read("/trip/departDate");
-  const returnDate = read("/trip/returnDate");
-  const adults = Number(read("/trip/adults"));
-  const kids = Number(read("/trip/kids"));
-
-  if (!destination) errors.push("Where to is required.");
-  if (!Number.isInteger(adults) || adults < 1) {
-    errors.push("Adults must be a whole number of at least 1.");
-  }
-  if (!Number.isInteger(kids) || kids < 0) {
-    errors.push("Kids must be a non-negative whole number.");
-  }
-
-  const today = new Date();
-  const todayString = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, "0"),
-    String(today.getDate()).padStart(2, "0"),
-  ].join("-");
-  const isIsoDate = (value: unknown): value is string =>
-    typeof value === "string"
-    && /^\d{4}-\d{2}-\d{2}$/.test(value)
-    && !Number.isNaN(Date.parse(`${value}T00:00:00`));
-
-  if (!isIsoDate(departDate)) {
-    errors.push("Departing must be a valid future date.");
-  } else if (departDate <= todayString) {
-    errors.push("Departing must be a future date.");
-  }
-
-  if (!isIsoDate(returnDate)) {
-    errors.push("Returning must be a valid future date.");
-  } else if (returnDate <= todayString) {
-    errors.push("Returning must be a future date.");
-  }
-
-  if (isIsoDate(departDate) && isIsoDate(returnDate) && returnDate < departDate) {
-    errors.push("Returning must be on or after Departing.");
-  }
-
-  return errors;
 }
 
 const InteractiveTextField = createReactComponent(TextFieldApi as any, ({ props, context }: any) => {
@@ -191,17 +144,11 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
   const onClick = () => {
     const dataModel = context?.dataContext?.dataModel;
     const actionDef = context?.componentModel?.properties?.action?.event;
-    const isTripSearchSubmit =
-      actionDef?.name === "trip_search_submit"
-      || context?.componentModel?.id === "trip-submit";
-    const localErrors = isTripSearchSubmit
-      ? validateTripSearch(dataModel)
-      : [];
-    const errors = [...validationErrors, ...localErrors];
+    const errors = validationErrors;
 
     if (!isValid || errors.length > 0) {
       setValidationAttempted(true);
-      setLocalValidationErrors(localErrors);
+      setLocalValidationErrors([]);
       return;
     }
 
@@ -457,7 +404,62 @@ const overrides: Record<string, any> = {
 const components = [...(basicCatalog as any).components.values()].map(
   (c: any) => overrides[c.name] ?? c,
 );
-const functions = [...(basicCatalog as any).functions.values()];
+
+function isIsoDate(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+}
+
+function localDateString(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+const IntegerAtLeastApi = {
+  name: "integer_at_least",
+  returnType: "boolean" as const,
+  schema: z.object({
+    value: z.any(),
+    minimum: z.coerce.number(),
+  }),
+};
+
+const FutureDateApi = {
+  name: "future_date",
+  returnType: "boolean" as const,
+  schema: z.object({ value: z.any() }),
+};
+
+const DateOnOrAfterApi = {
+  name: "date_on_or_after",
+  returnType: "boolean" as const,
+  schema: z.object({
+    value: z.any(),
+    other: z.any(),
+  }),
+};
+
+const customFunctions = [
+  createFunctionImplementation(IntegerAtLeastApi as any, (args: any) => {
+    const value = Number(args.value);
+    return Number.isInteger(value) && value >= args.minimum;
+  }),
+  createFunctionImplementation(FutureDateApi as any, (args: any) => {
+    if (!isIsoDate(args.value)) return false;
+    return args.value > localDateString(new Date());
+  }),
+  createFunctionImplementation(DateOnOrAfterApi as any, (args: any) => {
+    return isIsoDate(args.value) && isIsoDate(args.other) && args.value >= args.other;
+  }),
+];
+const functions = [
+  ...(basicCatalog as any).functions.values(),
+  ...customFunctions,
+];
 
 export const interactiveCatalog = new Catalog(
   (basicCatalog as any).id,

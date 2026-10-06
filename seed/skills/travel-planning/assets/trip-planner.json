@@ -128,6 +128,85 @@
       "component": "Button",
       "variant": "primary",
       "child": "trip-submit-label",
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": {
+              "value": {
+                "path": "/trip/destination"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Where to is required."
+        },
+        {
+          "condition": {
+            "call": "future_date",
+            "args": {
+              "value": {
+                "path": "/trip/departDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Departing must be a valid future date."
+        },
+        {
+          "condition": {
+            "call": "future_date",
+            "args": {
+              "value": {
+                "path": "/trip/returnDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Returning must be a valid future date."
+        },
+        {
+          "condition": {
+            "call": "date_on_or_after",
+            "args": {
+              "value": {
+                "path": "/trip/returnDate"
+              },
+              "other": {
+                "path": "/trip/departDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Returning must be on or after Departing."
+        },
+        {
+          "condition": {
+            "call": "integer_at_least",
+            "args": {
+              "value": {
+                "path": "/trip/adults"
+              },
+              "minimum": 1
+            },
+            "returnType": "boolean"
+          },
+          "message": "Adults must be a whole number of at least 1."
+        },
+        {
+          "condition": {
+            "call": "integer_at_least",
+            "args": {
+              "value": {
+                "path": "/trip/kids"
+              },
+              "minimum": 0
+            },
+            "returnType": "boolean"
+          },
+          "message": "Kids must be a non-negative whole number."
+        }
+      ],
       "action": {
         "event": {
           "name": "trip_search_submit",

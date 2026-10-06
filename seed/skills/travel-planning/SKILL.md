@@ -94,6 +94,10 @@ whole numbers, with `adults` at least 1. `style` is an **array** with one of `"b
 `"balanced"`, `"comfort"` — the picker stores its selection as an array even in single-choice
 mode.
 
+The submit button declares these rules in the surface asset's generic A2UI `checks` metadata.
+Do not rely on a skill-specific frontend validator or assume that the client knows the `trip`
+data paths; uploaded skills may define different data models and validation rules.
+
 Say one short line before the surface ("Let's set up your trip.") and nothing after it. Do
 not restate the fields in prose — the surface already shows them.
 
