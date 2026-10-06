@@ -210,6 +210,7 @@ public class AgUiControllerAccessTests
     public async Task OwnerIsNotRefused_AndTheRunActuallyHappens()
     {
         var events = await RunAsync(userId: _ownerId);
+        var eventTypes = EventTypes(events).ToList();
 
         Assert.Multiple(() =>
         {
@@ -217,6 +218,7 @@ public class AgUiControllerAccessTests
             Assert.That(_agentFactory.Agent.Messages, Is.Not.Empty, "the agent should have been run");
             Assert.That(EventTypes(events), Has.Member("TEXT_MESSAGE_CONTENT"));
             Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
+            Assert.That(eventTypes.IndexOf("STEP_FINISHED"), Is.LessThan(eventTypes.IndexOf("RUN_FINISHED")));
         });
     }
 

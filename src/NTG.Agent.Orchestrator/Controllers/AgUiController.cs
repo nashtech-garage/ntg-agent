@@ -130,19 +130,30 @@ public class AgUiController : ControllerBase
                 HttpContext.RequestAborted);
 
             var stepStarted = false;
+            var stepFinished = false;
             await foreach (var agUiEvent in updates.AsAGUIEventStreamAsync(
                 requestContext,
                 HttpContext.RequestAborted))
             {
-                await WriteEventAsync(agUiEvent);
                 if (!stepStarted && agUiEvent is RunStartedEvent)
                 {
+                    await WriteEventAsync(agUiEvent);
                     await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
                     stepStarted = true;
+                    continue;
                 }
+
+                if (!stepFinished && agUiEvent is RunFinishedEvent or RunErrorEvent)
+                {
+                    await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+                    stepFinished = true;
+                }
+
+                await WriteEventAsync(agUiEvent);
             }
 
-            await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
+            if (!stepFinished)
+                await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
         }
         catch (AnonymousRateLimitExceededException)
         {
