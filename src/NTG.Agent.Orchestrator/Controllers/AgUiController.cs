@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using AGUI.Abstractions;
+using AGUI.Server;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Dtos;
@@ -21,6 +24,7 @@ public class AgUiController : ControllerBase
     private readonly AgentAccessService _agentAccessService;
     private readonly ILogger<AgUiController> _logger;
     private readonly IMemoryCache _cache;
+    private readonly IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> _jsonOptions;
 
     // Maps threadId → conversationId. Cached with a sliding expiration so the map cannot grow
     // unbounded; evicted entries are recovered from the DB lookup in GetOrCreateConversationAsync.
@@ -36,17 +40,19 @@ public class AgUiController : ControllerBase
         AgentDbContext dbContext,
         AgentAccessService agentAccessService,
         ILogger<AgUiController> logger,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        IOptions<Microsoft.AspNetCore.Http.Json.JsonOptions> jsonOptions)
     {
         _agentService = agentService;
         _dbContext = dbContext;
         _agentAccessService = agentAccessService;
         _logger = logger;
         _cache = cache;
+        _jsonOptions = jsonOptions;
     }
 
     [HttpPost("{agentId}")]
-    public async Task RunAgentAsync(Guid agentId, [FromBody] AgUiRunRequest input)
+    public async Task RunAgentAsync(Guid agentId, [FromBody] RunAgentInput input)
     {
         var threadId = input.ThreadId;
         if (string.IsNullOrWhiteSpace(threadId))
@@ -89,8 +95,9 @@ public class AgUiController : ControllerBase
 
         var conversationId = await GetOrCreateConversationAsync(userId, threadId);
 
-        var prompt = ExtractPrompt(input.Messages);
-        var frontendToolsJson = BuildFrontendToolsJson(input.Tools);
+        var requestContext = input.ToChatRequestContext(_jsonOptions.Value.SerializerOptions);
+        var prompt = ExtractPrompt(requestContext.Input.Messages);
+        var frontendToolsJson = BuildFrontendToolsJson(requestContext.Input.Tools);
 
         // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
         // it as a user message (otherwise the instruction text shows up in the chat history).
@@ -108,132 +115,40 @@ public class AgUiController : ControllerBase
             PersistUserMessage = !isToolResultTurn
         };
 
-        await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
-        await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
-
-        var messageId = NewId();
-        var textOpen = false;
-        var reasoningId = NewId();
-        var reasoningOpen = false;
-
         try
         {
             // NTG.Agent.CopilotKitApp: an AG-UI client with the A2UI renderer mounted. This is the one
             // endpoint where a rendered surface, a frontend tool call and a tool-render card all
             // have somewhere to land.
-            await foreach (var chunk in _agentService.ChatStreamingAsync(
-                userId, promptRequest, capabilities: ChatClientCapabilities.GenerativeUi))
+            var responses = NormalizeRunResponses(
+                _agentService.ChatStreamingAsync(
+                    userId, promptRequest, capabilities: ChatClientCapabilities.GenerativeUi),
+                threadId,
+                agentId);
+            var updates = AgUiChatResponseAdapter.ToChatResponseUpdates(
+                responses,
+                HttpContext.RequestAborted);
+
+            var stepStarted = false;
+            await foreach (var agUiEvent in updates.AsAGUIEventStreamAsync(
+                requestContext,
+                HttpContext.RequestAborted))
             {
-                if ((chunk.ContentType == PromptContentType.Thinking || chunk.ContentType == PromptContentType.SkillNotice)
-                    && !string.IsNullOrEmpty(chunk.Content))
+                await WriteEventAsync(agUiEvent);
+                if (!stepStarted && agUiEvent is RunStartedEvent)
                 {
-                    // SkillNotice is our own narration of skill activity, emitted as a reasoning
-                    // event on the same terms as provider thinking — same block, same events —
-                    // so the browser needs no changes to show which skill the agent used.
-                    // Close any open text block before reasoning starts
-                    if (textOpen)
-                    {
-                        await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
-                        textOpen = false;
-                        messageId = NewId();
-                    }
-
-                    if (!reasoningOpen)
-                    {
-                        await WriteEventAsync(new { type = "REASONING_START", messageId = reasoningId, timestamp = Now() });
-                        await WriteEventAsync(new { type = "REASONING_MESSAGE_START", messageId = reasoningId, role = "reasoning", timestamp = Now() });
-                        reasoningOpen = true;
-                    }
-                    await WriteEventAsync(new { type = "REASONING_MESSAGE_CONTENT", messageId = reasoningId, delta = chunk.Content, timestamp = Now() });
-                }
-                else if (chunk.ContentType == PromptContentType.ToolCall && !string.IsNullOrEmpty(chunk.Content))
-                {
-                    // Close reasoning and text before a tool call
-                    if (reasoningOpen)
-                    {
-                        await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
-                        await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
-                        reasoningOpen = false;
-                        reasoningId = NewId();
-                    }
-                    if (textOpen)
-                    {
-                        await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
-                        textOpen = false;
-                        messageId = NewId();
-                    }
-
-                    JsonElement toolCall;
-                    try { toolCall = JsonDocument.Parse(chunk.Content).RootElement; }
-                    catch (JsonException ex)
-                    {
-                        _logger.LogError(ex, "Failed to parse tool call chunk");
-                        continue;
-                    }
-
-                    var toolCallId = toolCall.TryGetProperty("callId", out var cid) ? cid.GetString() ?? NewId() : NewId();
-                    var toolName = toolCall.TryGetProperty("name", out var tn) ? tn.GetString() ?? "" : "";
-                    var argsEl = toolCall.TryGetProperty("arguments", out var a) ? a : default;
-                    var args = argsEl.ValueKind != JsonValueKind.Undefined ? JsonSerializer.Serialize(argsEl) : "{}";
-
-                    await WriteEventAsync(new { type = "TOOL_CALL_START", toolCallId, toolCallName = toolName, timestamp = Now() });
-                    await WriteEventAsync(new { type = "TOOL_CALL_ARGS", toolCallId, delta = args, timestamp = Now() });
-                    await WriteEventAsync(new { type = "TOOL_CALL_END", toolCallId, timestamp = Now() });
-                }
-                else if (chunk.ContentType == PromptContentType.ToolResult && !string.IsNullOrEmpty(chunk.Content))
-                {
-                    // Result of a server-side tool the browser renders (e.g. get_weather → weather card).
-                    JsonElement toolResult;
-                    try { toolResult = JsonDocument.Parse(chunk.Content).RootElement; }
-                    catch (JsonException ex)
-                    {
-                        _logger.LogError(ex, "Failed to parse tool result chunk");
-                        continue;
-                    }
-
-                    var resultCallId = toolResult.TryGetProperty("callId", out var rcid) ? rcid.GetString() ?? NewId() : NewId();
-                    var resultContent = toolResult.TryGetProperty("result", out var rc) ? rc.GetString() ?? "" : "";
-
-                    await WriteEventAsync(new { type = "TOOL_CALL_RESULT", messageId = NewId(), toolCallId = resultCallId, content = resultContent, role = "tool", timestamp = Now() });
-                }
-                else if (chunk.ContentType == PromptContentType.Text && !string.IsNullOrEmpty(chunk.Content))
-                {
-                    // Close reasoning block when text starts
-                    if (reasoningOpen)
-                    {
-                        await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
-                        await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
-                        reasoningOpen = false;
-                        reasoningId = NewId();
-                    }
-
-                    if (!textOpen)
-                    {
-                        await WriteEventAsync(new { type = "TEXT_MESSAGE_START", messageId, role = "assistant", timestamp = Now() });
-                        textOpen = true;
-                    }
-                    await WriteEventAsync(new { type = "TEXT_MESSAGE_CONTENT", messageId, delta = chunk.Content, timestamp = Now() });
+                    await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+                    stepStarted = true;
                 }
             }
-
-            if (reasoningOpen)
-            {
-                await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
-                await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
-            }
-            if (textOpen)
-                await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
 
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
         }
         catch (AnonymousRateLimitExceededException)
         {
-            await CloseOpenBlocksAsync();
             await WriteAssistantMessageAsync(
                 "⚠️ You've reached the message limit for anonymous users. Please sign in to continue.");
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
         }
         catch (AgentAccessDeniedException)
         {
@@ -246,10 +161,8 @@ public class AgUiController : ControllerBase
                 "AG-UI run for thread {ThreadId} was refused by the agent factory: no access to {AgentId}",
                 threadId, agentId);
 
-            await CloseOpenBlocksAsync();
             await WriteAssistantMessageAsync(AccessDeniedMessage);
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
-            await WriteEventAsync(new { type = "RUN_FINISHED", threadId, runId, timestamp = Now() });
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -259,28 +172,8 @@ public class AgUiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AG-UI agent run failed for thread {ThreadId}", threadId);
-            await CloseOpenBlocksAsync();
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
             await WriteEventAsync(new { type = "RUN_ERROR", message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
-        }
-
-        // Ends whichever block is still open, so anything written afterwards starts clean. Local
-        // functions because they close over the four flags that track that state; three catch
-        // blocks wanted the same seven lines, and a fourth copy is where the copies start drifting.
-        async Task CloseOpenBlocksAsync()
-        {
-            if (reasoningOpen)
-            {
-                await WriteEventAsync(new { type = "REASONING_MESSAGE_END", messageId = reasoningId, timestamp = Now() });
-                await WriteEventAsync(new { type = "REASONING_END", messageId = reasoningId, timestamp = Now() });
-                reasoningOpen = false;
-            }
-
-            if (textOpen)
-            {
-                await WriteEventAsync(new { type = "TEXT_MESSAGE_END", messageId, timestamp = Now() });
-                textOpen = false;
-            }
         }
     }
 
@@ -311,7 +204,9 @@ public class AgUiController : ControllerBase
 
     private async Task WriteEventAsync(object data)
     {
-        var json = JsonSerializer.Serialize(data, _camelCase);
+        var json = data is BaseEvent
+            ? JsonSerializer.Serialize(data, _jsonOptions.Value.SerializerOptions)
+            : JsonSerializer.Serialize(data, _camelCase);
         await Response.WriteAsync($"data: {json}\n\n");
         await Response.Body.FlushAsync();
     }
@@ -356,27 +251,72 @@ public class AgUiController : ControllerBase
         return conversation.Id;
     }
 
+    private async IAsyncEnumerable<PromptResponse> NormalizeRunResponses(
+        IAsyncEnumerable<PromptResponse> responses,
+        string threadId,
+        Guid agentId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await using var enumerator = responses
+            .WithCancellation(cancellationToken)
+            .GetAsyncEnumerator();
+
+        PromptResponse? fallback = null;
+        while (true)
+        {
+            var hasNext = false;
+            try
+            {
+                hasNext = await enumerator.MoveNextAsync();
+            }
+            catch (AnonymousRateLimitExceededException)
+            {
+                fallback = new PromptResponse(
+                    "⚠️ You've reached the message limit for anonymous users. Please sign in to continue.");
+                break;
+            }
+            catch (AgentAccessDeniedException)
+            {
+                _logger.LogInformation(
+                    "AG-UI run for thread {ThreadId} was refused by the agent factory: no access to {AgentId}",
+                    threadId,
+                    agentId);
+                fallback = new PromptResponse(AccessDeniedMessage);
+                break;
+            }
+
+            if (!hasNext)
+                break;
+
+            yield return enumerator.Current;
+        }
+
+        if (fallback is not null)
+            yield return fallback;
+    }
+
     /// <summary>
     /// Extracts the prompt from the message list.
     /// For a normal user turn: returns the last user message content.
     /// For a tool-result follow-up turn: builds a synthetic acknowledgement prompt.
     /// </summary>
-    private static string ExtractPrompt(List<AgUiMessage> messages)
+    private static string ExtractPrompt(IEnumerable<AGUIMessage> messages)
     {
         // Check if last non-system message is a tool result
-        var lastNonSystem = messages.LastOrDefault(m => m.Role != "system" && m.Role != "developer");
-        if (lastNonSystem?.Role == "tool")
+        var lastNonSystem = messages.LastOrDefault(m => m is not AGUISystemMessage and not AGUIDeveloperMessage);
+        if (lastNonSystem is AGUIToolMessage toolMessage)
         {
             // Find the tool name from the matching assistant tool call
-            var toolCallId = lastNonSystem.ToolCallId ?? "";
+            var toolCallId = toolMessage.ToolCallId ?? "";
             var toolName = messages
-                .Where(m => m.Role == "assistant" && m.ToolCalls != null)
+                .OfType<AGUIAssistantMessage>()
+                .Where(m => m.ToolCalls != null)
                 .Select(m => m.ToolCalls!.FirstOrDefault(t => t.Id == toolCallId))
                 .Where(match => match != null)
                 .Select(match => match!.Function?.Name)
                 .FirstOrDefault(name => !string.IsNullOrEmpty(name))
                 ?? "unknown_tool";
-            var resultText = lastNonSystem.Content ?? "";
+            var resultText = toolMessage.Content.ToString();
 
             // A submitted surface is not an approval, and must not be prompted like one.
             //
@@ -409,15 +349,18 @@ public class AgUiController : ControllerBase
         }
 
         // Normal user turn: last user message
-        var lastUser = messages.LastOrDefault(m => m.Role == "user");
-        return lastUser?.Content ?? "";
+        var lastUser = messages.OfType<AGUIUserMessage>().LastOrDefault();
+        return lastUser?.Content.ToString() ?? "";
     }
 
-    private static string? BuildFrontendToolsJson(List<AgUiTool>? tools)
+    private static string? BuildFrontendToolsJson(IEnumerable<AGUITool>? tools)
     {
-        if (tools == null || tools.Count == 0) return null;
+        if (tools is null) return null;
 
-        var items = tools.Select(t => new
+        var toolList = tools.ToList();
+        if (toolList.Count == 0) return null;
+
+        var items = toolList.Select(t => new
         {
             name = t.Name,
             description = t.Description ?? "",

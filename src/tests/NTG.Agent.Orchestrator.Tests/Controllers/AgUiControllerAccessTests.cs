@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
+using AGUI.Abstractions;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
@@ -213,6 +215,7 @@ public class AgUiControllerAccessTests
         {
             Assert.That(Deltas(events), Has.None.Contains("do not have access to this agent"));
             Assert.That(_agentFactory.Agent.Messages, Is.Not.Empty, "the agent should have been run");
+            Assert.That(EventTypes(events), Has.Member("TEXT_MESSAGE_CONTENT"));
             Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
         });
     }
@@ -256,17 +259,18 @@ public class AgUiControllerAccessTests
             _context,
             new AgentAccessService(_context),
             NullLogger<AgUiController>.Instance,
-            new MemoryCache(new MemoryCacheOptions()))
+            new MemoryCache(new MemoryCacheOptions()),
+            Options.Create(new Microsoft.AspNetCore.Http.Json.JsonOptions()))
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };
 
-        await _controller.RunAgentAsync(_agentId, new AgUiRunRequest
+        await _controller.RunAgentAsync(_agentId, new RunAgentInput
         {
             // A GUID, because an unauthenticated run needs the thread id to double as a session id.
             ThreadId = Guid.NewGuid().ToString(),
             RunId = Guid.NewGuid().ToString(),
-            Messages = [new AgUiMessage { Id = "m1", Role = "user", Content = "Hello" }],
+            Messages = [new AGUIUserMessage { Id = "m1", Content = "Hello" }],
         });
 
         return ParseSse(_body);

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using AGUI.Abstractions;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.LightRag;
 using NTG.Agent.Orchestrator.Data;
@@ -78,7 +80,16 @@ builder.Services.AddDbContext<AgentDbContext>(options =>
 
 builder.Services.Configure<DocumentIntelligenceSettings>(builder.Configuration.GetSection("Azure:DocumentIntelligence"));
 
-builder.Services.AddControllers();
+builder.Services.Configure<JsonOptions>(options =>
+    options.SerializerOptions.TypeInfoResolverChain.Insert(
+        0,
+        AGUIJsonUtilities.DefaultTypeInfoResolver));
+
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.TypeInfoResolverChain.Insert(
+            0,
+            AGUIJsonUtilities.DefaultTypeInfoResolver));
 
 // Backs the AG-UI threadId → conversationId map (see AgUiController).
 builder.Services.AddMemoryCache();
