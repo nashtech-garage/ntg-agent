@@ -93,30 +93,32 @@ public class AgUiController : ControllerBase
             return;
         }
 
-        var conversationId = await GetOrCreateConversationAsync(userId, threadId);
-
-        var requestContext = input.ToChatRequestContext(_jsonOptions.Value.SerializerOptions);
-        var prompt = ExtractPrompt(requestContext.Input.Messages);
-        var frontendToolsJson = BuildFrontendToolsJson(requestContext.Input.Tools);
-
-        // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
-        // it as a user message (otherwise the instruction text shows up in the chat history).
-        var lastNonSystem = input.Messages.LastOrDefault(m => m.Role != "system" && m.Role != "developer");
-        var isToolResultTurn = lastNonSystem?.Role == "tool";
-
-        var promptRequest = new PromptRequestForm(
-            Prompt: prompt,
-            ConversationId: conversationId,
-            SessionId: threadId,
-            Documents: null,
-            AgentId: agentId)
-        {
-            FrontendToolsJson = frontendToolsJson,
-            PersistUserMessage = !isToolResultTurn
-        };
-
+        var runStarted = false;
+        var stepStarted = false;
+        var stepFinished = false;
         try
         {
+            var conversationId = await GetOrCreateConversationAsync(userId, threadId);
+            var requestContext = input.ToChatRequestContext(_jsonOptions.Value.SerializerOptions);
+            var prompt = ExtractPrompt(requestContext.Input.Messages);
+            var frontendToolsJson = BuildFrontendToolsJson(requestContext.Input.Tools);
+
+            // Tool-result follow-up turns produce a synthetic acknowledgement prompt; don't persist
+            // it as a user message (otherwise the instruction text shows up as a user message).
+            var lastNonSystem = input.Messages.LastOrDefault(m => m.Role != "system" && m.Role != "developer");
+            var isToolResultTurn = lastNonSystem?.Role == "tool";
+
+            var promptRequest = new PromptRequestForm(
+                Prompt: prompt,
+                ConversationId: conversationId,
+                SessionId: threadId,
+                Documents: null,
+                AgentId: agentId)
+            {
+                FrontendToolsJson = frontendToolsJson,
+                PersistUserMessage = !isToolResultTurn
+            };
+
             // NTG.Agent.CopilotKitApp: an AG-UI client with the A2UI renderer mounted. This is the one
             // endpoint where a rendered surface, a frontend tool call and a tool-render card all
             // have somewhere to land.
@@ -129,8 +131,6 @@ public class AgUiController : ControllerBase
                 responses,
                 HttpContext.RequestAborted);
 
-            var stepStarted = false;
-            var stepFinished = false;
             await foreach (var agUiEvent in updates.AsAGUIEventStreamAsync(
                 requestContext,
                 HttpContext.RequestAborted))
@@ -140,6 +140,7 @@ public class AgUiController : ControllerBase
                     await WriteEventAsync(agUiEvent);
                     await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
                     stepStarted = true;
+                    runStarted = true;
                     continue;
                 }
 
@@ -183,6 +184,18 @@ public class AgUiController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "AG-UI agent run failed for thread {ThreadId}", threadId);
+            if (!runStarted)
+            {
+                await WriteEventAsync(new { type = "RUN_STARTED", threadId, runId, timestamp = Now() });
+                runStarted = true;
+            }
+
+            if (!stepStarted)
+            {
+                await WriteEventAsync(new { type = "STEP_STARTED", stepName = "chat", timestamp = Now() });
+                stepStarted = true;
+            }
+
             await WriteEventAsync(new { type = "STEP_FINISHED", stepName = "chat", timestamp = Now() });
             await WriteEventAsync(new { type = "RUN_ERROR", message = "An internal error occurred.", code = "INTERNAL_ERROR", timestamp = Now() });
         }
