@@ -128,7 +128,18 @@ const InteractiveChoicePicker = createReactComponent(ChoicePickerApi as any, ({ 
 // Button that dispatches the full surface data model with the action, so the user's answers
 // always reach the agent. Uses the correct A2UI payload shape: { event: { name, context } }.
 const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, buildChild, context }: any) => {
+  const [validationAttempted, setValidationAttempted] = React.useState(false);
+  const validationErrors: string[] = Array.isArray(props.validationErrors)
+    ? props.validationErrors
+    : [];
+  const isValid = props.isValid !== false;
+
   const onClick = () => {
+    if (!isValid) {
+      setValidationAttempted(true);
+      return;
+    }
+
     const actionDef = context?.componentModel?.properties?.action?.event;
     if (!actionDef) {
       props.action?.(); // decorative button with no action — keep default behavior
@@ -188,9 +199,23 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
   };
 
   return (
-    <button onClick={onClick} disabled={props.isValid === false} style={style}>
-      {props.child ? buildChild(props.child) : null}
-    </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-disabled={!isValid}
+        style={style}
+      >
+        {props.child ? buildChild(props.child) : null}
+      </button>
+      {validationAttempted && validationErrors.length > 0 ? (
+        <div role="alert" style={{ color: "#b91c1c", fontSize: 13 }}>
+          {validationErrors.map((error, index) => (
+            <div key={`${error}-${index}`}>{error}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 });
 
