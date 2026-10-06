@@ -35,7 +35,8 @@
         "trip-destination",
         "trip-depart",
         "trip-return",
-        "trip-travellers",
+        "trip-adults",
+        "trip-kids",
         "trip-style",
         "trip-submit"
       ]
@@ -82,14 +83,22 @@
       "enableTime": false
     },
     {
-      "id": "trip-travellers",
-      "component": "Slider",
-      "label": "Travellers",
+      "id": "trip-adults",
+      "component": "TextField",
+      "label": "Adults",
       "value": {
-        "path": "/trip/travellers"
+        "path": "/trip/adults"
       },
-      "min": 1,
-      "max": 8
+      "variant": "number"
+    },
+    {
+      "id": "trip-kids",
+      "component": "TextField",
+      "label": "Kids",
+      "value": {
+        "path": "/trip/kids"
+      },
+      "variant": "number"
     },
     {
       "id": "trip-style",
@@ -132,8 +141,11 @@
             "returnDate": {
               "path": "/trip/returnDate"
             },
-            "travellers": {
-              "path": "/trip/travellers"
+            "adults": {
+              "path": "/trip/adults"
+            },
+            "kids": {
+              "path": "/trip/kids"
             },
             "style": {
               "path": "/trip/style"
@@ -590,7 +602,8 @@
       "destination": "",
       "departDate": "",
       "returnDate": "",
-      "travellers": 2,
+      "adults": 2,
+      "kids": 0,
       "style": [
         "balanced"
       ]
@@ -618,7 +631,7 @@
     "review": {
       "destination": "…",
       "dates": "…",
-      "travellers": "…",
+      "travellers": "2 adults, 0 kids",
       "option": "…",
       "total": "…"
     }
