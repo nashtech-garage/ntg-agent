@@ -15,6 +15,10 @@ public static class AgUiChatResponseAdapter
         IAsyncEnumerable<PromptResponse> responses,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        var responseId = Guid.NewGuid().ToString();
+        string? textMessageId = null;
+        string? reasoningMessageId = null;
+
         await foreach (var response in responses.WithCancellation(cancellationToken))
         {
             if (string.IsNullOrEmpty(response.Content))
@@ -23,54 +27,70 @@ public static class AgUiChatResponseAdapter
             switch (response.ContentType)
             {
                 case PromptContentType.Text:
-                    yield return CreateUpdate(ChatRole.Assistant, response.Content);
+                    textMessageId ??= Guid.NewGuid().ToString();
+                    reasoningMessageId = null;
+                    yield return CreateUpdate(ChatRole.Assistant, response.Content, textMessageId, responseId);
                     break;
 
                 case PromptContentType.Thinking:
                 case PromptContentType.SkillNotice:
+                    reasoningMessageId ??= Guid.NewGuid().ToString();
+                    textMessageId = null;
                     yield return CreateUpdate(
                         ChatRole.Assistant,
-                        new List<AIContent> { new TextReasoningContent(response.Content) });
+                        new List<AIContent> { new TextReasoningContent(response.Content) },
+                        reasoningMessageId,
+                        responseId);
                     break;
 
                 case PromptContentType.ToolCall:
                     if (TryParseToolCall(response.Content, out var toolCall))
                     {
+                        textMessageId = null;
+                        reasoningMessageId = null;
                         yield return CreateUpdate(
                             ChatRole.Assistant,
                             new List<AIContent>
                             {
                                 new FunctionCallContent(toolCall.CallId, toolCall.Name, toolCall.Arguments)
-                            });
+                            },
+                            toolCall.CallId,
+                            responseId);
                     }
                     break;
 
                 case PromptContentType.ToolResult:
                     if (TryParseToolResult(response.Content, out var toolResult))
                     {
+                        textMessageId = null;
+                        reasoningMessageId = null;
                         yield return CreateUpdate(
                             ChatRole.Tool,
                             new List<AIContent>
                             {
                                 new FunctionResultContent(toolResult.CallId, toolResult.Content)
-                            });
+                            },
+                            toolResult.CallId,
+                            responseId);
                     }
                     break;
             }
         }
     }
 
-    private static ChatResponseUpdate CreateUpdate(ChatRole role, string text)
-    {
-        var id = Guid.NewGuid().ToString();
-        return new(role, text) { MessageId = id, ResponseId = id };
-    }
+    private static ChatResponseUpdate CreateUpdate(
+        ChatRole role,
+        string text,
+        string messageId,
+        string responseId) =>
+        new(role, text) { MessageId = messageId, ResponseId = responseId };
 
-    private static ChatResponseUpdate CreateUpdate(ChatRole role, IList<AIContent> contents)
-    {
-        var id = Guid.NewGuid().ToString();
-        return new(role, contents) { MessageId = id, ResponseId = id };
-    }
+    private static ChatResponseUpdate CreateUpdate(
+        ChatRole role,
+        IList<AIContent> contents,
+        string messageId,
+        string responseId) =>
+        new(role, contents) { MessageId = messageId, ResponseId = responseId };
 
     private static bool TryParseToolCall(string content, out ToolCall toolCall)
     {
@@ -101,7 +121,7 @@ public static class AgUiChatResponseAdapter
                 arguments ??                 new Dictionary<string, object?>());
             return true;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }
@@ -119,7 +139,9 @@ public static class AgUiChatResponseAdapter
                 ? callIdElement.GetString()
                 : null;
             var result = root.TryGetProperty("result", out var resultElement)
-                ? resultElement.GetString()
+                ? resultElement.ValueKind == JsonValueKind.String
+                    ? resultElement.GetString()
+                    : resultElement.GetRawText()
                 : null;
 
             toolResult = new ToolResult(
@@ -127,7 +149,7 @@ public static class AgUiChatResponseAdapter
                 result ?? string.Empty);
             return true;
         }
-        catch (JsonException)
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
         {
             return false;
         }

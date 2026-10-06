@@ -230,9 +230,58 @@ public class AgUiControllerAccessTests
         Assert.That(await _context.Conversations.CountAsync(), Is.EqualTo(1));
     }
 
+    [Test]
+    public async Task ToolResultFollowUp_CompletesWithValidRunLifecycle()
+    {
+        var threadId = Guid.NewGuid().ToString();
+        var events = await RunAsync(
+            userId: _ownerId,
+            input: new RunAgentInput
+            {
+                ThreadId = threadId,
+                RunId = Guid.NewGuid().ToString(),
+                Messages =
+                [
+                    new AGUIAssistantMessage
+                    {
+                        Id = "assistant-1",
+                        ToolCalls =
+                        [
+                            new AGUIToolCall
+                            {
+                                Id = "call-1",
+                                Type = "function",
+                                Function = new AGUIToolCallFunction
+                                {
+                                    Name = A2uiPrompt.EventToolName,
+                                    Arguments = """{"event":{"type":"submit"}}""",
+                                },
+                            },
+                        ],
+                    },
+                    new AGUIToolMessage
+                    {
+                        Id = "tool-1",
+                        ToolCallId = "call-1",
+                        Content = """{"type":"submit","value":"confirmed"}""",
+                    },
+                ],
+            });
+
+        var eventTypes = EventTypes(events).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventTypes, Has.Member("TEXT_MESSAGE_CONTENT"));
+            Assert.That(eventTypes, Has.Member("RUN_FINISHED"));
+            Assert.That(eventTypes.IndexOf("STEP_FINISHED"), Is.LessThan(eventTypes.IndexOf("RUN_FINISHED")));
+            Assert.That(eventTypes, Has.No.Member("RUN_ERROR"));
+        });
+    }
+
     // ---------------------------------------------------------------- helpers
 
-    private async Task<List<JsonElement>> RunAsync(Guid? userId)
+    private async Task<List<JsonElement>> RunAsync(Guid? userId, RunAgentInput? input = null)
     {
         _body = new MemoryStream();
 
@@ -267,7 +316,7 @@ public class AgUiControllerAccessTests
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };
 
-        await _controller.RunAgentAsync(_agentId, new RunAgentInput
+        await _controller.RunAgentAsync(_agentId, input ?? new RunAgentInput
         {
             // A GUID, because an unauthenticated run needs the thread id to double as a session id.
             ThreadId = Guid.NewGuid().ToString(),

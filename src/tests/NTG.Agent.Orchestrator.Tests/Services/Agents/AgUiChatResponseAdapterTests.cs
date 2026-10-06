@@ -16,6 +16,7 @@ public class AgUiChatResponseAdapterTests
         Assert.That(updates, Has.Count.EqualTo(1));
         Assert.That(updates[0].Role, Is.EqualTo(ChatRole.Assistant));
         Assert.That(updates[0].Text, Is.EqualTo("Hello"));
+        Assert.That(updates[0].MessageId, Is.Not.Null);
     }
 
     [Test]
@@ -29,6 +30,17 @@ public class AgUiChatResponseAdapterTests
         Assert.That(updates.SelectMany(update => update.Contents), Has.All.TypeOf<TextReasoningContent>());
         Assert.That(updates.SelectMany(update => update.Contents).Select(content => content.ToString()),
             Is.EqualTo(new[] { "thinking", "skill activity" }));
+    }
+
+    [Test]
+    public async Task ConsecutiveTextResponses_UseOneMessageId()
+    {
+        var updates = await CollectAsync(
+            new PromptResponse("Hello"),
+            new PromptResponse(" world"));
+
+        Assert.That(updates.Select(update => update.MessageId).Distinct().ToList(), Has.Count.EqualTo(1));
+        Assert.That(updates[0].Text + updates[1].Text, Is.EqualTo("Hello world"));
     }
 
     [Test]
@@ -66,6 +78,19 @@ public class AgUiChatResponseAdapterTests
             Assert.That(result.CallId, Is.EqualTo("call-2"));
             Assert.That(result.Result?.ToString(), Does.Contain("a2ui_operations"));
         });
+    }
+
+    [Test]
+    public async Task ToolResult_ObjectPayload_IsPreservedAsJson()
+    {
+        var updates = await CollectAsync(
+            new PromptResponse(
+                """{"callId":"call-3","result":{"a2ui_operations":[{"op":"createSurface"}]}}""",
+                PromptContentType.ToolResult));
+
+        var result = updates.Single().Contents.OfType<FunctionResultContent>().Single();
+
+        Assert.That(result.Result?.ToString(), Does.Contain("a2ui_operations"));
     }
 
     private static async Task<List<ChatResponseUpdate>> CollectAsync(params PromptResponse[] responses) =>
