@@ -578,25 +578,27 @@ public class AgentService
         var frontendToolNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Read only for the client that owns it. A text-only client executes no frontend tool,
-        // so a declaration from one could only ever produce a call nothing answers. It is also
-        // the field's only protection: PromptRequestForm is [FromForm]-bound on that endpoint,
-        // so FrontendToolsJson is caller-supplied there, and a crafted form post naming
+        // so a declaration from one could only ever produce a call nothing answers. The form-bound
+        // endpoint still accepts FrontendToolsJson from its caller, so a crafted form post naming
         // render_a2ui would otherwise pull the entire A2UI render guide into a run whose client
         // cannot draw a surface.
-        if (capabilities == ChatClientCapabilities.GenerativeUi
-            && !string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson))
+        if (capabilities == ChatClientCapabilities.GenerativeUi)
         {
-            // FrontendToolsJson comes from the request body, so a client can declare any tool
-            // name it likes — including one already registered server-side. Providers reject
-            // duplicate function names outright, which would turn a crafted request into a
-            // failed run for that user. Server-side tools win; a collision is dropped, not
-            // added, and logged rather than silently ignored.
+            // Client-supplied tools can declare any name, including one already registered
+            // server-side. Providers reject duplicate names, so server-side tools win and the
+            // colliding client declaration is dropped.
             var serverToolNames = chatOptions.Tools
                 .OfType<AIFunction>()
                 .Select(t => t.Name)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var tool in FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson))
+            var frontendTools = promptRequest.FrontendTools is { Count: > 0 } frontendDefinitions
+                ? FrontendToolDeclaration.FromDefinitions(frontendDefinitions)
+                : !string.IsNullOrWhiteSpace(promptRequest.FrontendToolsJson)
+                    ? FrontendToolDeclaration.ParseFromJson(promptRequest.FrontendToolsJson)
+                    : [];
+
+            foreach (var tool in frontendTools)
             {
                 if (!serverToolNames.Add(tool.Name))
                 {

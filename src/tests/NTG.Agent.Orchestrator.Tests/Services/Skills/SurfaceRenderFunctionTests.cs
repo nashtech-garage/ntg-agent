@@ -720,7 +720,7 @@ public class SurfaceRenderFunctionTests
         Assert.Multiple(() =>
         {
             Assert.That(trip["destination"]!.GetValue<string>(), Is.EqualTo("Kyoto"));
-            Assert.That(trip["travellers"]!.GetValue<int>(), Is.EqualTo(2), "an untouched default must survive");
+            Assert.That(trip["adults"]!.GetValue<int>(), Is.EqualTo(2), "an untouched default must survive");
             Assert.That(((JsonArray)trip["style"]!).Count, Is.EqualTo(1), "the seeded selection must survive");
         });
     }
@@ -732,7 +732,7 @@ public class SurfaceRenderFunctionTests
     /// `{"trip": "Kyoto"}` is well-formed JSON and a plausible thing for a model to send — the
     /// skill documents the nesting in prose, and prose is not a contract. Before the guard it
     /// replaced the seeded `/trip` object wholesale, so `/trip/destination`, `/departDate`,
-    /// `/travellers` and `/style` all stopped resolving and every input in the form rendered
+    /// `/adults` and `/style` all stopped resolving and every input in the form rendered
     /// frozen. That is the unseeded-path failure `SurfaceValidator` exists to prevent, recreated
     /// at run time past the point validation reaches — and it looks like a working form that
     /// ignores the user, which is the worst possible failure mode.
@@ -796,14 +796,14 @@ public class SurfaceRenderFunctionTests
         var operations = await RenderAndCaptureAsync(
             "travel-planning",
             "trip-planner",
-            JsonNode.Parse("""{ "trip": { "destination": "Kyoto", "travellers": 4, "style": ["comfort"] } }"""));
+            JsonNode.Parse("""{ "trip": { "destination": "Kyoto", "adults": 4, "style": ["comfort"] } }"""));
 
         var trip = DataModel(operations)["trip"]!;
 
         Assert.Multiple(() =>
         {
             Assert.That(trip["destination"]!.GetValue<string>(), Is.EqualTo("Kyoto"));
-            Assert.That(trip["travellers"]!.GetValue<int>(), Is.EqualTo(4));
+            Assert.That(trip["adults"]!.GetValue<int>(), Is.EqualTo(4));
             Assert.That(((JsonArray)trip["style"]!)[0]!.GetValue<string>(), Is.EqualTo("comfort"));
             Assert.That(trip["departDate"], Is.Not.Null, "untouched seeds must survive");
         });

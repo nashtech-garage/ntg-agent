@@ -204,7 +204,7 @@ async function handleCopilotRequest(req: NextRequest, integrationId: string) {
     //
     // `injectA2UITool` adds one thing this stack acts on: the `render_a2ui` declaration in the
     // run's tool list. Its other two effects are inert here — the usage guidance and the
-    // forwardedProps flag ride RunAgentInput.context/forwardedProps, and AgUiRunRequest binds only
+    // forwardedProps flag ride RunAgentInput.context/forwardedProps, and the SDK request model
     // threadId, runId, messages and tools, so the backend drops both unread. (Nor is the
     // middleware's notorious wrong-prop catalog a factor: that text is the exported A2UI_PROMPT,
     // which nothing inside the package references.) What the model actually reads is the

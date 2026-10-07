@@ -24,6 +24,7 @@
 //
 // Visual styling comes from the scoped `.a2ui-surface` rules in app/globals.css.
 import React from "react";
+import { z } from "zod/v3";
 import { Catalog } from "@a2ui/web_core/v0_9";
 import {
   TextFieldApi,
@@ -32,7 +33,11 @@ import {
   ButtonApi,
   TabsApi,
 } from "@a2ui/web_core/v0_9/basic_catalog";
-import { basicCatalog, createReactComponent } from "@copilotkit/a2ui-renderer";
+import { createFunctionImplementation } from "@a2ui/web_core/v0_9";
+import {
+  basicCatalog,
+  createReactComponent,
+} from "@copilotkit/a2ui-renderer";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -128,14 +133,31 @@ const InteractiveChoicePicker = createReactComponent(ChoicePickerApi as any, ({ 
 // Button that dispatches the full surface data model with the action, so the user's answers
 // always reach the agent. Uses the correct A2UI payload shape: { event: { name, context } }.
 const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, buildChild, context }: any) => {
+  const [validationAttempted, setValidationAttempted] = React.useState(false);
+  const [localValidationErrors, setLocalValidationErrors] = React.useState<string[]>([]);
+  const validationErrors: string[] = Array.isArray(props.validationErrors)
+    ? props.validationErrors
+    : [];
+  const displayedValidationErrors = [...validationErrors, ...localValidationErrors];
+  const isValid = props.isValid !== false;
+
   const onClick = () => {
+    const dataModel = context?.dataContext?.dataModel;
     const actionDef = context?.componentModel?.properties?.action?.event;
+    const errors = validationErrors;
+
+    if (!isValid || errors.length > 0) {
+      setValidationAttempted(true);
+      setLocalValidationErrors([]);
+      return;
+    }
+
     if (!actionDef) {
       props.action?.(); // decorative button with no action — keep default behavior
       return;
     }
 
-    const dataModel = context?.dataContext?.dataModel;
+    setLocalValidationErrors([]);
     let formData: Record<string, any> = {};
     try { formData = dataModel?.get("/") ?? {}; } catch { /* ignore */ }
 
@@ -188,9 +210,23 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
   };
 
   return (
-    <button onClick={onClick} disabled={props.isValid === false} style={style}>
-      {props.child ? buildChild(props.child) : null}
-    </button>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+      <button
+        type="button"
+        onClick={onClick}
+        aria-disabled={!isValid}
+        style={style}
+      >
+        {props.child ? buildChild(props.child) : null}
+      </button>
+      {validationAttempted && displayedValidationErrors.length > 0 ? (
+        <div role="alert" style={{ color: "#b91c1c", fontSize: 13 }}>
+          {displayedValidationErrors.map((error, index) => (
+            <div key={`${error}-${index}`}>{error}</div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 });
 
@@ -368,7 +404,62 @@ const overrides: Record<string, any> = {
 const components = [...(basicCatalog as any).components.values()].map(
   (c: any) => overrides[c.name] ?? c,
 );
-const functions = [...(basicCatalog as any).functions.values()];
+
+function isIsoDate(value: unknown): value is string {
+  return typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && !Number.isNaN(Date.parse(`${value}T00:00:00`));
+}
+
+function localDateString(date: Date): string {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+const IntegerAtLeastApi = {
+  name: "integer_at_least",
+  returnType: "boolean" as const,
+  schema: z.object({
+    value: z.any(),
+    minimum: z.coerce.number(),
+  }),
+};
+
+const FutureDateApi = {
+  name: "future_date",
+  returnType: "boolean" as const,
+  schema: z.object({ value: z.any() }),
+};
+
+const DateOnOrAfterApi = {
+  name: "date_on_or_after",
+  returnType: "boolean" as const,
+  schema: z.object({
+    value: z.any(),
+    other: z.any(),
+  }),
+};
+
+const customFunctions = [
+  createFunctionImplementation(IntegerAtLeastApi as any, (args: any) => {
+    const value = Number(args.value);
+    return Number.isInteger(value) && value >= args.minimum;
+  }),
+  createFunctionImplementation(FutureDateApi as any, (args: any) => {
+    if (!isIsoDate(args.value)) return false;
+    return args.value > localDateString(new Date());
+  }),
+  createFunctionImplementation(DateOnOrAfterApi as any, (args: any) => {
+    return isIsoDate(args.value) && isIsoDate(args.other) && args.value >= args.other;
+  }),
+];
+const functions = [
+  ...(basicCatalog as any).functions.values(),
+  ...customFunctions,
+];
 
 export const interactiveCatalog = new Catalog(
   (basicCatalog as any).id,

@@ -35,6 +35,10 @@ Browser
 > (`AgUiController`, `POST /api/agui/{agentId}`), which is what `route.ts` talks to. The
 > translation layer this note used to describe (`NtgAgent`, `_bufferUtils.ts`, a .NET
 > `/api/agents/chat` multipart endpoint) is gone.
+>
+> The orchestrator uses the first-class `AGUI.Server` .NET SDK for request adaptation and AG-UI
+> event construction. It retains only the application boundary and SSE framing required by the
+> installed SDK version.
 
 ## Project Structure
 
@@ -78,7 +82,7 @@ NTG.Agent.CopilotKitApp/
 
 5. **Streaming** — `AgUiController` streams native AG-UI SSE events (`TEXT_MESSAGE_CONTENT`, `TOOL_CALL_*`, `ACTIVITY_SNAPSHOT`, …) directly — no intermediate JSON array and no client-side buffer parser. `A2UIMiddleware` further rewrites any `render_a2ui`/`render_skill_surface` tool result into `ACTIVITY_SNAPSHOT` events for the A2UI renderer.
 
-6. **Anonymous rate limiting** — Enforced server-side: `AgentService` throws `AnonymousRateLimitExceededException` when an anonymous session is over its limit, and `AgUiController` catches it mid-run and emits an error event instead of a normal completion. There is no separate pre-flight rate-limit check on the frontend anymore.
+6. **Anonymous rate limiting** — Enforced server-side: `AgentService` throws `AnonymousRateLimitExceededException` when an anonymous session is over its limit. The orchestrator converts that outcome to an assistant message through the typed AG-UI response adapter, while `AGUI.Server` emits the run lifecycle events. There is no separate pre-flight rate-limit check on the frontend anymore.
 
 ## Key Implementation Notes
 

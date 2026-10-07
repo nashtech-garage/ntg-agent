@@ -1,11 +1,11 @@
 ---
 name: travel-planning
-description: Plans a trip interactively in the chat using one rendered A2UI surface with three tabs — collects destination, dates, travellers and trip style, presents three fabricated itinerary options with prices, then a review and confirmation, moving the user from tab to tab as they answer. Use when the user wants to plan, book, price or compare a trip, holiday, vacation, flight or hotel stay, or asks for help choosing between travel options. Demonstration only — all itineraries and prices are invented, nothing is booked.
+description: Plans a trip interactively in the chat using one rendered A2UI surface with three tabs — collects destination, dates, adult and child traveller counts, and trip style, presents three fabricated itinerary options with prices, then a review and confirmation, moving the user from tab to tab as they answer. Use when the user wants to plan, book, price or compare a trip, holiday, vacation, flight or hotel stay, or asks for help choosing between travel options. Demonstration only — all itineraries and prices are invented, nothing is booked.
 license: Apache-2.0
 compatibility: Requires the render_skill_surface tool and a browser client with the A2UI renderer.
 metadata:
   author: ntg-agent
-  version: "2.0"
+  version: "2.1"
 ---
 
 # Travel planning
@@ -26,7 +26,7 @@ Always `skill: "travel-planning"`, `surface: "trip-planner"`. There is no other 
 
 | Tab | Index | Holds | User submits |
 |---|---|---|---|
-| 1. Trip | `0` | destination, dates, travellers, style · **Find trips** | `trip_search_submit` |
+| 1. Trip | `0` | destination, dates, adults, kids, style · **Find trips** | `trip_search_submit` |
 | 2. Options | `1` | three options with prices, a picker · **Continue to review** | `trip_option_selected` |
 | 3. Review | `2` | the summary and total · **Confirm plan** / **Change details** | `trip_booking_confirmed` / `trip_change_requested` |
 
@@ -44,7 +44,7 @@ The surface's data is four independent branches, and each render writes them one
 | Branch | Holds | Written by |
 |---|---|---|
 | `__tabs` | `{ "wizard": 0\|1\|2 }` — which tab is showing | you, on every render |
-| `trip` | tab 1's fields: `destination`, `departDate`, `returnDate`, `travellers`, `style` | you (pre-fill), then the user |
+| `trip` | tab 1's fields: `destination`, `departDate`, `returnDate`, `adults`, `kids`, `style` | you (pre-fill), then the user |
 | `options` | tab 2's `heading`, `subheading`, `o1`/`o2`/`o3` and the user's `choice` | you |
 | `review` | tab 3's `destination`, `dates`, `travellers`, `option`, `total` | you |
 
@@ -80,16 +80,23 @@ said anything about it.
       "destination": "Da Nang",
       "departDate": "2026-09-12",
       "returnDate": "2026-09-19",
-      "travellers": 2,
+      "adults": 2,
+      "kids": 0,
       "style": ["balanced"]
     }
   }
 }
 ```
 
-Dates are `YYYY-MM-DD` strings. `travellers` is a number, 1–8. `style` is an **array** with
-one of `"budget"`, `"balanced"`, `"comfort"` — the picker stores its selection as an array
-even in single-choice mode.
+Dates are `YYYY-MM-DD` strings and must both be future dates. `returnDate` must be greater than
+or equal to `departDate`. `destination` is required. `adults` and `kids` are non-negative
+whole numbers, with `adults` at least 1. `style` is an **array** with one of `"budget"`,
+`"balanced"`, `"comfort"` — the picker stores its selection as an array even in single-choice
+mode.
+
+The submit button declares these rules in the surface asset's generic A2UI `checks` metadata.
+Do not rely on a skill-specific frontend validator or assume that the client knows the `trip`
+data paths; uploaded skills may define different data models and validation rules.
 
 Say one short line before the surface ("Let's set up your trip.") and nothing after it. Do
 not restate the fields in prose — the surface already shows them.
@@ -103,15 +110,18 @@ When `trip_search_submit` arrives, read the answers (see "Reading answers" below
 - a middle option that is the obvious default
 - a premium option (direct flight, better location, more included)
 
-Prices must reflect the trip length, traveller count and the chosen style, and must increase
-across the three. Use the user's own currency if they named one, otherwise USD.
+Prices must reflect the trip length, the number of adults and kids, and the chosen style, and
+must increase across the three. Use the user's own currency if they named one, otherwise USD.
 
 The user is already looking at this tab. Clicking **Find trips** moves them straight to
 "2. Options", where they are watching placeholder text while you work — so answer promptly and
 keep the values short. Still send `__tabs` with every render: it keeps your idea of the step and
 theirs in agreement, and it costs one line.
 
-Render `trip-planner` again with the `options` branch and tab 1:
+Render `trip-planner` again with the `trip` branch carried forward from the submitted
+`formData`, the `options` branch, and tab 1. Carrying `trip` forward is required: each render
+replays the surface from its persisted operations, so omitting it would restore the first tab's
+template defaults and lose the user's answers on tab changes or conversation reloads.
 
 ```json
 {
@@ -119,9 +129,17 @@ Render `trip-planner` again with the `options` branch and tab 1:
   "surface": "trip-planner",
   "values": {
     "__tabs": { "wizard": 1 },
+    "trip": {
+      "destination": "Da Nang",
+      "departDate": "2026-09-12",
+      "returnDate": "2026-09-19",
+      "adults": 2,
+      "kids": 0,
+      "style": ["balanced"]
+    },
     "options": {
       "heading": "Three options for Da Nang",
-      "subheading": "12–19 Sep · 2 travellers · balanced",
+      "subheading": "12–19 Sep · 2 adults, 0 kids · balanced",
       "o1": { "name": "Budget saver",   "detail": "1 stop · 3-star beachfront · room only",       "price": "$610" },
       "o2": { "name": "Balanced pick",  "detail": "Direct · 4-star riverside · breakfast",        "price": "$840" },
       "o3": { "name": "Comfort plus",   "detail": "Direct · 5-star beachfront · breakfast + spa", "price": "$1,290" }
@@ -130,7 +148,7 @@ Render `trip-planner` again with the `options` branch and tab 1:
 }
 ```
 
-Do not send `trip` — the user is standing in it. Do not send `choice`; that is theirs.
+Do not send `choice`; that is theirs.
 
 `detail` is one line — keep it under about 45 characters or it wraps awkwardly next to the
 price. `price` is a preformatted string including the currency symbol.
@@ -139,7 +157,7 @@ price. `price` is a preformatted string including the currency symbol.
 
 When `trip_option_selected` arrives, the `choice` value is `["o1"]`, `["o2"]` or `["o3"]`.
 Render `trip-planner` again with `review` filled from the option they picked, `options`
-carried forward unchanged, and tab 2:
+carried forward unchanged, the submitted `trip` branch carried forward unchanged, and tab 2:
 
 ```json
 {
@@ -147,9 +165,17 @@ carried forward unchanged, and tab 2:
   "surface": "trip-planner",
   "values": {
     "__tabs": { "wizard": 2 },
+    "trip": {
+      "destination": "Da Nang",
+      "departDate": "2026-09-12",
+      "returnDate": "2026-09-19",
+      "adults": 2,
+      "kids": 0,
+      "style": ["balanced"]
+    },
     "options": {
       "heading": "Three options for Da Nang",
-      "subheading": "12–19 Sep · 2 travellers · balanced",
+      "subheading": "12–19 Sep · 2 adults, 0 kids · balanced",
       "o1": { "name": "Budget saver",   "detail": "1 stop · 3-star beachfront · room only",       "price": "$610" },
       "o2": { "name": "Balanced pick",  "detail": "Direct · 4-star riverside · breakfast",        "price": "$840" },
       "o3": { "name": "Comfort plus",   "detail": "Direct · 5-star beachfront · breakfast + spa", "price": "$1,290" }
@@ -157,7 +183,7 @@ carried forward unchanged, and tab 2:
     "review": {
       "destination": "Da Nang, Vietnam",
       "dates": "12–19 Sep 2026 (7 nights)",
-      "travellers": "2 adults",
+      "travellers": "2 adults, 0 kids",
       "option": "Balanced pick — direct, 4-star riverside",
       "total": "$840"
     }
@@ -186,7 +212,7 @@ Check in this order:
 1. The named value (e.g. `destination`, `choice`).
 2. `formData` under the bound path — `formData.trip.destination`, `formData.options.choice`.
 3. `formData.__inputs.<componentId>` — the fallback the client always writes, keyed by
-   component id: `trip-destination`, `trip-depart`, `trip-return`, `trip-travellers`,
+   component id: `trip-destination`, `trip-depart`, `trip-return`, `trip-adults`, `trip-kids`,
    `trip-style`, `options-picker`.
 
 Step 3 is not a last resort here, it is often where the truth is: the client mirrors every

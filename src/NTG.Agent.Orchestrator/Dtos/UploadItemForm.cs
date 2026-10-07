@@ -12,8 +12,16 @@ public class UploadItemForm : UploadItem
 public record PromptRequestForm(string Prompt, Guid ConversationId, string? SessionId, IEnumerable<UploadItemForm>? Documents, Guid AgentId) : PromptRequest<UploadItemForm>(Prompt, ConversationId, SessionId, Documents, AgentId)
 {
     /// <summary>
+    /// Frontend tool metadata supplied by the native AG-UI integration. These tools are declared to
+    /// the model but remain client-executed.
+    /// </summary>
+    public IReadOnlyList<FrontendToolDefinition>? FrontendTools { get; init; }
+
+    /// <summary>
     /// Optional JSON array of AG-UI frontend tool definitions ({name, description, parameters})
     /// supplied by the CopilotKit client. These are declared to the LLM but executed in the browser.
+    /// Kept for the form-bound endpoint; native AG-UI requests use <see cref="FrontendTools"/>
+    /// to avoid a JSON round-trip.
     /// </summary>
     public string? FrontendToolsJson { get; set; }
 

@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
+using AGUI.Abstractions;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
@@ -111,13 +113,13 @@ public class AgUiControllerAccessTests
 
         Assert.That(EventTypes(events), Is.EqualTo(new[]
         {
-            "RUN_STARTED",
-            "STEP_STARTED",
-            "TEXT_MESSAGE_START",
-            "TEXT_MESSAGE_CONTENT",
-            "TEXT_MESSAGE_END",
-            "STEP_FINISHED",
-            "RUN_FINISHED",
+            AGUIEventTypes.RunStarted,
+            AGUIEventTypes.StepStarted,
+            AGUIEventTypes.TextMessageStart,
+            AGUIEventTypes.TextMessageContent,
+            AGUIEventTypes.TextMessageEnd,
+            AGUIEventTypes.StepFinished,
+            AGUIEventTypes.RunFinished,
         }));
     }
 
@@ -151,7 +153,7 @@ public class AgUiControllerAccessTests
         Assert.Multiple(() =>
         {
             Assert.That(Deltas(events), Has.Some.Contains("do not have access to this agent"));
-            Assert.That(EventTypes(events), Has.No.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.No.Member(AGUIEventTypes.RunError));
         });
     }
 
@@ -177,9 +179,9 @@ public class AgUiControllerAccessTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(EventTypes(events), Has.No.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.No.Member(AGUIEventTypes.RunError));
             Assert.That(Deltas(events), Has.Some.Contains("do not have access to this agent"));
-            Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunFinished));
         });
     }
 
@@ -193,7 +195,8 @@ public class AgUiControllerAccessTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(EventTypes(events), Has.Member("RUN_ERROR"));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunError));
+            Assert.That(EventTypes(events).Count(type => type == AGUIEventTypes.RunError), Is.EqualTo(1));
             Assert.That(Deltas(events), Has.None.Contains("do not have access to this agent"));
         });
     }
@@ -208,12 +211,15 @@ public class AgUiControllerAccessTests
     public async Task OwnerIsNotRefused_AndTheRunActuallyHappens()
     {
         var events = await RunAsync(userId: _ownerId);
+        var eventTypes = EventTypes(events).ToList();
 
         Assert.Multiple(() =>
         {
             Assert.That(Deltas(events), Has.None.Contains("do not have access to this agent"));
             Assert.That(_agentFactory.Agent.Messages, Is.Not.Empty, "the agent should have been run");
-            Assert.That(EventTypes(events), Has.Member("RUN_FINISHED"));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.TextMessageContent));
+            Assert.That(EventTypes(events), Has.Member(AGUIEventTypes.RunFinished));
+            Assert.That(eventTypes.IndexOf(AGUIEventTypes.StepFinished), Is.LessThan(eventTypes.IndexOf(AGUIEventTypes.RunFinished)));
         });
     }
 
@@ -225,9 +231,58 @@ public class AgUiControllerAccessTests
         Assert.That(await _context.Conversations.CountAsync(), Is.EqualTo(1));
     }
 
+    [Test]
+    public async Task ToolResultFollowUp_CompletesWithValidRunLifecycle()
+    {
+        var threadId = Guid.NewGuid().ToString();
+        var events = await RunAsync(
+            userId: _ownerId,
+            input: new RunAgentInput
+            {
+                ThreadId = threadId,
+                RunId = Guid.NewGuid().ToString(),
+                Messages =
+                [
+                    new AGUIAssistantMessage
+                    {
+                        Id = "assistant-1",
+                        ToolCalls =
+                        [
+                            new AGUIToolCall
+                            {
+                                Id = "call-1",
+                                Type = "function",
+                                Function = new AGUIToolCallFunction
+                                {
+                                    Name = A2uiPrompt.EventToolName,
+                                    Arguments = """{"event":{"type":"submit"}}""",
+                                },
+                            },
+                        ],
+                    },
+                    new AGUIToolMessage
+                    {
+                        Id = "tool-1",
+                        ToolCallId = "call-1",
+                        Content = """{"type":"submit","value":"confirmed"}""",
+                    },
+                ],
+            });
+
+        var eventTypes = EventTypes(events).ToList();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(eventTypes, Has.Member(AGUIEventTypes.TextMessageContent));
+            Assert.That(eventTypes, Has.Member(AGUIEventTypes.RunFinished));
+            Assert.That(eventTypes.IndexOf(AGUIEventTypes.StepFinished), Is.LessThan(eventTypes.IndexOf(AGUIEventTypes.RunFinished)));
+            Assert.That(eventTypes, Has.No.Member(AGUIEventTypes.RunError));
+        });
+    }
+
     // ---------------------------------------------------------------- helpers
 
-    private async Task<List<JsonElement>> RunAsync(Guid? userId)
+    private async Task<List<JsonElement>> RunAsync(Guid? userId, RunAgentInput? input = null)
     {
         _body = new MemoryStream();
 
@@ -256,17 +311,18 @@ public class AgUiControllerAccessTests
             _context,
             new AgentAccessService(_context),
             NullLogger<AgUiController>.Instance,
-            new MemoryCache(new MemoryCacheOptions()))
+            new MemoryCache(new MemoryCacheOptions()),
+            Options.Create(new Microsoft.AspNetCore.Http.Json.JsonOptions()))
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext },
         };
 
-        await _controller.RunAgentAsync(_agentId, new AgUiRunRequest
+        await _controller.RunAgentAsync(_agentId, input ?? new RunAgentInput
         {
             // A GUID, because an unauthenticated run needs the thread id to double as a session id.
             ThreadId = Guid.NewGuid().ToString(),
             RunId = Guid.NewGuid().ToString(),
-            Messages = [new AgUiMessage { Id = "m1", Role = "user", Content = "Hello" }],
+            Messages = [new AGUIUserMessage { Id = "m1", Content = "Hello" }],
         });
 
         return ParseSse(_body);

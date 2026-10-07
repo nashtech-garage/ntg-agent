@@ -12,6 +12,13 @@ and in what order* have been folded in here and retired; their durable content i
 `docs/skill-import-security.md`. Where a doc and the code disagree, the code wins, and the known
 disagreements are called out in "Claims that have expired" at the end.
 
+**AG-UI SDK migration status.** The orchestrator now binds the SDK's `RunAgentInput`, converts
+application responses through `ChatResponseUpdate`, and delegates AG-UI event construction to
+`AGUI.Server`. The controller intentionally retains the final `text/event-stream` framing because
+the installed server package exposes typed event conversion, but not an ASP.NET Core SSE writer.
+This keeps authorization, conversation mapping, persistence, and the existing A2UI middleware
+contract in the NTG-owned boundary without duplicating protocol event construction.
+
 **Why any of this exists.** The project already shipped a generative-UI capability, but it was
 per-tool hardcoded React: `src/NTG.Agent.CopilotKitApp/src/tools/WeatherCardTool.tsx` matches the `get_weather`
 tool by name and renders a bespoke card. That does not generalise — every new visual answer needs a
@@ -41,7 +48,7 @@ npm package.
 | Answers | "how does a running agent talk to a browser?" | "what does the browser draw?" |
 | Unit | an *event* on an SSE stream | an *operation* on a surface |
 | Vocabulary | `RUN_STARTED`, `TEXT_MESSAGE_*`, `TOOL_CALL_*`, `ACTIVITY_SNAPSHOT`, `RUN_FINISHED` | `createSurface`, `updateComponents`, `updateDataModel`, `deleteSurface` |
-| Owned here by | `AgUiController.cs` (server), `@ag-ui/client` (browser) | `A2uiPrompt.cs` / surface templates (server), `@copilotkit/a2ui-renderer` (browser) |
+| Owned here by | `AGUI.Server` (event conversion), `AgUiController.cs` (authorization, persistence and SSE transport), `@ag-ui/client` (browser) | `A2uiPrompt.cs` / surface templates (server), `@copilotkit/a2ui-renderer` (browser) |
 | If it broke | the chat stops streaming | the chat still streams, surfaces stop rendering |
 
 ### The four packages
@@ -90,7 +97,7 @@ NTG.Agent.Orchestrator (.NET)                        NTG.Agent.CopilotKitApp (Ne
       ├ RenderableToolCapture ◄─ full ops │
       └ returns one-line receipt to model │
                                           │
- AgUiController (SSE, text/event-stream) ◄┘
+ AgUiController (authorization + SSE, text/event-stream) ◄┘
    PATH A →  TOOL_CALL_START / TOOL_CALL_ARGS / TOOL_CALL_END        (name: render_a2ui)
    PATH B →  TOOL_CALL_START / ARGS / END  +  TOOL_CALL_RESULT
              where content = {"a2ui_operations":[ … ]}               (name: render_skill_surface)
@@ -128,7 +135,7 @@ Two hops in that diagram post-date the original A2UI build: the whole Path B bra
 
 | File | Role |
 |---|---|
-| `NTG.Agent.Orchestrator/Controllers/AgUiController.cs` | The AG-UI endpoint. Owns the SSE event vocabulary and the thread→conversation map. |
+| `NTG.Agent.Orchestrator/Controllers/AgUiController.cs` | The AG-UI endpoint. Owns authorization, persistence, the thread→conversation map and SSE framing; `AGUI.Server` owns conversion from typed response updates to AG-UI events. |
 | `NTG.Agent.Orchestrator/Services/Agents/AgentService.cs` | Runs the model, registers tools, prepends the A2UI guide and the skill catalog, converts model output into `PromptResponse` chunks. |
 | `NTG.Agent.Orchestrator/Services/Agents/A2uiPrompt.cs` | Path A: the entire A2UI authoring guide the model reads. Also names `render_a2ui` and `log_a2ui_event`. |
 | `NTG.Agent.Orchestrator/Services/Skills/SurfaceRenderFunction.cs` | Path B: the `render_skill_surface` tool. Template lookup, value merge, operation emission. |
@@ -216,7 +223,7 @@ Both paths end in the same `ACTIVITY_SNAPSHOT` and the same renderer. They diffe
 component JSON.
 
 **Path A — `render_a2ui`.** The middleware injects a `render_a2ui` tool declaration into the run's
-tool list. It is a *frontend tool*: `AgUiRunRequest.Tools` → `FrontendToolDeclaration` → declared to
+tool list. It is a *frontend tool*: `RunAgentInput.Tools` → `FrontendToolDeclaration` → declared to
 the LLM but never executed server-side, so the model's call comes back as a `FunctionCallContent`
 that `AgentService` forwards verbatim as `TOOL_CALL_*` events. The model writes the whole component
 array itself, every time. To do that it needs the component catalog — which is why
@@ -508,7 +515,7 @@ the run's declared frontend tools. Its opening docblock explains why it exists a
 > AG-UI `context` channel which this backend does not forward.
 
 That is exact. `A2UIMiddleware` puts its usage guidance on `RunAgentInput.context` and its flag on
-`forwardedProps`; `AgUiRunRequest` binds only `threadId`, `runId`, `messages` and `tools`, so both are
+`forwardedProps`; the SDK `RunAgentInput` binds the complete AG-UI request shape, so both are
 dropped unread. Of `injectA2UITool`'s three effects, **only the tool declaration in `tools` survives
 the trip to this backend.** Everything the model actually knows about A2UI comes from
 `A2uiPrompt.cs`.
