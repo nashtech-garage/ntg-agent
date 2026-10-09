@@ -50,6 +50,8 @@ internal sealed class CapturingAgent : AIAgent
 
     public IReadOnlyList<AITool> Tools { get; private set; } = [];
 
+    public string NonStreamingResponseText { get; set; } = "Done.";
+
     /// <summary>Runs once per streamed run, before the reply — the seam for simulating a tool call.</summary>
     public Action? OnRun { get; set; }
 
@@ -82,7 +84,7 @@ internal sealed class CapturingAgent : AIAgent
         CancellationToken cancellationToken = default)
     {
         Messages = [.. messages];
-        return Task.FromResult(new AgentResponse(new ChatMessage(ChatRole.Assistant, "Done.")));
+        return Task.FromResult(new AgentResponse(new ChatMessage(ChatRole.Assistant, NonStreamingResponseText)));
     }
 
     protected override ValueTask<AgentSession> CreateSessionCoreAsync(CancellationToken cancellationToken = default) =>

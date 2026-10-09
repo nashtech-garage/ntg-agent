@@ -17,6 +17,7 @@ using NTG.Agent.Orchestrator.Services.Skills;
 using NTG.Agent.Common.Knowledge;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using ChatRole = Microsoft.Extensions.AI.ChatRole;
 
 namespace NTG.Agent.Orchestrator.Services.Agents;
@@ -728,13 +729,27 @@ public class AgentService
             var agent = await _agentFactory.CreateBasicAgent("Generate a short, descriptive conversation name (≤ 5 words).");
             var results = await agent.RunAsync(question);
             ExtractTokenUsage(results.Usage, tokenUsageInfo);
-            return results.Text;
+            return NormalizeConversationName(results.Text);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to generate conversation name, using fallback.");
             return "New Conversation";
         }
+    }
+
+    private static string NormalizeConversationName(string generatedName)
+    {
+        var firstLine = generatedName
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault() ?? string.Empty;
+
+        var normalized = Regex.Replace(firstLine, @"[*_`#]", string.Empty);
+        normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
+        normalized = normalized.Trim(' ', '"', '\'');
+
+        var words = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(' ', words.Take(5)).TrimEnd('.', ',', ':', ';', '-', '!');
     }
 
     private async Task<string> SummarizeMessagesAsync(List<PChatMessage> messages, TokenUsageInfo tokenUsageInfo)
