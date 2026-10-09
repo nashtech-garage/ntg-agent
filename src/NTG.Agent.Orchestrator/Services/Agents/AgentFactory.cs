@@ -7,6 +7,7 @@ using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using NTG.Agent.AITools.SimpleTools;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
 using NTG.Agent.Orchestrator.Plugins;
@@ -49,7 +50,8 @@ public class AgentFactory : IAgentFactory
 
     /// <summary>
     /// Creates a published <b>Outer</b> agent the caller is allowed to use (owner, admin,
-    /// or granted via a role in <c>AgentRoles</c>). Exists for the user-facing chat path,
+    /// granted via a role in <c>AgentRoles</c>, or granted to anonymous users via the
+    /// anonymous role). Exists for the user-facing chat path,
     /// where <paramref name="agentId"/> is user-supplied: sub-agents are tool-only and
     /// must never be directly chattable, so — like the <see cref="CreateAgent(Guid)"/>
     /// overload — this filters to <see cref="AgentKind.Agent"/> and throws
@@ -58,15 +60,27 @@ public class AgentFactory : IAgentFactory
     /// </summary>
     public async Task<AIAgent> CreateAgent(Guid agentId, Guid? userId, bool isAdmin)
     {
-        var agentConfig = await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
-            a.Id == agentId
-            && a.IsPublished
-            && a.AgentKind == AgentKind.Agent // sub-agents are tool-only, never directly chattable
-            && (a.OwnerUserId == userId || isAdmin
-                || _agentDbContext.AgentRoles.Any(ar =>
+        var agentConfig = userId.HasValue
+            ? await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
+                a.Id == agentId
+                && a.IsPublished
+                && a.AgentKind == AgentKind.Agent // sub-agents are tool-only, never directly chattable
+                && (a.OwnerUserId == userId || isAdmin
+                    || _agentDbContext.AgentRoles.Any(ar =>
+                        ar.AgentId == a.Id
+                        && _agentDbContext.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))))
+            : await _agentDbContext.Agents.FirstOrDefaultAsync(a =>
+                a.Id == agentId
+                && a.IsPublished
+                && a.AgentKind == AgentKind.Agent
+                && _agentDbContext.AgentRoles.Any(ar =>
                     ar.AgentId == a.Id
-                    && _agentDbContext.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))))
-            ?? throw new AgentAccessDeniedException(agentId);
+                    && ar.RoleId == Guid.Parse(Constants.AnonymousRoleId)));
+
+        if (agentConfig is null)
+        {
+            throw new AgentAccessDeniedException(agentId);
+        }
 
         return await CreateAgentFromConfigAsync(agentConfig, userId, isAdmin);
     }

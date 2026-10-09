@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
+using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Common.Knowledge;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Exceptions;
@@ -93,5 +94,42 @@ public class AgentFactoryTests
 
         Assert.ThrowsAsync<InvalidOperationException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));
+    }
+
+    [Test]
+    public void CreateAgent_AnonymousWithAnonymousRoleGrant_PassesAccessGate()
+    {
+        var agentId = Guid.NewGuid();
+        _context.Agents.Add(new AgentModel
+        {
+            Id = agentId,
+            Name = "Anonymous Agent",
+            Instructions = "Test",
+            IsPublished = true,
+            AgentKind = AgentKind.Agent,
+            OwnerUserId = Guid.NewGuid(),
+            UpdatedByUserId = Guid.NewGuid()
+        });
+        _context.AgentRoles.Add(new AgentRole
+        {
+            Id = Guid.NewGuid(),
+            AgentId = agentId,
+            RoleId = Guid.Parse(Constants.AnonymousRoleId)
+        });
+        _context.SaveChanges();
+
+        // No provider is configured, so reaching provider creation proves the anonymous
+        // role passed the access gate.
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _factory.CreateAgent(agentId, userId: null, isAdmin: false));
+    }
+
+    [Test]
+    public void CreateAgent_AnonymousWithoutAnonymousRoleGrant_ThrowsAccessDenied()
+    {
+        var agentId = SeedGrantedAgent(AgentKind.Agent);
+
+        Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
+            _factory.CreateAgent(agentId, userId: null, isAdmin: false));
     }
 }

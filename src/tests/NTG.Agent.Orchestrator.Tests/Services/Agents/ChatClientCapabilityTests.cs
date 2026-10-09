@@ -411,6 +411,26 @@ public class ChatClientCapabilityTests
         Assert.That(ToolNames(), Has.No.Member(SkillPrompt.LoadToolName).And.No.Member(SkillPrompt.RenderToolName));
     }
 
+    [Test]
+    public async Task NewConversation_WithVerboseGeneratedName_PersistsAtMostFivePlainWords()
+    {
+        var conversation = await _context.Conversations.SingleAsync(c => c.Id == _conversationId);
+        conversation.Name = "New Conversation";
+        _agentFactory.Agent.NonStreamingResponseText =
+            "**AWS Reliability is one of the Well-Architected pillars, and it works closely with Security and Performance Efficiency:** detailed explanation";
+        await _context.SaveChangesAsync();
+
+        await foreach (var _ in _service.ChatStreamingAsync(_userId, Request(null)))
+        {
+        }
+
+        var savedConversation = await _context.Conversations
+            .AsNoTracking()
+            .SingleAsync(c => c.Id == _conversationId);
+
+        Assert.That(savedConversation.Name, Is.EqualTo("AWS Reliability is one of"));
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private async Task<List<PromptResponse>> RunAsync(
