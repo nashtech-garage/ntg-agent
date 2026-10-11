@@ -33,14 +33,18 @@ interface WeatherResult {
   message?: string;
 }
 
-function parseResult(result: string): WeatherResult | null {
+function parseResult(result: unknown): WeatherResult | null {
   try {
-    let parsed: unknown = JSON.parse(result);
-    // The backend may forward the tool result as a JSON-encoded string; unwrap once more.
+    let parsed: unknown = result;
     if (typeof parsed === "string") {
       parsed = JSON.parse(parsed);
+      // The backend may forward the tool result as a JSON-encoded string; unwrap once more.
+      if (typeof parsed === "string") {
+        parsed = JSON.parse(parsed);
+      }
     }
-    return parsed as WeatherResult;
+
+    return parsed && typeof parsed === "object" ? (parsed as WeatherResult) : null;
   } catch {
     return null;
   }
