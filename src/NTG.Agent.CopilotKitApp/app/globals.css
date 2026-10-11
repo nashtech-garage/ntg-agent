@@ -120,12 +120,14 @@ body {
   flex: 1 1 auto !important;
   min-width: 0 !important;
 }
-/* Keep the final column bounded but shrinkable. Some surfaces use it for a long description rather
-   than a short value, so a no-shrink rule would collapse the first column. */
+/* Keep the final column wide enough for prose while leaving the main content most of the row. Some
+   surfaces use it for a long description rather than a short value, so a no-shrink rule would
+   collapse the first column. */
 .a2ui-surface div[style*="justify-content: space-between"] > :last-child {
-  flex: 0 1 45% !important;
+  flex: 0 0 32% !important;
+  max-width: 32% !important;
   min-width: 0 !important;
-  overflow-wrap: break-word !important;
+  overflow-wrap: normal !important;
   word-break: normal !important;
 }
 
