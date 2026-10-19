@@ -106,12 +106,11 @@ body {
    The fix is to stop the nested container asking for everything (`width: auto`, and `min-width: 0`
    so it may shrink past its own content) and to take the value out of the shrink entirely.
 
-   Second cause is that a sliver-wide element still has to put "$420" somewhere, and it is allowed
-   to break mid-token: react-ui sets `.copilotKitMessage { overflow-wrap: break-word }`, which every
-   surface inherits. That rule is right for prose — a pasted URL should wrap rather than overflow —
-   so it is left alone everywhere except the value, where a break is never the better outcome.
+   The right side can be either a short value or longer descriptive text. Give it a bounded share of
+   the row instead of making it permanently non-shrinkable; this keeps both columns usable when the
+   content is prose, while normal word wrapping still keeps short values readable.
 
-   Together: the left side yields, the value keeps its line. */
+   Together: the left side yields proportionally, and neither side collapses to a sliver. */
 .a2ui-surface div[style*="flex-direction: row"] {
   gap: 12px !important;
   min-width: 0;
@@ -121,12 +120,13 @@ body {
   flex: 1 1 auto !important;
   min-width: 0 !important;
 }
-/* The value is the last thing in the row — a price, a total, a confirm button. It is also the
-   shortest, so giving it the immovable side costs the layout nothing, and it is the one place worth
-   overriding the inherited break-word: a total that wraps mid-digit is unreadable, whereas one that
-   runs a few pixels wide is merely tight. */
+/* Keep the final column wide enough for prose while leaving the main content most of the row. Some
+   surfaces use it for a long description rather than a short value, so a no-shrink rule would
+   collapse the first column. */
 .a2ui-surface div[style*="justify-content: space-between"] > :last-child {
-  flex-shrink: 0 !important;
+  flex: 0 0 32% !important;
+  max-width: 32% !important;
+  min-width: 0 !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
 }

@@ -175,7 +175,7 @@
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         <div>
                                             <strong>@subAgent.Name</strong>
-                                            <div class="text-muted">@subAgent.Description</div>
+                                            <div class="text-muted sub-agent-description" title="@subAgent.Description">@subAgent.Description</div>
                                             @if (!string.IsNullOrWhiteSpace(subAgent.ModelOverride))
                                             {
                                                 <div class="text-muted">Model: @subAgent.ModelOverride</div>

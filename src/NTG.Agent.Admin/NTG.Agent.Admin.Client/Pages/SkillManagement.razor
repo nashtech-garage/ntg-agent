@@ -15,37 +15,24 @@
 <PageTitle>Skills Management</PageTitle>
 
 <div class="container-fluid px-2 px-md-4 py-2 py-md-3">
-    <div class="row mb-2 mb-md-4">
-        <div class="col-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Skills Management</li>
-                </ol>
-            </nav>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-puzzle-fill me-2"></i>Skills Management
+        </h2>
+        <button class="btn btn-primary" @onclick="ShowImportModal">
+            <i class="bi bi-cloud-upload me-2"></i>Import Skill
+        </button>
     </div>
 
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="p-4">
-                <!-- Header with Import Button -->
-                <div class="d-flex justify-content-between align-items-center mb-4 header-section">
-                    <div class="flex-grow-1">
-                        <h4 class="mb-1">Skills Management</h4>
-                        <p class="text-muted mb-0 d-none d-sm-block">
-                            Import, inspect and manage Agent Skills packages. Skills are bound to individual
-                            agents from the agent's Tools tab.
-                        </p>
-                    </div>
-                    <div class="text-end">
-                        <button class="btn btn-primary" @onclick="ShowImportModal">
-                            <i class="bi bi-cloud-upload me-2"></i>Import Skill
-                        </button>
-                        <div class="form-text mt-1 mb-0">
-                            <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
-                        </div>
-                    </div>
+                <p class="text-muted mb-4 d-none d-sm-block">
+                    Import, inspect and manage Agent Skills packages. Skills are bound to individual
+                    agents from the agent's Tools tab.
+                </p>
+                <div class="form-text mt-1 mb-4">
+                    <i class="bi bi-info-circle me-1"></i>A skill's instructions run inside the agent &mdash; only import packages you trust.
                 </div>
 
                 <!-- Error Display -->

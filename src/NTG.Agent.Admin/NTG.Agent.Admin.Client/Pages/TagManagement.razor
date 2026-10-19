@@ -10,30 +10,19 @@
 <PageTitle>Tags Management</PageTitle>
 
 <div class="container-fluid px-2 px-md-4 py-2 py-md-3">
-    <div class="row mb-2 mb-md-4">
-        <div class="col-12">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Home</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Tags Management</li>
-                </ol>
-            </nav>
-        </div>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-tags-fill me-2"></i>Tags Management
+        </h2>
+        <button class="btn btn-primary create-tag-btn" @onclick="ShowCreateTagModal">
+            <i class="bi bi-plus-circle me-2"></i>Create Tag
+        </button>
     </div>
 
     <div class="card shadow-sm">
         <div class="card-body">
             <div class="p-4">
-                <!-- Header with Add Tag Button -->
-                <div class="d-flex justify-content-between align-items-center mb-4 header-section">
-                    <div class="flex-grow-1">
-                        <h4 class="mb-1">Tags Management</h4>
-                        <p class="text-muted mb-0 d-none d-sm-block">Manage tags and their role assignments</p>
-                    </div>
-                    <button class="btn btn-primary create-tag-btn" @onclick="ShowCreateTagModal">
-                        <i class="bi bi-plus-circle me-2"></i>Create Tag
-                    </button>
-                </div>
+                <p class="text-muted mb-4 d-none d-sm-block">Manage tags and their role assignments</p>
 
                 <!-- Search Bar -->
                 <div class="row mb-4">
