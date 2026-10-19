@@ -7,7 +7,6 @@ using NTG.Agent.Orchestrator.Models.Documents;
 using NTG.Agent.Orchestrator.Models.Identity;
 using NTG.Agent.Orchestrator.Models.Agents;
 using NTG.Agent.Orchestrator.Models.Skills;
-using NTG.Agent.Orchestrator.Models.Tags;
 using NTG.Agent.Orchestrator.Models.TokenUsage;
 using NTG.Agent.Orchestrator.Models.UserPreferences;
 namespace NTG.Agent.Orchestrator.Data;
@@ -40,12 +39,6 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
     public DbSet<Models.Documents.Document> Documents { get; set; } = null!;
 
     public DbSet<Models.Documents.Folder> Folders { get; set; } = null!;
-
-    public DbSet<Tag> Tags { get; set; } = null!;
-
-    public DbSet<TagRole> TagRoles { get; set; } = null!;
-
-    public DbSet<DocumentTag> DocumentTags { get; set; } = null!;
 
     public DbSet<User> Users { get; set; } = null!;
 
@@ -212,27 +205,6 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
             .OnDelete(DeleteBehavior.Cascade);
 
 
-        modelBuilder.Entity<Tag>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.Property(x => x.Name)
-                .IsRequired()
-                .HasMaxLength(256);
-            e.HasIndex(x => x.Name).IsUnique();
-        });
-
-        modelBuilder.Entity<TagRole>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.HasOne(x => x.Tag)
-                .WithMany()
-                .HasForeignKey(x => x.TagId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasIndex(x => new { x.TagId, x.RoleId }).IsUnique();
-            e.Property(x => x.RoleId).IsRequired();
-        });
-
         modelBuilder.Entity<AgentRole>(e =>
         {
             e.HasKey(x => x.Id);
@@ -246,27 +218,6 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
                 .HasColumnType("nvarchar(450)")
                 .IsRequired();
         });
-
-        modelBuilder.Entity<Tag>().HasData(
-           new Tag
-           {
-               Id = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               Name = "Public",
-               CreatedAt = new DateTime(2025, 6, 24),
-               UpdatedAt = new DateTime(2025, 6, 24)
-           }
-       );
-
-        modelBuilder.Entity<TagRole>().HasData(
-           new TagRole
-           {
-               Id = new Guid("22c3bf7d-a7d0-4770-b9b2-cd6587089bd4"),
-               TagId = new Guid("10dd4508-4e35-4c63-bd74-5d90246c7770"),
-               RoleId = new Guid(Constants.AnonymousRoleId),
-               CreatedAt = new DateTime(2025, 6, 24),
-               UpdatedAt = new DateTime(2025, 6, 24)
-           }
-       );
 
         modelBuilder.Entity<Models.Agents.Agent>()
         .HasMany(a => a.AgentTools)

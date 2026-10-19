@@ -48,9 +48,6 @@
                             <th style="width: 10%;" class="text-center">
                                 <i class="bi bi-tag me-2"></i>Type
                             </th>
-                            <th style="width: 15%;">
-                                <i class="bi bi-tags me-2"></i>Tags
-                            </th>
                             <th style="width: 15%;" class="text-center">
                                 <i class="bi bi-calendar me-2"></i>Upload Date
                             </th>
@@ -76,25 +73,6 @@
                                     <span class="badge @FileTypeService.GetTypeBadgeClass(doc.Name)">
                                         @FileTypeService.GetFileTypeDescription(doc.Name)
                                     </span>
-                                </td>
-                                <td>
-                                    @if (doc.Tags.Any())
-                                    {
-                                        <div class="d-flex flex-wrap gap-1">
-                                            @foreach (var tag in doc.Tags.Take(3))
-                                            {
-                                                <span class="badge bg-primary badge-sm">@tag</span>
-                                            }
-                                            @if (doc.Tags.Count > 3)
-                                            {
-                                                <span class="badge bg-secondary badge-sm">+@(doc.Tags.Count - 3)</span>
-                                            }
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">No tags</span>
-                                    }
                                 </td>
                                 <td class="text-center">@doc.UpdatedAt.ToString("MMM dd, yyyy")</td>
                                 <td class="text-center">@RenderStatus(doc)</td>
@@ -133,24 +111,6 @@
                             <span class="badge @FileTypeService.GetTypeBadgeClass(doc.Name) ms-1">
                                 @FileTypeService.GetFileTypeDescription(doc.Name)
                             </span>
-                        </div>
-                        <div class="mb-1">
-                            <span class="text-muted">Tags:</span>
-                            @if (doc.Tags.Any())
-                            {
-                                @foreach (var tag in doc.Tags.Take(3))
-                                {
-                                    <span class="badge bg-primary badge-sm ms-1">@tag</span>
-                                }
-                                @if (doc.Tags.Count > 3)
-                                {
-                                    <span class="badge bg-secondary badge-sm ms-1">+@(doc.Tags.Count - 3)</span>
-                                }
-                            }
-                            else
-                            {
-                                <span class="text-muted ms-1">No tags</span>
-                            }
                         </div>
                         <div class="mb-1">
                             <span class="text-muted">Uploaded:</span> @doc.UpdatedAt.ToString("MMM dd, yyyy")

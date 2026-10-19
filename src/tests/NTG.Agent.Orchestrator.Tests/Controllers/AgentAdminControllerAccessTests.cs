@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using NTG.Agent.Common.Dtos.Agents;
-using NTG.Agent.Common.Dtos.Tags;
+using NTG.Agent.Common.Dtos.Roles;
 using NTG.Agent.Orchestrator.Controllers;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;

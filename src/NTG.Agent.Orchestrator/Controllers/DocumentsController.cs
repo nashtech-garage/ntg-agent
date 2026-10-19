@@ -59,30 +59,24 @@ public class DocumentsController : ControllerBase
         {
             // If the folder is the root folder, we return all documents that are either in the root folder or not associated with any folder.
             var defaultDocuments = await _agentDbContext.Documents
-                .Include(x => x.DocumentTags)
-                .ThenInclude(dt => dt.Tag)
                 .Where(x => x.AgentId == agentId && (x.FolderId == folderId || x.FolderId == null))
                 .Select(x => new DocumentListItem(
                     x.Id,
                     x.Name,
                     x.CreatedAt,
                     x.UpdatedAt,
-                    x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
                     x.Status,
                     x.ErrorMessage))
                 .ToListAsync();
             return Ok(defaultDocuments);
         }
         var documents = await _agentDbContext.Documents
-        .Include(x => x.DocumentTags)
-        .ThenInclude(dt => dt.Tag)
         .Where(x => x.AgentId == agentId && x.FolderId == folderId)
         .Select(x => new DocumentListItem(
             x.Id,
             x.Name,
             x.CreatedAt,
             x.UpdatedAt,
-            x.DocumentTags.Select(dt => dt.Tag.Name).ToList(),
             x.Status,
             x.ErrorMessage))
         .ToListAsync();
@@ -109,7 +103,7 @@ public class DocumentsController : ControllerBase
     /// <exception cref="UnauthorizedAccessException">Thrown if the user is not authenticated.</exception>
     [HttpPost("upload/{agentId}")]
     [Authorize]
-    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] Guid? folderId, [FromQuery] List<string> tags)
+    public async Task<IActionResult> UploadDocuments(Guid agentId, [FromForm] IFormFileCollection files, [FromQuery] Guid? folderId)
     {
         if (files == null || files.Count == 0)
         {
@@ -124,7 +118,6 @@ public class DocumentsController : ControllerBase
         // Completed/Failed later. The per-file try/catch only guards the *begin* step (e.g.
         // backend unreachable) — those files get no row and are reported failed.
         var documents = new List<Document>();
-        var documentTags = new List<DocumentTag>();
         var results = new List<UploadDocumentResult>();
         foreach (var file in files)
         {
@@ -146,16 +139,8 @@ public class DocumentsController : ControllerBase
 
             try
             {
-                document.TrackId = await _knowledgeService.BeginImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, document.Id, tags);
+                document.TrackId = await _knowledgeService.BeginImportDocumentAsync(file.OpenReadStream(), file.FileName, agentId, document.Id);
                 documents.Add(document);
-                foreach (var tag in tags)
-                {
-                    documentTags.Add(new DocumentTag
-                    {
-                        DocumentId = document.Id,
-                        TagId = new Guid(tag)
-                    });
-                }
                 results.Add(new UploadDocumentResult(file.FileName, Success: true, ErrorMessage: null, DocumentId: document.Id));
             }
             catch (OperationCanceledException)
@@ -172,7 +157,6 @@ public class DocumentsController : ControllerBase
         if (documents.Count != 0)
         {
             _agentDbContext.Documents.AddRange(documents);
-            _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
             _ingestionSignal.Notify(); // wake the status worker to track these Processing docs
         }
@@ -257,21 +241,9 @@ public class DocumentsController : ControllerBase
                 Status = DocumentStatus.Processing
             };
 
-            document.TrackId = await _knowledgeService.BeginImportWebPageAsync(request.Url, agentId, document.Id, request.Tags);
-
-            var documentTags = new List<DocumentTag>();
-            foreach (var tag in request.Tags)
-            {
-                var documentTag = new DocumentTag
-                {
-                    DocumentId = document.Id,
-                    TagId = new Guid(tag)
-                };
-                documentTags.Add(documentTag);
-            }
+            document.TrackId = await _knowledgeService.BeginImportWebPageAsync(request.Url, agentId, document.Id);
 
             _agentDbContext.Documents.Add(document);
-            _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
             _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
@@ -324,21 +296,9 @@ public class DocumentsController : ControllerBase
                 Status = DocumentStatus.Processing
             };
 
-            document.TrackId = await _knowledgeService.BeginImportTextContentAsync(request.Content, fileName, agentId, document.Id, request.Tags);
-
-            var documentTags = new List<DocumentTag>();
-            foreach (var tag in request.Tags)
-            {
-                var documentTag = new DocumentTag
-                {
-                    DocumentId = document.Id,
-                    TagId = new Guid(tag)
-                };
-                documentTags.Add(documentTag);
-            }
+            document.TrackId = await _knowledgeService.BeginImportTextContentAsync(request.Content, fileName, agentId, document.Id);
 
             _agentDbContext.Documents.Add(document);
-            _agentDbContext.DocumentTags.AddRange(documentTags);
             await _agentDbContext.SaveChangesAsync();
             _ingestionSignal.Notify(); // wake the status worker to track this Processing doc
 
@@ -448,5 +408,5 @@ public class DocumentsController : ControllerBase
     }
 }
 
-public record ImportWebPageRequest(string Url, Guid? FolderId, List<string> Tags);
-public record UploadTextContentRequest(string Title, string Content, Guid? FolderId, List<string> Tags);
+public record ImportWebPageRequest(string Url, Guid? FolderId);
+public record UploadTextContentRequest(string Title, string Content, Guid? FolderId);

@@ -60,9 +60,8 @@ public sealed class AgentToolPlugin
         }
 
         // Attach the child agent's own knowledge tool, scoped to its workspace, so the child
-        // searches its documents rather than answering from parametric knowledge. Tags are
-        // empty: LightRAG ignores tag filtering, so per-agent isolation is the scope.
-        var memoryTool = new KnowledgePlugin(_knowledgeService, [], _childAgentId).AsAITool();
+        // searches its documents rather than answering from parametric knowledge.
+        var memoryTool = new KnowledgePlugin(_knowledgeService, _childAgentId).AsAITool();
         var runOptions = new ChatClientAgentRunOptions(new ChatOptions { Tools = [memoryTool] });
 
         var chatHistory = new List<ChatMessage>

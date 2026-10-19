@@ -11,7 +11,7 @@ using NTG.Agent.Orchestrator.Services.Agents;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Extentions;
 using NTG.Agent.Orchestrator.Models.Agents;
-using NTG.Agent.Common.Dtos.Tags;
+using NTG.Agent.Common.Dtos.Roles;
 
 namespace NTG.Agent.Orchestrator.Controllers;
 

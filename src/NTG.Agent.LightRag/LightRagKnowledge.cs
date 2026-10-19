@@ -28,7 +28,7 @@ public class LightRagKnowledge : IKnowledgeService
         _httpClientFactory = httpClientFactory;
     }
 
-    public async Task<string> BeginImportDocumentAsync(Stream content, string fileName, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> BeginImportDocumentAsync(Stream content, string fileName, Guid agentId, Guid documentId, CancellationToken cancellationToken = default)
     {
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
 
@@ -50,7 +50,7 @@ public class LightRagKnowledge : IKnowledgeService
         return trackId;
     }
 
-    public async Task<string> BeginImportWebPageAsync(string url, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> BeginImportWebPageAsync(string url, Guid agentId, Guid documentId, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             throw new ArgumentException("Invalid URL provided.", nameof(url));
@@ -74,7 +74,7 @@ public class LightRagKnowledge : IKnowledgeService
         return trackId;
     }
 
-    public async Task<string> BeginImportTextContentAsync(string content, string fileName, Guid agentId, Guid documentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<string> BeginImportTextContentAsync(string content, string fileName, Guid agentId, Guid documentId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("Content cannot be null or empty.", nameof(content));
@@ -147,20 +147,11 @@ public class LightRagKnowledge : IKnowledgeService
         _fileStore.FindAndDelete(agentId, documentId);
     }
 
-    public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, List<string> tags, CancellationToken cancellationToken = default)
+    public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, CancellationToken cancellationToken = default)
     {
         // Each agent has its own container/workspace, so this query only sees this
         // agent's documents. Hybrid mode enables local + global graph search with re-ranking.
         //
-        // NOTE: LightRAG's /query endpoint does not support tag-based filtering. Tags are
-        // accepted for interface compatibility but are not applied. Per-agent workspace
-        // isolation already scopes results to a single agent's documents.
-        if (tags is { Count: > 0 })
-        {
-            _logger.LogWarning("LightRagKnowledge.SearchAsync: tag-based filtering is not supported by LightRAG; " +
-                "tags were provided but will be ignored for agentId={AgentId}.", agentId);
-        }
-
         var client = await _clientFactory.GetClientAsync(agentId, cancellationToken);
         var contextText = await client.QueryAsync(query, _settings.TopK, _settings.QueryMode, true, cancellationToken);
         return new KnowledgeSearchResponse(
@@ -170,7 +161,7 @@ public class LightRagKnowledge : IKnowledgeService
     }
 
     public async Task<KnowledgeSearchResponse> SearchAsync(string query, Guid agentId, Guid userId, CancellationToken cancellationToken = default)
-        => await SearchAsync(query, agentId, new List<string>(), cancellationToken);
+        => await SearchAsync(query, agentId, cancellationToken);
 
     public Task<KnowledgeFileContent> ExportDocumentAsync(Guid agentId, Guid documentId, string? knowledgeDocId, string fileName, CancellationToken cancellationToken = default)
     {
