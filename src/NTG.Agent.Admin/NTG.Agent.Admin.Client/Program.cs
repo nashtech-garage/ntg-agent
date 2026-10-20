@@ -24,11 +24,6 @@ builder.Services.AddHttpClient<FolderClient>(client =>
     client.BaseAddress = baseUri;
 });
 
-builder.Services.AddHttpClient<TagClient>(client =>
-{
-    client.BaseAddress = baseUri;
-});
-
 builder.Services.AddHttpClient<AgentAccessClient>(client =>
 {
     client.BaseAddress = baseUri;

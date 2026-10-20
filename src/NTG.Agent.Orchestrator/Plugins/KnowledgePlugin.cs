@@ -8,7 +8,6 @@ namespace NTG.Agent.Orchestrator.Plugins;
 public sealed class KnowledgePlugin
 {
     private readonly IKnowledgeService _knowledgeService;
-    private readonly List<string> _tags;
     private readonly Guid _agentId;
 
     // Speculative prefetch: the orchestrator kicks off a knowledge search using the raw user
@@ -17,20 +16,18 @@ public sealed class KnowledgePlugin
     private readonly string? _prefetchQuery;
     private readonly Task<KnowledgeSearchResponse>? _prefetch;
 
-    public KnowledgePlugin(IKnowledgeService knowledgeService, List<string> tags, Guid agentId)
-        : this(knowledgeService, tags, agentId, null, null)
+    public KnowledgePlugin(IKnowledgeService knowledgeService, Guid agentId)
+        : this(knowledgeService, agentId, null, null)
     {
     }
 
     public KnowledgePlugin(
         IKnowledgeService knowledgeService,
-        List<string> tags,
         Guid agentId,
         string? prefetchQuery,
         Task<KnowledgeSearchResponse>? prefetch)
     {
         _knowledgeService = knowledgeService ?? throw new ArgumentNullException(nameof(knowledgeService));
-        _tags = tags ?? throw new ArgumentNullException(nameof(tags));
         _agentId = agentId;
         _prefetchQuery = prefetchQuery;
         _prefetch = prefetch;
@@ -55,7 +52,7 @@ public sealed class KnowledgePlugin
             }
         }
 
-        var result = await _knowledgeService.SearchAsync(query, _agentId, _tags);
+        var result = await _knowledgeService.SearchAsync(query, _agentId);
         return result;
     }
 

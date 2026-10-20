@@ -170,7 +170,6 @@ public class AgentService
         
         var conversation = await ValidateConversation(userId, promptRequest);
         var history = await PrepareConversationHistory(userId, promptRequest.SessionId, promptRequest.AgentId, conversation);
-        var tags = await GetUserTags(userId);
         var ocrDocuments = new List<string>();
         if (_documentAnalysisService.IsEnabled && promptRequest.Documents is not null && promptRequest.Documents.Any())
         {
@@ -218,7 +217,7 @@ public class AgentService
         var pendingToolCalls = new Dictionary<string, (string Name, string Arguments)>();
         var toolRenderEnvelopes = new List<object>();
 
-        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, tags, ocrDocuments, tokenUsageInfo, userId, isAdmin, capabilities))
+        await foreach (var item in InvokePromptStreamingInternalAsync(promptRequest, history, ocrDocuments, tokenUsageInfo, userId, isAdmin, capabilities))
         {
             if (item.ContentType == PromptContentType.Thinking)
             {
@@ -315,28 +314,6 @@ public class AgentService
         }
 
         return conversation ?? throw new InvalidOperationException($"Conversation {conversationId} not found.");
-    }
-
-    private async Task<List<string>> GetUserTags(Guid? userId)
-    {
-        if (userId is not null)
-        {
-            var roleIds = await _agentDbContext.UserRoles
-                .Where(c => c.UserId == userId).Select(c => c.RoleId).ToListAsync();
-
-            return await _agentDbContext.TagRoles
-                .Where(c => roleIds.Contains(c.RoleId))
-                .Select(c => c.TagId.ToString())
-                .ToListAsync();
-        }
-        else
-        {
-            var anonymousRoleId = new Guid(Constants.AnonymousRoleId);
-            return await _agentDbContext.TagRoles
-                .Where(c => c.RoleId == anonymousRoleId)
-                .Select(c => c.TagId.ToString())
-                .ToListAsync();
-        }
     }
 
     private async Task<List<PChatMessage>> PrepareConversationHistory(Guid? userId, string? sessionId, Guid agentId, Conversation conversation)
@@ -469,7 +446,6 @@ public class AgentService
     private async IAsyncEnumerable<PromptResponse> InvokePromptStreamingInternalAsync(
         PromptRequestForm promptRequest,
         List<PChatMessage> history,
-        List<string> tags,
         List<string> ocrDocuments,
         TokenUsageInfo tokenUsageInfo,
         Guid? userId,
@@ -481,7 +457,7 @@ public class AgentService
         // and the first "decide to search" LLM call. KnowledgePlugin reuses this warm result
         // when the model's memory-tool query matches the prompt, and falls back to a fresh
         // query otherwise. If the model never searches, the task's result is simply discarded.
-        var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId, tags);
+        var prefetch = _knowledgeService.SearchAsync(promptRequest.Prompt, promptRequest.AgentId);
 
         // Build the agent up front. A misconfigured agent (e.g. no model provider
         // selected) throws here; catch it so we can stream a friendly message
@@ -519,7 +495,7 @@ public class AgentService
 
         chatHistory.Add(userMessage);
 
-        AITool memorySearch = new KnowledgePlugin(_knowledgeService, tags, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
+        AITool memorySearch = new KnowledgePlugin(_knowledgeService, promptRequest.AgentId, promptRequest.Prompt, prefetch).AsAITool();
 
         // The agent's own knowledge tool is attached per-request here; inner-agent
         // ("agent-as-a-tool") tools are now baked into the agent by AgentFactory

@@ -15,7 +15,7 @@ public class DocumentClient(HttpClient httpClient)
         return result ?? [];
     }
 
-    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId, List<string> tags)
+    public async Task UploadDocumentsAsync(Guid agentId, IList<IBrowserFile> files, Guid? folderId)
     {
         long maxFileSize = 50 * 1024L * 1024L; // 50 MB
         using var content = new MultipartFormDataContent();
@@ -39,14 +39,6 @@ public class DocumentClient(HttpClient httpClient)
         if (folderId.HasValue)
             queryParams.Add($"folderId={folderId}");
         
-        if (tags != null && tags.Count != 0)
-        {
-            foreach (var tag in tags)
-            {
-                queryParams.Add($"tags={Uri.EscapeDataString(tag)}");
-            }
-        }
-        
         var queryString = queryParams.Count != 0 ? "?" + string.Join("&", queryParams) : "";
         var response = await httpClient.PostAsync($"api/documents/upload/{agentId}{queryString}", content);
         response.EnsureSuccessStatusCode();
@@ -68,18 +60,18 @@ public class DocumentClient(HttpClient httpClient)
         var response = await httpClient.DeleteAsync($"api/documents/{documentId}/{agentId}");
         response.EnsureSuccessStatusCode();
     }
-    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId, List<string> tags)
+    public async Task<string> ImportWebPageAsync(Guid agentId, string url, Guid? folderId)
     {
-        var request = new { Url = url , FolderId = folderId, Tags = tags};
+        var request = new { Url = url, FolderId = folderId };
         var response = await httpClient.PostAsJsonAsync($"api/documents/import-webpage/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();
         return result;
     }
 
-    public async Task<string> UploadTextContentAsync(Guid agentId, string title, string content, Guid? folderId, List<string> tags)
+    public async Task<string> UploadTextContentAsync(Guid agentId, string title, string content, Guid? folderId)
     {
-        var request = new { Title = title, Content = content, FolderId = folderId, Tags = tags };
+        var request = new { Title = title, Content = content, FolderId = folderId };
         var response = await httpClient.PostAsJsonAsync($"api/documents/upload-text/{agentId}", request);
         response.EnsureSuccessStatusCode();
         var result = await response.Content.ReadAsStringAsync();

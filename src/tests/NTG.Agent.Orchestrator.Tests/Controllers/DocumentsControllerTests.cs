@@ -101,20 +101,14 @@ public class DocumentsControllerTests
     public async Task GetDocumentsByAgentId_WhenDocumentsExist_ReturnsDocuments()
     {
         // Arrange
-        var tag = new Models.Tags.Tag { Id = Guid.NewGuid(), Name = "Test Tag" };
         var document = new Document
         {
             Id = Guid.NewGuid(),
             Name = "Test Document",
             AgentId = _testAgentId,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            DocumentTags = new List<DocumentTag>
-            {
-                new DocumentTag { TagId = tag.Id, Tag = tag }
-            }
+            UpdatedAt = DateTime.UtcNow
         };
-        _context.Tags.Add(tag);
         _context.Documents.Add(document);
         await _context.SaveChangesAsync();
         // Act
@@ -126,7 +120,6 @@ public class DocumentsControllerTests
         Assert.That(documents, Is.Not.Null);
         Assert.That(documents, Has.Count.EqualTo(1));
         Assert.That(documents[0].Name, Is.EqualTo("Test Document"));
-        Assert.That(documents[0].Tags, Contains.Item("Test Tag"));
     }
     [Test]
     public async Task GetDocumentsByAgentId_WhenFolderIsRoot_ReturnsRootDocuments()
@@ -202,7 +195,7 @@ public class DocumentsControllerTests
         // Arrange
         var files = new FormFileCollection();
         // Act
-        var result = await _controller.UploadDocuments(_testAgentId, files, null, new List<string>());
+        var result = await _controller.UploadDocuments(_testAgentId, files, null);
         // Assert
         var badRequestResult = result as BadRequestObjectResult;
         Assert.That(badRequestResult, Is.Not.Null);
@@ -220,7 +213,7 @@ public class DocumentsControllerTests
         };
         // Act & Assert
         var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _controller.UploadDocuments(_testAgentId, files, null, new List<string>()));
+            _controller.UploadDocuments(_testAgentId, files, null));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]
@@ -231,13 +224,10 @@ public class DocumentsControllerTests
         {
             CreateTestFile("test.txt", "test content")
         };
-        var tag1Id = Guid.NewGuid();
-        var tag2Id = Guid.NewGuid();
-        var tags = new List<string> { tag1Id.ToString(), tag2Id.ToString() };
-        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("track-id");
         // Act
-        var result = await _controller.UploadDocuments(_testAgentId, files, null, tags);
+        var result = await _controller.UploadDocuments(_testAgentId, files, null);
         // Assert
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
@@ -249,8 +239,6 @@ public class DocumentsControllerTests
         Assert.That(savedDocument.Status, Is.EqualTo(DocumentStatus.Processing));
         Assert.That(savedDocument.TrackId, Is.EqualTo("track-id"));
         Assert.That(savedDocument.KnowledgeDocId, Is.Null);
-        var documentTags = await _context.DocumentTags.Where(dt => dt.DocumentId == savedDocument.Id).ToListAsync();
-        Assert.That(documentTags, Has.Count.EqualTo(2));
         // The status worker was signalled to start tracking the new Processing doc.
         Assert.That(_signal.WaitAsync(CancellationToken.None).IsCompleted, Is.True);
     }
@@ -263,10 +251,10 @@ public class DocumentsControllerTests
             CreateTestFile("empty.txt", ""),
             CreateTestFile("valid.txt", "valid content")
         };
-        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        _mockKnowledgeService.Setup(x => x.BeginImportDocumentAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("track-id");
         // Act
-        var result = await _controller.UploadDocuments(_testAgentId, files, null, new List<string>());
+        var result = await _controller.UploadDocuments(_testAgentId, files, null);
         // Assert
         var okResult = result as OkObjectResult;
         Assert.That(okResult, Is.Not.Null);
@@ -364,7 +352,7 @@ public class DocumentsControllerTests
     public async Task ImportWebPage_WhenUrlIsEmpty_ReturnsBadRequest()
     {
         // Arrange
-        var request = new ImportWebPageRequest("", null, new List<string>());
+        var request = new ImportWebPageRequest("", null);
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
         // Assert
@@ -378,7 +366,7 @@ public class DocumentsControllerTests
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
-        var request = new ImportWebPageRequest("https://example.com", null, new List<string>());
+        var request = new ImportWebPageRequest("https://example.com", null);
         // Act & Assert
         var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _controller.ImportWebPage(_testAgentId, request));
@@ -390,9 +378,8 @@ public class DocumentsControllerTests
         // Arrange
         var url = "https://example.com";
         var folderId = Guid.NewGuid();
-        var tags = new List<string> { Guid.NewGuid().ToString() };
-        var request = new ImportWebPageRequest(url, folderId, tags);
-        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(url, _testAgentId, It.IsAny<Guid>(), tags, It.IsAny<CancellationToken>()))
+        var request = new ImportWebPageRequest(url, folderId);
+        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(url, _testAgentId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("track-id");
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
@@ -414,8 +401,8 @@ public class DocumentsControllerTests
     public async Task ImportWebPage_WhenKnowledgeServiceThrows_ReturnsBadRequest()
     {
         // Arrange
-        var request = new ImportWebPageRequest("https://example.com", null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        var request = new ImportWebPageRequest("https://example.com", null);
+        _mockKnowledgeService.Setup(x => x.BeginImportWebPageAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.ImportWebPage(_testAgentId, request);
@@ -428,7 +415,7 @@ public class DocumentsControllerTests
     public async Task UploadTextContent_WhenContentIsEmpty_ReturnsBadRequest()
     {
         // Arrange
-        var request = new UploadTextContentRequest("Title", "", null, new List<string>());
+        var request = new UploadTextContentRequest("Title", "", null);
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
         // Assert
@@ -442,7 +429,7 @@ public class DocumentsControllerTests
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
-        var request = new UploadTextContentRequest("Title", "Content", null, new List<string>());
+        var request = new UploadTextContentRequest("Title", "Content", null);
         // Act & Assert
         var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _controller.UploadTextContent(_testAgentId, request));
@@ -455,9 +442,8 @@ public class DocumentsControllerTests
         var content = "This is test content";
         var title = "Test Title";
         var folderId = Guid.NewGuid();
-        var tags = new List<string> { Guid.NewGuid().ToString() };
-        var request = new UploadTextContentRequest(title, content, folderId, tags);
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, $"{title}.txt", _testAgentId, It.IsAny<Guid>(), tags, It.IsAny<CancellationToken>()))
+        var request = new UploadTextContentRequest(title, content, folderId);
+        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, $"{title}.txt", _testAgentId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("track-id");
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
@@ -477,8 +463,8 @@ public class DocumentsControllerTests
     {
         // Arrange
         var content = "This is test content";
-        var request = new UploadTextContentRequest("", content, null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, "Text Content.txt", _testAgentId, It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        var request = new UploadTextContentRequest("", content, null);
+        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(content, "Text Content.txt", _testAgentId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("track-id");
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);
@@ -493,8 +479,8 @@ public class DocumentsControllerTests
     public async Task UploadTextContent_WhenKnowledgeServiceThrows_ReturnsBadRequest()
     {
         // Arrange
-        var request = new UploadTextContentRequest("Title", "Content", null, new List<string>());
-        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<List<string>>(), It.IsAny<CancellationToken>()))
+        var request = new UploadTextContentRequest("Title", "Content", null);
+        _mockKnowledgeService.Setup(x => x.BeginImportTextContentAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Import failed"));
         // Act
         var result = await _controller.UploadTextContent(_testAgentId, request);

@@ -31,6 +31,4 @@ public class Document
     /// <summary>Failure reason surfaced to the UI when <see cref="Status"/> is <see cref="DocumentStatus.Failed"/>.</summary>
     public string? ErrorMessage { get; set; }
 
-    // Navigation properties
-    public ICollection<DocumentTag> DocumentTags { get; set; } = new List<DocumentTag>();
 }
