@@ -3,8 +3,8 @@
 
 Produces the layout the importer expects (agentskills.io):
 
-    travel-planning.zip
-    └── travel-planning/
+    travel-planner.zip
+    └── travel-planner/
         ├── SKILL.md
         └── assets/*.json
 

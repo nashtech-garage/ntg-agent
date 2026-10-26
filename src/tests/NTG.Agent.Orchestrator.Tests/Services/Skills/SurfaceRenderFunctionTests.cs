@@ -43,13 +43,14 @@ public class SurfaceRenderFunctionTests
     private static readonly string[] OperationKinds = ["createSurface", "updateComponents", "updateDataModel"];
 
     /// <summary>
-    /// The shipped package is a single tabbed surface now, not three. Its surfaceId ("trip-wizard")
+    /// The shipped package is a single tabbed surface now, not three. Its surfaceId
+    /// ("advanced-trip-wizard")
     /// deliberately differs from the file name, so re-rendering it replaces one card rather than
     /// stacking three.
     /// </summary>
     private static readonly string[] TravelSurfaces = ["trip-planner"];
 
-    private const string TravelSurfaceId = "trip-wizard";
+    private const string TravelSurfaceId = "advanced-trip-wizard";
 
     private const string PanelSurface = """
         {
@@ -675,14 +676,14 @@ public class SurfaceRenderFunctionTests
     /// will actually see still render.
     /// </summary>
     [TestCase("trip-planner")]
-    public async Task Render_SeededTravelPlanningSurface_Renders(string surface)
+    public async Task Render_SeededTravelPlannerSurface_Renders(string surface)
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
-        await RenderAsync("travel-planning", surface);
+        await RenderAsync("travel-planner", surface);
 
         var captured = Captured();
         Assert.That(captured, Has.Count.EqualTo(1));
@@ -693,22 +694,103 @@ public class SurfaceRenderFunctionTests
 
         // Asserted against the surfaceId, not the file name. They differ on purpose: the id is
         // what the middleware keys the chat card on, so re-rendering "trip-planner" replaces the
-        // one "trip-wizard" card instead of appending another.
+        // one "advanced-trip-wizard" card instead of appending another.
         Assert.That(
             Operation(operations, "createSurface")["surfaceId"]!.GetValue<string>(),
             Is.EqualTo(TravelSurfaceId));
     }
 
     [Test]
+    public async Task Render_SeededTravelPlanner_RendersFiveHotelOptions()
+    {
+        if (!await TryImportTravelPlannerAsync())
+        {
+            return;
+        }
+
+        await RenderAsync("travel-planner", "trip-planner");
+
+        var operations = Operations(Captured().Single());
+        var hotelData = DataModel(operations)["options"]!;
+        var components = (JsonArray)Operation(operations, "updateComponents")["components"]!;
+        var imageComponentCount = components.Count(component =>
+            string.Equals(component?["component"]?.GetValue<string>(), "Image", StringComparison.Ordinal));
+        var iconComponentCount = components.Count(component =>
+            string.Equals(component?["component"]?.GetValue<string>(), "Icon", StringComparison.Ordinal));
+        var locationIconCount = components.Count(component =>
+            component?["text"] is JsonValue text
+            && text.TryGetValue<string>(out var textValue)
+            && string.Equals(textValue, "📍", StringComparison.Ordinal));
+        var addressLabelCount = components.Count(component =>
+            component?["text"] is JsonValue text
+            && text.TryGetValue<string>(out var textValue)
+            && string.Equals(textValue, "Address:", StringComparison.Ordinal));
+        var hotelRowsWithWidePriceColumn = components.Count(component =>
+            component?["id"]?.GetValue<string>() is { } id
+            && id.StartsWith("hotel", StringComparison.Ordinal)
+            && id.EndsWith("-row", StringComparison.Ordinal)
+            && string.Equals(
+                component?["justify"]?.GetValue<string>(),
+                "spaceBetween",
+                StringComparison.Ordinal));
+        var ratingStarCount = components.Count(component =>
+            component?["id"]?.GetValue<string>() is { } id
+            && id.EndsWith("-rating-icon", StringComparison.Ordinal)
+            && string.Equals(component?["text"]?.GetValue<string>(), "⭐", StringComparison.Ordinal));
+        var hotelStarComponentCount = components.Count(component =>
+            component?["id"]?.GetValue<string>() is { } id
+            && id.EndsWith("-hotel-stars", StringComparison.Ordinal));
+        var ratingBodyComponentCount = components.Count(component =>
+            component?["id"]?.GetValue<string>() is { } id
+            && id.EndsWith("-rating-value", StringComparison.Ordinal)
+            && string.Equals(
+                component?["variant"]?.GetValue<string>(),
+                "body",
+                StringComparison.Ordinal));
+        var firstRatingRow = components.Single(component =>
+            string.Equals(component?["id"]?.GetValue<string>(), "hotel1-rating", StringComparison.Ordinal));
+        var firstRatingChildIds = ((JsonArray)firstRatingRow!["children"]!)
+            .Select(child => child!.GetValue<string>())
+            .ToArray();
+        var hotelNames = Enumerable.Range(1, 5)
+            .Select(index => hotelData[$"o{index}"]?["name"]?.GetValue<string>())
+            .ToArray();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(imageComponentCount, Is.Zero);
+            Assert.That(iconComponentCount, Is.Zero);
+            Assert.That(locationIconCount, Is.EqualTo(5));
+            Assert.That(addressLabelCount, Is.Zero);
+            Assert.That(hotelRowsWithWidePriceColumn, Is.Zero);
+            Assert.That(ratingStarCount, Is.EqualTo(5));
+            Assert.That(hotelStarComponentCount, Is.EqualTo(5));
+            Assert.That(ratingBodyComponentCount, Is.EqualTo(5));
+            Assert.That(
+                firstRatingChildIds,
+                Is.EqualTo(new[] { "hotel1-hotel-stars", "hotel1-rating-icon", "hotel1-rating-value" }));
+            Assert.That(hotelNames, Has.Length.EqualTo(5));
+            Assert.That(hotelNames, Has.All.EqualTo("Preparing a local stay"));
+            Assert.That(hotelData["o5"]?["hotelStars"]?.GetValue<string>(), Is.EqualTo("Hotel rating pending"));
+            Assert.That(hotelData["o5"]?["rating"]?.GetValue<string>(), Is.EqualTo("—/10"));
+            Assert.That(hotelData["o5"]?["benefit3"]?["icon"]?.GetValue<string>(), Is.EqualTo("🏊"));
+            Assert.That(hotelData["o5"]?["benefit3"]?["name"]?.GetValue<string>(), Is.EqualTo("Swimming pool"));
+            Assert.That(
+                Operation(operations, "createSurface")["surfaceId"]!.GetValue<string>(),
+                Is.EqualTo("advanced-trip-wizard"));
+        });
+    }
+
+    [Test]
     public async Task Render_SeededTripPlanner_MergesValuesOverTheShippedDefaults()
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
         await RenderAsync(
-            "travel-planning",
+            "travel-planner",
             "trip-planner",
             JsonNode.Parse("""{ "trip": { "destination": "Kyoto" } }"""));
 
@@ -740,13 +822,13 @@ public class SurfaceRenderFunctionTests
     [Test]
     public async Task Render_ValuesThatWouldFlattenASeededObject_AreRefused()
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
         var result = await RenderAsync(
-            "travel-planning", "trip-planner", JsonNode.Parse("""{ "trip": "Kyoto" }"""));
+            "travel-planner", "trip-planner", JsonNode.Parse("""{ "trip": "Kyoto" }"""));
 
         Assert.Multiple(() =>
         {
@@ -765,13 +847,13 @@ public class SurfaceRenderFunctionTests
     [Test]
     public async Task Render_ValuesThatWouldReplaceASeededArray_AreRefused()
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
         var result = await RenderAsync(
-            "travel-planning", "trip-planner", JsonNode.Parse("""{ "trip": { "style": "balanced" } }"""));
+            "travel-planner", "trip-planner", JsonNode.Parse("""{ "trip": { "style": "balanced" } }"""));
 
         Assert.Multiple(() =>
         {
@@ -788,13 +870,13 @@ public class SurfaceRenderFunctionTests
     [Test]
     public async Task Render_ValuesOfTheRightShape_StillMerge()
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
         var operations = await RenderAndCaptureAsync(
-            "travel-planning",
+            "travel-planner",
             "trip-planner",
             JsonNode.Parse("""{ "trip": { "destination": "Kyoto", "adults": 4, "style": ["comfort"] } }"""));
 
@@ -812,33 +894,33 @@ public class SurfaceRenderFunctionTests
     [Test]
     public async Task Render_SeededPackage_ExposesOnlyItsOwnSurfaces()
     {
-        if (!await TryImportTravelPlanningAsync())
+        if (!await TryImportTravelPlannerAsync())
         {
             return;
         }
 
         foreach (var surface in TravelSurfaces)
         {
-            await RenderAsync("travel-planning", surface);
+            await RenderAsync("travel-planner", surface);
         }
 
         Assert.That(Captured(), Has.Count.EqualTo(TravelSurfaces.Length));
 
-        await AssertRefusedAsync("travel-planning", "SKILL");
+        await AssertRefusedAsync("travel-planner", "SKILL");
     }
 
     /// <summary>Imports and binds the seeded package, or ignores the test when it is not present.</summary>
-    private async Task<bool> TryImportTravelPlanningAsync()
+    private async Task<bool> TryImportTravelPlannerAsync()
     {
-        var package = FindRepositoryFile(Path.Combine("seed", "skills", "travel-planning.zip"));
+        var package = FindRepositoryFile(Path.Combine("seed", "skills", "travel-planner.zip"));
         if (package is null)
         {
-            Assert.Ignore("seed/skills/travel-planning.zip not found from the test output directory");
+            Assert.Ignore("seed/skills/travel-planner.zip not found from the test output directory");
             return false;
         }
 
         var outcome = await _registry.ImportAsync(
-            await File.ReadAllBytesAsync(package), "travel-planning.zip", _userId);
+            await File.ReadAllBytesAsync(package), "travel-planner.zip", _userId);
 
         Assert.That(outcome.Succeeded, Is.True, string.Join(" | ", outcome.Errors));
 

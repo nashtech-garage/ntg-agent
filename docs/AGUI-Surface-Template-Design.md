@@ -122,7 +122,7 @@ frontend has been writing.
 
 `surfaceId` is separate from the file name and separate from the ids. It identifies the *card*.
 Two renders sharing a `surfaceId` update one card in place; two different `surfaceId`s produce
-two cards. Choose it deliberately — `tkt-search`, `tkt-tiers`, `trip-wizard` — and never reuse
+two cards. Choose it deliberately — `tkt-search`, `tkt-tiers`, `advanced-trip-wizard` — and never reuse
 one across skills.
 
 That in-place behaviour comes from `StableSurfaceIdMiddleware` in the Next.js bridge, which

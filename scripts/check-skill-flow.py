@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the travel-planning Agent Skill end to end and prove the three-tier runtime fires.
+"""Drive the travel-planner Agent Skill end to end and prove the three-tier runtime fires.
 
 What this proves
 ----------------
@@ -75,7 +75,7 @@ DEFAULT_AGENT = "31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"  # AgentFactory.DefaultAg
 DEFAULT_EMAIL = "admin@ntgagent.com"
 DEFAULT_LOG_GLOB = "/tmp/aspire-dcp*/*_out"
 
-SKILL = "travel-planning"
+SKILL = "travel-planner"
 LOAD_TOOL = "load_skill"
 RENDER_TOOL = "render_skill_surface"
 
@@ -85,12 +85,13 @@ OPENING_PROMPT = f"I want a trip to {DESTINATION}, can you plan it for me"
 # The trip the simulated user fills into tab 0 (Trip), and the option they pick on tab 1 (Options).
 TRIP = {
     "destination": DESTINATION,
-    "departDate": "2026-09-12",
-    "returnDate": "2026-09-19",
-    "travellers": 2,
+    "departDate": "2027-09-12",
+    "returnDate": "2027-09-19",
+    "adults": 2,
+    "kids": 0,
     "style": ["balanced"],
 }
-SURFACE_ID = "trip-wizard"
+SURFACE_ID = "advanced-trip-wizard"
 CHOICE = "o2"
 
 # The A2UI tool @ag-ui/a2ui-middleware injects into every browser run (its RENDER_A2UI_TOOL).
@@ -428,7 +429,8 @@ def search_submission(previous_model: dict | None) -> dict:
         "trip-destination": TRIP["destination"],
         "trip-depart": TRIP["departDate"],
         "trip-return": TRIP["returnDate"],
-        "trip-travellers": TRIP["travellers"],
+        "trip-adults": TRIP["adults"],
+        "trip-kids": TRIP["kids"],
         "trip-style": TRIP["style"],
         "wizard": {"index": 0, "title": "1. Trip"},
     }
@@ -437,7 +439,7 @@ def search_submission(previous_model: dict | None) -> dict:
         "surfaceId": SURFACE_ID,
         "sourceComponentId": "trip-submit",
         "context": {**TRIP, "formData": form_data},
-        "timestamp": "2026-09-01T00:00:00.000Z",
+        "timestamp": "2027-09-01T00:00:00.000Z",
     }
 
 
@@ -456,7 +458,7 @@ def option_submission(previous_model: dict | None) -> dict:
         "surfaceId": SURFACE_ID,
         "sourceComponentId": "options-submit",
         "context": {"choice": [CHOICE], "formData": form_data},
-        "timestamp": "2026-09-01T00:01:00.000Z",
+        "timestamp": "2027-09-01T00:01:00.000Z",
     }
 
 

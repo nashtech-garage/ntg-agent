@@ -130,12 +130,18 @@ public class SkillSeederTests
     }
 
     private static byte[] Package(string manifest, params (string Path, string Content)[] assets)
+        => Package("demo-skill", manifest, assets);
+
+    private static byte[] Package(
+        string skillName,
+        string manifest,
+        params (string Path, string Content)[] assets)
     {
-        var builder = new TestZipBuilder().AddFile("demo-skill/SKILL.md", manifest);
+        var builder = new TestZipBuilder().AddFile($"{skillName}/SKILL.md", manifest);
 
         foreach (var (path, content) in assets)
         {
-            builder.AddFile($"demo-skill/{path}", content);
+            builder.AddFile($"{skillName}/{path}", content);
         }
 
         return builder.Build();
@@ -171,6 +177,22 @@ public class SkillSeederTests
             Assert.That(stored.SourceFileName, Is.EqualTo("demo-skill.zip"));
             Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(new[] { "references/guide.md" }));
         });
+    }
+
+    [Test]
+    public async Task SeedAsync_MultiplePackages_SeedsEachSkill()
+    {
+        var secondManifest = ManifestV1.Replace("demo-skill", "second-demo-skill", StringComparison.Ordinal);
+        WritePackage("demo-skill.zip", Package(ManifestV1));
+        WritePackage("second-demo-skill.zip", Package("second-demo-skill", secondManifest));
+
+        await NewSeeder(_seedDirectory).SeedAsync();
+
+        await using var context = NewContext();
+
+        Assert.That(
+            await context.Skills.Select(skill => skill.Name).OrderBy(name => name).ToListAsync(),
+            Is.EqualTo(new[] { "demo-skill", "second-demo-skill" }));
     }
 
     /// <summary>

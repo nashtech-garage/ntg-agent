@@ -656,13 +656,13 @@ Builds: `dotnet build src/NTG.Agent.Orchestrator`, and `npm run build` in `src/N
    selection and confirms it.
 4. The hardcoded weather card still works unchanged.
 
-**Path B** — agent bound to `travel-planning`:
+**Path B** — agent bound to `travel-planner`:
 
-1. Import `travel-planning.zip` via the Admin UI → appears in the list, binds to an agent.
+1. Import `travel-planner.zip` via the Admin UI → appears in the list, binds to an agent.
 2. "Help me plan a trip to Da Nang in September" → `trip-planner` renders on the Trip tab, fields
    are editable, and the **destination is pre-filled** (this is the regression check for the
    corrected `RenderGuide` prop names).
-3. Submit → the same card moves to the Options tab with three differentiated options and prices,
+3. Submit → the same card moves to the Options tab with five differentiated hotel options and prices,
    without opening a second card.
 4. Pick one → submit → the same card moves to the Review tab with a correct summary and total.
 5. Confirm → the agent replies in text and states that no booking was made.
