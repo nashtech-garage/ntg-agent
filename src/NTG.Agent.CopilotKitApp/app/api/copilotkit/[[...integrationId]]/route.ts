@@ -39,7 +39,7 @@ const freeformA2UIEnabled = !/^(0|false|off)$/i.test(
 // because this changes where a re-rendered surface appears in the transcript (in place, rather
 // than appended), which is a judgement call about the conversation, not a bug fix nobody could
 // disagree with; off, the stack behaves exactly as it did before.
-const stableSurfaceIdsEnabled = !/^(0|false|off)$/i.test(
+const stableSurfaceIdsEnabled = !/^(false|off)$/i.test(
   process.env.A2UI_STABLE_SURFACE_IDS?.trim() ?? ""
 );
 
@@ -109,21 +109,22 @@ function stabiliseSurfaceMessageId(
   const surfaceId = snapshotSurfaceId(snapshot.content);
   if (surfaceId === null) return event;
 
-  const stableMessageId = `${A2UI_SURFACE_MESSAGE_ID_PREFIX}${surfaceId}`;
-  // Already stable, or an id we cannot account for: leave it exactly as it is.
-  if (!snapshot.messageId.startsWith(`${stableMessageId}-`)) return event;
-  const callId = snapshot.messageId.slice(stableMessageId.length + 1);
+  // @ag-ui/a2ui-middleware keys these snapshots as `a2ui-surface-<outerCallId>`.
+  // The surface id is carried by the operations, not by the activity message id.
+  const callId = snapshot.messageId.startsWith(A2UI_SURFACE_MESSAGE_ID_PREFIX)
+    ? snapshot.messageId.slice(A2UI_SURFACE_MESSAGE_ID_PREFIX.length)
+    : "";
 
   // Scope: skill surfaces only. Collapsing two renders that share a surface id is right when the
-  // id was *authored* — a skill's template owns its surface id, and A2UI treats that id as the
+  // id was authored — a skill's template owns its surface id, and A2UI treats that id as the
   // surface's identity, so re-rendering `trip-search` is by definition the same surface. Ids in
   // freeform `render_a2ui` are invented by the model turn by turn and get reused across unrelated
-  // requests, where collapsing would silently rewrite a card further up the transcript. The two
-  // are distinguishable here: the id's suffix is a tool call id this stream has already carried a
-  // TOOL_CALL_START for, and for a skill surface that call is render_skill_surface itself (the
-  // middleware treats any non-A2UI tool call as the "outer" call it keys the surface by).
+  // requests, where collapsing would silently rewrite a card further up the transcript. The call
+  // id is a skill surface only when this stream has already reported its TOOL_CALL_START as
+  // render_skill_surface.
   if (toolNamesByCallId.get(callId) !== SKILL_SURFACE_TOOL_NAME) return event;
 
+  const stableMessageId = `${A2UI_SURFACE_MESSAGE_ID_PREFIX}${surfaceId}`;
   return { ...snapshot, messageId: stableMessageId };
 }
 
@@ -131,14 +132,13 @@ function stabiliseSurfaceMessageId(
  * Makes a re-rendered skill surface update its chat card instead of opening a new one.
  *
  * @ag-ui/a2ui-middleware republishes every A2UI tool result as an `a2ui-surface`
- * ACTIVITY_SNAPSHOT keyed `a2ui-surface-<surfaceId>-<callId>`. @ag-ui/client resolves such an
+ * ACTIVITY_SNAPSHOT keyed `a2ui-surface-<callId>`. @ag-ui/client resolves such an
  * event by messageId — a hit replaces that message where it sits, a miss appends a new one — and
  * CopilotKit renders each activity message with `key={message.id}`, so an unchanged key keeps the
  * same React element, the same A2UIProvider and the same surface store. The call id in the key is
  * therefore the whole reason a second render of one surface opens a second card with an empty
- * store. The middleware does have a call-id-free form of that id, but cannot reach it on this
- * path: it keys by `outerCallId ?? toolCallId`, and render_skill_surface is neither an A2UI tool
- * name nor log_a2ui_event, so it always becomes the outer call and the id is never bare.
+ * store. The middleware keys by `outerCallId ?? toolCallId`; for render_skill_surface that is the
+ * outer tool call id, so the middleware maps it to the authored surface id here.
  * Dropping the call id restores what react-core's own A2UI renderer documents as the model —
  * "one stable messageId … rendered in place".
  */
@@ -229,8 +229,12 @@ async function handleCopilotRequest(req: NextRequest, integrationId: string) {
     if (stableSurfaceIdsEnabled) agentInstance.use(new StableSurfaceIdMiddleware());
     agentInstance.use(new A2UIMiddleware({ injectA2UITool: freeformA2UIEnabled }));
 
+    // CopilotKit 1.82.0 and @ag-ui/client expose the same runtime agent contract through
+    // separately resolved declaration trees. The private debug fields make TypeScript reject the
+    // otherwise compatible HttpAgent at this package boundary.
+    const runtimeAgent = agentInstance as unknown as AbstractAgent;
     const runtime = new CopilotRuntime({
-      agents: { dotnet_orchestrator_agent: agentInstance },
+      agents: { dotnet_orchestrator_agent: runtimeAgent },
     });
 
     const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({

@@ -463,6 +463,7 @@ const functions = [
 
 export const interactiveCatalog = new Catalog(
   (basicCatalog as any).id,
+  "0.9",
   components as any,
   functions as any,
   (basicCatalog as any).themeSchema,
