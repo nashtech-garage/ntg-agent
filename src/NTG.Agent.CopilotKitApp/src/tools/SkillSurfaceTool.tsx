@@ -158,6 +158,17 @@ function surfaceIdsOf(toolCallId: string, result: string | undefined): readonly 
   return surfaceIds;
 }
 
+function messageContentToText(content: string | readonly unknown[]): string {
+  if (typeof content === "string") return content;
+  return content
+    .map((part) => {
+      if (typeof part !== "object" || part === null) return "";
+      const text = (part as { type?: unknown; text?: unknown });
+      return text.type === "text" && typeof text.text === "string" ? text.text : "";
+    })
+    .join("");
+}
+
 /**
  * The newest render_skill_surface call for each surface, in message order.
  *
@@ -180,7 +191,7 @@ function latestRenderBySurface(messages: readonly Message[]): Map<string, string
         if (call.function.name === SKILL_SURFACE_TOOL_NAME) renderCallIds.push(call.id);
       }
     } else if (message.role === "tool") {
-      resultsByCallId.set(message.toolCallId, message.content);
+      resultsByCallId.set(message.toolCallId, messageContentToText(message.content));
     }
   }
 

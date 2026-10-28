@@ -111,9 +111,9 @@ A2UI_FREEFORM_TOOL="0"
 # Stable skill-surface ids. Unset (or anything other than 0/false/off) makes a re-rendered
 # render_skill_surface surface replace its existing chat card in place instead of stacking a new
 # one (StableSurfaceIdMiddleware). Scoped to skill surfaces only — freeform render_a2ui always
-# stacks, since its surface ids are model-invented and reused across unrelated requests. Set to 0
-# to restore the pre-d534812 stacking behaviour for skill surfaces too.
-A2UI_STABLE_SURFACE_IDS="0"
+# stacks, since its surface ids are model-invented and reused across unrelated requests. Set to
+# "off" or "false" to restore the pre-d534812 stacking behaviour for skill surfaces too.
+A2UI_STABLE_SURFACE_IDS="off"
 ```
 
 TLS verification is relaxed in development (`NODE_TLS_REJECT_UNAUTHORIZED=0`) to allow self-signed certificates over HTTPS.
