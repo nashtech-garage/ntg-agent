@@ -33,8 +33,6 @@ public class SurfaceValidatorTests
         }
         """;
 
-    private static readonly string SeedSurfaceDirectory = Path.Combine("seed", "skills", "travel-planning", "assets");
-
     private static IReadOnlyList<string> Validate(string json) => SurfaceValidator.Validate(SurfaceName, json);
 
     private static string SurfaceAround(string subjectJson, string dataJson = "{}") =>
@@ -816,13 +814,14 @@ public class SurfaceValidatorTests
     /// the rules fire; these prove the rules do not fire on the templates the demo renders, which is
     /// the half that a stricter validator quietly breaks.
     /// </summary>
-    [TestCase("trip-planner.json")]
-            public void Validate_SeededTravelPlanningSurface_IsClean(string fileName)
+    [TestCase("travel-planner", "trip-planner.json")]
+    public void Validate_SeededSkillSurface_IsClean(string skillName, string fileName)
     {
-        var path = FindRepositoryFile(Path.Combine(SeedSurfaceDirectory, fileName));
+        var relativePath = Path.Combine("seed", "skills", skillName, "assets", fileName);
+        var path = FindRepositoryFile(relativePath);
         if (path is null)
         {
-            Assert.Ignore($"seed/skills/travel-planning/assets/{fileName} not found from the test output directory");
+            Assert.Ignore($"{relativePath} not found from the test output directory");
             return;
         }
 

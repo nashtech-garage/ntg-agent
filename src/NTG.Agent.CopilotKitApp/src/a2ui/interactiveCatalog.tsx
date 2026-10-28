@@ -1,7 +1,7 @@
 "use client";
 
 // Custom A2UI catalog = the official basic catalog with the interactive components
-// (TextField, CheckBox, ChoicePicker, Button) replaced so the round-trip works reliably
+// (TextField, DateTimeInput, CheckBox, ChoicePicker, Button) replaced so the round-trip works reliably
 // even when the agent's generated data-model bindings are imperfect.
 //
 // The problem: A2UI inputs are controlled components whose setValue only writes to the data
@@ -28,6 +28,7 @@ import { z } from "zod/v3";
 import { Catalog } from "@a2ui/web_core/v0_9";
 import {
   TextFieldApi,
+  DateTimeInputApi,
   CheckBoxApi,
   ChoicePickerApi,
   ButtonApi,
@@ -65,9 +66,41 @@ const InteractiveTextField = createReactComponent(TextFieldApi as any, ({ props,
   const fieldProps = { id, value, onChange, style: { width: "100%", boxSizing: "border-box" as const } };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", margin: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", margin: "8px 0px" }}>
       {props.label ? <label htmlFor={id}>{props.label}</label> : null}
       {isLong ? <textarea {...fieldProps} /> : <input type={type} {...fieldProps} />}
+    </div>
+  );
+});
+
+const InteractiveDateTimeInput = createReactComponent(DateTimeInputApi as any, ({ props, context }: any) => {
+  const [value, setValue] = React.useState<string>(props.value ?? "");
+  const id = React.useId();
+  const type = props.enableDate && !props.enableTime
+    ? "date"
+    : !props.enableDate && props.enableTime
+      ? "time"
+      : "datetime-local";
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setValue(v);
+    props.setValue?.(v);
+    captureValue(context, v);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", margin: "8px 0px" }}>
+      {props.label ? <label htmlFor={id}>{props.label}</label> : null}
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={onChange}
+        min={typeof props.min === "string" ? props.min : undefined}
+        max={typeof props.max === "string" ? props.max : undefined}
+        style={{ width: "100%", boxSizing: "border-box" }}
+      />
     </div>
   );
 });
@@ -84,7 +117,7 @@ const InteractiveCheckBox = createReactComponent(CheckBoxApi as any, ({ props, c
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0px" }}>
       <input id={id} type="checkbox" checked={checked} onChange={onChange} />
       {props.label ? <label htmlFor={id}>{props.label}</label> : null}
     </div>
@@ -111,7 +144,7 @@ const InteractiveChoicePicker = createReactComponent(ChoicePickerApi as any, ({ 
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", margin: "8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", margin: "8px 0px" }}>
       {props.label ? <strong style={{ fontSize: 14 }}>{props.label}</strong> : null}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {(props.options || []).map((opt: any, i: number) => (
@@ -385,7 +418,7 @@ const InteractiveTabs = createReactComponent(TabsApi as any, ({ props, buildChil
         role="tabpanel"
         id={`${domId}panel-${activeIndex}`}
         aria-labelledby={`${domId}tab-${activeIndex}`}
-        style={{ flex: 1 }}
+        style={{ flex: 1, marginRight: "20px" }}
       >
         {activeTab ? buildChild(activeTab.child) : null}
       </div>
@@ -396,6 +429,7 @@ const InteractiveTabs = createReactComponent(TabsApi as any, ({ props, buildChil
 // Clone the basic catalog, swapping the interactive components by name.
 const overrides: Record<string, any> = {
   TextField: InteractiveTextField,
+  DateTimeInput: InteractiveDateTimeInput,
   CheckBox: InteractiveCheckBox,
   ChoicePicker: InteractiveChoicePicker,
   Button: InteractiveButton,

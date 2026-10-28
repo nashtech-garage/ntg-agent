@@ -1,6 +1,6 @@
 ---
-name: travel-planning
-description: Plans a trip interactively in the chat using one rendered A2UI surface with three tabs — collects destination, dates, adult and child traveller counts, and trip style, presents three fabricated itinerary options with prices, then a review and confirmation, moving the user from tab to tab as they answer. Use when the user wants to plan, book, price or compare a trip, holiday, vacation, flight or hotel stay, or asks for help choosing between travel options. Demonstration only — all itineraries and prices are invented, nothing is booked.
+name: travel-planner
+description: Plans a trip interactively in one A2UI surface with three tabs — collects destination, dates, traveller counts and trip style, presents five fabricated hotel options with ratings, amenities and USD prices, then reviews the choice. Use when the user wants to plan or compare a trip or hotel stay. Demonstration only — all hotels, addresses and prices are invented, nothing is booked.
 license: Apache-2.0
 compatibility: Requires the render_skill_surface tool and a browser client with the A2UI renderer.
 metadata:
@@ -8,26 +8,25 @@ metadata:
   version: "2.1"
 ---
 
-# Travel planning
+# Travel planner
 
 You plan a trip in **one** surface with three tabs. You render it once at the start, and
 after that you render the *same* surface again to fill in the next tab and move the user to
 it. The card in the chat updates in place — it does not stack up, and there is never more
 than one trip planner on screen.
 
-**This is a demonstration.** There is no travel API. You invent the itineraries, airlines,
-hotels and prices yourself — they must be plausible and internally consistent, never real
-bookings. Say so once, in the confirmation step, and never claim anything was actually
-reserved.
+**This is a demonstration.** There is no travel API. You invent plausible hotel names,
+destination-local addresses and prices; they are not verified properties or real bookings. Say
+so once, in the confirmation step, and never claim anything was actually reserved.
 
 ## The surface
 
-Always `skill: "travel-planning"`, `surface: "trip-planner"`. There is no other surface.
+Always `skill: "travel-planner"`, `surface: "trip-planner"`. There is no other surface.
 
 | Tab | Index | Holds | User submits |
 |---|---|---|---|
 | 1. Trip | `0` | destination, dates, adults, kids, style · **Find trips** | `trip_search_submit` |
-| 2. Options | `1` | three options with prices, a picker · **Continue to review** | `trip_option_selected` |
+| 2. Options | `1` | five hotels with details, benefits and prices, a picker · **Continue to review** | `trip_option_selected` |
 | 3. Review | `2` | the summary and total · **Confirm plan** / **Change details** | `trip_booking_confirmed` / `trip_change_requested` |
 
 All three tabs exist from the first render. The user can click ahead at any time; tabs 2 and
@@ -45,7 +44,7 @@ The surface's data is four independent branches, and each render writes them one
 |---|---|---|
 | `__tabs` | `{ "wizard": 0\|1\|2 }` — which tab is showing | you, on every render |
 | `trip` | tab 1's fields: `destination`, `departDate`, `returnDate`, `adults`, `kids`, `style` | you (pre-fill), then the user |
-| `options` | tab 2's `heading`, `subheading`, `o1`/`o2`/`o3` and the user's `choice` | you |
+| `options` | tab 2's `heading`, `subheading`, `o1`–`o5` and the user's `choice` | you |
 | `review` | tab 3's `destination`, `dates`, `travellers`, `option`, `total` | you |
 
 **Send only the branch you are filling in, plus `__tabs`.** A branch you send is replaced by
@@ -72,7 +71,7 @@ said anything about it.
 
 ```json
 {
-  "skill": "travel-planning",
+  "skill": "travel-planner",
   "surface": "trip-planner",
   "values": {
     "__tabs": { "wizard": 0 },
@@ -104,94 +103,72 @@ not restate the fields in prose — the surface already shows them.
 ## Step 2 — Fill the Options tab
 
 When `trip_search_submit` arrives, read the answers (see "Reading answers" below), then invent
-**three** genuinely different options — not three near-identical ones:
+**exactly five distinct hotels** located in or near `trip.destination`. These are fabricated
+recommendations, not verified businesses. Use plausible, distinctive property names — never
+labels such as "Hotel A", "Hotel 1" or "Option 1" — and make the five properties meaningfully
+different in location, character and amenities.
 
-- a cheaper, less convenient option (budget airline, longer layover, simpler hotel)
-- a middle option that is the obvious default
-- a premium option (direct flight, better location, more included)
+Populate every hotel object `options.o1` through `options.o5` with:
 
-Prices must reflect the trip length, the number of adults and kids, and the chosen style, and
-must increase across the three. Use the user's own currency if they named one, otherwise USD.
+- `name`: a realistic-sounding, destination-appropriate hotel name.
+- `description`: one concise description of about 15 words.
+- `hotelStars`: a fictional hotel classification from 1 through 6 stars, suitable for the trip
+  style. Format it as exactly that many filled stars followed by the matching label, for example
+  `★★★ 3-star`. The star count and number in the label must match.
+- `rating`: a varied, random-looking decimal score formatted as `9.5/10`, with a range
+  reflecting the selected style: budget `7.0`–`8.8`, balanced `8.1`–`9.4`, comfort
+  `8.8`–`9.9`. Provide only the value; the surface adds the separate user-rating star icon, so
+  do not include a star or a "Rating:" label.
+- `address`: a plausible but invented street address in or near the requested destination.
+  Do not imply that it has been verified.
+- `price`: a USD string for the whole stay and party, formatted with `$` followed only by
+  digits and optional thousands separators, such as `$90` or `$1,240`. Never spell out a number
+  (`$ninety`), write "USD" in place of digits, or use decimal text. Calculate it from the number
+  of nights, adults and kids (for example, nightly adult rate × nights ×
+  `(adults + 0.5 × kids)`). Keep rates consistent with the selected style: budget properties
+  are least expensive, balanced properties mid-range, and comfort properties highest. Order
+  the five choices from lowest to highest total price. Before rendering, verify that all five
+  prices match `^\$\d{1,3}(,\d{3})*$`.
+- `benefit1`, `benefit2`, `benefit3`: three style-appropriate amenities, each with `icon` and
+  `name`. `icon` must be a visible Unicode emoji pictogram such as `📶`, `☕`, `🏊`, `🧖`,
+  `♨️`, `🏖️` or `🅿️` — never an icon identifier such as `info` or `shoppingCart`.
+
+Benefits should fit the chosen trip style: budget stays might highlight free Wi-Fi and breakfast;
+balanced stays can add a pool or family amenities; comfort stays can feature a spa, sauna or
+private beach. Do not use the word "illustrative" in any displayed heading, description or
+address, and do not append parenthetical notes such as "(illustrative address)". Use natural
+copy, and note once in the subheading that the estimates are fictional and unverified. Hotel star
+classifications, ratings, descriptions, addresses, benefits and prices must all be present for
+all five objects. Do not send `choice`; that belongs to the user.
 
 The user is already looking at this tab. Clicking **Find trips** moves them straight to
-"2. Options", where they are watching placeholder text while you work — so answer promptly and
-keep the values short. Still send `__tabs` with every render: it keeps your idea of the step and
-theirs in agreement, and it costs one line.
-
-Render `trip-planner` again with the `trip` branch carried forward from the submitted
-`formData`, the `options` branch, and tab 1. Carrying `trip` forward is required: each render
+"2. Options", where they are watching placeholder text while you work — so answer promptly.
+Render `trip-planner` with `__tabs.wizard: 1`, the submitted `trip` branch carried forward
+unchanged, and the complete `options` branch. Carrying `trip` forward is required: each render
 replays the surface from its persisted operations, so omitting it would restore the first tab's
 template defaults and lose the user's answers on tab changes or conversation reloads.
 
-```json
-{
-  "skill": "travel-planning",
-  "surface": "trip-planner",
-  "values": {
-    "__tabs": { "wizard": 1 },
-    "trip": {
-      "destination": "Da Nang",
-      "departDate": "2026-09-12",
-      "returnDate": "2026-09-19",
-      "adults": 2,
-      "kids": 0,
-      "style": ["balanced"]
-    },
-    "options": {
-      "heading": "Three options for Da Nang",
-      "subheading": "12–19 Sep · 2 adults, 0 kids · balanced",
-      "o1": { "name": "Budget saver",   "detail": "1 stop · 3-star beachfront · room only",       "price": "$610" },
-      "o2": { "name": "Balanced pick",  "detail": "Direct · 4-star riverside · breakfast",        "price": "$840" },
-      "o3": { "name": "Comfort plus",   "detail": "Direct · 5-star beachfront · breakfast + spa", "price": "$1,290" }
-    }
-  }
-}
-```
-
-Do not send `choice`; that is theirs.
-
-`detail` is one line — keep it under about 45 characters or it wraps awkwardly next to the
-price. `price` is a preformatted string including the currency symbol.
-
 ## Step 3 — Fill the Review tab
 
-When `trip_option_selected` arrives, the `choice` value is `["o1"]`, `["o2"]` or `["o3"]`.
-Render `trip-planner` again with `review` filled from the option they picked, `options`
-carried forward unchanged, the submitted `trip` branch carried forward unchanged, and tab 2:
+When `trip_option_selected` arrives, `choice` is a one-element array containing `o1`, `o2`,
+`o3`, `o4` or `o5`. Read the selected hotel's name, `hotelStars`, price and benefit names from
+`formData.options`, then render `trip-planner` with tab 2, the submitted `trip` branch unchanged,
+all five hotel objects and the user's `choice` carried forward unchanged, and a `review` branch.
+The review contains
+five plain strings you write for the user to read — destination, dates, travellers, selected
+hotel summary and the selected hotel's total USD price — not the raw field values.
 
-```json
-{
-  "skill": "travel-planning",
-  "surface": "trip-planner",
-  "values": {
-    "__tabs": { "wizard": 2 },
-    "trip": {
-      "destination": "Da Nang",
-      "departDate": "2026-09-12",
-      "returnDate": "2026-09-19",
-      "adults": 2,
-      "kids": 0,
-      "style": ["balanced"]
-    },
-    "options": {
-      "heading": "Three options for Da Nang",
-      "subheading": "12–19 Sep · 2 adults, 0 kids · balanced",
-      "o1": { "name": "Budget saver",   "detail": "1 stop · 3-star beachfront · room only",       "price": "$610" },
-      "o2": { "name": "Balanced pick",  "detail": "Direct · 4-star riverside · breakfast",        "price": "$840" },
-      "o3": { "name": "Comfort plus",   "detail": "Direct · 5-star beachfront · breakfast + spa", "price": "$1,290" }
-    },
-    "review": {
-      "destination": "Da Nang, Vietnam",
-      "dates": "12–19 Sep 2026 (7 nights)",
-      "travellers": "2 adults, 0 kids",
-      "option": "Balanced pick — direct, 4-star riverside",
-      "total": "$840"
-    }
-  }
-}
-```
+Build `review.option` from the selected hotel's name, hotel star class, a concise location or
+character descriptor from its description when useful, and all three benefit names from
+`formData.options`. Convert the selected `hotelStars` value to its matching `N-star` label, then
+format the summary like `Siam Garden Hotel — 3-star, central, breakfast included, free Wi-Fi,
+family rooms`. Preserve the benefit names and do not include their emoji icons in this summary.
 
-`review` is five plain strings you write for the user to read — not the raw field values.
+For `review.destination`, display the requested place with its country when the country is not
+already included. For example, show `Ho Chi Minh City, Viet Nam` when the submitted destination
+is only `Ho Chi Minh City`. Do not repeat a country that is already present, and leave a
+destination that is already a country as-is. Preserve the user's place name and spelling; if its
+country is genuinely ambiguous, do not guess.
 
 Then:
 
@@ -224,8 +201,8 @@ tab is guaranteed to still be sitting on a later turn.
 Use it to tell a submission from the tab the user has since wandered to, and never to argue
 with them about which tab they are on.
 
-Picker values are arrays. `style` and `choice` come back as `["balanced"]` and `["o2"]` — take
-the first element.
+Picker values are arrays. `style` and `choice` come back as `["balanced"]` and `["o1"]` through
+`["o5"]` — take the first element.
 
 ## Gotchas
 
@@ -233,8 +210,8 @@ the first element.
   render twice in a turn to "get ahead" — the user has not answered the first one yet.
 - **Never a second surface.** `trip-planner` is the whole flow. Re-rendering it updates the
   card that is already there; you are editing the planner, not posting a new one.
-- **Never invent a real booking reference, airline PNR, or payment confirmation.** Fabricate
-  itineraries and prices; never fabricate anything that looks like proof of a transaction.
+- **Never invent a real booking reference or payment confirmation.** Fabricate hotel suggestions
+  and prices; never fabricate anything that looks like proof of a transaction.
 - **Don't narrate the UI.** Do not describe the tabs or buttons or tell the user to click
   something — they can see it. One short line of framing is enough.
 - **If the user answers in text instead of using the surface**, just accept it and fill the

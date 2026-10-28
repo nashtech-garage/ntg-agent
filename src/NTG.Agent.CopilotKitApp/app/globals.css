@@ -71,10 +71,8 @@ body {
   /* The basic catalog's primary Button reads this var for its background. */
   --a2ui-primary-color: var(--a2ui-accent);
 
-  /* Was a flat 460px, where a label-and-value row left the value column nowhere to go. 536 is a
-     judgement call, picked by eye against the widest thing these surfaces draw — a three-option
-     price list — not derived from anything. min() keeps it off the edges of a narrow viewport. */
-  max-width: min(536px, 100%) !important;
+  /* Give dense result cards room to breathe while keeping the surface inside narrow viewports. */
+  max-width: min(720px, 100%) !important;
   margin: 6px 0 !important;
   padding: 18px 18px 20px !important;
   background:
@@ -145,7 +143,26 @@ body {
 }
 .a2ui-surface h3 { font-size: 18px !important; }
 .a2ui-surface h4 { font-size: 16px !important; }
-.a2ui-surface small { color: var(--a2ui-muted) !important; }
+.a2ui-surface small {
+  color: var(--a2ui-muted) !important;
+  font-size: 13px !important;
+}
+/* The second body-text item in each hotel details column is the rating, after the hotel name. */
+.a2ui-surface div[style*="border-radius: 8px"] > div[style*="flex-direction: row"] > div[style*="flex-direction: column"] > div[style*="flex-direction: row"]:first-of-type > span {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+.a2ui-surface div[style*="border-radius: 8px"] > div[style*="flex-direction: row"] > div[style*="flex-direction: column"] > div[style*="flex-direction: row"]:first-of-type > small:first-child {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+.a2ui-surface div[style*="border-radius: 8px"] > div[style*="flex-direction: row"] > div[style*="flex-direction: column"] > div[style*="flex-direction: row"]:first-of-type > small:nth-of-type(2),
+.a2ui-surface div[style*="border-radius: 8px"] > div[style*="flex-direction: row"] > div[style*="flex-direction: column"] > div[style*="flex-direction: row"]:nth-of-type(2) > small:first-child {
+  width: 16px !important;
+  flex: 0 0 16px !important;
+  text-align: center !important;
+}
 
 /* Field labels — quiet, recognizable.
    Only the ones that actually name a field. The unqualified selector also caught every option
@@ -257,6 +274,11 @@ body {
 .a2ui-surface div[style*="border: 1px solid rgb(204, 204, 204)"] {
   border-color: var(--a2ui-border) !important;
 }
+.a2ui-surface div[style*="border: 1px solid rgb(204, 204, 204)"][style*="box-shadow: 0 2px 4px"] {
+  width: calc(100% - 16px) !important;
+  margin-left: 8px !important;
+  margin-right: 8px !important;
+}
 /* Card and the Modal panel fill themselves #fff, which is a white hole punched in a dark card.
    A no-op in light, where the token is that same white. */
 .a2ui-surface div[style*="background-color: rgb(255, 255, 255)"] {
@@ -274,7 +296,7 @@ body {
     --a2ui-ink: #e9eaf2;
     --a2ui-muted: #9aa0b4;
     --a2ui-label: #b4b7f0;
-    --a2ui-card: #161922;
+    --a2ui-card: #121c1d;
     --a2ui-border: #2a2f40;
     --a2ui-rule: #363d52;
     --a2ui-field: #1d2130;

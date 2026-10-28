@@ -16,7 +16,7 @@ practical: what to type, what gets rejected, and why.
 
 Both ship in the repo. Read them — almost every pattern below is lifted from one of them.
 
-| | `seed/skills/travel-planning/` | `seed/skills/ticket-booking/` |
+| | `seed/skills/travel-planner/` | `seed/skills/ticket-booking/` |
 |---|---|---|
 | Surfaces | one (`assets/trip-planner.json`) | three (`event-search`, `ticket-options`, `booking-review`) |
 | Shape | one tabbed wizard, updated in place | one surface per turn, stacking |
@@ -54,7 +54,7 @@ Three things bite first-time authors, so they are worth knowing before you write
 
 This decides everything else, and it is far easier to get right at the start than to retrofit.
 
-**One surface, many tabs** (`travel-planning`). Every turn re-renders the *same* `surfaceId`, so the
+**One surface, many tabs** (`travel-planner`). Every turn re-renders the *same* `surfaceId`, so the
 card in the chat updates in place and there is never more than one planner on screen. The agent moves
 the user between tabs by writing an index to `/__tabs/<componentId>`.
 
@@ -86,8 +86,8 @@ The zip must contain **one top-level directory** whose name matches the skill na
 `SKILL.md`:
 
 ```
-travel-planning.zip
-└── travel-planning/
+travel-planner.zip
+└── travel-planner/
     ├── SKILL.md
     └── assets/
         └── trip-planner.json
@@ -111,8 +111,8 @@ is the source you edit. Change one, repack, commit both.
 
 ```yaml
 ---
-name: travel-planning
-description: Plans a trip interactively in the chat using one rendered A2UI surface with three tabs — …
+name: travel-planner
+description: Plans a trip with one A2UI surface with three tabs and five fabricated hotel options — …
 license: Apache-2.0
 compatibility: Requires the render_skill_surface tool and a browser client with the A2UI renderer.
 metadata:
@@ -207,7 +207,7 @@ prompt engineering, not documentation. Both seed skills use the same three parts
 
 | Part | Example | Why |
 |---|---|---|
-| **What** | "Plans a trip interactively in the chat using one rendered A2UI surface with three tabs — collects destination, dates, travellers and trip style…" | Concrete enough to tell it apart from a neighbouring skill |
+| **What** | "Plans a trip with one A2UI surface with three tabs — collects destination, dates, adults, children and trip style, then presents five fabricated hotel options…" | Concrete enough to tell it apart from a neighbouring skill |
 | **When** | "Use when the user wants to plan, book, price or compare a trip, holiday, vacation, flight or hotel stay…" | A spray of the words a user would actually type — this is the matching surface, not padding |
 | **Caveat** | "Demonstration only — all itineraries and prices are invented, nothing is booked." | Say it in tier 1, so it holds on turns where the body was never loaded |
 
@@ -223,7 +223,7 @@ A template is a JSON file under `assets/`. Only `assets/*.json` is validated as 
 
 ```json
 {
-  "surfaceId": "trip-wizard",
+  "surfaceId": "advanced-trip-wizard",
   "components": [ … ],
   "data": { … }
 }
@@ -231,7 +231,7 @@ A template is a JSON file under `assets/`. Only `assets/*.json` is validated as 
 
 **The file name and the `surfaceId` are different things and both matter.**
 `assets/trip-planner.json` is what the model names (`"surface": "trip-planner"`) and what your
-`SKILL.md` documents. `"surfaceId": "trip-wizard"` is the card's identity in the browser:
+`SKILL.md` documents. `"surfaceId": "advanced-trip-wizard"` is the card's identity in the browser:
 re-rendering a template with the same `surfaceId` updates the card already on screen. Two templates
 sharing a `surfaceId` overwrite each other's card — legitimate, but only if you mean it.
 
@@ -267,7 +267,7 @@ An enumerated property may hold a binding instead of a literal — the check fir
 **Templates can use components freeform A2UI cannot.** `A2uiPrompt.RenderGuide`, which prompts the
 model for hand-authored surfaces, documents 14 components and omits `Tabs`, `Modal`, `Video` and
 `AudioPlayer`. All four validate fine in a template. That is a concrete reason to ship templates
-rather than let the model draw the UI: `travel-planning`'s tabbed wizard is not something the model
+rather than let the model draw the UI: `travel-planner`'s tabbed wizard is not something the model
 could produce freehand.
 
 ### Reference: every rule `SurfaceValidator` enforces
@@ -368,7 +368,7 @@ continues the flow.
 
 ```json
 {
-  "skill": "travel-planning",
+  "skill": "travel-planner",
   "surface": "trip-planner",
   "values": { "__tabs": { "wizard": 1 }, "options": { … } }
 }
@@ -388,7 +388,7 @@ re-render would discard the user's own answers while the inputs on screen still 
 
 **So send only the branch you are filling in.** A branch you *do* send is replaced by your values
 merged over the template's defaults — re-sending a branch you have nothing new to say about
-overwrites live answers with blanks. `travel-planning` states this as a rule and names its single
+overwrites live answers with blanks. `travel-planner` states this as a rule and names its single
 exception: when filling `review`, re-send `options` unchanged, because tab 2 is still reachable
 behind tab 3.
 
@@ -402,7 +402,7 @@ The refusal message looks like this:
 
 ```
 The values did not match the shape 'trip-planner' expects: '/trip' expects an object with keys
-destination, departDate, returnDate, travellers, style but received scalar. Send the values nested
+destination, departDate, returnDate, adults, kids, style but received scalar. Send the values nested
 exactly as the skill's instructions show, then try again.
 ```
 
@@ -411,7 +411,7 @@ re-creates the frozen-input failure at run time, past the point validation reach
 `ChoicePicker` must be seeded and sent as an array — a bare string stops the binding resolving.
 
 Because unknown keys are silent, **document your branch names precisely** in the `SKILL.md`. The
-table in `travel-planning`'s "The data model" section does exactly this job.
+table in `travel-planner`'s "The data model" section does exactly this job.
 
 The model gets a one-line receipt back, not the surface JSON: *"Rendered the 'x' surface. Do not
 describe it — the user can see it. Stop now and wait for them to submit it."*
@@ -447,7 +447,7 @@ drifts from the one the agent is prompted with.
 - **A re-sync happens only when the arriving value changes.** The comparison is against the last
   value that *arrived*, not what is on screen. If the agent selects tab 1 and the user clicks back to
   tab 0, later renders still reporting `1` leave them alone. Only a genuinely new instruction moves
-  them — which is why `travel-planning` says "sending the same index twice does nothing".
+  them — which is why `travel-planner` says "sending the same index twice does nothing".
 - Garbage is ignored rather than thrown: non-numeric leaves the tab alone, out-of-range clamps into
   the strip, a numeric string works.
 - **The user's own clicks do not write back.** `/__tabs` stays one-way (agent intent); `/__inputs`
@@ -600,7 +600,7 @@ python3 scripts/pack-skills.py
 # 3. Bind it
 #    Admin → Agents → your agent → Tools tab → Skills sub-tab → tick it → Save Skills.
 
-# 4. Drive it (travel-planning only)
+# 4. Drive it (travel-planner only)
 python3 scripts/check-skill-flow.py
 ```
 
@@ -617,7 +617,7 @@ first. Seeding also never binds; binding stays an explicit admin decision.
 **`check-skill-flow.py`** runs three real turns against a running orchestrator, reproducing byte for
 byte what the browser posts when a user clicks a surface button. Per turn it asserts: no run error,
 `load_skill` fired, `render_skill_surface` fired for the expected surface, and the result is
-`{"a2ui_operations": [...]}` with the expected operations. It is hard-wired to `travel-planning` — it
+`{"a2ui_operations": [...]}` with the expected operations. It is hard-wired to `travel-planner` — it
 is the regression test for the reload rule in [§4](#4-the-body), not a general harness. For your own
 skill the equivalent manual check is: **click through the whole flow twice**, watching that the agent
 reloads the skill every turn and that an answer given on step 1 is still correct on step 3.

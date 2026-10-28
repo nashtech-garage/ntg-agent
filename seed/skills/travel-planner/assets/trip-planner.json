@@ -1,0 +1,1218 @@
+{
+  "surfaceId": "advanced-trip-wizard",
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": [
+        "wizard"
+      ]
+    },
+    {
+      "id": "wizard",
+      "component": "Tabs",
+      "tabs": [
+        {
+          "title": "1. Trip",
+          "child": "trip-pane"
+        },
+        {
+          "title": "2. Options",
+          "child": "options-pane"
+        },
+        {
+          "title": "3. Review",
+          "child": "review-pane"
+        }
+      ]
+    },
+    {
+      "id": "trip-pane",
+      "component": "Column",
+      "children": [
+        "trip-title",
+        "trip-hint",
+        "trip-destination",
+        "trip-depart",
+        "trip-return",
+        "trip-adults",
+        "trip-kids",
+        "trip-style",
+        "trip-submit"
+      ]
+    },
+    {
+      "id": "trip-title",
+      "component": "Text",
+      "text": "Plan your trip",
+      "variant": "h4"
+    },
+    {
+      "id": "trip-hint",
+      "component": "Text",
+      "text": "Tell us the basics and we'll find five stays that fit your style.",
+      "variant": "caption"
+    },
+    {
+      "id": "trip-destination",
+      "component": "TextField",
+      "label": "Where to?",
+      "value": {
+        "path": "/trip/destination"
+      },
+      "variant": "shortText"
+    },
+    {
+      "id": "trip-depart",
+      "component": "DateTimeInput",
+      "label": "Departing",
+      "value": {
+        "path": "/trip/departDate"
+      },
+      "enableDate": true,
+      "enableTime": false
+    },
+    {
+      "id": "trip-return",
+      "component": "DateTimeInput",
+      "label": "Returning",
+      "value": {
+        "path": "/trip/returnDate"
+      },
+      "enableDate": true,
+      "enableTime": false
+    },
+    {
+      "id": "trip-adults",
+      "component": "TextField",
+      "label": "Adults",
+      "value": {
+        "path": "/trip/adults"
+      },
+      "variant": "number"
+    },
+    {
+      "id": "trip-kids",
+      "component": "TextField",
+      "label": "Kids",
+      "value": {
+        "path": "/trip/kids"
+      },
+      "variant": "number"
+    },
+    {
+      "id": "trip-style",
+      "component": "ChoicePicker",
+      "label": "Trip style",
+      "variant": "mutuallyExclusive",
+      "value": {
+        "path": "/trip/style"
+      },
+      "options": [
+        {
+          "label": "Budget — keep it cheap",
+          "value": "budget"
+        },
+        {
+          "label": "Balanced — good value",
+          "value": "balanced"
+        },
+        {
+          "label": "Comfort — treat myself",
+          "value": "comfort"
+        }
+      ]
+    },
+    {
+      "id": "trip-submit",
+      "component": "Button",
+      "variant": "primary",
+      "child": "trip-submit-label",
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": {
+              "value": {
+                "path": "/trip/destination"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Where to is required."
+        },
+        {
+          "condition": {
+            "call": "future_date",
+            "args": {
+              "value": {
+                "path": "/trip/departDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Departing must be a valid future date."
+        },
+        {
+          "condition": {
+            "call": "future_date",
+            "args": {
+              "value": {
+                "path": "/trip/returnDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Returning must be a valid future date."
+        },
+        {
+          "condition": {
+            "call": "date_on_or_after",
+            "args": {
+              "value": {
+                "path": "/trip/returnDate"
+              },
+              "other": {
+                "path": "/trip/departDate"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Returning must be on or after Departing."
+        },
+        {
+          "condition": {
+            "call": "integer_at_least",
+            "args": {
+              "value": {
+                "path": "/trip/adults"
+              },
+              "minimum": 1
+            },
+            "returnType": "boolean"
+          },
+          "message": "Adults must be a whole number of at least 1."
+        },
+        {
+          "condition": {
+            "call": "integer_at_least",
+            "args": {
+              "value": {
+                "path": "/trip/kids"
+              },
+              "minimum": 0
+            },
+            "returnType": "boolean"
+          },
+          "message": "Kids must be a non-negative whole number."
+        }
+      ],
+      "action": {
+        "event": {
+          "name": "trip_search_submit",
+          "context": {
+            "destination": {
+              "path": "/trip/destination"
+            },
+            "departDate": {
+              "path": "/trip/departDate"
+            },
+            "returnDate": {
+              "path": "/trip/returnDate"
+            },
+            "adults": {
+              "path": "/trip/adults"
+            },
+            "kids": {
+              "path": "/trip/kids"
+            },
+            "style": {
+              "path": "/trip/style"
+            },
+            "advanceTab": "wizard"
+          }
+        }
+      }
+    },
+    {
+      "id": "trip-submit-label",
+      "component": "Text",
+      "text": "Find trips"
+    },
+    {
+      "id": "options-pane",
+      "component": "Column",
+      "children": [
+        "options-heading",
+        "options-subheading",
+        "hotel1-card",
+        "hotel2-card",
+        "hotel3-card",
+        "hotel4-card",
+        "hotel5-card",
+        "options-picker",
+        "options-submit"
+      ]
+    },
+    {
+      "id": "options-heading",
+      "component": "Text",
+      "text": {
+        "path": "/options/heading"
+      },
+      "variant": "h4"
+    },
+    {
+      "id": "options-subheading",
+      "component": "Text",
+      "text": {
+        "path": "/options/subheading"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-card",
+      "component": "Card",
+      "child": "hotel1-row"
+    },
+    {
+      "id": "hotel1-row",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel1-details", "hotel1-price"]
+    },
+    {
+      "id": "hotel1-details",
+      "component": "Column",
+      "children": ["hotel1-name", "hotel1-description", "hotel1-rating", "hotel1-address", "hotel1-benefits"]
+    },
+    {
+      "id": "hotel1-name",
+      "component": "Text",
+      "text": { "path": "/options/o1/name" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel1-description",
+      "component": "Text",
+      "text": { "path": "/options/o1/description" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-rating",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel1-hotel-stars", "hotel1-rating-icon", "hotel1-rating-value"]
+    },
+    {
+      "id": "hotel1-hotel-stars",
+      "component": "Text",
+      "text": { "path": "/options/o1/hotelStars" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-rating-icon",
+      "component": "Text",
+      "text": "⭐",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-rating-value",
+      "component": "Text",
+      "text": { "path": "/options/o1/rating" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel1-address",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel1-address-icon", "hotel1-address-value"]
+    },
+    {
+      "id": "hotel1-address-icon",
+      "component": "Text",
+      "text": "📍",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-address-value",
+      "component": "Text",
+      "text": { "path": "/options/o1/address" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefits",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel1-benefit1-icon", "hotel1-benefit1-name", "hotel1-benefit2-icon", "hotel1-benefit2-name", "hotel1-benefit3-icon", "hotel1-benefit3-name"]
+    },
+    {
+      "id": "hotel1-benefit1-icon",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit1/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefit1-name",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit1/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefit2-icon",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit2/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefit2-name",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit2/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefit3-icon",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit3/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-benefit3-name",
+      "component": "Text",
+      "text": { "path": "/options/o1/benefit3/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel1-price",
+      "component": "Text",
+      "text": { "path": "/options/o1/price" },
+      "variant": "h5"
+    },
+    {
+      "id": "hotel2-card",
+      "component": "Card",
+      "child": "hotel2-row"
+    },
+    {
+      "id": "hotel2-row",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel2-details", "hotel2-price"]
+    },
+    {
+      "id": "hotel2-details",
+      "component": "Column",
+      "children": ["hotel2-name", "hotel2-description", "hotel2-rating", "hotel2-address", "hotel2-benefits"]
+    },
+    {
+      "id": "hotel2-name",
+      "component": "Text",
+      "text": { "path": "/options/o2/name" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel2-description",
+      "component": "Text",
+      "text": { "path": "/options/o2/description" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-rating",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel2-hotel-stars", "hotel2-rating-icon", "hotel2-rating-value"]
+    },
+    {
+      "id": "hotel2-hotel-stars",
+      "component": "Text",
+      "text": { "path": "/options/o2/hotelStars" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-rating-icon",
+      "component": "Text",
+      "text": "⭐",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-rating-value",
+      "component": "Text",
+      "text": { "path": "/options/o2/rating" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel2-address",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel2-address-icon", "hotel2-address-value"]
+    },
+    {
+      "id": "hotel2-address-icon",
+      "component": "Text",
+      "text": "📍",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-address-value",
+      "component": "Text",
+      "text": { "path": "/options/o2/address" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefits",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel2-benefit1-icon", "hotel2-benefit1-name", "hotel2-benefit2-icon", "hotel2-benefit2-name", "hotel2-benefit3-icon", "hotel2-benefit3-name"]
+    },
+    {
+      "id": "hotel2-benefit1-icon",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit1/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefit1-name",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit1/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefit2-icon",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit2/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefit2-name",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit2/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefit3-icon",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit3/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-benefit3-name",
+      "component": "Text",
+      "text": { "path": "/options/o2/benefit3/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel2-price",
+      "component": "Text",
+      "text": { "path": "/options/o2/price" },
+      "variant": "h5"
+    },
+    {
+      "id": "hotel3-card",
+      "component": "Card",
+      "child": "hotel3-row"
+    },
+    {
+      "id": "hotel3-row",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel3-details", "hotel3-price"]
+    },
+    {
+      "id": "hotel3-details",
+      "component": "Column",
+      "children": ["hotel3-name", "hotel3-description", "hotel3-rating", "hotel3-address", "hotel3-benefits"]
+    },
+    {
+      "id": "hotel3-name",
+      "component": "Text",
+      "text": { "path": "/options/o3/name" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel3-description",
+      "component": "Text",
+      "text": { "path": "/options/o3/description" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-rating",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel3-hotel-stars", "hotel3-rating-icon", "hotel3-rating-value"]
+    },
+    {
+      "id": "hotel3-hotel-stars",
+      "component": "Text",
+      "text": { "path": "/options/o3/hotelStars" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-rating-icon",
+      "component": "Text",
+      "text": "⭐",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-rating-value",
+      "component": "Text",
+      "text": { "path": "/options/o3/rating" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel3-address",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel3-address-icon", "hotel3-address-value"]
+    },
+    {
+      "id": "hotel3-address-icon",
+      "component": "Text",
+      "text": "📍",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-address-value",
+      "component": "Text",
+      "text": { "path": "/options/o3/address" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefits",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel3-benefit1-icon", "hotel3-benefit1-name", "hotel3-benefit2-icon", "hotel3-benefit2-name", "hotel3-benefit3-icon", "hotel3-benefit3-name"]
+    },
+    {
+      "id": "hotel3-benefit1-icon",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit1/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefit1-name",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit1/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefit2-icon",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit2/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefit2-name",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit2/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefit3-icon",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit3/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-benefit3-name",
+      "component": "Text",
+      "text": { "path": "/options/o3/benefit3/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel3-price",
+      "component": "Text",
+      "text": { "path": "/options/o3/price" },
+      "variant": "h5"
+    },
+    {
+      "id": "hotel4-card",
+      "component": "Card",
+      "child": "hotel4-row"
+    },
+    {
+      "id": "hotel4-row",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel4-details", "hotel4-price"]
+    },
+    {
+      "id": "hotel4-details",
+      "component": "Column",
+      "children": ["hotel4-name", "hotel4-description", "hotel4-rating", "hotel4-address", "hotel4-benefits"]
+    },
+    {
+      "id": "hotel4-name",
+      "component": "Text",
+      "text": { "path": "/options/o4/name" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel4-description",
+      "component": "Text",
+      "text": { "path": "/options/o4/description" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-rating",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel4-hotel-stars", "hotel4-rating-icon", "hotel4-rating-value"]
+    },
+    {
+      "id": "hotel4-hotel-stars",
+      "component": "Text",
+      "text": { "path": "/options/o4/hotelStars" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-rating-icon",
+      "component": "Text",
+      "text": "⭐",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-rating-value",
+      "component": "Text",
+      "text": { "path": "/options/o4/rating" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel4-address",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel4-address-icon", "hotel4-address-value"]
+    },
+    {
+      "id": "hotel4-address-icon",
+      "component": "Text",
+      "text": "📍",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-address-value",
+      "component": "Text",
+      "text": { "path": "/options/o4/address" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefits",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel4-benefit1-icon", "hotel4-benefit1-name", "hotel4-benefit2-icon", "hotel4-benefit2-name", "hotel4-benefit3-icon", "hotel4-benefit3-name"]
+    },
+    {
+      "id": "hotel4-benefit1-icon",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit1/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefit1-name",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit1/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefit2-icon",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit2/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefit2-name",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit2/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefit3-icon",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit3/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-benefit3-name",
+      "component": "Text",
+      "text": { "path": "/options/o4/benefit3/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel4-price",
+      "component": "Text",
+      "text": { "path": "/options/o4/price" },
+      "variant": "h5"
+    },
+    {
+      "id": "hotel5-card",
+      "component": "Card",
+      "child": "hotel5-row"
+    },
+    {
+      "id": "hotel5-row",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel5-details", "hotel5-price"]
+    },
+    {
+      "id": "hotel5-details",
+      "component": "Column",
+      "children": ["hotel5-name", "hotel5-description", "hotel5-rating", "hotel5-address", "hotel5-benefits"]
+    },
+    {
+      "id": "hotel5-name",
+      "component": "Text",
+      "text": { "path": "/options/o5/name" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel5-description",
+      "component": "Text",
+      "text": { "path": "/options/o5/description" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-rating",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel5-hotel-stars", "hotel5-rating-icon", "hotel5-rating-value"]
+    },
+    {
+      "id": "hotel5-hotel-stars",
+      "component": "Text",
+      "text": { "path": "/options/o5/hotelStars" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-rating-icon",
+      "component": "Text",
+      "text": "⭐",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-rating-value",
+      "component": "Text",
+      "text": { "path": "/options/o5/rating" },
+      "variant": "body"
+    },
+    {
+      "id": "hotel5-address",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel5-address-icon", "hotel5-address-value"]
+    },
+    {
+      "id": "hotel5-address-icon",
+      "component": "Text",
+      "text": "📍",
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-address-value",
+      "component": "Text",
+      "text": { "path": "/options/o5/address" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefits",
+      "component": "Row",
+      "align": "center",
+      "children": ["hotel5-benefit1-icon", "hotel5-benefit1-name", "hotel5-benefit2-icon", "hotel5-benefit2-name", "hotel5-benefit3-icon", "hotel5-benefit3-name"]
+    },
+    {
+      "id": "hotel5-benefit1-icon",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit1/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefit1-name",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit1/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefit2-icon",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit2/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefit2-name",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit2/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefit3-icon",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit3/icon" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-benefit3-name",
+      "component": "Text",
+      "text": { "path": "/options/o5/benefit3/name" },
+      "variant": "caption"
+    },
+    {
+      "id": "hotel5-price",
+      "component": "Text",
+      "text": { "path": "/options/o5/price" },
+      "variant": "h5"
+    },
+    {
+      "id": "options-picker",
+      "component": "ChoicePicker",
+      "label": "Which one?",
+      "variant": "mutuallyExclusive",
+      "value": {
+        "path": "/options/choice"
+      },
+      "options": [
+        {
+          "label": {
+            "path": "/options/o1/name"
+          },
+          "value": "o1"
+        },
+        {
+          "label": {
+            "path": "/options/o2/name"
+          },
+          "value": "o2"
+        },
+        {
+          "label": {
+            "path": "/options/o3/name"
+          },
+          "value": "o3"
+        },
+        {
+          "label": {
+            "path": "/options/o4/name"
+          },
+          "value": "o4"
+        },
+        {
+          "label": {
+            "path": "/options/o5/name"
+          },
+          "value": "o5"
+        }
+      ]
+    },
+    {
+      "id": "options-submit",
+      "component": "Button",
+      "variant": "primary",
+      "child": "options-submit-label",
+      "action": {
+        "event": {
+          "name": "trip_option_selected",
+          "context": {
+            "choice": {
+              "path": "/options/choice"
+            },
+            "advanceTab": "wizard"
+          }
+        }
+      }
+    },
+    {
+      "id": "options-submit-label",
+      "component": "Text",
+      "text": "Continue to review"
+    },
+    {
+      "id": "review-pane",
+      "component": "Column",
+      "children": [
+        "review-title",
+        "review-destination-row",
+        "review-dates-row",
+        "review-travellers-row",
+        "review-option-row",
+        "review-rule",
+        "review-total-row",
+        "review-note",
+        "review-actions"
+      ]
+    },
+    {
+      "id": "review-title",
+      "component": "Text",
+      "text": "Review your trip",
+      "variant": "h4"
+    },
+    {
+      "id": "review-destination-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-destination-label",
+        "review-destination-value"
+      ]
+    },
+    {
+      "id": "review-destination-label",
+      "component": "Text",
+      "text": "Destination",
+      "variant": "caption"
+    },
+    {
+      "id": "review-destination-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/destination"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-dates-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-dates-label",
+        "review-dates-value"
+      ]
+    },
+    {
+      "id": "review-dates-label",
+      "component": "Text",
+      "text": "Dates",
+      "variant": "caption"
+    },
+    {
+      "id": "review-dates-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/dates"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-travellers-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-travellers-label",
+        "review-travellers-value"
+      ]
+    },
+    {
+      "id": "review-travellers-label",
+      "component": "Text",
+      "text": "Travellers",
+      "variant": "caption"
+    },
+    {
+      "id": "review-travellers-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/travellers"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-option-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "start",
+      "children": [
+        "review-option-label",
+        "review-option-value"
+      ]
+    },
+    {
+      "id": "review-option-label",
+      "component": "Text",
+      "text": "Option",
+      "variant": "caption"
+    },
+    {
+      "id": "review-option-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/option"
+      },
+      "variant": "body"
+    },
+    {
+      "id": "review-rule",
+      "component": "Divider",
+      "axis": "horizontal"
+    },
+    {
+      "id": "review-total-row",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-total-label",
+        "review-total-value"
+      ]
+    },
+    {
+      "id": "review-total-label",
+      "component": "Text",
+      "text": "Total",
+      "variant": "caption"
+    },
+    {
+      "id": "review-total-value",
+      "component": "Text",
+      "text": {
+        "path": "/review/total"
+      },
+      "variant": "h5"
+    },
+    {
+      "id": "review-note",
+      "component": "Text",
+      "text": "Demonstration only — nothing will be booked and no payment is taken.",
+      "variant": "caption"
+    },
+    {
+      "id": "review-actions",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-change",
+        "review-confirm"
+      ]
+    },
+    {
+      "id": "review-change",
+      "component": "Button",
+      "variant": "default",
+      "child": "review-change-label",
+      "action": {
+        "event": {
+          "name": "trip_change_requested",
+          "context": {}
+        }
+      }
+    },
+    {
+      "id": "review-change-label",
+      "component": "Text",
+      "text": "Change details"
+    },
+    {
+      "id": "review-confirm",
+      "component": "Button",
+      "variant": "primary",
+      "child": "review-confirm-label",
+      "action": {
+        "event": {
+          "name": "trip_booking_confirmed",
+          "context": {
+            "destination": {
+              "path": "/review/destination"
+            },
+            "dates": {
+              "path": "/review/dates"
+            },
+            "option": {
+              "path": "/review/option"
+            },
+            "total": {
+              "path": "/review/total"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "review-confirm-label",
+      "component": "Text",
+      "text": "Confirm plan"
+    }
+  ],
+  "data": {
+    "__tabs": {
+      "wizard": 0
+    },
+    "trip": {
+      "destination": "",
+      "departDate": "",
+      "returnDate": "",
+      "adults": 2,
+      "kids": 0,
+      "style": [
+        "balanced"
+      ]
+    },
+    "options": {
+      "heading": "Finding your hotel stays",
+      "subheading": "Preparing five destination-local ideas for your trip.",
+      "o1": {
+        "name": "Preparing a local stay",
+        "hotelStars": "Hotel rating pending",
+        "description": "A distinctive local stay with thoughtful comforts and easy access to nearby highlights.",
+        "rating": "—/10",
+        "address": "A destination-local address is being prepared",
+        "price": "$—",
+        "benefit1": { "icon": "📶", "name": "Free Wi-Fi" },
+        "benefit2": { "icon": "☕", "name": "Breakfast" },
+        "benefit3": { "icon": "🏊", "name": "Swimming pool" }
+      },
+      "o2": {
+        "name": "Preparing a local stay",
+        "hotelStars": "Hotel rating pending",
+        "description": "A distinctive local stay with thoughtful comforts and easy access to nearby highlights.",
+        "rating": "—/10",
+        "address": "A destination-local address is being prepared",
+        "price": "$—",
+        "benefit1": { "icon": "📶", "name": "Free Wi-Fi" },
+        "benefit2": { "icon": "☕", "name": "Breakfast" },
+        "benefit3": { "icon": "🏊", "name": "Swimming pool" }
+      },
+      "o3": {
+        "name": "Preparing a local stay",
+        "hotelStars": "Hotel rating pending",
+        "description": "A distinctive local stay with thoughtful comforts and easy access to nearby highlights.",
+        "rating": "—/10",
+        "address": "A destination-local address is being prepared",
+        "price": "$—",
+        "benefit1": { "icon": "📶", "name": "Free Wi-Fi" },
+        "benefit2": { "icon": "☕", "name": "Breakfast" },
+        "benefit3": { "icon": "🏊", "name": "Swimming pool" }
+      },
+      "o4": {
+        "name": "Preparing a local stay",
+        "hotelStars": "Hotel rating pending",
+        "description": "A distinctive local stay with thoughtful comforts and easy access to nearby highlights.",
+        "rating": "—/10",
+        "address": "A destination-local address is being prepared",
+        "price": "$—",
+        "benefit1": { "icon": "📶", "name": "Free Wi-Fi" },
+        "benefit2": { "icon": "☕", "name": "Breakfast" },
+        "benefit3": { "icon": "🏊", "name": "Swimming pool" }
+      },
+      "o5": {
+        "name": "Preparing a local stay",
+        "hotelStars": "Hotel rating pending",
+        "description": "A distinctive local stay with thoughtful comforts and easy access to nearby highlights.",
+        "rating": "—/10",
+        "address": "A destination-local address is being prepared",
+        "price": "$—",
+        "benefit1": { "icon": "📶", "name": "Free Wi-Fi" },
+        "benefit2": { "icon": "☕", "name": "Breakfast" },
+        "benefit3": { "icon": "🏊", "name": "Swimming pool" }
+      },
+      "choice": []
+    },
+    "review": {
+      "destination": "…",
+      "dates": "…",
+      "travellers": "2 adults, 0 kids",
+      "option": "…",
+      "total": "…"
+    }
+  }
+}
