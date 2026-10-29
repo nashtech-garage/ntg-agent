@@ -44,7 +44,7 @@ export default function Page() {
       }
     }
 
-    loadAgents();
+    void loadAgents();
     return () => {
       cancelled = true;
     };

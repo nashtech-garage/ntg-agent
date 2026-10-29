@@ -42,7 +42,7 @@ done
 
 printf '\nDynamic listeners (Aspire-assigned ports for app services)\n'
 dotnet_ports="$(lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR==1 || /dotnet/' || true)"
-if [ -n "$dotnet_ports" ] && [ "$(printf '%s\n' "$dotnet_ports" | wc -l)" -gt 1 ]; then
+if [[ -n "$dotnet_ports" ]] && [[ "$(printf '%s\n' "$dotnet_ports" | wc -l)" -gt 1 ]]; then
   printf '%s\n' "$dotnet_ports"
 else
   printf '  (no dotnet processes listening — is the AppHost running?)\n'
@@ -51,7 +51,7 @@ fi
 printf '\nDocker-published ports (containers incl. per-agent LightRAG)\n'
 if command -v docker >/dev/null 2>&1; then
   docker_ports="$(docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null || true)"
-  if [ -n "$docker_ports" ]; then
+  if [[ -n "$docker_ports" ]]; then
     printf '%s\n' "$docker_ports"
   else
     printf '  (no running containers)\n'

@@ -26,4 +26,4 @@ app.MapMcp();
 
 app.MapDefaultEndpoints();
 
-app.Run();
+await app.RunAsync();
