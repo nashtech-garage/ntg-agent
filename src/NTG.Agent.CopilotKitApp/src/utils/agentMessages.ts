@@ -5,6 +5,8 @@ export interface ChatMessageListItem {
   id: string;
   content: string;
   role: string; // "user" | "assistant" | "system" | "tool"
+  thinkingContent?: string | null;
+  thinkingDurationMs?: number | null;
 }
 
 // Legacy guard: tool-result follow-up turns used to be persisted as a synthetic "user"
@@ -27,6 +29,13 @@ export function toAgentMessages(items: ChatMessageListItem[]): Message[] {
       if (m.content.trimStart().startsWith(SYNTHETIC_TOOL_PROMPT_PREFIX)) continue;
       out.push({ id: m.id, role: "user", content: m.content });
     } else if (m.role === "assistant") {
+      if (m.thinkingContent) {
+        out.push({
+          id: `${m.id}-reasoning`,
+          role: "reasoning",
+          content: m.thinkingContent,
+        });
+      }
       out.push({ id: m.id, role: "assistant", content: m.content });
     } else if (m.role === "tool") {
       // Rebuild renderable tool calls (e.g. get_weather) as an assistant tool-call + a tool result
