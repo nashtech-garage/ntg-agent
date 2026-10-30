@@ -929,11 +929,12 @@
       "children": [
         "review-title",
         "review-destination-row",
-        "review-dates-row",
-        "review-travellers-row",
-        "review-option-row",
+        "review-trip-meta",
+        "review-hotel-summary",
         "review-rule",
-        "review-total-row",
+        "review-total-card",
+        "review-recommendations-list",
+        "review-cuisines-list",
         "review-note",
         "review-actions"
       ]
@@ -946,9 +947,7 @@
     },
     {
       "id": "review-destination-row",
-      "component": "Row",
-      "justify": "spaceBetween",
-      "align": "start",
+      "component": "Column",
       "children": [
         "review-destination-label",
         "review-destination-value"
@@ -966,13 +965,20 @@
       "text": {
         "path": "/review/destination"
       },
-      "variant": "body"
+      "variant": "h3"
+    },
+    {
+      "id": "review-trip-meta",
+      "component": "Row",
+      "align": "start",
+      "children": [
+        "review-dates-row",
+        "review-travellers-row"
+      ]
     },
     {
       "id": "review-dates-row",
-      "component": "Row",
-      "justify": "spaceBetween",
-      "align": "start",
+      "component": "Column",
       "children": [
         "review-dates-label",
         "review-dates-value"
@@ -994,9 +1000,7 @@
     },
     {
       "id": "review-travellers-row",
-      "component": "Row",
-      "justify": "spaceBetween",
-      "align": "start",
+      "component": "Column",
       "children": [
         "review-travellers-label",
         "review-travellers-value"
@@ -1017,33 +1021,56 @@
       "variant": "body"
     },
     {
-      "id": "review-option-row",
-      "component": "Row",
-      "justify": "spaceBetween",
-      "align": "start",
+      "id": "review-hotel-summary",
+      "component": "Column",
       "children": [
-        "review-option-label",
-        "review-option-value"
+        "review-hotel-label",
+        "review-hotel-name",
+        "review-hotel-description",
+        "review-hotel-amenities"
       ]
     },
     {
-      "id": "review-option-label",
+      "id": "review-hotel-label",
       "component": "Text",
-      "text": "Option",
+      "text": "Selected stay",
       "variant": "caption"
     },
     {
-      "id": "review-option-value",
+      "id": "review-hotel-name",
       "component": "Text",
-      "text": {
-        "path": "/review/option"
-      },
+      "text": { "path": "/review/hotelName" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-hotel-description",
+      "component": "Text",
+      "text": { "path": "/review/hotelDescription" },
       "variant": "body"
+    },
+    {
+      "id": "review-hotel-amenities",
+      "component": "Text",
+      "text": { "path": "/review/amenities" },
+      "variant": "caption"
     },
     {
       "id": "review-rule",
       "component": "Divider",
       "axis": "horizontal"
+    },
+    {
+      "id": "review-total-card",
+      "component": "Card",
+      "child": "review-total-content"
+    },
+    {
+      "id": "review-total-content",
+      "component": "Column",
+      "children": [
+        "review-total-row",
+        "review-cost-context"
+      ]
     },
     {
       "id": "review-total-row",
@@ -1058,8 +1085,8 @@
     {
       "id": "review-total-label",
       "component": "Text",
-      "text": "Total",
-      "variant": "caption"
+      "text": "Total trip cost",
+      "variant": "h5"
     },
     {
       "id": "review-total-value",
@@ -1067,7 +1094,212 @@
       "text": {
         "path": "/review/total"
       },
+      "variant": "h2"
+    },
+    {
+      "id": "review-cost-context",
+      "component": "Text",
+      "text": { "path": "/review/costContext" },
+      "variant": "caption"
+    },
+    {
+      "id": "review-recommendations-title",
+      "component": "Text",
+      "text": "What to prepare",
       "variant": "h5"
+    },
+    {
+      "id": "review-recommendations-count",
+      "component": "Text",
+      "text": "5 tips",
+      "variant": "caption"
+    },
+    {
+      "id": "review-recommendations-header",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-recommendations-title",
+        "review-recommendations-count"
+      ]
+    },
+    {
+      "id": "review-recommendations-description",
+      "component": "Text",
+      "text": "Useful tips to help you prepare for your trip.",
+      "variant": "caption"
+    },
+    {
+      "id": "review-recommendations-list",
+      "component": "List",
+      "direction": "vertical",
+      "children": [
+        "review-recommendations-header",
+        "review-recommendations-description",
+        "review-recommendation-1",
+        "review-recommendation-2",
+        "review-recommendation-3",
+        "review-recommendation-4",
+        "review-recommendation-5"
+      ]
+    },
+    {
+      "id": "review-recommendation-1",
+      "component": "Text",
+      "text": { "path": "/review/recommendations/item1" },
+      "variant": "body"
+    },
+    {
+      "id": "review-recommendation-2",
+      "component": "Text",
+      "text": { "path": "/review/recommendations/item2" },
+      "variant": "body"
+    },
+    {
+      "id": "review-recommendation-3",
+      "component": "Text",
+      "text": { "path": "/review/recommendations/item3" },
+      "variant": "body"
+    },
+    {
+      "id": "review-recommendation-4",
+      "component": "Text",
+      "text": { "path": "/review/recommendations/item4" },
+      "variant": "body"
+    },
+    {
+      "id": "review-recommendation-5",
+      "component": "Text",
+      "text": { "path": "/review/recommendations/item5" },
+      "variant": "body"
+    },
+    {
+      "id": "review-cuisines-title",
+      "component": "Text",
+      "text": "Local flavours to try",
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisines-count",
+      "component": "Text",
+      "text": "5 dishes",
+      "variant": "caption"
+    },
+    {
+      "id": "review-cuisines-header",
+      "component": "Row",
+      "justify": "spaceBetween",
+      "align": "center",
+      "children": [
+        "review-cuisines-title",
+        "review-cuisines-count"
+      ]
+    },
+    {
+      "id": "review-cuisines-description",
+      "component": "Text",
+      "text": "Discover local dishes worth trying at your destination.",
+      "variant": "caption"
+    },
+    {
+      "id": "review-cuisines-list",
+      "component": "List",
+      "direction": "vertical",
+      "children": [
+        "review-cuisines-header",
+        "review-cuisines-description",
+        "review-cuisine-1",
+        "review-cuisine-2",
+        "review-cuisine-3",
+        "review-cuisine-4",
+        "review-cuisine-5"
+      ]
+    },
+    {
+      "id": "review-cuisine-1",
+      "component": "Column",
+      "children": ["review-cuisine-1-name", "review-cuisine-1-description"]
+    },
+    {
+      "id": "review-cuisine-1-name",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item1/name" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisine-1-description",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item1/description" },
+      "variant": "body"
+    },
+    {
+      "id": "review-cuisine-2",
+      "component": "Column",
+      "children": ["review-cuisine-2-name", "review-cuisine-2-description"]
+    },
+    {
+      "id": "review-cuisine-2-name",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item2/name" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisine-2-description",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item2/description" },
+      "variant": "body"
+    },
+    {
+      "id": "review-cuisine-3",
+      "component": "Column",
+      "children": ["review-cuisine-3-name", "review-cuisine-3-description"]
+    },
+    {
+      "id": "review-cuisine-3-name",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item3/name" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisine-3-description",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item3/description" },
+      "variant": "body"
+    },
+    {
+      "id": "review-cuisine-4",
+      "component": "Column",
+      "children": ["review-cuisine-4-name", "review-cuisine-4-description"]
+    },
+    {
+      "id": "review-cuisine-4-name",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item4/name" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisine-4-description",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item4/description" },
+      "variant": "body"
+    },
+    {
+      "id": "review-cuisine-5",
+      "component": "Column",
+      "children": ["review-cuisine-5-name", "review-cuisine-5-description"]
+    },
+    {
+      "id": "review-cuisine-5-name",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item5/name" },
+      "variant": "h5"
+    },
+    {
+      "id": "review-cuisine-5-description",
+      "component": "Text",
+      "text": { "path": "/review/cuisines/item5/description" },
+      "variant": "body"
     },
     {
       "id": "review-note",
@@ -1130,7 +1362,7 @@
     {
       "id": "review-confirm-label",
       "component": "Text",
-      "text": "Confirm plan"
+      "text": "Finish planning"
     }
   ],
   "data": {
@@ -1212,7 +1444,25 @@
       "dates": "…",
       "travellers": "2 adults, 0 kids",
       "option": "…",
-      "total": "…"
+      "total": "…",
+      "costContext": "For 2 travellers · 3 nights",
+      "hotelName": "…",
+      "hotelDescription": "…",
+      "amenities": "…",
+      "recommendations": {
+        "item1": "Select a stay to see preparation tips tailored to its surroundings.",
+        "item2": "",
+        "item3": "",
+        "item4": "",
+        "item5": ""
+      },
+      "cuisines": {
+        "item1": { "name": "Select a stay", "description": "Local dishes will appear here." },
+        "item2": { "name": "", "description": "" },
+        "item3": { "name": "", "description": "" },
+        "item4": { "name": "", "description": "" },
+        "item5": { "name": "", "description": "" }
+      }
     }
   }
 }

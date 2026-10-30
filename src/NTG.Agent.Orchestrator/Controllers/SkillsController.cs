@@ -265,7 +265,7 @@ public class SkillsController(SkillRegistry skillRegistry, ILogger<SkillsControl
         ZipArchive archive, string entryName, byte[] content, CancellationToken cancellationToken)
     {
         var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
-        await using var stream = entry.Open();
+        await using var stream = await entry.OpenAsync(cancellationToken);
         await stream.WriteAsync(content, cancellationToken);
     }
 }

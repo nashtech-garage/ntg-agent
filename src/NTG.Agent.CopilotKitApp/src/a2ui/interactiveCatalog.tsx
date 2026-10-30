@@ -33,6 +33,8 @@ import {
   ChoicePickerApi,
   ButtonApi,
   TabsApi,
+  ListApi,
+  CardApi,
 } from "@a2ui/web_core/v0_9/basic_catalog";
 import { createFunctionImplementation } from "@a2ui/web_core/v0_9";
 import {
@@ -293,7 +295,7 @@ function toTabIndex(raw: unknown, count: number): number | null {
   const n =
     typeof raw === "number" ? raw
       : typeof raw === "string" && raw.trim() !== "" ? Number(raw)
-        : NaN;
+        : Number.NaN;
   if (!Number.isFinite(n)) return null;
   return Math.min(Math.max(Math.trunc(n), 0), count - 1);
 }
@@ -426,6 +428,56 @@ const InteractiveTabs = createReactComponent(TabsApi as any, ({ props, buildChil
   );
 });
 
+const defaultListRenderer = (basicCatalog as any).components.get("List").render;
+const defaultCardRenderer = (basicCatalog as any).components.get("Card").render;
+
+const reviewAccordionIds = new Set([
+  "review-recommendations-list",
+  "review-cuisines-list",
+]);
+
+const InteractiveList = createReactComponent(ListApi as any, ({ props, buildChild, context }: any) => {
+  if (!reviewAccordionIds.has(context?.componentModel?.id)) {
+    return React.createElement(defaultListRenderer, { context, buildChild });
+  }
+
+  const children: any[] = Array.isArray(props.children) ? props.children : [];
+  const [header, description, ...items] = children;
+
+  return (
+    <details className="a2ui-review-accordion">
+      <summary>{header ? buildChild(header) : null}</summary>
+      <div className="a2ui-review-accordion-content">
+        {description ? (
+          <div className="a2ui-review-accordion-description">{buildChild(description)}</div>
+        ) : null}
+        <div className="a2ui-review-accordion-items">
+          {items.map((item, index) => (
+            <div
+              className="a2ui-review-accordion-item"
+              key={typeof item === "string" ? item : `review-accordion-item-${index}`}
+            >
+              {buildChild(item)}
+            </div>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+});
+
+const InteractiveCard = createReactComponent(CardApi as any, ({ props, buildChild, context }: any) => {
+  if (context?.componentModel?.id !== "review-total-card") {
+    return React.createElement(defaultCardRenderer, { context, buildChild });
+  }
+
+  return (
+    <div className="a2ui-review-total-card">
+      {props.child ? buildChild(props.child) : null}
+    </div>
+  );
+});
+
 // Clone the basic catalog, swapping the interactive components by name.
 const overrides: Record<string, any> = {
   TextField: InteractiveTextField,
@@ -434,6 +486,8 @@ const overrides: Record<string, any> = {
   ChoicePicker: InteractiveChoicePicker,
   Button: InteractiveButton,
   Tabs: InteractiveTabs,
+  List: InteractiveList,
+  Card: InteractiveCard,
 };
 const components = [...(basicCatalog as any).components.values()].map(
   (c: any) => overrides[c.name] ?? c,

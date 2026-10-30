@@ -3,7 +3,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject ConversationClient ConversationClient
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="cta-chat-section">
     <div class="button-container">
@@ -219,8 +219,12 @@
         await OnActiveConversationChanged.InvokeAsync(conversationId);
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        searchDebounceTimer?.Dispose();
+        if (searchDebounceTimer is not null)
+        {
+            await searchDebounceTimer.DisposeAsync();
+            searchDebounceTimer = null;
+        }
     }
 }

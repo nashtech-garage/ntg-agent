@@ -39,7 +39,7 @@ public class FoldersController : ControllerBase
         var query = _agentDbContext.Folders
             .Include(f => f.Children)
             .Include(f => f.Documents)
-            .AsQueryable();
+            .AsSplitQuery();
 
         if (agentId.HasValue)
         {
@@ -63,6 +63,7 @@ public class FoldersController : ControllerBase
         var folder = await _agentDbContext.Folders
             .Include(f => f.Children)
             .Include(f => f.Documents)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (folder == null)
@@ -209,6 +210,7 @@ public class FoldersController : ControllerBase
         var folder = await _agentDbContext.Folders
             .Include(f => f.Children)
             .Include(f => f.Documents)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (folder == null)

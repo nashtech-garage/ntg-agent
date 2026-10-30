@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using System.Text.Json;
 using NTG.Agent.Common.Dtos.Chats;
 using NTG.Agent.Common.Dtos.Conversations;
 using NTG.Agent.Orchestrator.Controllers;
@@ -605,6 +606,26 @@ public class ConversationsControllerTests
         // Assert
         Assert.That(result, Is.TypeOf<NotFoundResult>());
     }
+
+    [TestCase("Id")]
+    [TestCase("CreatedAt")]
+    [TestCase("UpdatedAt")]
+    public void DeserializeConversation_WhenRequiredValuePropertyIsMissing_ThrowsJsonException(string missingProperty)
+    {
+        var properties = new Dictionary<string, object>
+        {
+            ["Id"] = Guid.NewGuid(),
+            ["Name"] = "Test Conversation",
+            ["CreatedAt"] = DateTime.UtcNow,
+            ["UpdatedAt"] = DateTime.UtcNow
+        };
+        properties.Remove(missingProperty);
+
+        var json = JsonSerializer.Serialize(properties);
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Conversation>(json));
+    }
+
     [Test]
     public async Task RenameConversation_WhenConversationExists_ReturnsNoContent()
     {
@@ -993,4 +1014,3 @@ public class ConversationsControllerTests
         await _context.SaveChangesAsync();
     }
 }
-

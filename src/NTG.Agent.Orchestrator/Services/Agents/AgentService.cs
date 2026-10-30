@@ -36,6 +36,7 @@ public class AgentService
     private readonly SkillActivityLog _skillActivityLog;
     private readonly ILogger<AgentService> _logger;
     private const int MAX_LATEST_MESSAGE_TO_KEEP_FULL = 5;
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromSeconds(1);
 
     public AgentService(
         IAgentFactory agentFactory,
@@ -720,8 +721,8 @@ public class AgentService
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault() ?? string.Empty;
 
-        var normalized = Regex.Replace(firstLine, @"[*_`#]", string.Empty);
-        normalized = Regex.Replace(normalized, @"\s+", " ").Trim();
+        var normalized = Regex.Replace(firstLine, @"[*_`#]", string.Empty, RegexOptions.None, RegexMatchTimeout);
+        normalized = Regex.Replace(normalized, @"\s+", " ", RegexOptions.None, RegexMatchTimeout).Trim();
         normalized = normalized.Trim(' ', '"', '\'');
 
         var words = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries);

@@ -27,7 +27,7 @@ Always `skill: "travel-planner"`, `surface: "trip-planner"`. There is no other s
 |---|---|---|---|
 | 1. Trip | `0` | destination, dates, adults, kids, style · **Find trips** | `trip_search_submit` |
 | 2. Options | `1` | five hotels with details, benefits and prices, a picker · **Continue to review** | `trip_option_selected` |
-| 3. Review | `2` | the summary and total · **Confirm plan** / **Change details** | `trip_booking_confirmed` / `trip_change_requested` |
+| 3. Review | `2` | the summary, total, preparation recommendations and local cuisines · **Finish planning** / **Change details** | `trip_booking_confirmed` / `trip_change_requested` |
 
 All three tabs exist from the first render. The user can click ahead at any time; tabs 2 and
 3 simply show placeholders until you have filled them.
@@ -45,7 +45,7 @@ The surface's data is four independent branches, and each render writes them one
 | `__tabs` | `{ "wizard": 0\|1\|2 }` — which tab is showing | you, on every render |
 | `trip` | tab 1's fields: `destination`, `departDate`, `returnDate`, `adults`, `kids`, `style` | you (pre-fill), then the user |
 | `options` | tab 2's `heading`, `subheading`, `o1`–`o5` and the user's `choice` | you |
-| `review` | tab 3's `destination`, `dates`, `travellers`, `option`, `total` | you |
+| `review` | tab 3's trip summary, cost context, selected stay and `recommendations`/`cuisines` objects | you |
 
 **Send only the branch you are filling in, plus `__tabs`.** A branch you send is replaced by
 what you sent merged over the template's defaults, so re-sending a branch you have nothing new
@@ -156,7 +156,31 @@ When `trip_option_selected` arrives, `choice` is a one-element array containing 
 all five hotel objects and the user's `choice` carried forward unchanged, and a `review` branch.
 The review contains
 five plain strings you write for the user to read — destination, dates, travellers, selected
-hotel summary and the selected hotel's total USD price — not the raw field values.
+hotel summary and the selected hotel's total USD price — not the raw field values. Also set
+`hotelName` to the selected property's name, `hotelDescription` to its star class and a concise
+description, `amenities` to the three selected benefit names with their icons, and `costContext`
+to a short description such as `For 4 travellers · 3 nights`. Calculate the traveller count from
+`trip.adults + trip.kids` and the night count from the date difference; use singular grammar
+when either count is one. Do not invent a price breakdown.
+
+The review also contains `recommendations`, an object with exactly five strings named `item1`
+through `item5`, and `cuisines`, an object with exactly five objects named `item1` through
+`item5`, each with `name` and `description` strings.
+
+Make each `recommendations.item1` through `recommendations.item5` a concise, practical action
+to prepare or bring for activities at or around the selected hotel. Start each with `• `
+followed by an action verb. Tailor the advice to the destination and the selected hotel's
+location, description and amenities: for example, consider sun and swim protection near a
+beach, layers and sturdy footwear near mountains, or comfortable walking shoes and transit
+preparation in a city. Use the submitted `trip.kids` value: when it is greater than zero,
+include at least one useful child-specific preparation or safety action; when it is zero, do
+not add child-specific advice. Avoid claiming unverified nearby facilities or conditions; if
+the hotel's surroundings are unclear, keep the advice grounded in the destination.
+
+Make each `cuisines.item1` through `cuisines.item5` a local or regional dish to try. Put the
+dish name in `name` and a concise explanation in `description`. Choose foods genuinely associated
+with the destination rather than generic international dishes. Do not invent restaurants or
+imply that a dish or venue has been verified.
 
 Build `review.option` from the selected hotel's name, hotel star class, a concise location or
 character descriptor from its description when useful, and all three benefit names from

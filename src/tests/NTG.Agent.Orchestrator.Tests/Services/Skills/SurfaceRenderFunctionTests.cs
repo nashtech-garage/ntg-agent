@@ -782,6 +782,87 @@ public class SurfaceRenderFunctionTests
     }
 
     [Test]
+    public async Task Render_SeededTravelPlanner_ReviewShowsRecommendationsAndCuisinesAfterTotal()
+    {
+        if (!await TryImportTravelPlannerAsync())
+        {
+            return;
+        }
+
+        await RenderAsync(
+            "travel-planner",
+            "trip-planner",
+            JsonNode.Parse("""
+                {
+                  "review": {
+                    "hotelName": "Aurora Peak Retreat",
+                    "hotelDescription": "5-star hillside retreat with a heated pool.",
+                    "amenities": "🧖 Sauna · 🏊 Heated pool · 🚌 Shuttle service",
+                    "costContext": "For 4 travellers · 3 nights",
+                    "recommendations": {
+                      "item1": "• Pack sun protection for the beach.",
+                      "item2": "• Bring water for nearby walks.",
+                      "item3": "• Check the hotel's pool rules.",
+                      "item4": "• Prepare a light rain layer.",
+                      "item5": "• Keep essentials in a day bag."
+                    },
+                    "cuisines": {
+                      "item1": { "name": "Local noodle soup", "description": "A warming regional favourite." },
+                      "item2": { "name": "Regional rice dish", "description": "Rice served with local herbs." },
+                      "item3": { "name": "Seasonal dessert", "description": "A sweet local treat." },
+                      "item4": { "name": "Local seafood speciality", "description": "Fresh seafood prepared regionally." },
+                      "item5": { "name": "Traditional street snack", "description": "A popular quick bite." }
+                    }
+                  }
+                }
+                """));
+
+        var operations = Operations(Captured().Single());
+        var review = DataModel(operations)["review"]!;
+        var components = (JsonArray)Operation(operations, "updateComponents")["components"]!;
+        var reviewPane = components.Single(component =>
+            string.Equals(component?["id"]?.GetValue<string>(), "review-pane", StringComparison.Ordinal));
+        var reviewChildren = ((JsonArray)reviewPane!["children"]!)
+            .Select(child => child!.GetValue<string>())
+            .ToArray();
+        var recommendations = components.Single(component =>
+            string.Equals(component?["id"]?.GetValue<string>(), "review-recommendations-list", StringComparison.Ordinal));
+        var cuisines = components.Single(component =>
+            string.Equals(component?["id"]?.GetValue<string>(), "review-cuisines-list", StringComparison.Ordinal));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                reviewChildren,
+                Is.EqualTo(new[]
+                {
+                    "review-title",
+                    "review-destination-row",
+                    "review-trip-meta",
+                    "review-hotel-summary",
+                    "review-rule",
+                    "review-total-card",
+                    "review-recommendations-list",
+                    "review-cuisines-list",
+                    "review-note",
+                    "review-actions"
+                }));
+            Assert.That(((JsonArray)recommendations!["children"]!).Count, Is.EqualTo(7));
+            Assert.That(((JsonArray)cuisines!["children"]!).Count, Is.EqualTo(7));
+            Assert.That(((JsonObject)review["recommendations"]!).Count, Is.EqualTo(5));
+            Assert.That(((JsonObject)review["cuisines"]!).Count, Is.EqualTo(5));
+            Assert.That(review["hotelName"]?.GetValue<string>(), Is.EqualTo("Aurora Peak Retreat"));
+            Assert.That(review["costContext"]?.GetValue<string>(), Is.EqualTo("For 4 travellers · 3 nights"));
+            Assert.That(
+                review["recommendations"]?["item1"]?.GetValue<string>(),
+                Is.EqualTo("• Pack sun protection for the beach."));
+            Assert.That(
+                review["cuisines"]?["item5"]?["name"]?.GetValue<string>(),
+                Is.EqualTo("Traditional street snack"));
+        });
+    }
+
+    [Test]
     public async Task Render_SeededTripPlanner_MergesValuesOverTheShippedDefaults()
     {
         if (!await TryImportTravelPlannerAsync())
