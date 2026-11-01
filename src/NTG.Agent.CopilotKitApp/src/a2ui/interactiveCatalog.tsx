@@ -1136,6 +1136,18 @@ const DateOnOrAfterApi = {
   }),
 };
 
+const ArrayFieldValuesValidApi = {
+  name: "array_field_values_valid",
+  returnType: "boolean" as const,
+  schema: z.object({
+    value: z.any(),
+    field: z.string().min(1),
+    minItems: z.number().int().min(0).optional(),
+    required: z.boolean().optional(),
+    unique: z.boolean().optional(),
+  }),
+};
+
 const customFunctions = [
   createFunctionImplementation(IntegerAtLeastApi as any, (args: any) => {
     const value = Number(args.value);
@@ -1147,6 +1159,27 @@ const customFunctions = [
   }),
   createFunctionImplementation(DateOnOrAfterApi as any, (args: any) => {
     return isIsoDate(args.value) && isIsoDate(args.other) && args.value >= args.other;
+  }),
+  createFunctionImplementation(ArrayFieldValuesValidApi as any, (args: any) => {
+    const rows = args.value;
+    if (!Array.isArray(rows) || rows.length < (args.minItems ?? 0)) return false;
+
+    const seen = new Set<string>();
+    return rows.every((row: unknown) => {
+      if (!isRecord(row)) return false;
+
+      const value = row[args.field];
+      const isEmpty = value === undefined
+        || value === null
+        || (typeof value === "string" && !value.trim());
+      if (args.required === true && isEmpty) return false;
+      if (args.unique !== true || isEmpty) return true;
+
+      const normalizedValue = String(value).trim();
+      if (seen.has(normalizedValue)) return false;
+      seen.add(normalizedValue);
+      return true;
+    });
   }),
 ];
 const functions = [

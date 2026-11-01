@@ -224,6 +224,8 @@ and errors from a bound result object. They are registered separately in
 snapshot. Their behavior is generic; skills supply labels, field definitions, data paths, and reset
 paths. `clearOnChange` resets each target to an empty value of its existing kind, keeping Boolean,
 number, and array paths type-safe as well as clearing text.
+The interactive catalog also exposes `array_field_values_valid` for reusable button checks over
+repeatable rows; a failed check prevents local tab advancement and event dispatch.
 JSON Schema generation and validation are MCP tools exposed by `NTG.Agent.MCP.Server`. The
 JSON Schema Designer is a seeded database skill that uses those tools. Enable the skill and
 individually enable `json_schema_generate` and `json_schema_validate` for the agent in Admin;

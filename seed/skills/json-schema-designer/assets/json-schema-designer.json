@@ -169,6 +169,22 @@
             "returnType": "boolean"
           },
           "message": "Enter a schema name."
+        },
+        {
+          "condition": {
+            "call": "array_field_values_valid",
+            "args": {
+              "value": {
+                "path": "/design/properties"
+              },
+              "field": "name",
+              "minItems": 1,
+              "required": true,
+              "unique": true
+            },
+            "returnType": "boolean"
+          },
+          "message": "Add a unique name to every property."
         }
       ],
       "action": {
