@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="JsonSchema.Net" />
   </ItemGroup>
 
   <ItemGroup>

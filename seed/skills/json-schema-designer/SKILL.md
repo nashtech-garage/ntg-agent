@@ -2,7 +2,7 @@
 name: json-schema-designer
 description: Designs basic JSON Schemas in an interactive A2UI surface, generates sample JSON, and deterministically validates JSON instances against Draft 2020-12 schemas.
 license: Apache-2.0
-compatibility: Requires the render_skill_surface tool and a browser client with the generic A2UI skill controls.
+compatibility: Requires render_skill_surface, json_schema_generate, json_schema_validate, and a browser client with the generic A2UI skill controls.
 metadata:
   author: ntg-agent
   version: "1.0"
@@ -13,6 +13,11 @@ metadata:
 Design a schema in one A2UI surface with three tabs: **Design**, **Validation**, and **Results**.
 Render `skill: "json-schema-designer"` and `surface: "json-schema-designer"`. Render once to
 start, then re-render this same surface to show generated schema or validation results.
+
+Enable `json_schema_generate` and `json_schema_validate` for the agent in the Admin MCP tools
+settings before using this skill. Skill binding and MCP tool enablement are separate choices. If
+either tool is unavailable, explain that the agent needs the corresponding MCP tool enabled; do not
+construct schema or validation results yourself.
 
 The generic `ArrayEditor` and `TextEditor` controls own local editing. The tab strip handles
 navigation. These interactions must not invoke the agent; only the two primary actions below call

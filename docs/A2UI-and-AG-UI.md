@@ -219,10 +219,11 @@ The basic catalog has no editable repeatable-row component. The shared skill cat
 two reusable controls: `ArrayEditor`, driven by field descriptors in a surface template, and
 `TextEditor`, a bound single- or multi-line editor with optional read-only, copy, reset, and
 clear-on-change behavior. They are registered separately in `A2uiCatalog.SkillComponents`, so
-templates can use them without changing the upstream catalog snapshot. Their behavior is generic;
-skills supply labels, field definitions, data paths, and reset paths. Skill utilities are also
-attached for any agent with active skills, rather than being conditionally registered by a skill
-name. The JSON Schema Designer is one seeded database skill that uses those shared capabilities.
+templates can use them without changing the upstream catalog snapshot. Their behavior is generic; skills supply labels, field definitions, data paths, and reset paths.
+JSON Schema generation and validation are MCP tools exposed by `NTG.Agent.MCP.Server`. The
+JSON Schema Designer is a seeded database skill that uses those tools. Enable the skill and
+individually enable `json_schema_generate` and `json_schema_validate` for the agent in Admin;
+skill binding and MCP tool enablement are separate agent-level choices.
 
 ---
 

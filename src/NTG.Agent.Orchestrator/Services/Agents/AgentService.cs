@@ -505,10 +505,9 @@ public class AgentService
         // access at call time and scopes the child to its own LightRAG workspace.
         var tools = new List<AITool> { memorySearch };
 
-        // Agent Skills. Gated by the AgentSkills bindings rather than the AgentTools table that
-        // GetAgentToolsByAgentId filters on, so they are attached here alongside the knowledge
-        // tool rather than baked in by AgentFactory. An agent with no bound skills gets neither
-        // the tools nor the catalog message, leaving its runs byte-identical to before.
+        // The skill catalog and load/render tools are gated by AgentSkills bindings. MCP tools,
+        // including schema generation and validation, are independently gated by AgentTools in
+        // AgentFactory. An agent with no bound skills gets neither these tools nor the catalog.
         //
         // Withheld outright from a text-only client, rather than trimmed down to the tools it
         // could technically run. What the skills we ship produce is an A2UI surface, and only
@@ -543,7 +542,6 @@ public class AgentService
             tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, _skillActivityLog, promptRequest.AgentId, _logger));
             tools.Add(SkillTools.CreateRenderSurface(
                 _skillRegistry, _renderableToolCapture, _skillActivityLog, promptRequest.AgentId, _logger));
-            tools.AddRange(SkillTools.CreateBuiltInTools());
         }
 
         var chatOptions = new ChatOptions

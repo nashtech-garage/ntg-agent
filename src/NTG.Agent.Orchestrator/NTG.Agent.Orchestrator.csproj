@@ -28,7 +28,6 @@
     <PackageReference Include="OpenAI" />
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" />
-    <PackageReference Include="JsonSchema.Net" />
     <PackageReference Include="OpenTelemetry" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="NuGet.Packaging" />
