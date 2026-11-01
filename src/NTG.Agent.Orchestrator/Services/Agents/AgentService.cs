@@ -543,6 +543,7 @@ public class AgentService
             tools.Add(SkillTools.CreateLoadSkill(_skillRegistry, _skillActivityLog, promptRequest.AgentId, _logger));
             tools.Add(SkillTools.CreateRenderSurface(
                 _skillRegistry, _renderableToolCapture, _skillActivityLog, promptRequest.AgentId, _logger));
+            tools.AddRange(SkillTools.CreateBuiltInTools());
         }
 
         var chatOptions = new ChatOptions

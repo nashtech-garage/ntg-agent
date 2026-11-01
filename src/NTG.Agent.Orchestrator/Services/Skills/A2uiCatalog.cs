@@ -51,8 +51,21 @@ public static class A2uiCatalog
 
     public static readonly FrozenDictionary<string, ComponentSpec> Components = BuildCatalog();
 
-    public static bool TryGet(string component, out ComponentSpec spec) =>
-        Components.TryGetValue(component, out spec!);
+    /// <summary>
+    /// Generic app-owned controls used by skill templates. These extend, but do not alter, the
+    /// upstream basic catalog snapshot.
+    /// </summary>
+    public static readonly FrozenDictionary<string, ComponentSpec> SkillComponents = BuildSkillComponents();
+
+    public static bool TryGet(string component, out ComponentSpec spec)
+    {
+        if (Components.TryGetValue(component, out spec!))
+        {
+            return true;
+        }
+
+        return SkillComponents.TryGetValue(component, out spec!);
+    }
 
     private static ComponentSpec Spec(string[] properties, string[] required, params (string Property, string[] Values)[] enums) =>
         new(properties.ToFrozenSet(StringComparer.Ordinal),
@@ -126,5 +139,18 @@ public static class A2uiCatalog
             ["DateTimeInput"] = Spec(
                 ["accessibility", "checks", "enableDate", "enableTime", "id", "label", "max", "min", "value", "weight"],
                 ["value"]),
+        }.ToFrozenDictionary(StringComparer.Ordinal);
+
+    private static FrozenDictionary<string, ComponentSpec> BuildSkillComponents() =>
+        new Dictionary<string, ComponentSpec>(StringComparer.Ordinal)
+        {
+            ["ArrayEditor"] = Spec(
+                ["accessibility", "addLabel", "clearOnChange", "fields", "id", "keyField", "label",
+                    "maxItems", "minItems", "removeLabel", "value", "weight"],
+                ["fields", "label", "value"]),
+            ["TextEditor"] = Spec(
+                ["accessibility", "clearOnChange", "id", "label", "multiline", "originalValue",
+                    "readOnly", "value", "weight"],
+                ["label", "readOnly", "value"]),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 }

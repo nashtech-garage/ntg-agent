@@ -176,6 +176,46 @@ public class SurfaceValidatorTests
         AssertOnlyError(errors, "'components' is empty");
     }
 
+    [Test]
+    public void Validate_GenericArrayEditor_AcceptsBoundRows()
+    {
+        var surface = SurfaceAround(
+            """
+            {
+              "id": "subject",
+              "component": "ArrayEditor",
+              "label": "Items",
+              "fields": [{ "name": "name", "label": "Name", "type": "text" }],
+              "value": { "path": "/design/properties" }
+            }
+            """,
+            """{"design":{"properties":[]}}""");
+
+        var errors = Validate(surface);
+
+        Assert.That(errors, Is.Empty, Describe(errors));
+    }
+
+    [Test]
+    public void Validate_GenericTextEditor_AcceptsBoundText()
+    {
+        var surface = SurfaceAround(
+            """
+            {
+              "id": "subject",
+              "component": "TextEditor",
+              "label": "Content",
+              "readOnly": false,
+              "value": { "path": "/form/content" }
+            }
+            """,
+            """{"form":{"content":""}}""");
+
+        var errors = Validate(surface);
+
+        Assert.That(errors, Is.Empty, Describe(errors));
+    }
+
     /// <summary>
     /// Duplicate ids are the surface-level version of the importer's duplicate-entry case: the
     /// renderer indexes by id, so the later definition is the one that never draws while the author

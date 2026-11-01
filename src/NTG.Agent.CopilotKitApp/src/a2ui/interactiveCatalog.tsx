@@ -25,7 +25,7 @@
 // Visual styling comes from the scoped `.a2ui-surface` rules in app/globals.css.
 import React from "react";
 import { z } from "zod/v3";
-import { Catalog } from "@a2ui/web_core/v0_9";
+import { Catalog, DynamicValueSchema } from "@a2ui/web_core/v0_9";
 import {
   TextFieldApi,
   DateTimeInputApi,
@@ -44,12 +44,26 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// Preserve runtime binding validation while avoiding recursive type expansion in custom catalog props.
+const DynamicBindingSchema = DynamicValueSchema as any;
+
 // Mirror a value into the data model at a stable fallback path, so a Button that sends the
 // whole data model always sees it — even when the agent never bound this input to a path.
 function captureValue(context: any, value: unknown) {
   const id = context?.componentModel?.id;
   if (!id) return;
   try { context?.dataContext?.dataModel?.set(`/__inputs/${id}`, value); } catch { /* ignore */ }
+}
+
+function clearConfiguredValues(context: any, paths: unknown) {
+  const dataModel = context?.dataContext?.dataModel;
+  if (!dataModel || !Array.isArray(paths)) return;
+
+  for (const path of paths) {
+    if (typeof path === "string" && path.startsWith("/")) {
+      dataModel.set(path, "");
+    }
+  }
 }
 
 const InteractiveTextField = createReactComponent(TextFieldApi as any, ({ props, context }: any) => {
@@ -478,7 +492,339 @@ const InteractiveCard = createReactComponent(CardApi as any, ({ props, buildChil
   );
 });
 
-// Clone the basic catalog, swapping the interactive components by name.
+type ArrayEditorFieldType = "text" | "select" | "checkbox";
+type ArrayEditorOption = { value: string; label: string };
+type ArrayEditorField = {
+  name: string;
+  label: string;
+  type: ArrayEditorFieldType;
+  required: boolean;
+  unique: boolean;
+  options: ArrayEditorOption[];
+};
+type ArrayEditorRow = Record<string, unknown>;
+
+function isRecord(value: unknown): value is ArrayEditorRow {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function readArrayEditorFields(value: unknown): ArrayEditorField[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const fields: ArrayEditorField[] = [];
+  for (const valueField of value) {
+    if (!isRecord(valueField)) return null;
+    const { name, label, type, options } = valueField;
+    if (
+      typeof name !== "string"
+      || !name
+      || typeof label !== "string"
+      || !label
+      || (type !== "text" && type !== "select" && type !== "checkbox")
+    ) {
+      return null;
+    }
+
+    const parsedOptions: ArrayEditorOption[] = [];
+    if (options !== undefined) {
+      if (!Array.isArray(options)) return null;
+      for (const option of options) {
+        if (!isRecord(option) || typeof option.value !== "string" || typeof option.label !== "string") {
+          return null;
+        }
+        parsedOptions.push({ value: option.value, label: option.label });
+      }
+    }
+    if (type === "select" && parsedOptions.length === 0) return null;
+
+    fields.push({
+      name,
+      label,
+      type,
+      required: valueField.required === true,
+      unique: valueField.unique === true,
+      options: parsedOptions,
+    });
+  }
+
+  return fields.length > 0 ? fields : null;
+}
+
+function readArrayEditorRows(value: unknown): ArrayEditorRow[] | null {
+  if (!Array.isArray(value) || value.some((row) => !isRecord(row))) return null;
+  return value as ArrayEditorRow[];
+}
+
+const ArrayEditorApi = {
+  name: "ArrayEditor",
+  schema: z.object({
+    label: z.string(),
+    value: DynamicBindingSchema,
+    fields: z.array(z.any()),
+    keyField: z.string().optional(),
+    addLabel: z.string().optional(),
+    removeLabel: z.string().optional(),
+    clearOnChange: z.array(z.string()).optional(),
+    minItems: z.number().int().min(0).optional(),
+    maxItems: z.number().int().min(1).optional(),
+  }).strict(),
+};
+
+const ArrayEditorComponent = createReactComponent(ArrayEditorApi as any, ({ props, context }: any) => {
+  const valueSignature = JSON.stringify(props.value ?? null) ?? "null";
+  const [rows, setRows] = React.useState<ArrayEditorRow[]>(() => readArrayEditorRows(props.value) ?? []);
+  const fields = readArrayEditorFields(props.fields);
+  const parsedRows = readArrayEditorRows(props.value);
+  const keyField = typeof props.keyField === "string" ? props.keyField : "";
+  const minItems = Number.isInteger(props.minItems) ? Math.max(0, props.minItems) : 0;
+  const maxItems = Number.isInteger(props.maxItems) ? Math.max(minItems, props.maxItems) : Number.POSITIVE_INFINITY;
+  const addLabel = typeof props.addLabel === "string" ? props.addLabel : "Add item";
+  const removeLabel = typeof props.removeLabel === "string" ? props.removeLabel : "Remove";
+
+  React.useEffect(() => {
+    setRows(readArrayEditorRows(JSON.parse(valueSignature)) ?? []);
+  }, [valueSignature]);
+
+  const commit = (nextRows: ArrayEditorRow[]) => {
+    setRows(nextRows);
+    props.setValue?.(nextRows);
+    captureValue(context, nextRows);
+    clearConfiguredValues(context, props.clearOnChange);
+  };
+
+  const updateCell = (rowIndex: number, field: ArrayEditorField, value: unknown) => {
+    commit(rows.map((row, index) => index === rowIndex ? { ...row, [field.name]: value } : row));
+  };
+
+  const addRow = () => {
+    const row: ArrayEditorRow = {};
+    for (const field of fields ?? []) {
+      row[field.name] = field.type === "checkbox" ? false : field.type === "select" ? field.options[0]?.value ?? "" : "";
+    }
+    if (keyField) row[keyField] = globalThis.crypto.randomUUID();
+    commit([...rows, row]);
+  };
+
+  const getFieldError = (rowIndex: number, field: ArrayEditorField): string | null => {
+    const value = rows[rowIndex][field.name];
+    if (field.required && (value === undefined || value === null || (typeof value === "string" && !value.trim()))) {
+      return "This value is required.";
+    }
+    if (field.unique && value !== undefined && value !== null && String(value).trim()) {
+      const normalizedValue = String(value).trim();
+      if (rows.some((row, index) => index !== rowIndex && String(row[field.name] ?? "").trim() === normalizedValue)) {
+        return "Values in this field must be unique.";
+      }
+    }
+    return null;
+  };
+
+  const controlStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    border: "1px solid var(--a2ui-border)",
+    borderRadius: 6,
+    padding: "7px 8px",
+    background: "var(--a2ui-field)",
+    color: "var(--a2ui-ink)",
+  };
+
+  if (!fields || !parsedRows) {
+    return <div role="alert">The editable list is not configured with valid fields and rows.</div>;
+  }
+
+  return (
+    <section style={{ width: "100%", margin: "8px 0" }} aria-label={props.label}>
+      <strong style={{ display: "block", marginBottom: 8 }}>{props.label}</strong>
+      <div style={{ width: "100%", overflowX: "auto" }}>
+        <table style={{ width: "100%", minWidth: 480, borderCollapse: "collapse", textAlign: "left" }}>
+          <thead>
+            <tr>
+              {fields.map((field) => <th scope="col" key={field.name} style={{ padding: 8 }}>{field.label}</th>)}
+              <th scope="col" aria-label="Actions" style={{ padding: 8 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, rowIndex) => {
+              const rowKey = keyField && (typeof row[keyField] === "string" || typeof row[keyField] === "number")
+                ? `${String(row[keyField])}-${rowIndex}`
+                : `item-${rowIndex}`;
+              return (
+                <tr key={rowKey}>
+                  {fields.map((field) => {
+                    const error = getFieldError(rowIndex, field);
+                    const errorId = `${rowKey}-${field.name}-error`;
+                    const fieldValue = row[field.name];
+                    const value = typeof fieldValue === "string" || typeof fieldValue === "number"
+                      ? String(fieldValue)
+                      : "";
+                    return (
+                      <td key={field.name} style={{ padding: 6, verticalAlign: "top" }}>
+                        {field.type === "checkbox" ? (
+                          <input
+                            type="checkbox"
+                            checked={fieldValue === true}
+                            aria-label={`${field.label} for item ${rowIndex + 1}`}
+                            aria-invalid={Boolean(error)}
+                            aria-describedby={error ? errorId : undefined}
+                            onChange={(event) => updateCell(rowIndex, field, event.target.checked)}
+                          />
+                        ) : field.type === "select" ? (
+                          <select
+                            value={value}
+                            aria-label={`${field.label} for item ${rowIndex + 1}`}
+                            aria-invalid={Boolean(error)}
+                            aria-describedby={error ? errorId : undefined}
+                            onChange={(event) => updateCell(rowIndex, field, event.target.value)}
+                            style={controlStyle}
+                          >
+                            {!field.options.some((option) => option.value === value) && (
+                              <option value={value} disabled>{value ? `Unsupported: ${value}` : "Select an option"}</option>
+                            )}
+                            {field.options.map((option) => (
+                              <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={value}
+                            aria-label={`${field.label} for item ${rowIndex + 1}`}
+                            aria-invalid={Boolean(error)}
+                            aria-describedby={error ? errorId : undefined}
+                            onChange={(event) => updateCell(rowIndex, field, event.target.value)}
+                            style={controlStyle}
+                          />
+                        )}
+                        {error && <div id={errorId} role="alert" style={{ color: "#b91c1c", fontSize: 12, marginTop: 4 }}>{error}</div>}
+                      </td>
+                    );
+                  })}
+                  <td style={{ padding: 6, textAlign: "center", verticalAlign: "top" }}>
+                    <button
+                      type="button"
+                      aria-label={`${removeLabel} item ${rowIndex + 1}`}
+                      disabled={rows.length <= minItems}
+                      onClick={() => commit(rows.filter((_, index) => index !== rowIndex))}
+                      style={{ border: 0, background: "transparent", color: "#b91c1c", cursor: "pointer", padding: 8 }}
+                    >
+                      {removeLabel}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {rows.length === 0 && <div role="status">No items have been added.</div>}
+      <button
+        type="button"
+        disabled={rows.length >= maxItems}
+        onClick={addRow}
+        style={{ marginTop: 8, border: "1px solid var(--a2ui-border)", borderRadius: 6, background: "var(--a2ui-field)", padding: "7px 10px", cursor: "pointer" }}
+      >
+        {addLabel}
+      </button>
+    </section>
+  );
+});
+
+const TextEditorApi = {
+  name: "TextEditor",
+  schema: z.object({
+    label: z.string(),
+    value: DynamicBindingSchema,
+    readOnly: z.boolean(),
+    multiline: z.boolean().optional(),
+    originalValue: DynamicBindingSchema.optional(),
+    clearOnChange: z.array(z.string()).optional(),
+  }).strict(),
+};
+
+const TextEditorComponent = createReactComponent(TextEditorApi as any, ({ props, context }: any) => {
+  const textFromProps = typeof props.value === "string" ? props.value : "";
+  const [text, setText] = React.useState<string>(textFromProps);
+  const [message, setMessage] = React.useState("");
+
+  React.useEffect(() => setText(textFromProps), [textFromProps]);
+
+  const updateText = (next: string) => {
+    setText(next);
+    props.setValue?.(next);
+    captureValue(context, next);
+    clearConfiguredValues(context, props.clearOnChange);
+    setMessage("");
+  };
+
+  const copy = async () => {
+    if (!navigator.clipboard?.writeText) {
+      setMessage("Clipboard access is unavailable. Select and copy the text manually.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setMessage("Copied to clipboard.");
+    } catch {
+      setMessage("Copy failed. Select and copy the text manually.");
+    }
+  };
+
+  const reset = () => {
+    updateText(typeof props.originalValue === "string" ? props.originalValue : "");
+    setMessage("Restored the original text.");
+  };
+
+  const editorStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    border: "1px solid var(--a2ui-border)",
+    borderRadius: 6,
+    padding: 10,
+    background: "var(--a2ui-field)",
+    color: "var(--a2ui-ink)",
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    resize: "vertical",
+  };
+
+  return (
+    <section style={{ width: "100%", margin: "8px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 6 }}>
+        <strong>{props.label}</strong>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button type="button" onClick={copy} style={{ border: "1px solid var(--a2ui-border)", borderRadius: 6, background: "var(--a2ui-field)", padding: "5px 9px", cursor: "pointer" }}>
+            Copy
+          </button>
+          {!props.readOnly && typeof props.originalValue === "string" && (
+            <button type="button" onClick={reset} style={{ border: "1px solid var(--a2ui-border)", borderRadius: 6, background: "var(--a2ui-field)", padding: "5px 9px", cursor: "pointer" }}>
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+      {props.multiline === false ? (
+        <input
+          aria-label={props.label}
+          readOnly={props.readOnly}
+          value={text}
+          onChange={(event) => updateText(event.target.value)}
+          style={editorStyle}
+        />
+      ) : (
+        <textarea
+          aria-label={props.label}
+          readOnly={props.readOnly}
+          value={text}
+          onChange={(event) => updateText(event.target.value)}
+          rows={Math.min(24, Math.max(6, text.split("\n").length))}
+          style={editorStyle}
+        />
+      )}
+      {message && <div role="status" style={{ fontSize: 12, marginTop: 4 }}>{message}</div>}
+    </section>
+  );
+});
+
 const overrides: Record<string, any> = {
   TextField: InteractiveTextField,
   DateTimeInput: InteractiveDateTimeInput,
@@ -492,6 +838,7 @@ const overrides: Record<string, any> = {
 const components = [...(basicCatalog as any).components.values()].map(
   (c: any) => overrides[c.name] ?? c,
 );
+components.push(ArrayEditorComponent, TextEditorComponent);
 
 function isIsoDate(value: unknown): value is string {
   return typeof value === "string"

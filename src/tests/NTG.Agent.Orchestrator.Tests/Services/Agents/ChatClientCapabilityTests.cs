@@ -134,7 +134,12 @@ public class ChatClientCapabilityTests
     {
         await RunAsync(ChatClientCapabilities.TextOnly);
 
-        Assert.That(ToolNames(), Has.No.Member(SkillPrompt.LoadToolName).And.No.Member(SkillPrompt.RenderToolName));
+        Assert.That(
+            ToolNames(),
+            Has.No.Member(SkillPrompt.LoadToolName)
+                .And.No.Member(SkillPrompt.RenderToolName)
+                .And.No.Member(SkillTools.JsonSchemaGenerateToolName)
+                .And.No.Member(SkillTools.JsonSchemaValidateToolName));
     }
 
     [Test]
@@ -143,6 +148,17 @@ public class ChatClientCapabilityTests
         await RunAsync(ChatClientCapabilities.GenerativeUi);
 
         Assert.That(ToolNames(), Has.Member(SkillPrompt.LoadToolName).And.Member(SkillPrompt.RenderToolName));
+    }
+
+    [Test]
+    public async Task GenerativeUiClient_WithAnyActiveSkill_IsOfferedSharedUtilities()
+    {
+        await RunAsync(ChatClientCapabilities.GenerativeUi);
+
+        Assert.That(
+            ToolNames(),
+            Has.Member(SkillTools.JsonSchemaGenerateToolName)
+                .And.Member(SkillTools.JsonSchemaValidateToolName));
     }
 
     /// <summary>
