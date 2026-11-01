@@ -29,6 +29,11 @@ namespace NTG.Agent.Orchestrator.Services.Skills;
 /// that the named skill is bound and enabled for that agent, so naming a skill belonging to another
 /// agent returns nothing.
 /// </para>
+/// <para>
+/// Each render starts from the template's default data rather than the previous render's data.
+/// Skills must therefore supply a complete snapshot of the branches they need to preserve on every
+/// re-render; the captured operations are also the source used to restore a surface from history.
+/// </para>
 /// </remarks>
 internal sealed class SurfaceRenderFunction : AIFunction
 {
@@ -203,9 +208,10 @@ internal sealed class SurfaceRenderFunction : AIFunction
         // the root on a re-render therefore discards the user's own answers while the inputs on
         // screen still show them — a surface that looks correct and has quietly lost its data.
         //
-        // Per-branch writes cost nothing on a first render, where the model is empty and each key
-        // is created exactly as a root write would have created it, and they leave every branch we
-        // do not own untouched on every render after that.
+        // Per-branch writes preserve the client-managed /__inputs branch, which is not part of the
+        // template. The template data itself is complete and every branch is emitted on each call,
+        // so a re-render must supply a complete snapshot of any state that should survive history
+        // restoration; omitted values are reseeded from the template defaults above.
         foreach (var branch in data)
         {
             operations.Add(new JsonObject

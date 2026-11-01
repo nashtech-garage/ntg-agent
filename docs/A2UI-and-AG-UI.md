@@ -244,6 +244,11 @@ array itself, every time. To do that it needs the component catalog — which is
 orchestrator loads the hand-authored template from the skill package, merges the values into its data
 model, and emits the operations itself. The model never sees a component.
 
+Each call starts from the template's default data, not the previous render's data. Re-renders must
+therefore include a complete snapshot of every branch that should survive. This also makes the
+latest captured render self-contained when conversation history is restored; omitted branches
+revert to their template defaults.
+
 | | Path A — `render_a2ui` | Path B — `render_skill_surface` |
 |---|---|---|
 | Who writes the component JSON | LLM, every turn | Us, once, as a template |

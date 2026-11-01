@@ -150,6 +150,24 @@ public class SkillSeederTests
     private void WritePackage(string fileName, byte[] bytes) =>
         File.WriteAllBytes(Path.Combine(_seedDirectory, fileName), bytes);
 
+    private static string? FindRepositoryFile(string relativePath)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return null;
+    }
+
     /// <summary>Runs one pass the way the host does, so the hosted-service plumbing is under test too.</summary>
     private static async Task RunAsHostedServiceAsync(SkillSeeder seeder)
     {
@@ -176,6 +194,35 @@ public class SkillSeederTests
             Assert.That(stored.Version, Is.EqualTo("1.0"));
             Assert.That(stored.SourceFileName, Is.EqualTo("demo-skill.zip"));
             Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(new[] { "references/guide.md" }));
+        });
+    }
+
+    [Test]
+    public async Task SeedAsync_DesignerInstructionsRequireCompleteRenderSnapshots()
+    {
+        var packagePath = FindRepositoryFile(Path.Combine("seed", "skills", "json-schema-designer.zip"));
+        if (packagePath is null)
+        {
+            Assert.Ignore("seed/skills/json-schema-designer.zip not found from the test output directory");
+            return;
+        }
+
+        WritePackage("json-schema-designer.zip", await File.ReadAllBytesAsync(packagePath));
+
+        await NewSeeder(_seedDirectory).SeedAsync();
+
+        await using var context = NewContext();
+        var body = await context.Skills
+            .Where(skill => skill.Name == "json-schema-designer")
+            .Select(skill => skill.Body)
+            .SingleAsync();
+        var normalizedBody = string.Join(" ", body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(normalizedBody, Does.Contain("complete snapshot"));
+            Assert.That(normalizedBody, Does.Contain("Never send only the branch being updated."));
+            Assert.That(normalizedBody, Does.Not.Contain("updated `results` branch only"));
         });
     }
 

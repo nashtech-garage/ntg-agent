@@ -85,6 +85,15 @@ values named by that button. The generic editors write their current values to t
 Property add/edit/type/required/delete actions, text edits, copy, reset, and tab navigation are
 handled in the browser. Do not call a tool or re-render for them.
 
+## Re-rendering and reload persistence
+
+`render_skill_surface` starts each render from the template's default data; it does not carry
+values forward from a previous render. After any server-side action, re-render with a complete
+snapshot under `values`, including `__tabs`, `design`, `schema`, `sample`, and `results`. Start
+with every corresponding branch from the submitted `formData` and change only the fields specified
+below. Never send only the branch being updated. Omitted branches return to their template
+defaults, so they will be lost when the conversation is reopened.
+
 ## Generate Schema
 
 When the `generate_schema` event arrives:
@@ -92,12 +101,16 @@ When the `generate_schema` event arrives:
 1. Read `schemaName` and the complete property array from the submitted design.
 2. Call `json_schema_generate` with `schemaName` and `properties`. Do not construct the schema or
    sample yourself.
-3. If the tool returns `succeeded: false`, report its errors and do not claim generation succeeded.
+3. If the tool returns `succeeded: false`, re-render the same surface on tab 0 with all five
+   branches from the submitted `formData` unchanged. Then report its errors and do not claim
+   generation succeeded.
 4. On success, use its `schemaJson` and `sampleJson` exactly as returned. Re-render the same surface
-   with `__tabs.wizard: 1`, the submitted `design`, and:
-   - `schema.json` set to `schemaJson`
-   - both `sample.json` and `sample.originalJson` set to `sampleJson`
-   - `results.report` reset to `"Not run"`.
+   with all five branches: set `__tabs.wizard` to 1; preserve the complete submitted `design`;
+   preserve other fields in `schema` while setting `schema.json` to `schemaJson`; preserve other
+   fields in `sample` while setting both `sample.json` and `sample.originalJson` to `sampleJson`;
+   and reset the complete `results` branch to `status: "Not run"`, `schemaValid: false`,
+   `jsonValid: false`, `instanceValid: false`, `errorCount: 0`, `errors: []`, `warnings: []`, and
+   `report: "Not run"`.
 
 The generated schema must be the shared tool's Draft 2020-12 output. Do not construct it yourself
 or change the generated JSON.
@@ -110,9 +123,11 @@ When the `validate_instance` event arrives:
    may have been edited since generation.
 2. Call `json_schema_validate` with `schemaJson` and `sampleJson`.
 3. Copy the tool's returned `report`, status fields, and structured `errors` exactly into `results`.
-   Do not infer, rewrite, or omit errors.
-4. Re-render the same surface with `__tabs.wizard: 2` and the updated `results` branch only.
-   Leaving other branches out preserves the user's design, schema, and edited sample.
+   Preserve `results.warnings` from the submitted form data because the tool does not return
+   warnings. Do not infer, rewrite, or omit errors.
+4. Re-render the same surface with all five branches: set `__tabs.wizard` to 2; preserve the
+   complete submitted `design`, `schema`, and `sample`; and replace `results` with the complete
+   validation result, including all status fields, `errors`, the preserved `warnings`, and `report`.
 
 The backend distinguishes an invalid schema, invalid sample JSON syntax, a valid JSON instance
 that violates the schema, and successful validation. Error entries include `path`, `keyword`, and
@@ -129,6 +144,8 @@ that violates the schema, and successful validation. Error entries include `path
 - On a successful Generate Schema action, use the backend's new sample as both current and original
   sample and clear the previous validation results.
 - On a Validate & Test action, preserve the current sample and schema while replacing only results.
+- Every server-side re-render must still include all five current branches, even when only one
+  branch changed.
 - The client advances tabs immediately when a primary action is clicked; the render response should
   set the same requested tab index.
 
