@@ -137,17 +137,19 @@ that violates the schema, and successful validation. Error entries include `path
 
 - The tabs navigate locally and preserve all data. Do not re-render or regenerate when the user
   switches tabs.
-- Editing the schema name or any property clears the generated schema and prior report locally. The
-  user's sample text remains until the next successful generation replaces it.
-- Editing the sample clears the prior report locally but preserves the schema and sample.
+- Editing the schema name or any property clears the generated schema and prior validation results
+  locally. The user's sample text remains until the next successful generation replaces it.
+- Editing the sample clears the prior validation results locally but preserves the schema and sample.
 - The user can validate repeatedly without regenerating the schema.
 - On a successful Generate Schema action, use the backend's new sample as both current and original
   sample and clear the previous validation results.
 - On a Validate & Test action, preserve the current sample and schema while replacing only results.
 - Every server-side re-render must still include all five current branches, even when only one
   branch changed.
-- The client advances tabs immediately when a primary action is clicked; the render response should
-  set the same requested tab index.
+- The Results tab's Back to Design and Back to Validation buttons navigate locally and preserve all
+  form data; do not make a tool call or re-render for those actions.
+- Generate Schema and Validate & Test advance tabs immediately; their render responses should set
+  the corresponding requested tab index.
 
 The only surface is `json-schema-designer`. Do not create another surface or send A2UI component
 JSON yourself.

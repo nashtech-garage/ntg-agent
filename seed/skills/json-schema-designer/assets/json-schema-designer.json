@@ -61,7 +61,14 @@
       "multiline": false,
       "clearOnChange": [
         "/schema/json",
-        "/results/report"
+        "/results/report",
+        "/results/status",
+        "/results/schemaValid",
+        "/results/jsonValid",
+        "/results/instanceValid",
+        "/results/errorCount",
+        "/results/errors",
+        "/results/warnings"
       ]
     },
     {
@@ -135,7 +142,14 @@
       ],
       "clearOnChange": [
         "/schema/json",
-        "/results/report"
+        "/results/report",
+        "/results/status",
+        "/results/schemaValid",
+        "/results/jsonValid",
+        "/results/instanceValid",
+        "/results/errorCount",
+        "/results/errors",
+        "/results/warnings"
       ]
     },
     {
@@ -216,7 +230,14 @@
       "readOnly": false,
       "multiline": true,
       "clearOnChange": [
-        "/results/report"
+        "/results/report",
+        "/results/status",
+        "/results/schemaValid",
+        "/results/jsonValid",
+        "/results/instanceValid",
+        "/results/errorCount",
+        "/results/errors",
+        "/results/warnings"
       ]
     },
     {
@@ -275,22 +296,72 @@
       "component": "Column",
       "children": [
         "results-title",
-        "results-display"
+        "results-display",
+        "results-navigation"
       ]
     },
     {
       "id": "results-title",
       "component": "Text",
-      "text": "Validation results",
+      "text": "Validation Results",
       "variant": "h4"
     },
     {
       "id": "results-display",
+      "component": "ValidationSummary",
+      "value": {
+        "path": "/results"
+      }
+    },
+    {
+      "id": "results-navigation",
+      "component": "Row",
+      "align": "center",
+      "justify": "spaceBetween",
+      "children": [
+        "back-to-design",
+        "back-to-validation"
+      ]
+    },
+    {
+      "id": "back-to-design",
+      "component": "Button",
+      "variant": "default",
+      "child": "back-to-design-label",
+      "action": {
+        "event": {
+          "name": "select_tab",
+          "context": {
+            "selectTab": "wizard",
+            "tabIndex": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "back-to-design-label",
       "component": "Text",
-      "text": {
-        "path": "/results/report"
-      },
-      "variant": "body"
+      "text": "Back to Design"
+    },
+    {
+      "id": "back-to-validation",
+      "component": "Button",
+      "variant": "primary",
+      "child": "back-to-validation-label",
+      "action": {
+        "event": {
+          "name": "select_tab",
+          "context": {
+            "selectTab": "wizard",
+            "tabIndex": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "back-to-validation-label",
+      "component": "Text",
+      "text": "Back to Validation"
     }
   ],
   "data": {

@@ -152,5 +152,8 @@ public static class A2uiCatalog
                 ["accessibility", "clearOnChange", "id", "label", "multiline", "originalValue",
                     "readOnly", "value", "weight"],
                 ["label", "readOnly", "value"]),
+            ["ValidationSummary"] = Spec(
+                ["accessibility", "id", "value", "weight"],
+                ["value"]),
         }.ToFrozenDictionary(StringComparer.Ordinal);
 }

@@ -15,6 +15,7 @@
 //    deterministic fallback path `/__inputs/<id>`, so the value is captured no matter what.
 //  - The Button dispatches the COMPLETE data model (as `formData`) alongside the resolved
 //    action context, using the correct A2UI payload shape `{ event: { name, context } }`.
+//    UI-only tab navigation actions update `/__tabs/<id>` locally and are not dispatched.
 //
 // Tabs get the same treatment in the other direction. The stock Tabs keeps its selected index in
 // plain React state, so the agent can neither read it nor change it. `InteractiveTabs` binds that
@@ -61,7 +62,19 @@ function clearConfiguredValues(context: any, paths: unknown) {
 
   for (const path of paths) {
     if (typeof path === "string" && path.startsWith("/")) {
-      dataModel.set(path, "");
+      const current = dataModel.get(path);
+      const emptyValue = Array.isArray(current)
+        ? []
+        : current !== null && typeof current === "object"
+          ? {}
+          : current === null
+            ? null
+          : typeof current === "boolean"
+            ? false
+            : typeof current === "number"
+              ? 0
+              : "";
+      dataModel.set(path, emptyValue);
     }
   }
 }
@@ -232,7 +245,20 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
     //
     // `advanceTab` names the Tabs component to move and is UI plumbing, so it is stripped from
     // the payload rather than sent to the agent as if it were an answer.
-    const { advanceTab, ...eventContext } = resolved;
+    const { advanceTab, selectTab, tabIndex, ...eventContext } = resolved;
+    if (typeof selectTab === "string") {
+      if (
+        selectTab
+        && typeof tabIndex === "number"
+        && Number.isInteger(tabIndex)
+        && tabIndex >= 0
+        && typeof dataModel?.set === "function"
+      ) {
+        dataModel.set(`/__tabs/${selectTab}`, tabIndex);
+      }
+      return;
+    }
+
     if (typeof advanceTab === "string" && advanceTab.length > 0) {
       try {
         const tabPath = `/__tabs/${advanceTab}`;
@@ -252,6 +278,7 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
 
   const isPrimary = props.variant === "primary";
   const isBorderless = props.variant === "borderless" || props.variant === "text";
+  const isLocalTabNavigation = typeof props.action?.event?.context?.selectTab === "string";
   const style: React.CSSProperties = {
     backgroundColor: isPrimary ? "var(--a2ui-primary-color)" : isBorderless ? "transparent" : "var(--a2ui-card)",
     color: isPrimary ? "#fff" : "inherit",
@@ -259,9 +286,18 @@ const InteractiveButton = createReactComponent(ButtonApi as any, ({ props, build
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        width: isLocalTabNavigation ? "auto" : "100%",
+        flex: isLocalTabNavigation ? "0 1 auto" : undefined,
+      }}
+    >
       <button
         type="button"
+        className={isLocalTabNavigation ? "a2ui-local-tab-navigation" : undefined}
         onClick={onClick}
         aria-disabled={!isValid}
         style={style}
@@ -825,6 +861,228 @@ const TextEditorComponent = createReactComponent(TextEditorApi as any, ({ props,
   );
 });
 
+type ValidationErrorItem = {
+  path: string;
+  keyword: string;
+  message: string;
+  missingProperties: string[];
+};
+
+function displayValidationValue(value: unknown, fallback: string): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return JSON.stringify(value) ?? fallback;
+}
+
+function readMissingRequiredProperties(keyword: string, message: string): string[] {
+  if (keyword.toLowerCase() !== "required") return [];
+
+  const arrayMatch = message.match(/\[\s*"(?:\\.|[^"\\])*"(?:\s*,\s*"(?:\\.|[^"\\])*")*\s*\]/);
+  if (!arrayMatch) return [];
+
+  try {
+    const parsed: unknown = JSON.parse(arrayMatch[0]);
+    return Array.isArray(parsed)
+      ? parsed.filter((property): property is string => typeof property === "string")
+      : [];
+  } catch (error) {
+    if (error instanceof SyntaxError) return [];
+    throw error;
+  }
+}
+
+function normalizeValidationError(value: unknown): ValidationErrorItem {
+  const item = isRecord(value) ? value : {};
+  const keyword = typeof item.keyword === "string" && item.keyword.trim()
+    ? item.keyword
+    : "validation";
+  const message = typeof item.message === "string"
+    ? item.message
+    : displayValidationValue(item.message ?? value, "Validation details are unavailable.");
+
+  return {
+    path: typeof item.path === "string" ? item.path : "$",
+    keyword,
+    message,
+    missingProperties: readMissingRequiredProperties(keyword, message),
+  };
+}
+
+function validationErrorTitle(error: ValidationErrorItem): string {
+  switch (error.keyword.toLowerCase()) {
+    case "required":
+      return error.missingProperties.length === 1
+        ? "Required property missing"
+        : "Required properties missing";
+    case "type":
+      return "Invalid property type";
+    default: {
+      const keyword = error.keyword
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replace(/[_-]+/g, " ")
+        .trim();
+      return keyword ? `${keyword[0].toUpperCase()}${keyword.slice(1)} validation error` : "Validation error";
+    }
+  }
+}
+
+const ValidationSummaryApi = {
+  name: "ValidationSummary",
+  schema: z.object({ value: DynamicBindingSchema }).strict(),
+};
+
+const ValidationSummaryComponent = createReactComponent(
+  ValidationSummaryApi as any,
+  ({ props }: any) => {
+    const errorsTitleId = React.useId();
+    const result = isRecord(props.value) ? props.value : {};
+    const rawErrors: unknown[] = Array.isArray(result.errors) ? result.errors : [];
+    const errors: ValidationErrorItem[] = rawErrors.map(normalizeValidationError);
+    const reportedErrorCount = typeof result.errorCount === "number"
+      && Number.isInteger(result.errorCount)
+      && result.errorCount >= 0
+      ? result.errorCount
+      : null;
+    const errorCount = reportedErrorCount ?? errors.length;
+    const checks = [
+      { label: "Schema validation", value: result.schemaValid },
+      { label: "JSON syntax", value: result.jsonValid },
+      { label: "Instance validation", value: result.instanceValid },
+    ];
+    const status = typeof result.status === "string" ? result.status.trim() : "";
+    const hasRun = (status.length > 0 && status.toLowerCase() !== "not run")
+      || checks.some((check) => check.value === true)
+      || errorCount > 0;
+    const failed = hasRun
+      && (checks.some((check) => check.value === false) || errorCount > 0);
+    const passed = hasRun
+      && checks.every((check) => check.value === true)
+      && errorCount === 0;
+    const state = !hasRun ? "pending" : passed ? "passed" : failed ? "failed" : "incomplete";
+    const summary = state === "passed"
+      ? "Validation Passed"
+      : state === "failed"
+        ? "Validation Failed"
+        : state === "pending"
+          ? "Validation not run"
+          : "Validation details unavailable";
+    const description = state === "passed"
+      ? "Schema, JSON syntax, and instance checks passed."
+      : state === "failed"
+        ? "Review the failed checks and error details below."
+        : state === "pending"
+          ? "Run Validate & Test to see the validation results."
+          : "The response did not include complete check details.";
+    const countState = !hasRun ? "neutral" : errorCount === 0 ? "success" : "error";
+
+    return (
+      <section className="a2ui-validation-results" aria-label="Validation results">
+        <div
+          className={`a2ui-validation-overview a2ui-validation-overview--${state}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="a2ui-validation-overview-icon" aria-hidden="true">
+            {state === "passed" ? "✓" : state === "failed" ? "!" : state === "pending" ? "…" : "?"}
+          </span>
+          <div className="a2ui-validation-overview-copy">
+            <strong>{summary}</strong>
+            <span>{description}</span>
+          </div>
+          <span className={`a2ui-validation-error-count a2ui-validation-error-count--${countState}`}>
+            {errorCount} {errorCount === 1 ? "error" : "errors"}
+          </span>
+        </div>
+
+        <div className="a2ui-validation-checks" role="list" aria-label="Validation checks">
+          {checks.map((check) => {
+            const checkState = !hasRun
+              ? "not-run"
+              : check.value === true
+                ? "valid"
+                : check.value === false
+                  ? "invalid"
+                  : "unknown";
+            const checkText = checkState === "valid"
+              ? "Valid"
+              : checkState === "invalid"
+                ? "Invalid"
+                : checkState === "not-run"
+                  ? "Not run"
+                  : "Not reported";
+
+            return (
+              <div className="a2ui-validation-check" role="listitem" key={check.label}>
+                <span>{check.label}</span>
+                <span className={`a2ui-validation-check-status a2ui-validation-check-status--${checkState}`}>
+                  <span aria-hidden="true">
+                    {checkState === "valid" ? "✓" : checkState === "invalid" ? "×" : "—"}
+                  </span>
+                  {checkText}
+                </span>
+              </div>
+            );
+          })}
+          <div className="a2ui-validation-check" role="listitem">
+            <span>Error count</span>
+            <span className={`a2ui-validation-check-status a2ui-validation-check-status--${countState}`}>
+              {errorCount} {errorCount === 1 ? "error" : "errors"}
+            </span>
+          </div>
+        </div>
+
+        {failed && (
+          <section className="a2ui-validation-errors" aria-labelledby={errorsTitleId}>
+            <h5 id={errorsTitleId}>Validation Errors ({errorCount})</h5>
+            {errors.length > 0 ? (
+              <ol className="a2ui-validation-error-list">
+                {errors.map((error, index) => (
+                  <li
+                    className="a2ui-validation-error"
+                    key={`${error.path}-${error.keyword}-${index}`}
+                    aria-label={`Validation error ${index + 1}`}
+                  >
+                    <h6>{`Error ${index + 1} - ${validationErrorTitle(error)}`}</h6>
+                    <dl className="a2ui-validation-error-metadata">
+                      <div>
+                        <dt>Path</dt>
+                        <dd><code dir="auto">{error.path}</code></dd>
+                      </div>
+                      <div>
+                        <dt>Keyword</dt>
+                        <dd><code>{error.keyword}</code></dd>
+                      </div>
+                    </dl>
+                    <p className="a2ui-validation-error-message">
+                      <strong>Message: </strong>
+                      {error.message || "No error message was provided."}
+                    </p>
+                    {error.missingProperties.length > 0 && (
+                      <div className="a2ui-validation-missing-properties">
+                        <strong>Missing properties</strong>
+                        <ul>
+                          {error.missingProperties.map((property, propertyIndex) => (
+                            <li key={`${property}-${propertyIndex}`}><code>{property}</code></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="a2ui-validation-no-error-details">
+                No individual validation error details were returned.
+              </p>
+            )}
+          </section>
+        )}
+      </section>
+    );
+  },
+);
+
 const overrides: Record<string, any> = {
   TextField: InteractiveTextField,
   DateTimeInput: InteractiveDateTimeInput,
@@ -838,7 +1096,7 @@ const overrides: Record<string, any> = {
 const components = [...(basicCatalog as any).components.values()].map(
   (c: any) => overrides[c.name] ?? c,
 );
-components.push(ArrayEditorComponent, TextEditorComponent);
+components.push(ArrayEditorComponent, TextEditorComponent, ValidationSummaryComponent);
 
 function isIsoDate(value: unknown): value is string {
   return typeof value === "string"

@@ -47,6 +47,11 @@ body {
   --a2ui-on-accent: #ffffff;
   --a2ui-ink: #1f2333;
   --a2ui-muted: #6b7180;
+  --a2ui-success: #18794e;
+  --a2ui-success-soft: rgba(24, 121, 78, 0.10);
+  --a2ui-error: #b42318;
+  --a2ui-error-soft: rgba(180, 35, 24, 0.10);
+  --a2ui-neutral-soft: rgba(107, 113, 128, 0.10);
   /* Field labels carry most of the text on a form, so they are where colour actually shows.
      Tinted toward the accent rather than left grey. */
   --a2ui-label: #4a4fb0;
@@ -402,6 +407,11 @@ body {
     --a2ui-on-accent: #12142a;
     --a2ui-ink: #e9eaf2;
     --a2ui-muted: #9aa0b4;
+    --a2ui-success: #72d7a0;
+    --a2ui-success-soft: rgba(114, 215, 160, 0.12);
+    --a2ui-error: #ff8b8b;
+    --a2ui-error-soft: rgba(255, 139, 139, 0.12);
+    --a2ui-neutral-soft: rgba(154, 160, 180, 0.12);
     --a2ui-label: #b4b7f0;
     --a2ui-card: #121c1d;
     --a2ui-border: #2a2f40;
@@ -412,6 +422,254 @@ body {
     --a2ui-shadow-near: rgba(0, 0, 0, 0.30);
     --a2ui-shadow-far: rgba(0, 0, 0, 0.55);
   }
+}
+
+.a2ui-surface .a2ui-validation-results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin: 4px 0 8px;
+}
+
+.a2ui-surface .a2ui-validation-overview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--a2ui-border);
+  border-radius: 10px;
+}
+
+.a2ui-surface .a2ui-validation-overview--passed {
+  color: var(--a2ui-success);
+  border-color: var(--a2ui-success);
+  background: var(--a2ui-success-soft);
+}
+
+.a2ui-surface .a2ui-validation-overview--failed {
+  color: var(--a2ui-error);
+  border-color: var(--a2ui-error);
+  background: var(--a2ui-error-soft);
+}
+
+.a2ui-surface .a2ui-validation-overview--pending,
+.a2ui-surface .a2ui-validation-overview--incomplete {
+  color: var(--a2ui-ink);
+  background: var(--a2ui-field);
+}
+
+.a2ui-surface .a2ui-validation-overview-icon {
+  display: grid;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.a2ui-surface .a2ui-validation-overview-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.a2ui-surface .a2ui-validation-overview-copy strong {
+  font-size: 15px;
+}
+
+.a2ui-surface .a2ui-validation-overview-copy span {
+  color: var(--a2ui-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.a2ui-surface .a2ui-validation-error-count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.a2ui-surface .a2ui-validation-error-count--success {
+  color: var(--a2ui-success);
+  background: var(--a2ui-success-soft);
+}
+
+.a2ui-surface .a2ui-validation-error-count--error {
+  color: var(--a2ui-error);
+  background: var(--a2ui-error-soft);
+}
+
+.a2ui-surface .a2ui-validation-error-count--neutral {
+  color: var(--a2ui-muted);
+  background: var(--a2ui-neutral-soft);
+}
+
+.a2ui-surface .a2ui-validation-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.a2ui-surface .a2ui-validation-check {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--a2ui-border);
+  border-radius: 8px;
+  background: var(--a2ui-field);
+  font-size: 13px;
+}
+
+.a2ui-surface .a2ui-validation-check-status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.a2ui-surface .a2ui-validation-check-status--valid,
+.a2ui-surface .a2ui-validation-check-status--success {
+  color: var(--a2ui-success);
+}
+
+.a2ui-surface .a2ui-validation-check-status--invalid,
+.a2ui-surface .a2ui-validation-check-status--error {
+  color: var(--a2ui-error);
+}
+
+.a2ui-surface .a2ui-validation-check-status--not-run,
+.a2ui-surface .a2ui-validation-check-status--unknown,
+.a2ui-surface .a2ui-validation-check-status--neutral {
+  color: var(--a2ui-muted);
+}
+
+.a2ui-surface .a2ui-validation-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--a2ui-rule);
+}
+
+.a2ui-surface .a2ui-validation-errors h5 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.a2ui-surface .a2ui-validation-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+
+.a2ui-surface .a2ui-validation-error {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--a2ui-border);
+  border-left: 3px solid var(--a2ui-error);
+  border-radius: 8px;
+  background: var(--a2ui-field);
+}
+
+.a2ui-surface .a2ui-validation-error h6 {
+  margin: 0 0 8px;
+  color: var(--a2ui-ink);
+  font-size: 13px;
+}
+
+.a2ui-surface .a2ui-validation-error-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.a2ui-surface .a2ui-validation-error-metadata > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: var(--a2ui-card);
+}
+
+.a2ui-surface .a2ui-validation-error-metadata dt {
+  margin-bottom: 4px;
+  color: var(--a2ui-muted);
+  font-size: 11px;
+}
+
+.a2ui-surface .a2ui-validation-error-metadata dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.a2ui-surface .a2ui-validation-error code,
+.a2ui-surface .a2ui-validation-missing-properties code {
+  max-width: 100%;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--a2ui-neutral-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.a2ui-surface .a2ui-validation-error-message {
+  margin: 8px 0 0;
+  color: var(--a2ui-ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.a2ui-surface .a2ui-validation-missing-properties {
+  margin-top: 8px;
+}
+
+.a2ui-surface .a2ui-validation-missing-properties ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.a2ui-surface .a2ui-validation-no-error-details {
+  margin: 0;
+  color: var(--a2ui-muted);
+  font-size: 13px;
+}
+
+.a2ui-surface .a2ui-local-tab-navigation {
+  white-space: nowrap;
 }
 
 @media (prefers-reduced-motion: reduce) {

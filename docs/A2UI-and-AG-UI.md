@@ -216,10 +216,14 @@ So `Tabs` is in practice a Path B component: the travel and ticket skill templat
 `render_a2ui` never will unless the guide is extended.
 
 The basic catalog has no editable repeatable-row component. The shared skill catalog therefore adds
-two reusable controls: `ArrayEditor`, driven by field descriptors in a surface template, and
-`TextEditor`, a bound single- or multi-line editor with optional read-only, copy, reset, and
-clear-on-change behavior. They are registered separately in `A2uiCatalog.SkillComponents`, so
-templates can use them without changing the upstream catalog snapshot. Their behavior is generic; skills supply labels, field definitions, data paths, and reset paths.
+reusable controls: `ArrayEditor`, driven by field descriptors in a surface template; `TextEditor`, a
+bound single- or multi-line editor with optional read-only, copy, reset, and clear-on-change
+behavior; and `ValidationSummary`, a compact validation-status view that renders structured checks
+and errors from a bound result object. They are registered separately in
+`A2uiCatalog.SkillComponents`, so templates can use them without changing the upstream catalog
+snapshot. Their behavior is generic; skills supply labels, field definitions, data paths, and reset
+paths. `clearOnChange` resets each target to an empty value of its existing kind, keeping Boolean,
+number, and array paths type-safe as well as clearing text.
 JSON Schema generation and validation are MCP tools exposed by `NTG.Agent.MCP.Server`. The
 JSON Schema Designer is a seeded database skill that uses those tools. Enable the skill and
 individually enable `json_schema_generate` and `json_schema_validate` for the agent in Admin;
@@ -419,7 +423,9 @@ reads as "next", not "submit", so the tab advances **locally on click**, before 
 answered. Waiting for the round trip means ten to twenty seconds sitting on a form the user has
 finished with, with no signal that the click registered. The agent's own later `/__tabs` write lands
 on the tab we already moved to and is a no-op. The `advanceTab` key that drives this is stripped from
-the payload rather than sent to the agent as if it were an answer.
+the payload rather than sent to the agent as if it were an answer. UI-only back buttons use
+`selectTab` with an explicit index; they update the same `/__tabs/<componentId>` path and return
+without dispatching an AG-UI event.
 
 ---
 
