@@ -1,0 +1,323 @@
+{
+  "surfaceId": "json-schema-designer",
+  "components": [
+    {
+      "id": "root",
+      "component": "Column",
+      "children": [
+        "wizard"
+      ]
+    },
+    {
+      "id": "wizard",
+      "component": "Tabs",
+      "tabs": [
+        {
+          "title": "1. Design",
+          "child": "design-pane"
+        },
+        {
+          "title": "2. Validation",
+          "child": "validation-pane"
+        },
+        {
+          "title": "3. Results",
+          "child": "results-pane"
+        }
+      ]
+    },
+    {
+      "id": "design-pane",
+      "component": "Column",
+      "children": [
+        "design-title",
+        "design-hint",
+        "schema-name",
+        "import-warning",
+        "property-table",
+        "generate-schema"
+      ]
+    },
+    {
+      "id": "design-title",
+      "component": "Text",
+      "text": "JSON Schema Designer",
+      "variant": "h4"
+    },
+    {
+      "id": "design-hint",
+      "component": "Text",
+      "text": "Define top-level properties, then generate a Draft 2020-12 schema and sample JSON.",
+      "variant": "caption"
+    },
+    {
+      "id": "schema-name",
+      "component": "TextEditor",
+      "label": "Schema name",
+      "value": {
+        "path": "/design/schemaName"
+      },
+      "readOnly": false,
+      "multiline": false,
+      "clearOnChange": [
+        "/schema/json",
+        "/results/report"
+      ]
+    },
+    {
+      "id": "import-warning",
+      "component": "Text",
+      "text": {
+        "path": "/design/importWarnings"
+      },
+      "variant": "caption"
+    },
+    {
+      "id": "property-table",
+      "component": "ArrayEditor",
+      "label": "Properties",
+      "value": {
+        "path": "/design/properties"
+      },
+      "keyField": "id",
+      "addLabel": "Add property",
+      "removeLabel": "Remove",
+      "minItems": 1,
+      "fields": [
+        {
+          "name": "name",
+          "label": "Property name",
+          "type": "text",
+          "required": true,
+          "unique": true
+        },
+        {
+          "name": "type",
+          "label": "Data type",
+          "type": "select",
+          "required": true,
+          "options": [
+            {
+              "value": "string",
+              "label": "string"
+            },
+            {
+              "value": "number",
+              "label": "number"
+            },
+            {
+              "value": "integer",
+              "label": "integer"
+            },
+            {
+              "value": "boolean",
+              "label": "boolean"
+            },
+            {
+              "value": "object",
+              "label": "object"
+            },
+            {
+              "value": "array",
+              "label": "array"
+            },
+            {
+              "value": "null",
+              "label": "null"
+            }
+          ]
+        },
+        {
+          "name": "required",
+          "label": "Required",
+          "type": "checkbox"
+        }
+      ],
+      "clearOnChange": [
+        "/schema/json",
+        "/results/report"
+      ]
+    },
+    {
+      "id": "generate-schema",
+      "component": "Button",
+      "variant": "primary",
+      "child": "generate-schema-label",
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": {
+              "value": {
+                "path": "/design/schemaName"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Enter a schema name."
+        }
+      ],
+      "action": {
+        "event": {
+          "name": "generate_schema",
+          "context": {
+            "schemaName": {
+              "path": "/design/schemaName"
+            },
+            "properties": {
+              "path": "/design/properties"
+            },
+            "advanceTab": "wizard"
+          }
+        }
+      }
+    },
+    {
+      "id": "generate-schema-label",
+      "component": "Text",
+      "text": "Generate Schema"
+    },
+    {
+      "id": "validation-pane",
+      "component": "Column",
+      "children": [
+        "validation-title",
+        "schema-viewer",
+        "sample-editor",
+        "validate-instance"
+      ]
+    },
+    {
+      "id": "validation-title",
+      "component": "Text",
+      "text": "Review and test",
+      "variant": "h4"
+    },
+    {
+      "id": "schema-viewer",
+      "component": "TextEditor",
+      "label": "Generated JSON Schema",
+      "value": {
+        "path": "/schema/json"
+      },
+      "readOnly": true,
+      "multiline": true
+    },
+    {
+      "id": "sample-editor",
+      "component": "TextEditor",
+      "label": "Sample JSON",
+      "value": {
+        "path": "/sample/json"
+      },
+      "originalValue": {
+        "path": "/sample/originalJson"
+      },
+      "readOnly": false,
+      "multiline": true,
+      "clearOnChange": [
+        "/results/report"
+      ]
+    },
+    {
+      "id": "validate-instance",
+      "component": "Button",
+      "variant": "primary",
+      "child": "validate-instance-label",
+      "checks": [
+        {
+          "condition": {
+            "call": "required",
+            "args": {
+              "value": {
+                "path": "/schema/json"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Generate a schema before validating."
+        },
+        {
+          "condition": {
+            "call": "required",
+            "args": {
+              "value": {
+                "path": "/sample/json"
+              }
+            },
+            "returnType": "boolean"
+          },
+          "message": "Enter sample JSON before validating."
+        }
+      ],
+      "action": {
+        "event": {
+          "name": "validate_instance",
+          "context": {
+            "schemaJson": {
+              "path": "/schema/json"
+            },
+            "sampleJson": {
+              "path": "/sample/json"
+            },
+            "advanceTab": "wizard"
+          }
+        }
+      }
+    },
+    {
+      "id": "validate-instance-label",
+      "component": "Text",
+      "text": "Validate & Test"
+    },
+    {
+      "id": "results-pane",
+      "component": "Column",
+      "children": [
+        "results-title",
+        "results-display"
+      ]
+    },
+    {
+      "id": "results-title",
+      "component": "Text",
+      "text": "Validation results",
+      "variant": "h4"
+    },
+    {
+      "id": "results-display",
+      "component": "Text",
+      "text": {
+        "path": "/results/report"
+      },
+      "variant": "body"
+    }
+  ],
+  "data": {
+    "__tabs": {
+      "wizard": 0
+    },
+    "design": {
+      "schemaName": "",
+      "importWarnings": "",
+      "properties": []
+    },
+    "schema": {
+      "json": ""
+    },
+    "sample": {
+      "json": "",
+      "originalJson": ""
+    },
+    "results": {
+      "status": "Not run",
+      "schemaValid": false,
+      "jsonValid": false,
+      "instanceValid": false,
+      "errorCount": 0,
+      "errors": [],
+      "warnings": [],
+      "report": "Not run"
+    }
+  }
+}
