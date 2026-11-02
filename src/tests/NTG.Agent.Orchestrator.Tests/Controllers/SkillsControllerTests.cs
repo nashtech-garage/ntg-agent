@@ -26,6 +26,8 @@ namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]
 public class SkillsControllerTests
 {
+    private static readonly string[] ExpectedSkillAssetPaths = ["assets/note.txt", "references/guide.md"];
+
     private AgentDbContext _context = null!;
     private SkillsController _controller = null!;
     private Guid _userId;
@@ -77,7 +79,7 @@ public class SkillsControllerTests
     [TearDown]
     public void TearDown() => _context.Dispose();
 
-    private static IFormFile AsFormFile(byte[] bytes, string fileName = "demo-skill.zip") =>
+    private static FormFile AsFormFile(byte[] bytes, string fileName = "demo-skill.zip") =>
         new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", fileName)
         {
             Headers = new HeaderDictionary(),
@@ -304,7 +306,7 @@ public class SkillsControllerTests
             Assert.That(reimported.Skill.Compatibility, Is.EqualTo("Requires nothing in particular."));
             Assert.That(
                 reimported.Skill.Assets.Select(a => a.RelativePath).Order(StringComparer.Ordinal),
-                Is.EqualTo(new[] { "assets/note.txt", "references/guide.md" }));
+                Is.EqualTo(ExpectedSkillAssetPaths));
         });
     }
 

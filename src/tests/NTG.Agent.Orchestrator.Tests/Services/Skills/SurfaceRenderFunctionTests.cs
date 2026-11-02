@@ -41,6 +41,21 @@ public class SurfaceRenderFunctionTests
     private const string PanelSurfaceId = "srf-panel-7c1d";
 
     private static readonly string[] OperationKinds = ["createSurface", "updateComponents", "updateDataModel"];
+    private static readonly string[] ExpectedFirstRatingChildIds =
+        ["hotel1-hotel-stars", "hotel1-rating-icon", "hotel1-rating-value"];
+    private static readonly string[] ExpectedReviewChildren =
+    [
+        "review-title",
+        "review-destination-row",
+        "review-trip-meta",
+        "review-hotel-summary",
+        "review-rule",
+        "review-total-card",
+        "review-recommendations-list",
+        "review-cuisines-list",
+        "review-note",
+        "review-actions"
+    ];
 
     /// <summary>
     /// The shipped package is a single tabbed surface now, not three. Its surfaceId
@@ -768,7 +783,7 @@ public class SurfaceRenderFunctionTests
             Assert.That(ratingBodyComponentCount, Is.EqualTo(5));
             Assert.That(
                 firstRatingChildIds,
-                Is.EqualTo(new[] { "hotel1-hotel-stars", "hotel1-rating-icon", "hotel1-rating-value" }));
+                Is.EqualTo(ExpectedFirstRatingChildIds));
             Assert.That(hotelNames, Has.Length.EqualTo(5));
             Assert.That(hotelNames, Has.All.EqualTo("Preparing a local stay"));
             Assert.That(hotelData["o5"]?["hotelStars"]?.GetValue<string>(), Is.EqualTo("Hotel rating pending"));
@@ -834,19 +849,7 @@ public class SurfaceRenderFunctionTests
         {
             Assert.That(
                 reviewChildren,
-                Is.EqualTo(new[]
-                {
-                    "review-title",
-                    "review-destination-row",
-                    "review-trip-meta",
-                    "review-hotel-summary",
-                    "review-rule",
-                    "review-total-card",
-                    "review-recommendations-list",
-                    "review-cuisines-list",
-                    "review-note",
-                    "review-actions"
-                }));
+                Is.EqualTo(ExpectedReviewChildren));
             Assert.That(((JsonArray)recommendations!["children"]!).Count, Is.EqualTo(7));
             Assert.That(((JsonArray)cuisines!["children"]!).Count, Is.EqualTo(7));
             Assert.That(((JsonObject)review["recommendations"]!).Count, Is.EqualTo(5));

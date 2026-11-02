@@ -10,6 +10,8 @@ namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]
 public class ProviderProbeControllerTests
 {
+    private static readonly string[] ExpectedOpenAiModels = ["gpt-4o", "o1-mini"];
+
     private Mock<IProviderModelService> _mockService = null!;
     private ProviderProbeController _controller = null!;
 
@@ -71,7 +73,7 @@ public class ProviderProbeControllerTests
         var ok = result.Result as OkObjectResult;
         Assert.That(ok, Is.Not.Null);
         var payload = ok!.Value as ProviderModelsResponse;
-        Assert.That(payload!.Models, Is.EqualTo(new[] { "gpt-4o", "o1-mini" }));
+        Assert.That(payload!.Models, Is.EqualTo(ExpectedOpenAiModels));
     }
 
     [Test]

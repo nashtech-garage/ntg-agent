@@ -7,6 +7,8 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Agents;
 [TestFixture]
 public class AgUiChatResponseAdapterTests
 {
+    private static readonly string[] ExpectedReasoningTexts = ["thinking", "skill activity"];
+
     [Test]
     public async Task TextResponse_IsMappedToAssistantTextUpdate()
     {
@@ -29,7 +31,7 @@ public class AgUiChatResponseAdapterTests
         Assert.That(updates, Has.Count.EqualTo(2));
         Assert.That(updates.SelectMany(update => update.Contents), Has.All.TypeOf<TextReasoningContent>());
         Assert.That(updates.SelectMany(update => update.Contents).Select(content => content.ToString()),
-            Is.EqualTo(new[] { "thinking", "skill activity" }));
+            Is.EqualTo(ExpectedReasoningTexts));
     }
 
     [Test]
@@ -52,13 +54,15 @@ public class AgUiChatResponseAdapterTests
                 PromptContentType.ToolCall));
 
         var call = updates.Single().Contents.OfType<FunctionCallContent>().Single();
+        var arguments = call.Arguments
+            ?? throw new AssertionException("Function call arguments should be present.");
 
         Assert.Multiple(() =>
         {
             Assert.That(call.CallId, Is.EqualTo("call-1"));
             Assert.That(call.Name, Is.EqualTo("render_a2ui"));
-            Assert.That(call.Arguments["surfaceId"]?.ToString(), Is.EqualTo("surface-1"));
-            Assert.That(call.Arguments["count"]?.ToString(), Is.EqualTo("2"));
+            Assert.That(arguments["surfaceId"]?.ToString(), Is.EqualTo("surface-1"));
+            Assert.That(arguments["count"]?.ToString(), Is.EqualTo("2"));
         });
     }
 

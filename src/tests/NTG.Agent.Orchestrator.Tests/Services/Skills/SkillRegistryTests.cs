@@ -21,6 +21,9 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Skills;
 [TestFixture]
 public class SkillRegistryTests
 {
+    private static readonly string[] ExpectedGuideAssetPaths = ["references/guide.md"];
+    private static readonly string[] ExpectedReplacementAssetPaths = ["references/new.md"];
+
     private AgentDbContext _context = null!;
     private SkillRegistry _registry = null!;
     private Guid _userId;
@@ -99,7 +102,7 @@ public class SkillRegistryTests
             Assert.That(stored.Description, Does.StartWith("First version"));
             Assert.That(stored.Version, Is.EqualTo("1.0"));
             Assert.That(stored.ImportedByUserId, Is.EqualTo(_userId));
-            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(new[] { "references/guide.md" }));
+            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(ExpectedGuideAssetPaths));
         });
     }
 
@@ -194,7 +197,7 @@ public class SkillRegistryTests
 
         var assets = await _context.SkillAssets.Select(a => a.RelativePath).ToListAsync();
 
-        Assert.That(assets, Is.EqualTo(new[] { "references/new.md" }));
+        Assert.That(assets, Is.EqualTo(ExpectedReplacementAssetPaths));
     }
 
     // ---------------------------------------------------------------- read
