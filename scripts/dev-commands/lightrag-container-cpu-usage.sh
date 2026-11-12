@@ -10,7 +10,7 @@ cd "$ROOT"
 # --- your commands below ---
 usage=$(docker stats --no-stream $(docker ps --format '{{.Names}}' | grep lightrag))
 
-if [ -z "$usage" ]; then
+if [[ -z "$usage" ]]; then
 	echo "No lightrag container found"
 	exit 0
 fi

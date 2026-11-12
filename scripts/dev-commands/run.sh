@@ -31,9 +31,9 @@ opened=""
 # Keep the launcher in the foreground while allowing Ctrl-C to reach dotnet.
 "$ROOT/start-local-lightrag.sh" "$@" 2>&1 | while IFS= read -r line; do
   printf '%s\n' "$line"
-  if [ -z "$opened" ]; then
+  if [[ -z "$opened" ]]; then
     url="$(printf '%s' "$line" | grep -oE "$URL_REGEX" | head -n 1 || true)"
-    if [ -n "$url" ]; then
+    if [[ -n "$url" ]]; then
       opened="1"
       printf '\n  Aspire dashboard: %s\n' "$url"
       printf '  (opening in your browser; click the URL above if it does not)\n\n'

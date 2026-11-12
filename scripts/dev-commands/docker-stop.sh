@@ -10,7 +10,7 @@ cd "$ROOT"
 # Get all running containers:
 containers=($(docker ps --format "{{.Names}}" 2>/dev/null || echo ""))
 
-if [ -z "$containers" ]; then
+if [[ -z "$containers" ]]; then
 	echo "No running containers"
 	exit 0
 fi
@@ -31,7 +31,7 @@ case "$input" in
 esac
 
 for choice in $input; do
-	if ! [[ "$choice" =~ ^[0-9]+$ ]] || [ "$choice" -lt 1 ] || [ "$choice" -gt "${#containers[@]}" ]; then
+	if ! [[ "$choice" =~ ^[0-9]+$ ]] || [[ "$choice" -lt 1 ]] || [[ "$choice" -gt "${#containers[@]}" ]]; then
 		echo "Invalid choice: $choice" >&2
 		exit 1
     fi

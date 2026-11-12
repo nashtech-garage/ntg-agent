@@ -152,4 +152,4 @@ builder.AddNextJsApp("ntg-agent-ag-ui-webclient", "../NTG.Agent.CopilotKitApp")
     .WithEnvironment("ORCHESTRATOR_URL", orchestrator.GetEndpoint("https"))
     .WithExternalHttpEndpoints();
 
-builder.Build().Run();
+await builder.Build().RunAsync();

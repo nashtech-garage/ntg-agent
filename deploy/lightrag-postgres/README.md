@@ -27,10 +27,11 @@ wildcard, then open
 LightRAG API key at login. The agent container must be running; the gateway does not provision
 or restart containers.
 
-> **Server certificates are not validated by the client.** They are signed by a private CA
-> (`docker-ca`) whose root is deliberately not distributed, so there is no trust anchor to check
-> them against. Traffic is encrypted but servers are unauthenticated — inbound access is
-> restricted by the Azure NSG rules in step 4, which are therefore load-bearing, not optional.
+> **Clients validate server certificates and hostnames against the operating-system trust store.**
+> Because the servers use the private `docker-ca`, install its public root certificate in the trust
+> store on the Orchestrator host before connecting. The server certificates must also include the
+> configured hostnames/IPs in their subject alternative names. Never copy or distribute the CA
+> private key; the Azure NSG rules in step 4 remain an additional network boundary.
 
 ---
 
@@ -76,8 +77,8 @@ reaching Postgres over the Docker bridge are unaffected.
 psql "host=127.0.0.1 port=5432 user=postgres dbname=uploaded-documents sslmode=require" -c '\conninfo'
 # → "SSL connection (protocol: TLSv1.3, ...)"
 
-# The gateway is serving TLS
-curl -k https://127.0.0.1/gateway-health   # → ok
+# Set DOCKER_CA_CERT to the docker-ca public root path and GATEWAY_HOST to a certificate SAN.
+curl --cacert "$DOCKER_CA_CERT" "https://$GATEWAY_HOST/gateway-health"   # → ok
 
 # The daemon is listening on 2376
 sudo ss -tlnp | grep 2376
@@ -101,6 +102,10 @@ the rule.
 
 Copy the client certificate down once, then set the AppHost parameters.
 `scripts/init-apphost-user-secrets.sh` prompts for all of these:
+
+Install the `docker-ca` public root certificate in the operating-system trust store on the machine
+running the Orchestrator. Certificate validation intentionally fails closed if the root is absent
+or the server certificate does not match the configured host.
 
 ```bash
 scp ntgagent@4.193.109.6:~/docker-certs/client.pfx ./client.pfx   # gitignored (*.pfx)
@@ -141,7 +146,7 @@ manual database cleanup is needed.
 - [ ] `ntgagent` in the `docker` group (re-logged in)
 - [ ] certs staged for Postgres (`~/docker-certs/pg`, owned by uid 999); `GATEWAY_CERT_DIR` set
 - [ ] `docker compose up -d`; `\dx` shows `vector` + `age`; `\conninfo` reports SSL
-- [ ] `curl -k https://127.0.0.1/gateway-health` → ok
+- [ ] `curl --cacert "$DOCKER_CA_CERT" "https://$GATEWAY_HOST/gateway-health"` → ok
 - [ ] NSG inbound rules for 2376, 443, 5432 — restricted to team IPs; 20000-20999 deleted
 - [ ] `client.pfx` copied down and the AppHost parameters set
 - [ ] `lightrag-webui-gateway-url` set to the wildcard DNS/TLS base
@@ -160,6 +165,7 @@ world access`.
 
 **Agent containers start but queries fail / `LightRagContainerNotReadyException`** — the gateway
 is down or unreachable: check `docker ps` for `lightrag-gateway`, the NSG rule for 443, and
-`curl -k https://4.193.109.6/gateway-health` from the Mac. A 502 from
-`curl -k https://4.193.109.6/agents/{agentId}/health` means the gateway is fine but that agent's
-container is stopped — the Orchestrator restarts it on the next request.
+`curl --cacert "$DOCKER_CA_CERT" "https://$GATEWAY_HOST/gateway-health"` from the Mac. A 502 from
+`curl --cacert "$DOCKER_CA_CERT" "https://$GATEWAY_HOST/agents/$AGENT_ID/health"` means the
+gateway is fine but that agent's container is stopped — the Orchestrator restarts it on the next
+request.

@@ -81,4 +81,4 @@ app.MapRazorComponents<App>()
 app.MapDefaultEndpoints();
 app.MapAdditionalIdentityEndpoints();
 app.MapReverseProxy();
-app.Run();
+await app.RunAsync();

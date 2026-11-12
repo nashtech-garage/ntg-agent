@@ -41,8 +41,11 @@ only when it is a frontend (browser-executed) tool, or when it was captured for 
 `load_skill` call is invisible in the SSE stream by construction. This script looks for it there
 first (it is where it would appear if that ever changes), then falls back to the orchestrator's
 own stdout, where `SkillTools.CreateLoadSkill` logs "Agent <id> loaded skill '<name>'". Under
-Aspire that stdout is a file in /tmp/aspire-dcp*/; only bytes appended during the turn are read, so
-the evidence is scoped to that turn without trusting the wall clock.
+Aspire that stdout is a file in /tmp/aspire-dcp*/; the script reads only regular files in a private,
+user-owned DCP directory and only bytes appended during the turn.
+
+HTTPS connections use the system trust store and verify the server hostname. Trust the Aspire
+development certificate before running this check against the local HTTPS endpoint.
 
 Usage
 -----
@@ -64,6 +67,7 @@ import json
 import os
 import re
 import ssl
+import stat
 import sys
 import time
 import urllib.error
@@ -132,11 +136,9 @@ class Orchestrator:
         self.base_url = base_url.rstrip("/")
         self.agent_id = agent_id
         self.jar = http.cookiejar.CookieJar()
-        # Aspire serves https with the ASP.NET Core self-signed dev certificate, which no store
-        # trusts. Verification is off for the whole client; this only ever talks to localhost.
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar),
-            urllib.request.HTTPSHandler(context=ssl._create_unverified_context()),
+            urllib.request.HTTPSHandler(context=ssl.create_default_context()),
         )
 
     def login(self, email: str, password: str) -> str:
@@ -330,34 +332,87 @@ def operations_of(call: ToolCall) -> list[dict]:
 class OrchestratorLog:
     """Reads only what the orchestrator printed during a turn.
 
-    Aspire's DCP writes each resource's stdout to /tmp/aspire-dcp*/<id>_out. Sizes are snapshotted
-    before a turn and only the bytes appended after are searched, so evidence cannot leak in from
-    an earlier run and no timestamp has to be parsed (this machine's WSL clock drifts).
+    Aspire's DCP writes each resource's stdout to /tmp/aspire-dcp*/<id>_out. Only regular files
+    in a private, user-owned DCP directory are read, without following symlinks. Sizes are
+    snapshotted before a turn and only the bytes appended after are searched.
     """
 
-    def __init__(self, pattern: str):
-        self.pattern = pattern
+    def __init__(self):
         self.offsets: dict[str, int] = {}
-        self.available = bool(glob.glob(pattern))
+        self.available = self._has_available_logs()
+
+    def _open_log(self, path: str) -> int | None:
+        if (os.name != "posix" or os.open not in os.supports_dir_fd
+                or not all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW", "O_NONBLOCK"))):
+            return None
+
+        parent, name = os.path.split(path)
+        parent = os.path.abspath(parent)
+        if (os.path.dirname(parent) != os.path.abspath("/tmp")
+                or not os.path.basename(parent).startswith("aspire-dcp")
+                or not name.endswith("_out")):
+            return None
+
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        try:
+            directory_fd = os.open(parent, directory_flags)
+        except OSError:
+            return None
+
+        try:
+            directory_stat = os.fstat(directory_fd)
+            if (not stat.S_ISDIR(directory_stat.st_mode)
+                    or directory_stat.st_uid != os.getuid()
+                    or directory_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+                return None
+
+            try:
+                file_fd = os.open(name, file_flags, dir_fd=directory_fd)
+            except OSError:
+                return None
+        finally:
+            os.close(directory_fd)
+
+        try:
+            file_stat = os.fstat(file_fd)
+        except OSError:
+            os.close(file_fd)
+            return None
+        if (not stat.S_ISREG(file_stat.st_mode)
+                or file_stat.st_uid != os.getuid()
+                or file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH)):
+            os.close(file_fd)
+            return None
+        return file_fd
+
+    def _has_available_logs(self) -> bool:
+        for path in glob.glob(DEFAULT_LOG_GLOB):
+            file_fd = self._open_log(path)
+            if file_fd is not None:
+                os.close(file_fd)
+                return True
+        return False
 
     def mark(self) -> None:
         self.offsets = {}
-        for path in glob.glob(self.pattern):
-            try:
-                self.offsets[path] = os.path.getsize(path)
-            except OSError:
+        for path in glob.glob(DEFAULT_LOG_GLOB):
+            file_fd = self._open_log(path)
+            if file_fd is None:
                 continue
+            with os.fdopen(file_fd, "rb") as handle:
+                self.offsets[path] = os.fstat(handle.fileno()).st_size
 
     def appended(self) -> str:
         chunks: list[str] = []
-        for path in glob.glob(self.pattern):
+        for path in glob.glob(DEFAULT_LOG_GLOB):
             start = self.offsets.get(path, 0)
-            try:
-                with open(path, "rb") as handle:
-                    handle.seek(start)
-                    chunks.append(handle.read().decode("utf-8", "replace"))
-            except OSError:
+            file_fd = self._open_log(path)
+            if file_fd is None:
                 continue
+            with os.fdopen(file_fd, "rb") as handle:
+                handle.seek(start)
+                chunks.append(handle.read().decode("utf-8", "replace"))
         return "\n".join(chunks)
 
     def loaded_skill(self, agent_id: str, skill: str, settle: float = 2.0) -> bool:
@@ -587,7 +642,7 @@ def run_flow(args) -> bool:
     print(f"Skill flow — live check against {client.base_url}")
     print(f"  agent:  {client.agent_id}")
     print(f"  skill:  {SKILL}")
-    print("  (TLS verification disabled — Aspire dev certificate)\n")
+    print("  (TLS certificate and hostname verification enabled)\n")
 
     print("Authentication:")
     try:
@@ -601,9 +656,9 @@ def run_flow(args) -> bool:
     thread_id = str(uuid.uuid4())
     print(f"  thread: {thread_id}")
 
-    log = OrchestratorLog(args.log_glob)
+    log = OrchestratorLog()
     if not log.available:
-        print(f"  note:   no orchestrator stdout matched {args.log_glob}; "
+        print(f"  note:   no safe orchestrator stdout matched {DEFAULT_LOG_GLOB}; "
               f"{LOAD_TOOL} cannot be corroborated")
 
     tools = None if args.no_render_a2ui else [RENDER_A2UI_TOOL]
@@ -661,8 +716,6 @@ def main() -> int:
     parser.add_argument("--agent", default=DEFAULT_AGENT, help="agent id (defaults to the seeded Default Agent)")
     parser.add_argument("--email", default=DEFAULT_EMAIL, help="account to sign in as")
     parser.add_argument("--password", default="Ntg@123", help="password for --email (dev default)")
-    parser.add_argument("--log-glob", default=DEFAULT_LOG_GLOB,
-                        help="glob for the orchestrator's stdout, used to observe load_skill")
     parser.add_argument("--no-render-a2ui", action="store_true",
                         help="do not declare the render_a2ui frontend tool the browser injects")
     args = parser.parse_args()

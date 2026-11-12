@@ -25,9 +25,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import re
 import sys
+import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -272,19 +275,54 @@ PROMPT = (
 )
 
 
-def run_live(base_url: str, agent_id: str, catalog: dict, insecure: bool = False) -> bool:
+def validate_live_url(base_url: str) -> str:
+    """Accept only loopback HTTP(S) endpoints, which is the intended live-test target."""
+    try:
+        parsed = urllib.parse.urlsplit(base_url)
+        hostname = parsed.hostname
+        _ = parsed.port
+    except ValueError as exc:
+        raise ValueError("expected an HTTP(S) URL for a local orchestrator") from exc
+
+    is_localhost = hostname is not None and hostname.lower() in {"localhost", "localhost."}
+    is_loopback_ip = False
+    if hostname is not None and not is_localhost:
+        try:
+            is_loopback_ip = ipaddress.ip_address(hostname).is_loopback
+        except ValueError:
+            pass
+
+    if (parsed.scheme.lower() not in {"http", "https"}
+            or not is_localhost and not is_loopback_ip
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment):
+        raise ValueError(
+            "--live must be an HTTP(S) URL for localhost or a loopback IP, without credentials or extra URL parts")
+
+    return f"{parsed.scheme.lower()}://{parsed.netloc}"
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def run_live(base_url: str, agent_id: str, catalog: dict) -> bool:
     import ssl
-    import urllib.request
+
+    try:
+        base_url = validate_live_url(base_url)
+    except ValueError as exc:
+        print(f"  FAIL  invalid --live URL: {exc}")
+        return False
 
     print(f"Phase 0 — live check against {base_url}\n")
     print(f"  prompt: {PROMPT}\n")
 
-    # The Aspire run uses the ASP.NET Core self-signed dev cert, so an https base URL
-    # fails verification. Only ever relaxed for localhost.
-    context = None
-    if insecure:
-        context = ssl._create_unverified_context()
-        print("  (TLS verification disabled — dev certificate)\n")
+    context = ssl.create_default_context()
 
     payload = {
         "threadId": str(uuid.uuid4()),
@@ -301,7 +339,11 @@ def run_live(base_url: str, agent_id: str, catalog: dict, insecure: bool = False
 
     calls: dict[str, dict] = {}
     try:
-        with urllib.request.urlopen(request, timeout=180, context=context) as response:
+        opener = urllib.request.build_opener(
+            _NoRedirectHandler(),
+            urllib.request.HTTPSHandler(context=context),
+        )
+        with opener.open(request, timeout=180) as response:
             for raw in response:
                 line = raw.decode("utf-8", "replace").strip()
                 if not line.startswith("data:"):
@@ -381,7 +423,6 @@ def main() -> int:
     parser.add_argument("--live", metavar="URL", help="base URL of a running orchestrator")
     parser.add_argument("--agent", default=DEFAULT_AGENT, help="agent id (defaults to the seeded Default Agent)")
     parser.add_argument("--guide", metavar="PATH", help="override the A2uiPrompt.cs path (used to self-test this script)")
-    parser.add_argument("--insecure", action="store_true", help="skip TLS verification (Aspire's self-signed dev cert)")
     args = parser.parse_args()
 
     global GUIDE
@@ -393,7 +434,7 @@ def main() -> int:
 
     if args.live:
         print()
-        ok = run_live(args.live, args.agent, catalog, insecure=args.insecure) and ok
+        ok = run_live(args.live, args.agent, catalog) and ok
 
     print("\n" + ("RESULT: PASS" if ok else "RESULT: FAIL"))
     return 0 if ok else 1

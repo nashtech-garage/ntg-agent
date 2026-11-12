@@ -50,10 +50,8 @@ public static class LightRagServiceCollectionExtensions
         // Named LightRAG HTTP client — BaseAddress + X-API-Key are set per agent by
         // LightRagClientFactory (each agent is dialed via the gateway's /agents/{id}/ path),
         // so we only configure the timeout here. The resilience override above is keyed on
-        // this name. The remote gateway serves HTTPS with the server's certificate; it is
-        // signed by a private CA we hold no root for, so the certificate is accepted
-        // unvalidated — encrypted, but the server is unauthenticated. Requests remain gated by
-        // the X-API-Key header, and inbound access by the cloud firewall (Azure NSG) rules.
+        // this name. HTTPS uses the platform trust store and validates the server hostname;
+        // install the private CA root on the host running the orchestrator.
         // When LightRag:SocksProxy is set, route through that SOCKS5 proxy instead (`ssh -D`),
         // so a developer can tunnel rather than open the gateway port; empty => direct.
         services.AddHttpClient(nameof(LightRagClient), c =>
@@ -63,15 +61,7 @@ public static class LightRagServiceCollectionExtensions
         .ConfigurePrimaryHttpMessageHandler(sp =>
         {
             var cfg = sp.GetRequiredService<IOptions<LightRagSettings>>().Value;
-#pragma warning disable CA5359 // Deliberate: the gateway certificate is signed by a private CA
-            // whose root is not distributed to clients, so there is no trust anchor to validate
-            // against. Traffic is encrypted but the server is unauthenticated; requests are gated
-            // by X-API-Key and inbound access by the cloud firewall (Azure NSG) rules.
-            var handler = new SocketsHttpHandler
-            {
-                SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => true }
-            };
-#pragma warning restore CA5359
+            var handler = new SocketsHttpHandler();
             if (!string.IsNullOrWhiteSpace(cfg.SocksProxy))
             {
                 handler.Proxy = new System.Net.WebProxy(cfg.SocksProxy);
@@ -116,10 +106,8 @@ public static class LightRagServiceCollectionExtensions
     /// no certificate is set (an unauthenticated endpoint, as used in local dev).
     /// </summary>
     /// <remarks>
-    /// The daemon's own certificate is deliberately NOT validated. It is signed by a private CA
-    /// whose root is not distributed to clients, so there is no trust anchor to check it against;
-    /// the connection is encrypted but the server is unauthenticated. Inbound access to :2376 is
-    /// restricted by the cloud firewall (Azure NSG) instead.
+    /// The daemon's server certificate is validated against the platform trust store and its
+    /// hostname. Install the private CA root on the host running the orchestrator.
     /// </remarks>
     private static CertificateCredentials? BuildDockerCredentials(LightRagSettings cfg)
     {
@@ -136,9 +124,6 @@ public static class LightRagServiceCollectionExtensions
 
         var certificate = X509CertificateLoader.LoadPkcs12FromFile(cfg.DockerCertPath, cfg.DockerCertPassword);
         var credentials = new CertificateCredentials(certificate);
-#pragma warning disable CA5359 // Deliberate — see the remarks above.
-        credentials.ServerCertificateValidationCallback += (_, _, _, _) => true;
-#pragma warning restore CA5359
         return credentials;
     }
 }

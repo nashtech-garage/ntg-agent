@@ -46,7 +46,7 @@ export default function ConversationSidebar({
         `/api/conversations?pageNumber=${pageNumber}&pageSize=${PAGE_SIZE}`,
         { cache: "no-store" }
       );
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`Failed to load conversations (HTTP ${res.status}).`);
       const data: ConversationListResponse = await res.json();
       setConversations((prev) => (append ? [...prev, ...data.items] : data.items));
       setPage(data.pageNumber);
@@ -56,20 +56,31 @@ export default function ConversationSidebar({
     }
   }, []);
 
+  const loadPage = useCallback((pageNumber: number, append: boolean) => {
+    void load(pageNumber, append).catch((error: unknown) => {
+      console.error("Failed to load conversations:", error);
+    });
+  }, [load]);
+
   // Reload page 1 on mount and whenever the parent signals a change.
   useEffect(() => {
-    load(1, false);
-  }, [load, reloadSignal]);
+    loadPage(1, false);
+  }, [loadPage, reloadSignal]);
 
   async function handleDelete(id: string) {
     setMenuFor(null);
     if (!window.confirm("Delete this conversation? This cannot be undone.")) return;
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      const deleted = conversations.find((c) => c.id === id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-      if (deleted && deleted.sessionId && deleted.sessionId === activeSessionId) onNewChat();
-    }
+    if (!res.ok) throw new Error(`Failed to delete conversation (HTTP ${res.status}).`);
+    const deleted = conversations.find((c) => c.id === id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (deleted && deleted.sessionId && deleted.sessionId === activeSessionId) onNewChat();
+  }
+
+  function deleteConversation(id: string) {
+    void handleDelete(id).catch((error: unknown) => {
+      console.error("Failed to delete conversation:", error);
+    });
   }
 
   function startRename(c: ConversationItem) {
@@ -85,9 +96,14 @@ export default function ConversationSidebar({
     const res = await fetch(`/api/conversations/${id}?newName=${encodeURIComponent(name)}`, {
       method: "PUT",
     });
-    if (res.ok) {
-      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
-    }
+    if (!res.ok) throw new Error(`Failed to rename conversation (HTTP ${res.status}).`);
+    setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+  }
+
+  function handleCommitRename(id: string) {
+    void commitRename(id).catch((error: unknown) => {
+      console.error("Failed to rename conversation:", error);
+    });
   }
 
   return (
@@ -121,35 +137,43 @@ export default function ConversationSidebar({
                       autoFocus
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
-                      onBlur={() => commitRename(c.id)}
+                      onBlur={() => handleCommitRename(c.id)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") commitRename(c.id);
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          e.currentTarget.blur();
+                        }
                         if (e.key === "Escape") setRenamingId(null);
                       }}
                       className="w-full rounded-md border border-blue-400 bg-white dark:bg-gray-900 px-2 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none"
                     />
                   ) : (
-                    <button
-                      onClick={() => onSelect(c.sessionId, c.id)}
-                      className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm ${
+                    <div
+                      className={`flex w-full items-center rounded-md px-2 py-1.5 text-sm ${
                         active
                           ? "bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100"
                           : "text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                       }`}
                     >
-                      <span className="truncate">{c.name}</span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => {
-                          e.stopPropagation();
+                      <button
+                        type="button"
+                        onClick={() => onSelect(c.sessionId, c.id)}
+                        className="min-w-0 flex-1 truncate text-left"
+                      >
+                        {c.name}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Conversation options for ${c.name}`}
+                        aria-expanded={menuFor === c.id}
+                        onClick={() => {
                           setMenuFor(menuFor === c.id ? null : c.id);
                         }}
-                        className="ml-1 hidden shrink-0 px-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-100 group-hover:inline"
+                        className="ml-1 hidden shrink-0 px-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-100 group-hover:inline group-focus-within:inline"
                       >
-                        ⋯
-                      </span>
-                    </button>
+                        <span aria-hidden="true">⋯</span>
+                      </button>
+                    </div>
                   )}
 
                   {menuFor === c.id && (
@@ -161,7 +185,7 @@ export default function ConversationSidebar({
                         Rename
                       </button>
                       <button
-                        onClick={() => handleDelete(c.id)}
+                        onClick={() => deleteConversation(c.id)}
                         className="block w-full px-3 py-1.5 text-left text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                       >
                         Delete
@@ -176,7 +200,7 @@ export default function ConversationSidebar({
 
         {hasMore && !loading && (
           <button
-            onClick={() => load(page + 1, true)}
+            onClick={() => loadPage(page + 1, true)}
             className="mt-2 w-full rounded-md px-2 py-1.5 text-sm text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             Load more

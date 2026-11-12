@@ -83,7 +83,12 @@ export default function AgentSelector({
         </div>
 
         {isOpen && (
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <button
+            type="button"
+            aria-label="Close agent selector"
+            className="fixed inset-0 z-40 appearance-none border-0 bg-transparent p-0"
+            onClick={() => setIsOpen(false)}
+          />
         )}
       </div>
     </div>

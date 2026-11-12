@@ -68,6 +68,37 @@ public class ProviderModelServiceTests
     }
 
     [Test]
+    public async Task FetchModelsAsync_Anthropic_AcceptsItsConfiguredV1Endpoint()
+    {
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{ "data": [] }"""));
+        var service = BuildService(handler);
+
+        await service.FetchModelsAsync(
+            new ProviderProbeRequest("Anthropic", "https://api.anthropic.com/v1", "key"));
+
+        Assert.That(handler.LastRequest!.RequestUri!.ToString(), Is.EqualTo("https://api.anthropic.com/v1/models"));
+    }
+
+    [TestCase("http://api.anthropic.com")]
+    [TestCase("https://localhost")]
+    [TestCase("https://api.anthropic.com.attacker.example")]
+    [TestCase("https://user@api.anthropic.com")]
+    [TestCase("https://api.anthropic.com:8443")]
+    [TestCase("https://api.anthropic.com/?target=localhost")]
+    [TestCase("https://api.anthropic.com/v2")]
+    public void FetchModelsAsync_Anthropic_RejectsUntrustedEndpoint(string endpoint)
+    {
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{ "data": [] }"""));
+        var service = BuildService(handler);
+
+        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+            service.FetchModelsAsync(new ProviderProbeRequest("Anthropic", endpoint, "key")));
+
+        Assert.That(ex!.Message, Does.Contain("Anthropic endpoints"));
+        Assert.That(handler.LastRequest, Is.Null);
+    }
+
+    [Test]
     public async Task FetchModelsAsync_Azure_ListsDeploymentsWithApiKeyHeader()
     {
         // Arrange
@@ -84,6 +115,27 @@ public class ProviderModelServiceTests
         Assert.That(handler.LastRequest!.RequestUri!.ToString(),
             Is.EqualTo("https://my-res.openai.azure.com/openai/deployments?api-version=2024-08-01-preview"));
         Assert.That(handler.LastRequest.Headers.GetValues("api-key"), Does.Contain("key"));
+    }
+
+    [TestCase("http://my-res.openai.azure.com")]
+    [TestCase("https://localhost")]
+    [TestCase("https://my-res.openai.azure.com.attacker.example")]
+    [TestCase("https://user@my-res.openai.azure.com")]
+    [TestCase("https://my-res.openai.azure.com:8443")]
+    [TestCase("https://my-res.openai.azure.com/?target=localhost")]
+    [TestCase("https://my-res.openai.azure.com/v1")]
+    [TestCase("https://.openai.azure.com")]
+    [TestCase("https://my..openai.azure.com")]
+    public void FetchModelsAsync_Azure_RejectsUntrustedEndpoint(string endpoint)
+    {
+        var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{ "data": [] }"""));
+        var service = BuildService(handler);
+
+        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+            service.FetchModelsAsync(new ProviderProbeRequest("AzureOpenAI", endpoint, "key")));
+
+        Assert.That(ex!.Message, Does.Contain("Azure OpenAI endpoints"));
+        Assert.That(handler.LastRequest, Is.Null);
     }
 
     [Test]

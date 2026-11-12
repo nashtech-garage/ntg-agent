@@ -110,6 +110,10 @@ builder.Services.AddHostedService<DefaultAgentProviderSeeder>();
 builder.Services.AddHttpClient<IProviderModelService, ProviderModelService>(c =>
 {
     c.Timeout = TimeSpan.FromSeconds(30);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    AllowAutoRedirect = false
 });
 builder.Services.AddScoped<AgentAccessService>();
 // Request-scoped buffer shared by the agent and any sub-agents it delegates to, used to
@@ -228,4 +232,4 @@ app.MapControllers();
 
 app.MapDefaultEndpoints();
 
-app.Run();
+await app.RunAsync();

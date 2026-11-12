@@ -145,8 +145,17 @@ public class ProviderModelService : IProviderModelService
     // Anthropic: GET {endpoint}/v1/models with x-api-key + anthropic-version headers.
     private static HttpRequestMessage BuildAnthropicRequest(string? endpoint, string apiKey)
     {
-        var baseUrl = NormalizeEndpoint(endpoint) ?? AnthropicDefaultEndpoint;
-        var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/v1/models");
+        var baseUrl = string.IsNullOrWhiteSpace(endpoint)
+            ? AnthropicDefaultEndpoint
+            : ValidateProviderEndpoint(
+                endpoint,
+                static host => string.Equals(host, "api.anthropic.com", StringComparison.OrdinalIgnoreCase),
+                "/v1",
+                "Anthropic endpoints must use https://api.anthropic.com.");
+        var modelsUrl = baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)
+            ? $"{baseUrl}/models"
+            : $"{baseUrl}/v1/models";
+        var httpRequest = new HttpRequestMessage(HttpMethod.Get, modelsUrl);
         httpRequest.Headers.Add("x-api-key", apiKey);
         httpRequest.Headers.Add("anthropic-version", AnthropicVersion);
         return httpRequest;
@@ -155,7 +164,13 @@ public class ProviderModelService : IProviderModelService
     // Azure lists deployments (deployment name == model name) via the data-plane API with api-key header.
     private static HttpRequestMessage BuildAzureRequest(string? endpoint, string apiKey)
     {
-        var baseUrl = NormalizeEndpoint(endpoint)
+        var baseUrl = (string.IsNullOrWhiteSpace(endpoint)
+            ? null
+            : ValidateProviderEndpoint(
+                endpoint,
+                IsAzureOpenAiHost,
+                null,
+                "Azure OpenAI endpoints must use an HTTPS Azure OpenAI resource host."))
             ?? throw new ProviderProbeException("Azure OpenAI requires a provider endpoint.");
         var url = $"{baseUrl}/openai/deployments?api-version={AzureDeploymentsApiVersion}";
         var httpRequest = new HttpRequestMessage(HttpMethod.Get, url);
@@ -171,6 +186,53 @@ public class ProviderModelService : IProviderModelService
             return null;
         }
         return endpoint.Trim().TrimEnd('/');
+    }
+
+    private static string ValidateProviderEndpoint(
+        string endpoint,
+        Func<string, bool> isAllowedHost,
+        string? allowedPath,
+        string errorMessage)
+    {
+        if (!Uri.TryCreate(endpoint.Trim(), UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !uri.IsDefaultPort
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || !isAllowedHost(uri.IdnHost))
+        {
+            throw new ProviderProbeException(errorMessage);
+        }
+
+        var path = uri.AbsolutePath.TrimEnd('/');
+        if (!string.IsNullOrEmpty(path)
+            && (allowedPath is null || !string.Equals(path, allowedPath, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ProviderProbeException(errorMessage);
+        }
+
+        return $"{uri.GetLeftPart(UriPartial.Authority)}{path}";
+    }
+
+    private static bool IsAzureOpenAiHost(string host)
+    {
+        string[] suffixes = [".openai.azure.com", ".openai.azure.us", ".openai.azure.cn"];
+        foreach (var suffix in suffixes)
+        {
+            if (!host.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var resourceName = host[..^suffix.Length];
+            return resourceName.Length is > 0 and <= 63
+                && resourceName[0] != '-'
+                && resourceName[^1] != '-'
+                && resourceName.All(static character => char.IsAsciiLetterOrDigit(character) || character == '-');
+        }
+
+        return false;
     }
 
     /// <summary>

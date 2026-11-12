@@ -333,6 +333,7 @@ public sealed class SkillRegistry(
         var skill = await _dbContext.Skills
             .Include(s => s.Assets)
             .Include(s => s.AgentBindings)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
         if (skill is null)

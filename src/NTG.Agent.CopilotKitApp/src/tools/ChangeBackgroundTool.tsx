@@ -7,9 +7,9 @@ import { z } from "zod";
 type Status = "inProgress" | "executing" | "complete";
 
 function readableTextColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const r = Number.parseInt(hex.slice(1, 3), 16);
+  const g = Number.parseInt(hex.slice(3, 5), 16);
+  const b = Number.parseInt(hex.slice(5, 7), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.6 ? "#000000" : "#ffffff";
 }
@@ -55,11 +55,16 @@ function ApprovalCard({
   const canAct = status === "executing" && !!respond;
 
   if (canAct) {
+    const sendResponse = (value: string) => {
+      void respond!(value).catch((error: unknown) => {
+        console.error("Failed to submit background color response:", error);
+      });
+    };
     const approve = (color: string, note?: string) => {
       onChange(color);
-      respond!(note ? `approved ${color} (${note})` : `approved ${color}`);
+      sendResponse(note ? `approved ${color} (${note})` : `approved ${color}`);
     };
-    const reject = () => respond!("denied");
+    const reject = () => sendResponse("denied");
 
     return (
       <div className="my-2 w-full max-w-sm overflow-hidden rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100">

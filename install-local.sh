@@ -159,7 +159,7 @@ if (( ${#MISSING[@]} > 0 )); then
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "${APT_PKGS[@]}"
   if $NEED_NODE; then
     info "Installing Node 22 LTS from NodeSource."
-    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+    curl -fsSL --proto '=https' --proto-redir '=https' https://deb.nodesource.com/setup_22.x | sudo -E bash -
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs
   fi
   if $NEED_DOCKER; then
