@@ -847,9 +847,7 @@ public class SurfaceRenderFunctionTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(
-                reviewChildren,
-                Is.EqualTo(ExpectedReviewChildren));
+            Assert.That(reviewChildren, Is.EqualTo(ExpectedReviewChildren));
             Assert.That(((JsonArray)recommendations!["children"]!).Count, Is.EqualTo(7));
             Assert.That(((JsonArray)cuisines!["children"]!).Count, Is.EqualTo(7));
             Assert.That(((JsonObject)review["recommendations"]!).Count, Is.EqualTo(5));
