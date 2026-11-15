@@ -34,6 +34,10 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Skills;
 [TestFixture]
 public class SkillSeederTests
 {
+    private static readonly string[] GuideAssetPaths = ["references/guide.md"];
+    private static readonly string[] MultipleSeededSkillNames = ["demo-skill", "second-demo-skill"];
+    private static readonly string[] SingleSeededSkillNames = ["demo-skill"];
+
     private const string ManifestV1 = """
         ---
         name: demo-skill
@@ -175,7 +179,7 @@ public class SkillSeederTests
             Assert.That(stored.Description, Does.StartWith("First version"));
             Assert.That(stored.Version, Is.EqualTo("1.0"));
             Assert.That(stored.SourceFileName, Is.EqualTo("demo-skill.zip"));
-            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(new[] { "references/guide.md" }));
+            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(GuideAssetPaths));
         });
     }
 
@@ -192,7 +196,7 @@ public class SkillSeederTests
 
         Assert.That(
             await context.Skills.Select(skill => skill.Name).OrderBy(name => name).ToListAsync(),
-            Is.EqualTo(new[] { "demo-skill", "second-demo-skill" }));
+            Is.EqualTo(MultipleSeededSkillNames));
     }
 
     /// <summary>
@@ -304,7 +308,7 @@ public class SkillSeederTests
                 "re-seeding would rewrite provenance to the system marker");
             Assert.That(
                 stored.Assets.Select(a => a.RelativePath),
-                Is.EqualTo(new[] { "references/guide.md" }),
+                Is.EqualTo(GuideAssetPaths),
                 "re-seeding replaces the asset set wholesale");
         });
     }
@@ -355,7 +359,7 @@ public class SkillSeederTests
 
         await using var context = NewContext();
 
-        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(new[] { "demo-skill" }));
+        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(SingleSeededSkillNames));
     }
 
     /// <summary>A package rejected by validation must leave nothing behind, exactly as on upload.</summary>
@@ -442,7 +446,7 @@ public class SkillSeederTests
         await NewSeeder(configuredDirectory: null).SeedAsync();
 
         await using var context = NewContext();
-        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(new[] { "demo-skill" }));
+        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(SingleSeededSkillNames));
     }
 
     /// <summary>A relative configured path is resolved against the content root, never the CWD.</summary>
