@@ -69,6 +69,7 @@ import re
 import ssl
 import stat
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -77,7 +78,8 @@ import uuid
 DEFAULT_BASE_URL = "https://localhost:7093"
 DEFAULT_AGENT = "31cf1546-e9c9-4d95-a8e5-3c7c7570fec5"  # AgentFactory.DefaultAgentId
 DEFAULT_EMAIL = "admin@ntgagent.com"
-DEFAULT_LOG_GLOB = "/tmp/aspire-dcp*/*_out"
+TEMP_ROOT = os.path.realpath(tempfile.gettempdir())
+DEFAULT_LOG_GLOB = os.path.join(TEMP_ROOT, "aspire-dcp*", "*_out")
 
 SKILL = "travel-planner"
 LOAD_TOOL = "load_skill"
@@ -136,9 +138,10 @@ class Orchestrator:
         self.base_url = base_url.rstrip("/")
         self.agent_id = agent_id
         self.jar = http.cookiejar.CookieJar()
+        tls_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
         self.opener = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(self.jar),
-            urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+            urllib.request.HTTPSHandler(context=tls_context),
         )
 
     def login(self, email: str, password: str) -> str:
@@ -348,7 +351,7 @@ class OrchestratorLog:
 
         parent, name = os.path.split(path)
         parent = os.path.abspath(parent)
-        if (os.path.dirname(parent) != os.path.abspath("/tmp")
+        if (os.path.dirname(parent) != TEMP_ROOT
                 or not os.path.basename(parent).startswith("aspire-dcp")
                 or not name.endswith("_out")):
             return None

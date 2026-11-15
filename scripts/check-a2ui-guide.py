@@ -280,20 +280,27 @@ def validate_live_url(base_url: str) -> str:
     try:
         parsed = urllib.parse.urlsplit(base_url)
         hostname = parsed.hostname
-        _ = parsed.port
+        port = parsed.port
     except ValueError as exc:
         raise ValueError("expected an HTTP(S) URL for a local orchestrator") from exc
 
-    is_localhost = hostname is not None and hostname.lower() in {"localhost", "localhost."}
-    is_loopback_ip = False
-    if hostname is not None and not is_localhost:
+    canonical_host = None
+    if hostname is not None and hostname.lower() in {"localhost", "localhost."}:
+        canonical_host = "localhost"
+    elif hostname is not None and "%" not in hostname:
         try:
-            is_loopback_ip = ipaddress.ip_address(hostname).is_loopback
+            address = ipaddress.ip_address(hostname)
         except ValueError:
-            pass
+            address = None
+        if address is not None and address.is_loopback:
+            canonical_host = (
+                f"[{address.compressed}]"
+                if isinstance(address, ipaddress.IPv6Address)
+                else address.compressed
+            )
 
     if (parsed.scheme.lower() not in {"http", "https"}
-            or not is_localhost and not is_loopback_ip
+            or canonical_host is None
             or parsed.username is not None
             or parsed.password is not None
             or parsed.path not in {"", "/"}
@@ -302,7 +309,8 @@ def validate_live_url(base_url: str) -> str:
         raise ValueError(
             "--live must be an HTTP(S) URL for localhost or a loopback IP, without credentials or extra URL parts")
 
-    return f"{parsed.scheme.lower()}://{parsed.netloc}"
+    authority = canonical_host if port is None else f"{canonical_host}:{port}"
+    return f"{parsed.scheme.lower()}://{authority}"
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -317,6 +325,12 @@ def run_live(base_url: str, agent_id: str, catalog: dict) -> bool:
         base_url = validate_live_url(base_url)
     except ValueError as exc:
         print(f"  FAIL  invalid --live URL: {exc}")
+        return False
+
+    try:
+        agent_id = str(uuid.UUID(agent_id))
+    except ValueError:
+        print("  FAIL  invalid --agent ID: expected a GUID")
         return False
 
     print(f"Phase 0 — live check against {base_url}\n")
@@ -340,6 +354,7 @@ def run_live(base_url: str, agent_id: str, catalog: dict) -> bool:
     calls: dict[str, dict] = {}
     try:
         opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
             _NoRedirectHandler(),
             urllib.request.HTTPSHandler(context=context),
         )

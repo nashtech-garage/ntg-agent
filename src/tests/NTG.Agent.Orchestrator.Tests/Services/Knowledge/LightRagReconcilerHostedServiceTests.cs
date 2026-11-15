@@ -25,7 +25,7 @@ public class LightRagReconcilerHostedServiceTests
 
     // Builds the root provider the reconciler creates a scope from. The seam is optional
     // because the "daemon never reachable" path returns before it ever resolves a scope.
-    private static IServiceProvider RootProvider(ILightRagAgentStore? agentStore = null)
+    private static ServiceProvider RootProvider(ILightRagAgentStore? agentStore = null)
     {
         var collection = new ServiceCollection();
         if (agentStore is not null)

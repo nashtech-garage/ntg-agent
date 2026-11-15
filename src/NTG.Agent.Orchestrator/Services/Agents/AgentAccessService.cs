@@ -30,10 +30,11 @@ public sealed class AgentAccessService
         return await _db.Agents.AnyAsync(a =>
             a.Id == agentId
             && a.IsPublished
-            && (a.OwnerUserId == userId || isAdmin
-                || _db.AgentRoles.Any(ar =>
+            && (_db.AgentRoles.Any(ar =>
                     ar.AgentId == a.Id
-                    && _db.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))),
+                    && _db.UserRoles.Any(ur => ur.UserId == userId && ur.RoleId == ar.RoleId))
+                // Sub-agent role grants are the full access boundary, including for owners and admins.
+                || (a.AgentKind != AgentKind.SubAgent && (a.OwnerUserId == userId || isAdmin))),
             ct);
     }
 
