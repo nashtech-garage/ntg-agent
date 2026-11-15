@@ -67,8 +67,9 @@ GetAgentToolsByAgentId(agent)
     │   GetSubAgentToolsAsync(agent)
     │       │  Queries AgentSubAgents for enabled bindings
     │       │  Loads each sub-agent (AgentKind.SubAgent)
+    │       │  Exposes it only when the caller has a configured role grant; owner/Admin bypasses do not apply
     │       │  Creates AIAgent per sub-agent
-    │       │  Wraps each via agent.AsAIFunction()
+    │       │  Wraps each via AgentToolPlugin, which re-checks role access when called
     │       │
     │       ▼
     │   [Sub-agent tools added to tool list]
