@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NTG.Agent.Common.Dtos.Agents;
 using NTG.Agent.Common.Dtos.Constants;
 using NTG.Agent.Orchestrator.Data;
 using NTG.Agent.Orchestrator.Models.Agents;
@@ -84,6 +85,28 @@ public class AgentAccessServiceTests
     public async Task HasAccessAsync_AdminUser_ReturnsTrue()
     {
         var result = await _service.HasAccessAsync(_agentId, _adminUserId, isAdmin: true, CancellationToken.None);
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task HasAccessAsync_AdminOwnerWithoutSubAgentRoleGrant_ReturnsFalse()
+    {
+        var subAgentId = SeedSubAgentWithRoleGrant(_adminUserId);
+
+        var result = await _service.HasAccessAsync(subAgentId, _adminUserId, isAdmin: true, CancellationToken.None);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task HasAccessAsync_AdminUserWithSubAgentRoleGrant_ReturnsTrue()
+    {
+        var subAgentId = SeedSubAgentWithRoleGrant(_ownerId);
+        _context.UserRoles.Add(new UserRole { UserId = _adminUserId, RoleId = _roleId });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.HasAccessAsync(subAgentId, _adminUserId, isAdmin: true, CancellationToken.None);
+
         Assert.That(result, Is.True);
     }
 
@@ -210,5 +233,23 @@ public class AgentAccessServiceTests
         // Owner can only see published agents they own — unpublished are excluded
         Assert.That(agents, Has.Count.EqualTo(1));
         Assert.That(agents.All(a => a.IsPublished), Is.True);
+    }
+
+    private Guid SeedSubAgentWithRoleGrant(Guid ownerUserId)
+    {
+        var subAgentId = Guid.NewGuid();
+        _context.Agents.Add(new AgentModel
+        {
+            Id = subAgentId,
+            Name = "HR SubAgent",
+            Instructions = "HR",
+            IsPublished = true,
+            AgentKind = AgentKind.SubAgent,
+            OwnerUserId = ownerUserId,
+            UpdatedByUserId = ownerUserId
+        });
+        _context.AgentRoles.Add(new AgentRole { Id = Guid.NewGuid(), AgentId = subAgentId, RoleId = _roleId });
+        _context.SaveChanges();
+        return subAgentId;
     }
 }

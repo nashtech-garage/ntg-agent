@@ -26,7 +26,7 @@ namespace NTG.Agent.Orchestrator.Tests.Controllers;
 [TestFixture]
 public class SkillsControllerTests
 {
-    private static readonly string[] ExpectedSkillAssetPaths = ["assets/note.txt", "references/guide.md"];
+    private static readonly string[] ExportedAssetPaths = ["assets/note.txt", "references/guide.md"];
 
     private AgentDbContext _context = null!;
     private SkillsController _controller = null!;
@@ -304,9 +304,7 @@ public class SkillsControllerTests
             Assert.That(reimported.Skill.Version, Is.EqualTo("1.0"));
             Assert.That(reimported.Skill.License, Is.EqualTo("Apache-2.0"));
             Assert.That(reimported.Skill.Compatibility, Is.EqualTo("Requires nothing in particular."));
-            Assert.That(
-                reimported.Skill.Assets.Select(a => a.RelativePath).Order(StringComparer.Ordinal),
-                Is.EqualTo(ExpectedSkillAssetPaths));
+            Assert.That(reimported.Skill.Assets.Select(a => a.RelativePath).Order(StringComparer.Ordinal), Is.EqualTo(ExportedAssetPaths));
         });
     }
 

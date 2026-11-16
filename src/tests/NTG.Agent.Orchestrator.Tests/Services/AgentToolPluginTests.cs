@@ -36,7 +36,9 @@ public class AgentToolPluginTests
     }
 
     [Test]
-    public async Task AskAsync_WhenCallerLacksAccess_ReturnsRefusalAndDoesNotInvokeChild()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task AskAsync_WhenCallerLacksAccess_ReturnsRefusalAndDoesNotInvokeChild(bool isAdmin)
     {
         // Arrange: a published child agent owned by someone else, no role grant for our user.
         var childAgentId = Guid.NewGuid();
@@ -56,7 +58,7 @@ public class AgentToolPluginTests
         var childAgent = new Mock<AIAgent>(MockBehavior.Strict);
         var plugin = new AgentToolPlugin(
             childAgent.Object, _accessService, Mock.Of<IKnowledgeService>(),
-            childAgentId, userId: Guid.NewGuid(), isAdmin: false,
+            childAgentId, userId: Guid.NewGuid(), isAdmin,
             toolName: "hr_docs", toolDescription: "HR docs");
 
         // Act

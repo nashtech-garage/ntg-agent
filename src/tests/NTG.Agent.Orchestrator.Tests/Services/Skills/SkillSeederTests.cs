@@ -34,9 +34,9 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Skills;
 [TestFixture]
 public class SkillSeederTests
 {
-    private static readonly string[] ExpectedGuideAssetPaths = ["references/guide.md"];
-    private static readonly string[] ExpectedSkillNames = ["demo-skill", "second-demo-skill"];
-    private static readonly string[] ExpectedSingleSeededSkillName = ["demo-skill"];
+    private static readonly string[] GuideAssetPaths = ["references/guide.md"];
+    private static readonly string[] MultipleSeededSkillNames = ["demo-skill", "second-demo-skill"];
+    private static readonly string[] SingleSeededSkillNames = ["demo-skill"];
 
     private const string ManifestV1 = """
         ---
@@ -197,7 +197,7 @@ public class SkillSeederTests
             Assert.That(stored.Description, Does.StartWith("First version"));
             Assert.That(stored.Version, Is.EqualTo("1.0"));
             Assert.That(stored.SourceFileName, Is.EqualTo("demo-skill.zip"));
-            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(ExpectedGuideAssetPaths));
+            Assert.That(stored.Assets.Select(a => a.RelativePath), Is.EqualTo(GuideAssetPaths));
         });
     }
 
@@ -243,7 +243,7 @@ public class SkillSeederTests
 
         Assert.That(
             await context.Skills.Select(skill => skill.Name).OrderBy(name => name).ToListAsync(),
-            Is.EqualTo(ExpectedSkillNames));
+            Is.EqualTo(MultipleSeededSkillNames));
     }
 
     /// <summary>
@@ -355,7 +355,7 @@ public class SkillSeederTests
                 "re-seeding would rewrite provenance to the system marker");
             Assert.That(
                 stored.Assets.Select(a => a.RelativePath),
-                Is.EqualTo(ExpectedGuideAssetPaths),
+                Is.EqualTo(GuideAssetPaths),
                 "re-seeding replaces the asset set wholesale");
         });
     }
@@ -406,7 +406,7 @@ public class SkillSeederTests
 
         await using var context = NewContext();
 
-        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(ExpectedSingleSeededSkillName));
+        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(SingleSeededSkillNames));
     }
 
     /// <summary>A package rejected by validation must leave nothing behind, exactly as on upload.</summary>
@@ -465,7 +465,7 @@ public class SkillSeederTests
         Assert.DoesNotThrowAsync(async () => await NewSeeder(missing).SeedAsync());
 
         await using var context = NewContext();
-        Assert.That(context.Skills.Count(), Is.Zero);
+        Assert.That(await context.Skills.CountAsync(), Is.Zero);
     }
 
     /// <summary>The unconfigured equivalent: no seed tree anywhere above the content root.</summary>
@@ -477,7 +477,7 @@ public class SkillSeederTests
         Assert.DoesNotThrowAsync(async () => await NewSeeder(configuredDirectory: null).SeedAsync());
 
         await using var context = NewContext();
-        Assert.That(context.Skills.Count(), Is.Zero);
+        Assert.That(await context.Skills.CountAsync(), Is.Zero);
     }
 
     /// <summary>
@@ -493,7 +493,7 @@ public class SkillSeederTests
         await NewSeeder(configuredDirectory: null).SeedAsync();
 
         await using var context = NewContext();
-        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(ExpectedSingleSeededSkillName));
+        Assert.That(await context.Skills.Select(s => s.Name).ToListAsync(), Is.EqualTo(SingleSeededSkillNames));
     }
 
     /// <summary>A relative configured path is resolved against the content root, never the CWD.</summary>
@@ -505,7 +505,7 @@ public class SkillSeederTests
         await NewSeeder(Path.Combine("..", "seed", "skills")).SeedAsync();
 
         await using var context = NewContext();
-        Assert.That(context.Skills.Count(), Is.EqualTo(1));
+        Assert.That(await context.Skills.CountAsync(), Is.EqualTo(1));
     }
 
     [Test]
@@ -514,7 +514,7 @@ public class SkillSeederTests
         Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
 
         await using var context = NewContext();
-        Assert.That(context.Skills.Count(), Is.Zero);
+        Assert.That(await context.Skills.CountAsync(), Is.Zero);
     }
 
     // ---------------------------------------------------------------- scoping
@@ -535,6 +535,6 @@ public class SkillSeederTests
         await RunAsHostedServiceAsync(seeder);
 
         await using var context = NewContext();
-        Assert.That(context.Skills.Count(), Is.EqualTo(1));
+        Assert.That(await context.Skills.CountAsync(), Is.EqualTo(1));
     }
 }

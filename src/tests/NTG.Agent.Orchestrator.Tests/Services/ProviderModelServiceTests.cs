@@ -9,10 +9,10 @@ namespace NTG.Agent.Orchestrator.Tests.Services;
 [TestFixture]
 public class ProviderModelServiceTests
 {
-    private static readonly string[] ExpectedOpenAiModels = ["gpt-3.5", "gpt-4o"];
-    private static readonly string[] ExpectedAnthropicModels = ["claude-sonnet-4-6"];
-    private static readonly string[] ExpectedAzureDeployments = ["my-gpt4-deployment"];
-    private static readonly string[] ExpectedGitHubModels = ["gpt-4o", "o1-mini"];
+    private static readonly string[] OpenAiModelIds = ["gpt-3.5", "gpt-4o"];
+    private static readonly string[] AnthropicModelIds = ["claude-sonnet-4-6"];
+    private static readonly string[] AzureDeploymentIds = ["my-gpt4-deployment"];
+    private static readonly string[] GitHubModelIds = ["gpt-4o", "o1-mini"];
 
     // Captures the outbound request and returns a canned response so per-provider
     // request shaping and response parsing can be asserted without a network call.
@@ -48,7 +48,7 @@ public class ProviderModelServiceTests
         var models = await service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "key"));
 
         // Assert
-        Assert.That(models, Is.EqualTo(ExpectedOpenAiModels));
+        Assert.That(models, Is.EqualTo(OpenAiModelIds));
         Assert.That(handler.LastRequest!.RequestUri!.ToString(), Is.EqualTo("https://api.openai.com/v1/models"));
         Assert.That(handler.LastRequest.Headers.Authorization!.Scheme, Is.EqualTo("Bearer"));
         Assert.That(handler.LastRequest.Headers.Authorization.Parameter, Is.EqualTo("key"));
@@ -66,7 +66,7 @@ public class ProviderModelServiceTests
         var models = await service.FetchModelsAsync(new ProviderProbeRequest("Anthropic", null, "key"));
 
         // Assert
-        Assert.That(models, Is.EqualTo(ExpectedAnthropicModels));
+        Assert.That(models, Is.EqualTo(AnthropicModelIds));
         Assert.That(handler.LastRequest!.RequestUri!.ToString(), Is.EqualTo("https://api.anthropic.com/v1/models"));
         Assert.That(handler.LastRequest.Headers.GetValues("x-api-key"), Does.Contain("key"));
         Assert.That(handler.LastRequest.Headers.GetValues("anthropic-version"), Does.Contain("2023-06-01"));
@@ -116,7 +116,7 @@ public class ProviderModelServiceTests
             new ProviderProbeRequest("AzureOpenAI", "https://my-res.openai.azure.com/", "key"));
 
         // Assert
-        Assert.That(models, Is.EqualTo(ExpectedAzureDeployments));
+        Assert.That(models, Is.EqualTo(AzureDeploymentIds));
         Assert.That(handler.LastRequest!.RequestUri!.ToString(),
             Is.EqualTo("https://my-res.openai.azure.com/openai/deployments?api-version=2024-08-01-preview"));
         Assert.That(handler.LastRequest.Headers.GetValues("api-key"), Does.Contain("key"));
@@ -155,7 +155,7 @@ public class ProviderModelServiceTests
         var models = await service.FetchModelsAsync(new ProviderProbeRequest("GitHubModel", null, "key"));
 
         // Assert
-        Assert.That(models, Is.EqualTo(ExpectedGitHubModels));
+        Assert.That(models, Is.EqualTo(GitHubModelIds));
         Assert.That(handler.LastRequest!.RequestUri!.ToString(), Is.EqualTo("https://models.github.ai/catalog/models"));
     }
 

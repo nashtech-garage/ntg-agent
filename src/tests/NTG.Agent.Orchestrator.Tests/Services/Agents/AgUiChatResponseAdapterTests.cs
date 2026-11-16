@@ -7,7 +7,7 @@ namespace NTG.Agent.Orchestrator.Tests.Services.Agents;
 [TestFixture]
 public class AgUiChatResponseAdapterTests
 {
-    private static readonly string[] ExpectedReasoningTexts = ["thinking", "skill activity"];
+    private static readonly string[] ThinkingAndSkillNoticeTexts = ["thinking", "skill activity"];
 
     [Test]
     public async Task TextResponse_IsMappedToAssistantTextUpdate()
@@ -31,7 +31,7 @@ public class AgUiChatResponseAdapterTests
         Assert.That(updates, Has.Count.EqualTo(2));
         Assert.That(updates.SelectMany(update => update.Contents), Has.All.TypeOf<TextReasoningContent>());
         Assert.That(updates.SelectMany(update => update.Contents).Select(content => content.ToString()),
-            Is.EqualTo(ExpectedReasoningTexts));
+            Is.EqualTo(ThinkingAndSkillNoticeTexts));
     }
 
     [Test]
@@ -55,7 +55,7 @@ public class AgUiChatResponseAdapterTests
 
         var call = updates.Single().Contents.OfType<FunctionCallContent>().Single();
         var arguments = call.Arguments
-            ?? throw new AssertionException("Function call arguments should be present.");
+            ?? throw new AssertionException("Function-call arguments should be present.");
 
         Assert.Multiple(() =>
         {

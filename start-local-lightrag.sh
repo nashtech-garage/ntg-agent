@@ -7,14 +7,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# exported via `env` because bash identifiers cannot contain hyphens
+# Aspire uses underscores for parameter-name hyphens in environment variables.
 exec env \
-  "Parameters__lightrag-docker-host= " \
-  "Parameters__lightrag-docker-cert-path= " \
-  "Parameters__lightrag-docker-cert-password= " \
-  "Parameters__lightrag-gateway-url= " \
-  "Parameters__lightrag-webui-gateway-url=http://localhost:8080" \
-  "Parameters__lightrag-server-host= " \
-  "Parameters__lightrag-socks-proxy= " \
-  "Parameters__lightrag-postgres-port=5432" \
+  "Parameters__lightrag_docker_host= " \
+  "Parameters__lightrag_docker_cert_path= " \
+  "Parameters__lightrag_docker_cert_password= " \
+  "Parameters__lightrag_gateway_url= " \
+  "Parameters__lightrag_webui_gateway_url=http://localhost:8080" \
+  "Parameters__lightrag_server_host= " \
+  "Parameters__lightrag_socks_proxy= " \
+  "Parameters__lightrag_postgres_port=5432" \
   dotnet run --project src/NTG.Agent.AppHost --launch-profile https "$@"
