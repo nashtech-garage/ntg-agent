@@ -1,5 +1,6 @@
 ﻿@using Microsoft.EntityFrameworkCore
 @rendermode InteractiveServer
+@implements IDisposable
 @attribute [Authorize(Roles = "Admin")]
 @inject UserManager<ApplicationUser> UserManager
 @inject ILogger<UserTab> Logger
@@ -433,6 +434,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+
         try
         {
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -461,6 +464,48 @@ else
             errorMessage = $"Initialization failed: {ex.Message}";
             isLoading = false;
         }
+    }
+
+    private async void HandleAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        try
+        {
+            var authState = await authenticationStateTask;
+            await InvokeAsync(async () =>
+            {
+                if (!authState.User.Identity?.IsAuthenticated == true)
+                {
+                    errorMessage = "You must be logged in to access this page.";
+                    users.Clear();
+                    filteredUsers.Clear();
+                    isLoading = false;
+                }
+                else if (!authState.User.IsInRole("Admin"))
+                {
+                    errorMessage = "You must have Admin role to access user management.";
+                    users.Clear();
+                    filteredUsers.Clear();
+                    isLoading = false;
+                }
+                else
+                {
+                    errorMessage = null;
+                    currentUserId = UserManager.GetUserId(authState.User);
+                    await LoadUsersAsync();
+                }
+
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating users after authentication state changed.");
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
     }
 
     private async Task LoadUsersAsync()
@@ -499,7 +544,6 @@ else
         if (users == null)
         {
             filteredUsers = new List<ApplicationUser>();
-            StateHasChanged();
             return;
         }
 
@@ -519,7 +563,6 @@ else
             }
         ).ToList();
 
-        StateHasChanged();
     }
 
     private void ShowCreateUserModal()

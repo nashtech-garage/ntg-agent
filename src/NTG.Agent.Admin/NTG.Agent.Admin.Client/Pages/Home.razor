@@ -277,7 +277,6 @@
     {
         allAgents = await AgentClient.GetListAsync();
         EnsurePolling();
-        StateHasChanged();
     }
 
     private async Task RetryProvision(Guid agentId)

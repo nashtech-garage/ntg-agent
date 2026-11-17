@@ -3,7 +3,7 @@
 @inject FolderClient FolderClient
 @inject ILogger<TreeFolder> Logger
 @inject IJSRuntime JSRuntime
-@implements IDisposable
+@implements IAsyncDisposable
 
 <div class="tree-folder" @onclick:stopPropagation>
     <div class="folder-header mb-3">
@@ -316,23 +316,31 @@
 
     private async Task ShowContextMenu(MouseEventArgs e, FolderItem item)
     {
-        if (isContextMenuVisible)
+        try
         {
-            await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            if (isContextMenuVisible)
+            {
+                await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            }
+
+            var elementId = $"folder-{item.Id}";
+            var boundingRect = await JSRuntime.InvokeAsync<BoundingClientRect>("getBoundingClientRectById", elementId);
+
+            contextFolderId = item.Id;
+            isContextMenuVisible = true;
+
+            contextMenuX = $"{boundingRect.Right}px";
+            contextMenuY = $"{boundingRect.Top}px";
+
+            StateHasChanged();
+
+            await JSRuntime.InvokeVoidAsync("addDocumentClickListener", objRef);
         }
-
-        var elementId = $"folder-{item.Id}";
-        var boundingRect = await JSRuntime.InvokeAsync<BoundingClientRect>("getBoundingClientRectById", elementId);
-
-        contextFolderId = item.Id;
-        isContextMenuVisible = true;
-
-        contextMenuX = $"{boundingRect.Right}px";
-        contextMenuY = $"{boundingRect.Top}px";
-
-        StateHasChanged();
-
-        await JSRuntime.InvokeVoidAsync("addDocumentClickListener", objRef);
+        catch (JSDisconnectedException)
+        {
+            isContextMenuVisible = false;
+            contextFolderId = null;
+        }
     }
 
     [JSInvokable]
@@ -346,30 +354,48 @@
         }
     }
 
-    private void HideContextMenu()
+    private async Task HideContextMenu()
     {
         if (isContextMenuVisible)
         {
-            _ = JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
             isContextMenuVisible = false;
             contextFolderId = null;
+
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
-    public void Dispose()
+
+    public async ValueTask DisposeAsync()
     {
-        if (isContextMenuVisible)
+        try
         {
-            _ = JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            if (isContextMenuVisible)
+            {
+                await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
+            }
         }
-        objRef?.Dispose();
+        catch (JSDisconnectedException)
+        {
+        }
+        finally
+        {
+            objRef?.Dispose();
+        }
     }
-    private void AddNewFolder(FolderItem? parent)
+
+    private async Task AddNewFolder(FolderItem? parent)
     {
         folderToAddUnder = parent;
         newFolderName = string.Empty;
         showNewFolderError = false;
         isAddFolderDialogOpen = true;
-        HideContextMenu();
+        await HideContextMenu();
     }
 
     private void CloseAddFolderDialog()
@@ -448,13 +474,14 @@
         {
             await OnAddKnowledgeRequested.InvokeAsync(parent.Id);
         }
-        HideContextMenu();
+        await HideContextMenu();
     }
-    private void DeleteFolder(FolderItem folder)
+
+    private async Task DeleteFolder(FolderItem folder)
     {
         folderToDelete = folder;
         isDeleteFolderDialogOpen = true;
-        HideContextMenu();
+        await HideContextMenu();
     }
 
     private void CloseDeleteFolderDialog()
@@ -560,33 +587,27 @@
 
         return false;
     }
-    private void RenameFolder(FolderItem folder)
+    private async Task RenameFolder(FolderItem folder)
     {
         editingFolderId = folder.Id;
         editingFolderName = folder.Name;
         showRenameFolderError = false;
-        HideContextMenu();
+        await HideContextMenu();
         StateHasChanged();
-        _ = Task.Delay(50).ContinueWith(_ =>
+
+        await Task.Delay(50);
+        try
         {
-            InvokeAsync(() =>
-            {
-                try
-                {
-                    JSRuntime.InvokeVoidAsync("document.querySelector", $"#rename-folder-{folder.Id}").AsTask().ContinueWith(t =>
-                    {
-                        if (!t.IsFaulted)
-                        {
-                            JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('#rename-folder-{folder.Id}').focus()");
-                        }
-                    });
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "Error focusing rename input");
-                }
-            });
-        });
+            await JSRuntime.InvokeVoidAsync("document.querySelector", $"#rename-folder-{folder.Id}");
+            await JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('#rename-folder-{folder.Id}').focus()");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (JSException ex)
+        {
+            Logger.LogError(ex, "Error focusing rename input");
+        }
     }
 
     private async Task SaveFolderRename(Guid folderId, string newName, bool isEnterKey = false)

@@ -252,7 +252,14 @@
     private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         UpdateActiveConversationFromUrl();
-        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        try
+        {
+            await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         await InvokeAsync(StateHasChanged);
     }
 
@@ -344,7 +351,6 @@
     private void HandleActiveConversationChanged(Guid? conversationId)
     {
         activeConversationId = conversationId;
-        StateHasChanged();
     }
 
     private async void HandleConversationAdded()
@@ -366,15 +372,21 @@
 
     private async Task ToggleMenu(Guid conversationId)
     {
-        if (contextMenuConversationId == conversationId)
+        try
         {
-            contextMenuConversationId = null;
-            await JS.InvokeVoidAsync("removeClickOutsideHandler");
+            if (contextMenuConversationId == conversationId)
+            {
+                contextMenuConversationId = null;
+                await JS.InvokeVoidAsync("removeClickOutsideHandler");
+            }
+            else
+            {
+                contextMenuConversationId = conversationId;
+                await JS.InvokeVoidAsync("registerClickOutsideHandler", DotNetObjectReference.Create(this));
+            }
         }
-        else
+        catch (JSDisconnectedException)
         {
-            contextMenuConversationId = conversationId;
-            await JS.InvokeVoidAsync("registerClickOutsideHandler", DotNetObjectReference.Create(this));
         }
     }
 
@@ -389,8 +401,15 @@
     {
         // Unregister from location changes
         Navigation.LocationChanged -= HandleLocationChanged;
-        await JS.InvokeVoidAsync("removeClickOutsideHandler");
         ConversationState.OnConversationAdded -= HandleConversationAdded;
+
+        try
+        {
+            await JS.InvokeVoidAsync("removeClickOutsideHandler");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task RenameConversation(Guid conversationId, string currentName)
@@ -441,7 +460,6 @@
     {
         renamingConversationId = null;
         renameValue = string.Empty;
-        StateHasChanged();
     }
 
     private async Task DeleteConversation(Guid conversationId)
@@ -449,7 +467,14 @@
         contextMenuConversationId = null;
         conversationToDelete = conversations.FirstOrDefault(c => c.Id == conversationId);
         showDeleteConfirmation = true;
-        await JS.InvokeVoidAsync("hideInputChatContainer");
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         StateHasChanged();
     }
 
@@ -457,8 +482,13 @@
     {
         showDeleteConfirmation = false;
         conversationToDelete = null;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task ConfirmDelete()
@@ -483,8 +513,13 @@
 
         showDeleteConfirmation = false;
         conversationToDelete = null;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task ShareConversation(Guid conversationId, string conversationName)
@@ -495,7 +530,14 @@
         shareConversationRequest.Name = conversationName;
 
         showShareModal = true;
-        await JS.InvokeVoidAsync("hideInputChatContainer");
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         StateHasChanged();
     }
 
@@ -503,8 +545,13 @@
     {
         showShareModal = false;
         shareConversationRequest = null;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task LoadSidebarStateAsync()
@@ -536,13 +583,18 @@
     {
         IsSidebarCollapsed = !IsSidebarCollapsed;
         await SaveSidebarStateAsync();
-        await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        try
+        {
+            await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void ToggleSettingsMenu()
     {
         showSettingsMenu = !showSettingsMenu;
-        StateHasChanged();
     }
 
     private void CloseSettingsMenuIfOpen()
@@ -550,7 +602,6 @@
         if (showSettingsMenu)
         {
             showSettingsMenu = false;
-            StateHasChanged();
         }
     }
 
@@ -558,34 +609,53 @@
     {
         showSettingsMenu = false;
         showManageSharedModal = true;
-        await JS.InvokeVoidAsync("hideInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task CloseManageSharedModal()
     {
         showManageSharedModal = false;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task OpenMyPreferenceModal()
     {
         showSettingsMenu = false;
         showMyPreferenceModal = true;
-        await JS.InvokeVoidAsync("hideInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task CloseMyPreferenceModal()
     {
         showMyPreferenceModal = false;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void HandleSharedConversationChanged()
     {
-        StateHasChanged();
     }
 }

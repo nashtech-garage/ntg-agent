@@ -283,7 +283,13 @@
     {
         if (Document?.Name != null)
         {
-            await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 }

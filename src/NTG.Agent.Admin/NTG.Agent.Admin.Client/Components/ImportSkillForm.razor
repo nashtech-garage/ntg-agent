@@ -112,7 +112,6 @@
 
         isUploading = true;
         selectedFileName = file.Name;
-        StateHasChanged();
 
         try
         {
@@ -142,7 +141,6 @@
         finally
         {
             isUploading = false;
-            StateHasChanged();
         }
     }
 }

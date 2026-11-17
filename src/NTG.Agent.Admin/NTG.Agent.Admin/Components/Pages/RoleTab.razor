@@ -1,5 +1,6 @@
 ﻿@using Microsoft.EntityFrameworkCore
 @rendermode InteractiveServer
+@implements IDisposable
 @attribute [Authorize(Roles = "Admin")]
 @inject RoleManager<IdentityRole> RoleManager
 @inject UserManager<ApplicationUser> UserManager
@@ -403,6 +404,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+
         try
         {
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -428,6 +431,47 @@ else
             errorMessage = $"Initialization failed: {ex.Message}";
             isLoading = false;
         }
+    }
+
+    private async void HandleAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        try
+        {
+            var authState = await authenticationStateTask;
+            await InvokeAsync(async () =>
+            {
+                if (!authState.User.Identity?.IsAuthenticated == true)
+                {
+                    errorMessage = "You must be logged in to access this page.";
+                    roles.Clear();
+                    filteredRoles.Clear();
+                    isLoading = false;
+                }
+                else if (!authState.User.IsInRole("Admin"))
+                {
+                    errorMessage = "You must have Admin role to access role management.";
+                    roles.Clear();
+                    filteredRoles.Clear();
+                    isLoading = false;
+                }
+                else
+                {
+                    errorMessage = null;
+                    await LoadRolesAsync();
+                }
+
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating roles after authentication state changed.");
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
     }
 
     private async Task LoadRolesAsync()
@@ -480,7 +524,6 @@ else
         if (roles == null)
         {
             filteredRoles = new List<IdentityRole>();
-            StateHasChanged();
             return;
         }
 
@@ -496,7 +539,6 @@ else
             }
         ).ToList();
 
-        StateHasChanged();
     }
 
     private bool IsSystemRole(string? roleName)

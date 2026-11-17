@@ -3,6 +3,7 @@
 @using NTG.Agent.Common.Dtos.AnonymousSessions
 @using NTG.Agent.WebClient.Client.Components.Shared
 @using System.Text
+@implements IDisposable
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
 @inject ConversationClient ConversationClient
@@ -327,6 +328,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = authState.User.Identity?.IsAuthenticated ?? false;
 
@@ -373,7 +376,6 @@ else
                             UserComment = item.UserComment
                         });
                 }
-                StateHasChanged();
             }
             catch (UnauthorizedAccessException)
             {
@@ -382,13 +384,42 @@ else
         }
     }
 
+    private async void HandleAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        try
+        {
+            var authState = await authenticationStateTask;
+            var authenticated = authState.User.Identity?.IsAuthenticated ?? false;
+            await InvokeAsync(() =>
+            {
+                isAuthenticated = authenticated;
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating chat authentication state.");
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await Task.Delay(2000);
-            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
-            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+                await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 
@@ -396,7 +427,6 @@ else
     {
         uploadItems = items.ToList();
         showUploadFileModal = false;
-        StateHasChanged();
     }
 
     private async Task SendMessage()
@@ -410,7 +440,6 @@ else
         if (!isAuthenticated && rateLimitStatus != null && !rateLimitStatus.CanSendMessage)
         {
             showRateLimitModal = true;
-            StateHasChanged();
             return;
         }
 
@@ -573,26 +602,22 @@ else
             response.Message = "You have reached your message limit. Please sign in to continue chatting.";
             await LoadRateLimitStatus();
             showRateLimitModal = true;
-            StateHasChanged();
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
         {
             Logger.LogWarning(ex, "Access denied to agent");
             response.Message = "You no longer have access to this agent. Please select a different agent.";
-            StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error sending message");
             response.Message = "An error occurred while sending your message. Please try again.";
-            StateHasChanged();
         }
     }
 
     private void HandleTranscription(string result)
     {
         userInput = result;
-        StateHasChanged();
     }
 
     private void GoHome()
@@ -607,7 +632,13 @@ else
         {
             shareChatId = null;
             showShareModal = true;
-            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 
@@ -626,7 +657,6 @@ else
     private void CloseUploadFileModal()
     {
         showUploadFileModal = false;
-        StateHasChanged();
     }
 
     private async Task ShowShareMessageModal(ChatMessageItem message)
@@ -635,7 +665,13 @@ else
         {
             shareChatId = message.Id;
             showShareModal = true;
-            await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("hideInputChatContainer");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 
@@ -650,17 +686,21 @@ else
         }
     }
 
-    private void CloseShareModal()
+    private async Task CloseShareModal()
     {
         showShareModal = false;
         shareChatId = null;
-        JSRuntime.InvokeVoidAsync("showInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void HandleSharedConversationChanged()
     {
-        StateHasChanged();
     }
 
     private async Task ToggleDislike(ChatMessageItem message)
@@ -710,19 +750,16 @@ else
     private void CloseAgentSelector()
     {
         showAgentSelector = false;
-        StateHasChanged();
     }
 
     private void TogglePlusMenu()
     {
         showPlusMenu = !showPlusMenu;
-        StateHasChanged();
     }
 
     private void ClosePlusMenu()
     {
         showPlusMenu = false;
-        StateHasChanged();
     }
 
     private void SelectAgent(Guid agentId)
@@ -830,16 +867,24 @@ else
 
     private async Task<string> GetOrCreateAnonymousSessionIdAsync()
     {
-        var sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
-        if (Guid.TryParse(sessionId, out _))
+        try
         {
+            var sessionId = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            if (Guid.TryParse(sessionId, out _))
+            {
+                return sessionId;
+            }
+
+            sessionId = Guid.NewGuid().ToString();
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
+            Logger.LogInformation("Created new anonymous session ID: {SessionId}", sessionId);
             return sessionId;
         }
-
-        sessionId = Guid.NewGuid().ToString();
-        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
-        Logger.LogInformation("Created new anonymous session ID: {SessionId}", sessionId);
-        return sessionId;
+        catch (JSDisconnectedException ex)
+        {
+            Logger.LogDebug(ex, "Unable to access the anonymous session ID after the JS runtime disconnected.");
+            throw;
+        }
     }
 
     /// <summary>
@@ -848,7 +893,6 @@ else
     private void CloseRateLimitModal()
     {
         showRateLimitModal = false;
-        StateHasChanged();
     }
 
     /// <summary>

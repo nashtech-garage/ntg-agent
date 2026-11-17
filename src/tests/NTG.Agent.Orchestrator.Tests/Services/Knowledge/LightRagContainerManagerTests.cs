@@ -158,7 +158,7 @@ public class LightRagContainerManagerTests
 	}
 
 	[Test]
-	public void EnsureContainerAsync_Throws_WhenGatewayContainerMissing()
+	public async Task EnsureContainerAsync_Throws_WhenGatewayContainerMissing()
 	{
 		// Without the gateway, agent containers are unreachable — fail with a clear pointer
 		// to the compose stack instead of timing out in the readiness gate.
@@ -166,7 +166,7 @@ public class LightRagContainerManagerTests
 
 		var manager = NewManager(docker.Object);
 
-		var ex = Assert.ThrowsAsync<InvalidOperationException>(
+		var ex = await Assert.ThrowsAsync<InvalidOperationException>(
 			() => manager.EnsureContainerAsync(Guid.NewGuid()));
 		Assert.That(ex!.Message, Does.Contain("lightrag-gateway"));
 		containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -258,7 +258,7 @@ public class LightRagContainerManagerTests
 	}
 
 	[Test]
-	public void EnsureContainerAsync_ThrowsDaemonUnavailable_WhenDaemonUnreachable()
+	public async Task EnsureContainerAsync_ThrowsDaemonUnavailable_WhenDaemonUnreachable()
 	{
 		// The pre-flight daemon ping fails. The manager must surface a clean typed exception
 		// and never attempt any container work.
@@ -270,7 +270,7 @@ public class LightRagContainerManagerTests
 
 		var manager = NewManager(docker.Object);
 
-		Assert.ThrowsAsync<LightRagDaemonUnavailableException>(
+		await Assert.ThrowsAsync<LightRagDaemonUnavailableException>(
 			() => manager.EnsureContainerAsync(Guid.NewGuid()));
 		containers.Verify(c => c.CreateContainerAsync(It.IsAny<CreateContainerParameters>(), It.IsAny<CancellationToken>()), Times.Never);
 	}
@@ -290,7 +290,7 @@ public class LightRagContainerManagerTests
 	}
 
 	[Test]
-	public void EnsureContainerAsync_ThrowsNotReady_WhenAppNeverServes()
+	public async Task EnsureContainerAsync_ThrowsNotReady_WhenAppNeverServes()
 	{
 		// Docker reports the container up, but its app never answers the health probe — the
 		// readiness gate must give up after the budget and throw rather than hand back a dead
@@ -308,7 +308,7 @@ public class LightRagContainerManagerTests
 
 		var manager = NewManager(docker.Object, settings, probe.Object);
 
-		Assert.ThrowsAsync<LightRagContainerNotReadyException>(
+		await Assert.ThrowsAsync<LightRagContainerNotReadyException>(
 			() => manager.EnsureContainerAsync(agentId));
 	}
 }

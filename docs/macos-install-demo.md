@@ -1,6 +1,6 @@
 # Demo: One-Command Local Install on macOS
 
-> Prerequisites for the presenter: macOS with Homebrew installed, .NET 10 SDK,
+> Prerequisites for the presenter: macOS with Homebrew installed, .NET 11 SDK,
 > Docker (Desktop or Colima), Node >= 20, and an Azure OpenAI resource (endpoint
 > + API key) for Demo 3. The repo must be on branch `feature/auto-install-script`.
 
@@ -52,7 +52,7 @@ instead of trying to auto-install Docker (which is a user-managed prerequisite).
 ### Talking points
 
 - The script detected `IS_MAC=true` and `HAVE_BREW=true`.
-- All other prerequisites (.NET 10, Node, openssl, git, curl) passed.
+- All other prerequisites (.NET 11, Node, openssl, git, curl) passed.
 - Docker's daemon check (`docker info`) failed, so it landed in the `MISSING`
   array with no corresponding `BREW_PKGS` entry (Docker has an empty brew spec —
   it is deliberately not auto-installed on macOS).
@@ -86,7 +86,7 @@ formulae for node/git — then re-execs itself to re-verify.
    docker info >/dev/null 2>&1 && echo "Docker is up"
    ```
 
-2. Simulate a missing .NET 10 SDK by hiding it from PATH (dotnet lives in
+2. Simulate a missing .NET 11 SDK by hiding it from PATH (dotnet lives in
    `/usr/local/share/dotnet`, which is not in the restricted PATH below):
 
    ```bash
@@ -98,8 +98,8 @@ formulae for node/git — then re-execs itself to re-verify.
 
    ```
    Missing prerequisites:
-     - .NET 10 SDK
-         Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | macOS: brew install --cask
+     - .NET 11 SDK
+         Ubuntu/WSL: sudo apt install dotnet-sdk-11.0 | macOS: brew install --cask
          dotnet-sdk | Arch: ... | https://dotnet.microsoft.com/...
    ==> Installing missing prerequisites with Homebrew (cask installs may prompt
        for your password).
@@ -113,7 +113,7 @@ formulae for node/git — then re-execs itself to re-verify.
    prints "Install the above and re-run ./install-local.sh" and exits 1.
 
    > **This second-pass exit is expected in this artificial scenario.** In a real
-   > case where .NET 10 SDK is genuinely not installed, the cask install would
+   > case where .NET 11 SDK is genuinely not installed, the cask install would
    > add it to PATH and the re-exec would find it and proceed.
 
 ### Talking points
@@ -202,7 +202,7 @@ The LightRAG containers are brought up with `docker compose up -d` (idempotent).
 | | Linux (Ubuntu/Debian) | macOS | Windows (WSL2) |
 |---|---|---|---|
 | **Package manager** | `sudo apt-get` | `brew` (must be pre-installed) | n/a (apt inside WSL) |
-| **.NET 10 SDK** | `apt install dotnet-sdk-10.0` | `brew install --cask dotnet-sdk` | `apt install dotnet-sdk-10.0` |
+| **.NET 11 SDK** | `apt install dotnet-sdk-11.0` | `brew install --cask dotnet-sdk` | `apt install dotnet-sdk-11.0` |
 | **Node >= 20** | NodeSource `setup_22.x` | `brew install node` | NodeSource `setup_22.x` |
 | **Docker** | Auto-installed + daemon started + group added | **User-managed** (check + hint) | **User-managed** (Docker Desktop) |
 | **Re-exec after install** | `sg docker -c` (docker group) | plain `exec` (no group concept) | n/a (Docker from Desktop) |
