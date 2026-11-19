@@ -287,8 +287,9 @@
             {
                 await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
             }
-            catch (JSDisconnectedException)
+            catch (JSDisconnectedException ex)
             {
+                Logger.LogDebug(ex, "JavaScript runtime disconnected while opening the document in a new tab.");
             }
         }
     }

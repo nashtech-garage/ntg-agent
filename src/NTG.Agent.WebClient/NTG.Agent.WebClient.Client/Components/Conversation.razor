@@ -256,8 +256,9 @@
         {
             await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
 
         await InvokeAsync(StateHasChanged);
@@ -385,8 +386,9 @@
                 await JS.InvokeVoidAsync("registerClickOutsideHandler", DotNetObjectReference.Create(this));
             }
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -407,8 +409,9 @@
         {
             await JS.InvokeVoidAsync("removeClickOutsideHandler");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -471,8 +474,9 @@
         {
             await JS.InvokeVoidAsync("hideInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
 
         StateHasChanged();
@@ -486,8 +490,9 @@
         {
             await JS.InvokeVoidAsync("showInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -517,8 +522,9 @@
         {
             await JS.InvokeVoidAsync("showInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -534,8 +540,9 @@
         {
             await JS.InvokeVoidAsync("hideInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
 
         StateHasChanged();
@@ -549,8 +556,9 @@
         {
             await JS.InvokeVoidAsync("showInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -587,8 +595,9 @@
         {
             await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -613,8 +622,9 @@
         {
             await JS.InvokeVoidAsync("hideInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -625,8 +635,9 @@
         {
             await JS.InvokeVoidAsync("showInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -638,8 +649,9 @@
         {
             await JS.InvokeVoidAsync("hideInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 
@@ -650,8 +662,9 @@
         {
             await JS.InvokeVoidAsync("showInputChatContainer");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling conversation UI interaction.");
         }
     }
 

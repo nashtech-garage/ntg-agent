@@ -365,8 +365,9 @@
             {
                 await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
             }
-            catch (JSDisconnectedException)
+            catch (JSDisconnectedException ex)
             {
+                Logger.LogDebug(ex, "JavaScript runtime disconnected while handling folder UI interaction.");
             }
         }
     }
@@ -380,8 +381,9 @@
                 await JSRuntime.InvokeVoidAsync("removeDocumentClickListener");
             }
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling folder UI interaction.");
         }
         finally
         {
@@ -601,8 +603,9 @@
             await JSRuntime.InvokeVoidAsync("document.querySelector", $"#rename-folder-{folder.Id}");
             await JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('#rename-folder-{folder.Id}').focus()");
         }
-        catch (JSDisconnectedException)
+        catch (JSDisconnectedException ex)
         {
+            Logger.LogDebug(ex, "JavaScript runtime disconnected while handling folder UI interaction.");
         }
         catch (JSException ex)
         {

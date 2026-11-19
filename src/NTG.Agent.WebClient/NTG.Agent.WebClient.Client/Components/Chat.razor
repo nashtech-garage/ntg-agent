@@ -3,6 +3,7 @@
 @using NTG.Agent.Common.Dtos.AnonymousSessions
 @using NTG.Agent.WebClient.Client.Components.Shared
 @using System.Text
+@using System.Text.Json
 @implements IDisposable
 @inject ChatClient ChatClient
 @inject NavigationManager Navigation
@@ -396,7 +397,7 @@ else
                 StateHasChanged();
             });
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             Logger.LogError(ex, "Error updating chat authentication state.");
         }
@@ -608,7 +609,22 @@ else
             Logger.LogWarning(ex, "Access denied to agent");
             response.Message = "You no longer have access to this agent. Please select a different agent.";
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Error sending message");
+            response.Message = "An error occurred while sending your message. Please try again.";
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError(ex, "Error sending message");
+            response.Message = "An error occurred while sending your message. Please try again.";
+        }
+        catch (OperationCanceledException ex)
+        {
+            Logger.LogError(ex, "Error sending message");
+            response.Message = "An error occurred while sending your message. Please try again.";
+        }
+        catch (JSException ex)
         {
             Logger.LogError(ex, "Error sending message");
             response.Message = "An error occurred while sending your message. Please try again.";
@@ -808,9 +824,20 @@ else
                 }
             }
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            // If API call fails or there's an error, continue to use default
+            Logger.LogWarning(ex, "Failed to load saved agent preference from server");
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load saved agent preference from server");
+        }
+        catch (OperationCanceledException ex)
+        {
+            Logger.LogWarning(ex, "Failed to load saved agent preference from server");
+        }
+        catch (JSException ex)
+        {
             Logger.LogWarning(ex, "Failed to load saved agent preference from server");
         }
         
@@ -843,9 +870,20 @@ else
                 Logger.LogWarning("Failed to save agent preference to server");
             }
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            // Log the error but don't fail the UI operation
+            Logger.LogError(ex, "Error saving agent preference");
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError(ex, "Error saving agent preference");
+        }
+        catch (OperationCanceledException ex)
+        {
+            Logger.LogError(ex, "Error saving agent preference");
+        }
+        catch (JSException ex)
+        {
             Logger.LogError(ex, "Error saving agent preference");
         }
     }
@@ -859,7 +897,15 @@ else
         {
             rateLimitStatus = await ConversationClient.GetAnonymousRateLimitStatusAsync(currentSessionId);
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "Error loading rate limit status");
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogError(ex, "Error loading rate limit status");
+        }
+        catch (OperationCanceledException ex)
         {
             Logger.LogError(ex, "Error loading rate limit status");
         }

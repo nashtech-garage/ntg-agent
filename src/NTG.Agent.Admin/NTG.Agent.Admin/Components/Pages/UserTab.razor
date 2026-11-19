@@ -1,4 +1,5 @@
 ﻿@using Microsoft.EntityFrameworkCore
+@using System.Data.Common
 @rendermode InteractiveServer
 @implements IDisposable
 @attribute [Authorize(Roles = "Admin")]
@@ -458,7 +459,7 @@ else
 
             await LoadUsersAsync();
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             Logger.LogError(ex, "Error during initialization");
             errorMessage = $"Initialization failed: {ex.Message}";
@@ -497,7 +498,7 @@ else
                 StateHasChanged();
             });
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             Logger.LogError(ex, "Error updating users after authentication state changed.");
         }
@@ -525,7 +526,7 @@ else
             filteredUsers = users;
             FilterUsers();
         }
-        catch (Exception ex)
+        catch (DbException ex)
         {
             Logger.LogError(ex, "Failed to load users");
             errorMessage = $"Failed to load users: {ex.Message}";
@@ -646,7 +647,7 @@ else
                 }
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to save user");
             errorMessage = "Failed to save user.";
@@ -678,7 +679,7 @@ else
                 errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to delete user");
             errorMessage = "Failed to delete user.";
@@ -701,7 +702,7 @@ else
                 errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to confirm email");
             errorMessage = "Failed to confirm email.";
@@ -723,7 +724,7 @@ else
                 errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to lock user");
             errorMessage = "Failed to lock user.";
@@ -745,7 +746,7 @@ else
                 errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to unlock user");
             errorMessage = "Failed to unlock user.";
