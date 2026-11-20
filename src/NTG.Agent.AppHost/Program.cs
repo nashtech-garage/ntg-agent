@@ -1,3 +1,4 @@
+using Aspire.Hosting;
 using System.Runtime.InteropServices;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -6,7 +7,7 @@ var saPassword = builder.AddParameter("sql-sa-password", secret: true);
 var googleApiKey = builder.AddParameter("google-api-key", secret: true);
 var googleSearchId = builder.AddParameter("google-search-engine-id", secret: true);
 var pgPassword = builder.AddParameter("lightrag-pg-password", secret: true);
-var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true, value: "");
+var lightragApiKey = builder.AddParameter("lightrag-api-key", secret: true, value: "").AsOptional();
 var lightragImageTag = builder.AddParameter("lightrag-image-tag", secret: false);
 // LightRAG's global LLM and embedding bindings are selected independently during setup.
 var lightragLlmBinding = builder.AddParameter("lightrag-llm-binding", secret: true);
@@ -19,23 +20,23 @@ var lightragEmbeddingModel = builder.AddParameter("lightrag-embedding-model", se
 var lightragEmbeddingApiKey = builder.AddParameter("lightrag-embedding-api-key", secret: true);
 var lightragAzureApiVersion = builder.AddParameter("lightrag-azure-api-version", secret: true);
 var lightragAzureEmbeddingApiVersion = builder.AddParameter("lightrag-azure-embedding-api-version", secret: true);
-var lightragAwsRegion = builder.AddParameter("lightrag-aws-region", secret: true, value: "");
-var lightragAwsBearerToken = builder.AddParameter("lightrag-aws-bearer-token-bedrock", secret: true, value: "");
-var lightragAwsAccessKeyId = builder.AddParameter("lightrag-aws-access-key-id", secret: true, value: "");
-var lightragAwsSecretAccessKey = builder.AddParameter("lightrag-aws-secret-access-key", secret: true, value: "");
-var lightragAwsSessionToken = builder.AddParameter("lightrag-aws-session-token", secret: true, value: "");
+var lightragAwsRegion = builder.AddParameter("lightrag-aws-region", secret: true, value: "").AsOptional();
+var lightragAwsBearerToken = builder.AddParameter("lightrag-aws-bearer-token-bedrock", secret: true, value: "").AsOptional();
+var lightragAwsAccessKeyId = builder.AddParameter("lightrag-aws-access-key-id", secret: true, value: "").AsOptional();
+var lightragAwsSecretAccessKey = builder.AddParameter("lightrag-aws-secret-access-key", secret: true, value: "").AsOptional();
+var lightragAwsSessionToken = builder.AddParameter("lightrag-aws-session-token", secret: true, value: "").AsOptional();
 var lightragOllamaLlmNumCtx = builder.AddParameter("lightrag-ollama-llm-num-ctx", secret: true);
 
 // LightRAG + its Postgres live on a dedicated Ubuntu server reached directly over TLS.
 // All default to empty = plain local run (local Docker socket, localhost:5432); set them
 // in user-secrets to target the remote host instead.
-var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true);          // e.g. https://4.193.109.6:2376
-var lightragCertPath = builder.AddParameter("lightrag-docker-cert-path", secret: true);       // path to client.pfx
-var lightragCertPassword = builder.AddParameter("lightrag-docker-cert-password", secret: true);
-var lightragServerHost = builder.AddParameter("lightrag-server-host", secret: true);          // e.g. 4.193.109.6
-var lightragGatewayUrl = builder.AddParameter("lightrag-gateway-url", secret: true);          // e.g. https://4.193.109.6; empty => http://localhost:8080
-var lightragWebUiGatewayUrl = builder.AddParameter("lightrag-webui-gateway-url", secret: true); // e.g. https://lightrag.example.com; empty => GatewayUrl
-var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true);      // 5432 direct
+var lightragDockerHost = builder.AddParameter("lightrag-docker-host", secret: true).AsOptional();          // e.g. https://4.193.109.6:2376
+var lightragCertPath = builder.AddParameter("lightrag-docker-cert-path", secret: true).AsOptional();       // path to client.pfx
+var lightragCertPassword = builder.AddParameter("lightrag-docker-cert-password", secret: true).AsOptional();
+var lightragServerHost = builder.AddParameter("lightrag-server-host", secret: true).AsOptional();          // e.g. 4.193.109.6
+var lightragGatewayUrl = builder.AddParameter("lightrag-gateway-url", secret: true).AsOptional();          // e.g. https://4.193.109.6; empty => http://localhost:8080
+var lightragWebUiGatewayUrl = builder.AddParameter("lightrag-webui-gateway-url", secret: true).AsOptional(); // e.g. https://lightrag.example.com; empty => GatewayUrl
+var lightragPostgresPort = builder.AddParameter("lightrag-postgres-port", secret: true).AsOptional();      // 5432 direct
 
 var sql = builder.AddSqlServer("sqlserver", password: saPassword)
 				 .WithImageTag("2022-latest")
@@ -74,11 +75,11 @@ var migrateOrchestrator = builder.AddExecutable(
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db)
 	.WaitForCompletion(migrateAdmin);
 
-var mcpServer = builder.AddProject<Projects.NTG_Agent_MCP_Server>("ntg-agent-mcp-server")
+var mcpServer = builder.AddDotnetProject("ntg-agent-mcp-server", "../NTG.Agent.MCP.Server/NTG.Agent.MCP.Server.csproj")
 	.WithEnvironment("Google__ApiKey", googleApiKey)
 	.WithEnvironment("Google__SearchEngineId", googleSearchId);
 
-var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agent-orchestrator")
+var orchestrator = builder.AddDotnetProject("ntg-agent-orchestrator", "../NTG.Agent.Orchestrator/NTG.Agent.Orchestrator.csproj")
 	.WithExternalHttpEndpoints()
 	.WithReference(mcpServer)
 	.WaitForCompletion(migrateOrchestrator)
@@ -130,14 +131,14 @@ var orchestrator = builder.AddProject<Projects.NTG_Agent_Orchestrator>("ntg-agen
 	.WithEnvironment("LightRag__MaxParallelInsert", "2")
 	.WithEnvironment("LightRag__EmbeddingFuncMaxAsync", "8");
 
-builder.AddProject<Projects.NTG_Agent_WebClient>("ntg-agent-webclient")
+builder.AddDotnetProject("ntg-agent-webclient", "../NTG.Agent.WebClient/NTG.Agent.WebClient/NTG.Agent.WebClient.csproj")
 	.WithExternalHttpEndpoints()
 	.WithReference(orchestrator)
 	.WaitFor(orchestrator)
 	.WaitForCompletion(migrateOrchestrator)
 	.WithEnvironment("ConnectionStrings__DefaultConnection", db);
 
-builder.AddProject<Projects.NTG_Agent_Admin>("ntg-agent-admin")
+builder.AddDotnetProject("ntg-agent-admin", "../NTG.Agent.Admin/NTG.Agent.Admin/NTG.Agent.Admin.csproj")
 	.WithExternalHttpEndpoints()
 	.WithReference(orchestrator)
 	.WaitFor(orchestrator)
