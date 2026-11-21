@@ -483,6 +483,11 @@ public class AgentService
             yield break;
         }
 
+        if (agent is null)
+        {
+            throw new InvalidOperationException("Agent creation completed without an agent or configuration error.");
+        }
+
         var chatHistory = new List<ChatMessage>();
 
         foreach (var msg in history.OrderBy(m => m.CreatedAt))

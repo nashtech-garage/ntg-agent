@@ -134,7 +134,6 @@ export default function ConversationSidebar({
                 <li key={c.id} className="group relative">
                   {renamingId === c.id ? (
                     <input
-                      autoFocus
                       value={renameValue}
                       onChange={(e) => setRenameValue(e.target.value)}
                       onBlur={() => handleCommitRename(c.id)}

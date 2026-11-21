@@ -344,7 +344,7 @@ def run_live(base_url: str, agent_id: str, catalog: dict) -> bool:
         "messages": [{"id": str(uuid.uuid4()), "role": "user", "content": PROMPT}],
         "tools": [RENDER_TOOL],
     }
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # NOSONAR: base_url is canonicalized to a loopback-only origin above
         f"{base_url.rstrip('/')}/api/agui/{agent_id}",
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", "Accept": "text/event-stream"},

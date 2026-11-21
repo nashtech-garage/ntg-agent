@@ -385,6 +385,7 @@ const InteractiveTabs = createReactComponent(TabsApi as any, ({ props, buildChil
     <div style={{ display: "flex", flexDirection: "column", width: "100%", margin: "8px" }}>
       <div
         role="tablist"
+        tabIndex={0}
         onKeyDown={onKeyDown}
         style={{ display: "flex", borderBottom: "1px solid #ccc", marginBottom: "8px" }}
       >
