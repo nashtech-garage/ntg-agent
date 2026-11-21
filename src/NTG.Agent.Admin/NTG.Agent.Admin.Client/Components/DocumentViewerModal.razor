@@ -283,7 +283,14 @@
     {
         if (Document?.Name != null)
         {
-            await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("openInNewTab", Document.Name);
+            }
+            catch (JSDisconnectedException ex)
+            {
+                Logger.LogDebug(ex, "JavaScript runtime disconnected while opening the document in a new tab.");
+            }
         }
     }
 }

@@ -115,7 +115,14 @@
             await InvokeAsync(async () =>
             {
                 // Must be invoked on the UI thread
-                await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                try
+                {
+                    await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+
                 StateHasChanged();
             });
         });
@@ -135,18 +142,29 @@
         isSearchModalVisible = true;
         searchTerm = string.Empty;
         chatSearchResultItem = [];
-        await JS.InvokeVoidAsync("hideInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task CloseSearchModal()
     {
         isSearchModalVisible = false;
-        await JS.InvokeVoidAsync("showInputChatContainer");
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         // Clean up the timer when closing the modal
         searchDebounceTimer?.Dispose();
         searchDebounceTimer = null;
-        StateHasChanged();
     }
 
     private void ClearSearch()
@@ -156,7 +174,6 @@
         // Cancel any pending search
         searchDebounceTimer?.Dispose();
         searchDebounceTimer = null;
-        StateHasChanged();
     }
 
     private async Task HandleSearchInputKeyDown(KeyboardEventArgs e)

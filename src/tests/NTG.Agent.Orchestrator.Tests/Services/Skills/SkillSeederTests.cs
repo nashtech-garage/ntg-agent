@@ -355,7 +355,7 @@ public class SkillSeederTests
         WritePackage("broken.zip", "this is not a zip archive at all"u8.ToArray());
         WritePackage("demo-skill.zip", Package(ManifestV1));
 
-        Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
+        await Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
 
         await using var context = NewContext();
 
@@ -368,7 +368,7 @@ public class SkillSeederTests
     {
         WritePackage("no-manifest.zip", new TestZipBuilder().AddFile("demo-skill/notes.md", "no manifest").Build());
 
-        Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
+        await Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
 
         await using var context = NewContext();
 
@@ -400,7 +400,7 @@ public class SkillSeederTests
         await seeder.StartAsync(CancellationToken.None);
         var pass = seeder.ExecuteTask ?? Task.CompletedTask;
 
-        Assert.DoesNotThrowAsync(async () => await pass);
+        await Assert.DoesNotThrowAsync(async () => await pass);
         Assert.That(pass.IsFaulted, Is.False);
     }
 
@@ -415,7 +415,7 @@ public class SkillSeederTests
     {
         var missing = Path.Combine(_root, "no", "such", "directory");
 
-        Assert.DoesNotThrowAsync(async () => await NewSeeder(missing).SeedAsync());
+        await Assert.DoesNotThrowAsync(async () => await NewSeeder(missing).SeedAsync());
 
         await using var context = NewContext();
         Assert.That(context.Skills.Count(), Is.Zero);
@@ -427,7 +427,7 @@ public class SkillSeederTests
     {
         Directory.Delete(Path.Combine(_root, "seed"), recursive: true);
 
-        Assert.DoesNotThrowAsync(async () => await NewSeeder(configuredDirectory: null).SeedAsync());
+        await Assert.DoesNotThrowAsync(async () => await NewSeeder(configuredDirectory: null).SeedAsync());
 
         await using var context = NewContext();
         Assert.That(context.Skills.Count(), Is.Zero);
@@ -464,7 +464,7 @@ public class SkillSeederTests
     [Test]
     public async Task SeedAsync_EmptySeedDirectory_IsANoOp()
     {
-        Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
+        await Assert.DoesNotThrowAsync(async () => await NewSeeder(_seedDirectory).SeedAsync());
 
         await using var context = NewContext();
         Assert.That(context.Skills.Count(), Is.Zero);

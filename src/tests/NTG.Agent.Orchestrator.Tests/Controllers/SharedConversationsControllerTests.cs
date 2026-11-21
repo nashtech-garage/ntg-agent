@@ -54,7 +54,7 @@ public class SharedConversationsControllerTests
         Assert.That(controller, Is.Not.Null);
     }
     [Test]
-    public void ShareConversation_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task ShareConversation_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
@@ -64,7 +64,7 @@ public class SharedConversationsControllerTests
             ConversationId = Guid.NewGuid()
         };
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.ShareConversation(request));
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.ShareConversation(request));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]
@@ -284,13 +284,13 @@ public class SharedConversationsControllerTests
         Assert.That(messages.First().Content, Is.EqualTo("Shared message"));
     }
     [Test]
-    public void GetMyShares_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task GetMyShares_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.GetMyShares());
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.GetMyShares());
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]
@@ -341,13 +341,13 @@ public class SharedConversationsControllerTests
         Assert.That(shares.First().Name, Is.EqualTo("User Share"));
     }
     [Test]
-    public void Unshare_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task Unshare_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.Unshare(Guid.NewGuid(), false));
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.Unshare(Guid.NewGuid(), false));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]
@@ -398,14 +398,14 @@ public class SharedConversationsControllerTests
         Assert.That(updatedShare.IsActive, Is.False);
     }
     [Test]
-    public void UpdateExpiration_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task UpdateExpiration_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         var request = new UpdateExpirationRequest { ExpiresAt = DateTime.UtcNow.AddDays(7) };
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.UpdateExpiration(Guid.NewGuid(), request));
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.UpdateExpiration(Guid.NewGuid(), request));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]
@@ -442,13 +442,13 @@ public class SharedConversationsControllerTests
         Assert.That(updatedShare.ExpiresAt, Is.EqualTo(newExpiration));
     }
     [Test]
-    public void DeleteSharedConversation_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task DeleteSharedConversation_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.DeleteSharedConversation(Guid.NewGuid()));
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.DeleteSharedConversation(Guid.NewGuid()));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
     [Test]

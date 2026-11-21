@@ -202,7 +202,7 @@ public class DocumentsControllerTests
         Assert.That(badRequestResult.Value, Is.EqualTo("No files uploaded."));
     }
     [Test]
-    public void UploadDocuments_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task UploadDocuments_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
@@ -212,7 +212,7 @@ public class DocumentsControllerTests
             CreateTestFile("test.txt", "test content")
         };
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _controller.UploadDocuments(_testAgentId, files, null));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
@@ -325,7 +325,7 @@ public class DocumentsControllerTests
         _mockKnowledgeService.Verify(x => x.RemoveDocumentAsync(_testAgentId, document.Id, null, It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
     [Test]
-    public void DeleteDocument_WhenKnowledgeServiceThrows_DoesNotRemoveSqlRow()
+    public async Task DeleteDocument_WhenKnowledgeServiceThrows_DoesNotRemoveSqlRow()
     {
         // Arrange
         var document = new Document
@@ -343,7 +343,7 @@ public class DocumentsControllerTests
             .ThrowsAsync(new InvalidOperationException("KM unavailable"));
 
         // Act & Assert — exception bubbles up; SQL row must remain so the user can retry
-        Assert.ThrowsAsync<InvalidOperationException>(() => _controller.DeleteDocument(document.Id, _testAgentId));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _controller.DeleteDocument(document.Id, _testAgentId));
 
         var stillThere = _context.Documents.AsNoTracking().FirstOrDefault(d => d.Id == document.Id);
         Assert.That(stillThere, Is.Not.Null);
@@ -361,14 +361,14 @@ public class DocumentsControllerTests
         Assert.That(badRequestResult.Value, Is.EqualTo("URL is required."));
     }
     [Test]
-    public void ImportWebPage_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task ImportWebPage_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         var request = new ImportWebPageRequest("https://example.com", null);
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _controller.ImportWebPage(_testAgentId, request));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }
@@ -424,14 +424,14 @@ public class DocumentsControllerTests
         Assert.That(badRequestResult.Value, Is.EqualTo("Content is required."));
     }
     [Test]
-    public void UploadTextContent_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
+    public async Task UploadTextContent_WhenUserNotAuthenticated_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var anonymousUser = new ClaimsPrincipal(new ClaimsIdentity());
         _controller.ControllerContext.HttpContext.User = anonymousUser;
         var request = new UploadTextContentRequest("Title", "Content", null);
         // Act & Assert
-        var exception = Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+        var exception = await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             _controller.UploadTextContent(_testAgentId, request));
         Assert.That(exception.Message, Is.EqualTo("User is not authenticated."));
     }

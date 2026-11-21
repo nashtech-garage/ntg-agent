@@ -1,5 +1,7 @@
 ﻿@using Microsoft.EntityFrameworkCore
+@using System.Data.Common
 @rendermode InteractiveServer
+@implements IDisposable
 @attribute [Authorize(Roles = "Admin")]
 @inject RoleManager<IdentityRole> RoleManager
 @inject UserManager<ApplicationUser> UserManager
@@ -403,6 +405,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        AuthenticationStateProvider.AuthenticationStateChanged += HandleAuthenticationStateChanged;
+
         try
         {
             var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -422,12 +426,53 @@ else
 
             await LoadRolesAsync();
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             Logger.LogError(ex, "Error during initialization");
             errorMessage = $"Initialization failed: {ex.Message}";
             isLoading = false;
         }
+    }
+
+    private async void HandleAuthenticationStateChanged(Task<AuthenticationState> authenticationStateTask)
+    {
+        try
+        {
+            var authState = await authenticationStateTask;
+            await InvokeAsync(async () =>
+            {
+                if (!authState.User.Identity?.IsAuthenticated == true)
+                {
+                    errorMessage = "You must be logged in to access this page.";
+                    roles.Clear();
+                    filteredRoles.Clear();
+                    isLoading = false;
+                }
+                else if (!authState.User.IsInRole("Admin"))
+                {
+                    errorMessage = "You must have Admin role to access role management.";
+                    roles.Clear();
+                    filteredRoles.Clear();
+                    isLoading = false;
+                }
+                else
+                {
+                    errorMessage = null;
+                    await LoadRolesAsync();
+                }
+
+                StateHasChanged();
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            Logger.LogError(ex, "Error updating roles after authentication state changed.");
+        }
+    }
+
+    public void Dispose()
+    {
+        AuthenticationStateProvider.AuthenticationStateChanged -= HandleAuthenticationStateChanged;
     }
 
     private async Task LoadRolesAsync()
@@ -461,7 +506,7 @@ else
             filteredRoles = roles;
             FilterRoles();
         }
-        catch (Exception ex)
+        catch (DbException ex)
         {
             Logger.LogError(ex, "Failed to load roles");
             errorMessage = $"Failed to load roles: {ex.Message}";
@@ -480,7 +525,6 @@ else
         if (roles == null)
         {
             filteredRoles = new List<IdentityRole>();
-            StateHasChanged();
             return;
         }
 
@@ -496,7 +540,6 @@ else
             }
         ).ToList();
 
-        StateHasChanged();
     }
 
     private bool IsSystemRole(string? roleName)
@@ -566,7 +609,7 @@ else
                 }
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to save role");
             errorMessage = "Failed to save role.";
@@ -598,7 +641,7 @@ else
                 errorMessage = string.Join("; ", result.Errors.Select(e => e.Description));
             }
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
             Logger.LogError(ex, "Failed to delete role");
             errorMessage = "Failed to delete role.";
@@ -621,7 +664,7 @@ else
             }
             showUsersModal = true;
         }
-        catch (Exception ex)
+        catch (DbException ex)
         {
             Logger.LogError(ex, "Failed to load role users");
             errorMessage = "Failed to load users for this role.";

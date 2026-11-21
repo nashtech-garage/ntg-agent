@@ -91,12 +91,12 @@ public class ProviderModelServiceTests
     [TestCase("https://api.anthropic.com:8443")]
     [TestCase("https://api.anthropic.com/?target=localhost")]
     [TestCase("https://api.anthropic.com/v2")]
-    public void FetchModelsAsync_Anthropic_RejectsUntrustedEndpoint(string endpoint)
+    public async Task FetchModelsAsync_Anthropic_RejectsUntrustedEndpoint(string endpoint)
     {
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{ "data": [] }"""));
         var service = BuildService(handler);
 
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("Anthropic", endpoint, "key")));
 
         Assert.That(ex!.Message, Does.Contain("Anthropic endpoints"));
@@ -131,12 +131,12 @@ public class ProviderModelServiceTests
     [TestCase("https://my-res.openai.azure.com/v1")]
     [TestCase("https://.openai.azure.com")]
     [TestCase("https://my..openai.azure.com")]
-    public void FetchModelsAsync_Azure_RejectsUntrustedEndpoint(string endpoint)
+    public async Task FetchModelsAsync_Azure_RejectsUntrustedEndpoint(string endpoint)
     {
         var handler = new StubHandler(_ => Json(HttpStatusCode.OK, """{ "data": [] }"""));
         var service = BuildService(handler);
 
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("AzureOpenAI", endpoint, "key")));
 
         Assert.That(ex!.Message, Does.Contain("Azure OpenAI endpoints"));
@@ -160,38 +160,38 @@ public class ProviderModelServiceTests
     }
 
     [Test]
-    public void FetchModelsAsync_Unauthorized_ThrowsFriendlyAuthMessage()
+    public async Task FetchModelsAsync_Unauthorized_ThrowsFriendlyAuthMessage()
     {
         // Arrange
         var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.Unauthorized, "nope")));
 
         // Act + Assert
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "bad")));
         Assert.That(ex!.Message, Is.EqualTo("Authentication failed — check the API key."));
     }
 
     [Test]
-    public void FetchModelsAsync_Unreachable_ThrowsFriendlyReachMessage()
+    public async Task FetchModelsAsync_Unreachable_ThrowsFriendlyReachMessage()
     {
         // Arrange
         var service = BuildService(new StubHandler(_ => throw new HttpRequestException("boom")));
 
         // Act + Assert
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "key")));
         Assert.That(ex!.Message, Is.EqualTo("Could not reach the provider endpoint."));
     }
 
     [Test]
-    public void FetchModelsAsync_NonJsonBody_ThrowsFriendlyMessage()
+    public async Task FetchModelsAsync_NonJsonBody_ThrowsFriendlyMessage()
     {
         // Arrange — 200 OK but a non-JSON body (e.g. a proxy login page). Must surface as
         // ProviderProbeException, not a raw JsonException that becomes a 500.
         var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "<html>not json</html>")));
 
         // Act + Assert
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "key")));
         Assert.That(ex!.Message, Is.EqualTo("Provider returned an unexpected (non-JSON) response."));
     }
@@ -212,36 +212,36 @@ public class ProviderModelServiceTests
     }
 
     [Test]
-    public void FetchModelsAsync_UnknownProvider_Throws()
+    public async Task FetchModelsAsync_UnknownProvider_Throws()
     {
         // Arrange
         var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "{}")));
 
         // Act + Assert
-        Assert.ThrowsAsync<ProviderProbeException>(() =>
+        await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("Bogus", null, "key")));
     }
 
     [Test]
-    public void FetchModelsAsync_MissingApiKey_Throws()
+    public async Task FetchModelsAsync_MissingApiKey_Throws()
     {
         // Arrange
         var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "{}")));
 
         // Act + Assert
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("OpenAI", null, "")));
         Assert.That(ex!.Message, Is.EqualTo("An API key is required."));
     }
 
     [Test]
-    public void FetchModelsAsync_AzureWithoutEndpoint_Throws()
+    public async Task FetchModelsAsync_AzureWithoutEndpoint_Throws()
     {
         // Arrange
         var service = BuildService(new StubHandler(_ => Json(HttpStatusCode.OK, "{}")));
 
         // Act + Assert
-        var ex = Assert.ThrowsAsync<ProviderProbeException>(() =>
+        var ex = await Assert.ThrowsAsync<ProviderProbeException>(() =>
             service.FetchModelsAsync(new ProviderProbeRequest("AzureOpenAI", null, "key")));
         Assert.That(ex!.Message, Is.EqualTo("Azure OpenAI requires a provider endpoint."));
     }

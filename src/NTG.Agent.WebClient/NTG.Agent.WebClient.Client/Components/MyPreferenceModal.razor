@@ -293,7 +293,14 @@
     {
         selectedTheme = theme;
         // Apply immediately and cache in localStorage
-        await JS.InvokeVoidAsync("setTheme", theme);
+        try
+        {
+            await JS.InvokeVoidAsync("setTheme", theme);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         await SavePreferencesAsync();
     }
 
@@ -301,7 +308,14 @@
     {
         selectedAccent = accent;
         // Apply immediately and cache in localStorage
-        await JS.InvokeVoidAsync("setAccentColor", accent);
+        try
+        {
+            await JS.InvokeVoidAsync("setAccentColor", accent);
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
         await SavePreferencesAsync();
     }
 
@@ -352,14 +366,22 @@
 
     private async Task<string> GetOrCreateAnonymousSessionIdAsync()
     {
-        var sessionId = await JS.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
-        if (Guid.TryParse(sessionId, out _))
+        try
         {
+            var sessionId = await JS.InvokeAsync<string>("localStorage.getItem", "CurrentSessionId");
+            if (Guid.TryParse(sessionId, out _))
+            {
+                return sessionId;
+            }
+
+            sessionId = Guid.NewGuid().ToString();
+            await JS.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
             return sessionId;
         }
-
-        sessionId = Guid.NewGuid().ToString();
-        await JS.InvokeVoidAsync("localStorage.setItem", "CurrentSessionId", sessionId);
-        return sessionId;
+        catch (JSDisconnectedException ex)
+        {
+            Logger.LogDebug(ex, "Unable to access the anonymous session ID after the JS runtime disconnected.");
+            throw;
+        }
     }
 }

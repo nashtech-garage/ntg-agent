@@ -156,7 +156,6 @@
         try
         {
             isCreatingLink = true;
-            StateHasChanged();
 
             var shareRequest = new ShareConversationRequest
             {
@@ -189,7 +188,6 @@
         finally
         {
             isCreatingLink = false;
-            StateHasChanged();
         }
     }
 
@@ -204,7 +202,6 @@
             // Reset the "Copied" state after 5 seconds
             await Task.Delay(5000);
             linkCopied = false;
-            StateHasChanged();
         }
         catch (Exception ex)
         {

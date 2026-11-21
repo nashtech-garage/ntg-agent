@@ -57,10 +57,10 @@ require() {
   fi
 }
 
-require ".NET 10 SDK" \
-  "dotnet --list-sdks | grep -q '^10\.'" \
-  "Ubuntu/WSL: sudo apt install dotnet-sdk-10.0 | macOS: brew install --cask dotnet-sdk | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/10.0" \
-  "dotnet-sdk-10.0" \
+require ".NET 11 SDK" \
+  "dotnet --list-sdks | grep -q '^11\.'" \
+  "Ubuntu/WSL: sudo apt install dotnet-sdk-11.0 | macOS: brew install --cask dotnet-sdk | Arch: sudo pacman -S dotnet-sdk | https://dotnet.microsoft.com/download/dotnet/11.0" \
+  "dotnet-sdk-11.0" \
   "cask:dotnet-sdk"
 require "docker CLI" \
   "command -v docker" \

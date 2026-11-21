@@ -642,7 +642,6 @@ else
         finally
         {
             isLoading = false;
-            StateHasChanged();
         }
     }
 
@@ -664,7 +663,6 @@ else
             }
         ).ToList();
 
-        StateHasChanged();
     }
 
     private string GetUserDisplayName(ApplicationUser user)
@@ -714,14 +712,12 @@ else
         {
             selectedUsers.Clear();
         }
-        StateHasChanged();
     }
 
     private void ClearSelection()
     {
         selectedUsers.Clear();
         selectAll = false;
-        StateHasChanged();
     }
 
     private void ShowUserRoleModal(ApplicationUser user)

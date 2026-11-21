@@ -19,10 +19,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 10
+      - name: Setup .NET 11
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '11.0.x'
 
       - name: Restore dependencies
         run: dotnet restore src/NTG.Agent.sln
@@ -39,7 +39,7 @@ jobs:
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 
       - name: SonarCloud Analysis (with .NET scanner)
-        uses: highbyte/sonarscan-dotnet@8642efb8793ae4a89bd1e6cdf0a1aef1e582f9bb # v2.5.1
+        uses: highbyte/sonarscan-dotnet@35fdf84a8154dbc65146e53ddc062a506c5d05b8 # v2.6.0
         with:
           sonarProjectKey: ${{ secrets.SONAR_PROJECT_KEY }}
           sonarProjectName: ntg-agent

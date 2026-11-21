@@ -162,7 +162,6 @@
                     Progress = 100
                 };
                 uploadItems.Add(uploadItem);
-                StateHasChanged();
 
                 try
                 {
@@ -195,7 +194,6 @@
         finally
         {
             isUploading = false;
-            StateHasChanged();
         }
     }
 
@@ -214,7 +212,6 @@
             Progress = 50
         };
         uploadItems.Add(uploadItem);
-        StateHasChanged();
 
         try
         {
@@ -236,12 +233,10 @@
             uploadItem.Message = $"Error: {ex.Message}";
             generalMessage = $"URL upload failed: {ex.Message}";
             isError = true;
-            StateHasChanged();
         }
         finally
         {
             isUploading = false;
-            StateHasChanged();
         }
     }
 
@@ -264,7 +259,6 @@
                 Progress = 50
             };
             uploadItems.Add(uploadItem);
-            StateHasChanged();
 
             await DocumentClient.UploadTextContentAsync(AgentId, title, textContent, FolderId);
 
@@ -287,7 +281,6 @@
         finally
         {
             isUploading = false;
-            StateHasChanged();
         }
     }
 }

@@ -101,8 +101,14 @@
         if (firstRender)
         {
             await Task.Delay(2000);
-            await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
-            await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("beautifyCodeBlocks");
+                await JSRuntime.InvokeVoidAsync("highlightCodeBlocks");
+            }
+            catch (JSDisconnectedException)
+            {
+            }
         }
     }
 }

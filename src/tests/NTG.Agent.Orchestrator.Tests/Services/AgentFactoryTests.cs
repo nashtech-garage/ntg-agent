@@ -74,30 +74,30 @@ public class AgentFactoryTests
     }
 
     [Test]
-    public void CreateAgent_WithUser_SubAgentWithRoleGrant_ThrowsAccessDenied()
+    public async Task CreateAgent_WithUser_SubAgentWithRoleGrant_ThrowsAccessDenied()
     {
         // Sub-agents are tool-only: even with a valid role grant, the user-facing
         // overload must refuse to instantiate one directly (PR #277 review fix).
         var agentId = SeedGrantedAgent(AgentKind.SubAgent);
 
-        Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
+        await Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));
     }
 
     [Test]
-    public void CreateAgent_WithUser_AgentWithRoleGrant_PassesAccessGate()
+    public async Task CreateAgent_WithUser_AgentWithRoleGrant_PassesAccessGate()
     {
         // Control for the test above: an identical Agent gets through the access
         // gate and only fails later at provider creation (no provider configured) — proving
         // the Inner refusal is kind-based, not access-based.
         var agentId = SeedGrantedAgent(AgentKind.Agent);
 
-        Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _factory.CreateAgent(agentId, _userId, isAdmin: false));
     }
 
     [Test]
-    public void CreateAgent_AnonymousWithAnonymousRoleGrant_PassesAccessGate()
+    public async Task CreateAgent_AnonymousWithAnonymousRoleGrant_PassesAccessGate()
     {
         var agentId = Guid.NewGuid();
         _context.Agents.Add(new AgentModel
@@ -120,16 +120,16 @@ public class AgentFactoryTests
 
         // No provider is configured, so reaching provider creation proves the anonymous
         // role passed the access gate.
-        Assert.ThrowsAsync<InvalidOperationException>(() =>
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _factory.CreateAgent(agentId, userId: null, isAdmin: false));
     }
 
     [Test]
-    public void CreateAgent_AnonymousWithoutAnonymousRoleGrant_ThrowsAccessDenied()
+    public async Task CreateAgent_AnonymousWithoutAnonymousRoleGrant_ThrowsAccessDenied()
     {
         var agentId = SeedGrantedAgent(AgentKind.Agent);
 
-        Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
+        await Assert.ThrowsAsync<AgentAccessDeniedException>(() =>
             _factory.CreateAgent(agentId, userId: null, isAdmin: false));
     }
 }
