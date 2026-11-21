@@ -777,7 +777,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("InputTokenCost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,8)");
 
                     b.Property<long?>("InputTokens")
                         .HasColumnType("bigint");
@@ -794,7 +794,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("OutputTokenCost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,8)");
 
                     b.Property<long?>("OutputTokens")
                         .HasColumnType("bigint");
@@ -804,7 +804,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("ReasoningTokenCost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,8)");
 
                     b.Property<long?>("ReasoningTokens")
                         .HasColumnType("bigint");
@@ -816,7 +816,7 @@ namespace NTG.Agent.Orchestrator.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("TotalCost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,8)");
 
                     b.Property<long?>("TotalTokens")
                         .HasColumnType("bigint");

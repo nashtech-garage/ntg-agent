@@ -309,6 +309,11 @@ public class AgentDbContext(DbContextOptions<AgentDbContext> options) : DbContex
         modelBuilder.Entity<TokenUsage>(e =>
         {
             e.HasKey(x => x.Id);
+
+            e.Property(x => x.InputTokenCost).HasPrecision(18, 8);
+            e.Property(x => x.OutputTokenCost).HasPrecision(18, 8);
+            e.Property(x => x.ReasoningTokenCost).HasPrecision(18, 8);
+            e.Property(x => x.TotalCost).HasPrecision(18, 8);
             
             // Ensure either UserId or SessionId is provided, but not both
             e.ToTable(t => t.HasCheckConstraint(
