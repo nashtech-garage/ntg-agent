@@ -11,7 +11,7 @@ A React chat interface built with Next.js (App Router) and CopilotKit that commu
 | Protocol | AG-UI (`@ag-ui/client`) |
 | Styling | Tailwind CSS v4 |
 | Language | TypeScript (strict, ES2017 target) |
-| Backend | .NET 10 + Aspire Orchestrator |
+| Backend | .NET 11 + Aspire Orchestrator |
 
 ## Architecture
 

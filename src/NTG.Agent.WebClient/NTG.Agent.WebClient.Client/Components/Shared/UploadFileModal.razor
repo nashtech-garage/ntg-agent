@@ -140,7 +140,6 @@
                         Status = UploadStatus.Error,
                         Message = $"File exceeds the 50 MB limit ({file.Size / (1024d * 1024):F1} MB)."
                     });
-                    StateHasChanged();
                     continue;
                 }
 
@@ -155,7 +154,6 @@
                         Status = UploadStatus.Error,
                         Message = $"Skipped: adding this file would exceed the 50 MB total limit."
                     });
-                    StateHasChanged();
                     continue;
                 }
 
@@ -177,7 +175,6 @@
                         Content = fileContent
                     };
                 uploadItems.Add(uploadItem);
-                StateHasChanged();
 
                 try
                 {
@@ -185,7 +182,6 @@
                     for (int i = 0; i <= 100; i += 20)
                     {
                         uploadItem.Progress = i;
-                        StateHasChanged();
                         await Task.Delay(200);
                     }
 
@@ -214,7 +210,6 @@
         }
         finally
         {
-            StateHasChanged();
         }
     }
 }

@@ -414,7 +414,6 @@
         finally
         {
             retrying = false;
-            StateHasChanged();
         }
     }
 
@@ -464,7 +463,6 @@
     private void HandleFolderSelected(Guid? folderId)
     {
         selectedFolderId = folderId;
-        StateHasChanged();
     }
 
     private void HandleAddKnowledgeRequested(Guid? folderId)
@@ -479,7 +477,6 @@
             {
                 selectedFolderId = folderId;
                 openAddKnowledgeDialog = true;
-                StateHasChanged();
             }
         }
     }
@@ -528,7 +525,6 @@
     {
         publishStatusMessage = null;
         publishStatusIsError = false;
-        StateHasChanged();
     }
 
     private void ShowDeleteConfirmation()

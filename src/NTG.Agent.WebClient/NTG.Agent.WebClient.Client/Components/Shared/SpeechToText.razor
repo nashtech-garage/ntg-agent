@@ -22,19 +22,27 @@
 
     private async Task ToggleListening()
     {
-        if (!isListening)
+        try
         {
-            objRef = DotNetObjectReference.Create(this);
-            isListening = true;
-            await JSRuntime.InvokeVoidAsync("speechRecognizer.startRecognition", objRef, Language);
+            if (!isListening)
+            {
+                objRef = DotNetObjectReference.Create(this);
+                isListening = true;
+                await JSRuntime.InvokeVoidAsync("speechRecognizer.startRecognition", objRef, Language);
+            }
+            else
+            {
+                isListening = false;
+                await JSRuntime.InvokeVoidAsync("speechRecognizer.stopRecognition");
+            }
         }
-        else
+        catch (JSDisconnectedException)
         {
             isListening = false;
-            await JSRuntime.InvokeVoidAsync("speechRecognizer.stopRecognition");
+            objRef?.Dispose();
+            objRef = null;
         }
 
-        StateHasChanged();
     }
 
     [JSInvokable]

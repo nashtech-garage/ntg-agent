@@ -29,7 +29,7 @@ declared size *up* fails safe and forging it *down* truncates the attacker's own
 cheap `sum(entry.Length)` precheck is therefore sound on this runtime.
 
 > **Consequence, confirmed in implementation.** The streaming byte counter is *unreachable* on
-> .NET 10. A 21 MB zero-bomb declaring its true size is stopped by the precheck before a byte is
+> .NET 11. A 21 MB zero-bomb declaring its true size is stopped by the precheck before a byte is
 > decompressed; the same bomb declaring 64 bytes is clamped to 64 bytes on read, so the counter
 > never trips. Both cases are covered by `SkillPackageImporterTests`, and the second asserts on
 > *rejection*, not on the mechanism — an earlier version of that test asserted the counter fired

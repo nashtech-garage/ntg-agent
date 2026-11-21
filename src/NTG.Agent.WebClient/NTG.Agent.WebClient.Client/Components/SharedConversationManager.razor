@@ -266,7 +266,13 @@
     private async Task ViewSharedConversation(Guid shareId)
     {
         var url = $"{NavigationManager.BaseUri.TrimEnd('/')}/share/{shareId}";
-        await JS.InvokeVoidAsync("open", url, "_blank");
+        try
+        {
+            await JS.InvokeVoidAsync("open", url, "_blank");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private void EditExpiration(SharedConversationListItem item)
@@ -298,7 +304,6 @@
         showEditExpirationModal = false;
         selectedItem = null;
         selectedExpiration = "never";
-        StateHasChanged();
     }
 
     private async Task SaveExpiration()
@@ -308,7 +313,6 @@
         try
         {
             isUpdating = true;
-            StateHasChanged();
 
             DateTime? newExpiresAt = selectedExpiration switch
             {
@@ -334,7 +338,6 @@
         finally
         {
             isUpdating = false;
-            StateHasChanged();
         }
     }
 
@@ -399,7 +402,6 @@
         showConfirmDialog = false;
         selectedItem = null;
         confirmAction = null;
-        StateHasChanged();
     }
 
     private async Task ExecuteConfirmAction()
@@ -409,7 +411,6 @@
             try
             {
                 isProcessing = true;
-                StateHasChanged();
 
                 await confirmAction();
 
@@ -426,7 +427,6 @@
                 showConfirmDialog = false;
                 selectedItem = null;
                 confirmAction = null;
-                StateHasChanged();
             }
         }
     }

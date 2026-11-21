@@ -336,7 +336,7 @@ public class AgUiControllerAccessTests
         return [.. text
             .Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Where(line => line.StartsWith("data: ", StringComparison.Ordinal))
-            .Select(line => JsonDocument.Parse(line["data: ".Length..]).RootElement.Clone())];
+            .Select(line => JsonElement.Parse(line["data: ".Length..]))];
     }
 
     private static IReadOnlyList<string> EventTypes(IEnumerable<JsonElement> events) =>

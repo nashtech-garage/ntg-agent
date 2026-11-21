@@ -559,7 +559,7 @@ public class AgentAdminControllerTests
         var newAgent = new AgentDetail { Name = "Test Agent" };
 
         // Act & Assert
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
             await unauthenticatedController.CreateAgent(newAgent));
     }
 
@@ -771,7 +771,7 @@ public class AgentAdminControllerTests
         var agentId = await SeedSingleAgentData();
 
         // Act & Assert
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
             await unauthenticatedController.UpdateAgentPublishStatus(agentId, true));
     }
 

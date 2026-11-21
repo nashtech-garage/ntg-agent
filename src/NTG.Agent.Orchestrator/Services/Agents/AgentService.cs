@@ -419,7 +419,7 @@ public class AgentService
     {
         try
         {
-            var el = JsonDocument.Parse(content).RootElement;
+            var el = JsonElement.Parse(content);
             var callId = el.TryGetProperty("callId", out var c) ? c.GetString() : null;
             var name = el.TryGetProperty("name", out var n) ? n.GetString() : null;
             if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(name)) return;
@@ -435,7 +435,7 @@ public class AgentService
     {
         try
         {
-            var el = JsonDocument.Parse(content).RootElement;
+            var el = JsonElement.Parse(content);
             var callId = el.TryGetProperty("callId", out var c) ? c.GetString() : null;
             if (string.IsNullOrEmpty(callId) || !pending.TryGetValue(callId, out var call)) return null;
             var result = el.TryGetProperty("result", out var r) ? r.GetString() ?? string.Empty : string.Empty;
@@ -485,7 +485,7 @@ public class AgentService
 
         if (agent is null)
         {
-            throw new InvalidOperationException("Agent creation completed without returning an agent.");
+            throw new InvalidOperationException("Agent creation completed without an agent or configuration error.");
         }
 
         var chatHistory = new List<ChatMessage>();

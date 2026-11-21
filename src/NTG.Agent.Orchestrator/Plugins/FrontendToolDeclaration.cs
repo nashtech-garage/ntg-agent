@@ -28,7 +28,7 @@ public sealed class FrontendToolDeclaration : AIFunctionDeclaration
     public override JsonElement JsonSchema => _jsonSchema;
 
     private static readonly JsonElement EmptyObjectSchema =
-        JsonDocument.Parse("""{"type":"object","properties":{}}""").RootElement;
+        JsonElement.Parse("""{"type":"object","properties":{}}""");
 
     /// <summary>
     /// Converts client-tool metadata already parsed by the AG-UI boundary into declaration-only

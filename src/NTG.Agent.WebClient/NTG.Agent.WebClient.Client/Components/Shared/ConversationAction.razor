@@ -115,7 +115,14 @@
             await InvokeAsync(async () =>
             {
                 // Must be invoked on the UI thread
-                await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                try
+                {
+                    await JS.InvokeVoidAsync("updateSidebarState", IsSidebarCollapsed);
+                }
+                catch (JSDisconnectedException)
+                {
+                }
+
                 StateHasChanged();
             });
         });
@@ -135,35 +142,41 @@
         isSearchModalVisible = true;
         searchTerm = string.Empty;
         chatSearchResultItem = [];
-        await JS.InvokeVoidAsync("hideInputChatContainer");
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("hideInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 
     private async Task CloseSearchModal()
     {
         isSearchModalVisible = false;
-        await JS.InvokeVoidAsync("showInputChatContainer");
-        // Clean up the timer when closing the modal
-        searchDebounceTimer?.Dispose();
-        searchDebounceTimer = null;
-        StateHasChanged();
+        try
+        {
+            await JS.InvokeVoidAsync("showInputChatContainer");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        await DisposeSearchDebounceTimerAsync();
     }
 
-    private void ClearSearch()
+    private async Task ClearSearch()
     {
         searchTerm = string.Empty;
         chatSearchResultItem = [];
-        // Cancel any pending search
-        searchDebounceTimer?.Dispose();
-        searchDebounceTimer = null;
-        StateHasChanged();
+        await DisposeSearchDebounceTimerAsync();
     }
 
     private async Task HandleSearchInputKeyDown(KeyboardEventArgs e)
     {
         if (e.Key != "Escape")
         {
-            DebounceSearch();
+            await DebounceSearch();
         }
         else
         {
@@ -173,21 +186,20 @@
             }
             else
             {
-                ClearSearch();
+                await ClearSearch();
             }
         }
     }
     
-    private void HandleSearchInput(ChangeEventArgs e)
+    private async Task HandleSearchInput(ChangeEventArgs e)
     {
         searchTerm = e.Value?.ToString() ?? string.Empty;
-        DebounceSearch();
+        await DebounceSearch();
     }
     
-    private void DebounceSearch()
+    private async Task DebounceSearch()
     {
-        // Cancel any existing timer
-        searchDebounceTimer?.Dispose();
+        await DisposeSearchDebounceTimerAsync();
         
         // Only set up a new timer if we have something to search for
         if (!string.IsNullOrEmpty(searchTerm) && searchTerm.Trim().Length >= 3)
@@ -201,6 +213,15 @@
                     StateHasChanged();
                 });
             }, null, SearchDebounceDelay, Timeout.Infinite);
+        }
+    }
+
+    private async ValueTask DisposeSearchDebounceTimerAsync()
+    {
+        if (searchDebounceTimer is not null)
+        {
+            await searchDebounceTimer.DisposeAsync();
+            searchDebounceTimer = null;
         }
     }
     
@@ -221,10 +242,6 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (searchDebounceTimer is not null)
-        {
-            await searchDebounceTimer.DisposeAsync();
-            searchDebounceTimer = null;
-        }
+        await DisposeSearchDebounceTimerAsync();
     }
 }
