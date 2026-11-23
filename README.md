@@ -1,5 +1,6 @@
 # NTG Agent
-This project aims to practice building a chatbot in C#
+
+NTG Agent is a C# project for exploring and building chatbot applications with modern AI and agent technologies.
 
 [![Build](https://github.com/nashtech-garage/ntg-agent/actions/workflows/ntg-agent-ci.yml/badge.svg)](https://github.com/nashtech-garage/ntg-agent/actions/workflows/ntg-agent-ci.yml)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
@@ -8,81 +9,116 @@ This project aims to practice building a chatbot in C#
 [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=nashtech-garage_ntg-agent&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=nashtech-garage_ntg-agent)
 
 
-## High level architecture
+## High-level architecture
 
 ![NTG Agent - High level architecture](ntg-agent-components.png)
 
-## Technologies and frameworks
+## Technologies
+
 - .NET 11
 - .NET Aspire
 - Blazor
 - Microsoft Agent Framework
 - LightRAG
-- Support multiple LLMs: GitHub Models, Open AI, Azure Open AI etc.
+- Multiple LLM providers (OpenAI, Azure AI Foundry, Anthropic, and others)
 - SQL Server
-- NextJs
-- Docker & Docker Compose
+- Next.js
+- Docker and Docker Compose
 
 ## Documentation
-Details about the project can be referenced at DeepWiki: https://deepwiki.com/nashtech-garage/ntg-agent
+
+See the [NTG Agent DeepWiki](https://deepwiki.com/nashtech-garage/ntg-agent) for additional project documentation.
 
 ## Getting started
 
-Run the project **locally with .NET Aspire**.
+NTG Agent runs locally and uses .NET Aspire to orchestrate its services and dependencies. Docker is required for containerized components, but **Docker Desktop is optional**—any Docker setup accessible to your environment can be used.
 
 ### Quick start (Linux/macOS)
 
-One command on a fresh machine — clones the repo and runs the installer:
+On a fresh machine, run the installer:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/nashtech-garage/ntg-agent/main/install.sh | bash
 ```
 
-Or, from an existing checkout, `./install-local.sh`. Either way the script does the whole local setup end-to-end — checks system prerequisites (.NET 11 SDK, Docker, Node ≥ 20) and installs the missing ones automatically: on Ubuntu/Debian with `sudo apt` (Node via NodeSource); on macOS with Homebrew (`brew install --cask dotnet-sdk`, `brew install node`, etc. — Homebrew must be installed first; if git is missing, run `xcode-select --install`). **On macOS, Docker must already be running** (Docker Desktop or Colima — it is not auto-installed; the script prints how to get it if it's missing). Other systems get install instructions instead. The script then activates the repo git hooks, installs `dotnet-ef`, asks for your Azure OpenAI endpoint + key (one resource serves LightRAG and the Default Agent; deployment names default to `gpt-5.1` / `text-embedding-3-large`, override in `.env`), auto-generates the remaining secrets, writes the AppHost user-secrets, brings up the local LightRAG stack (`deploy/lightrag-local`: Postgres + nginx gateway on `127.0.0.1:8080`), and launches the AppHost.
+The installer checks and installs required tools where supported, configures the local environment, prompts for your LLM provider credentials, and starts NTG Agent.
 
-Re-running is safe: existing `.env` values are kept and only missing pieces are filled in. After the first setup, stop the application with `Ctrl+C` and use `./ntg run` for subsequent runs. The shortcut refreshes the AppHost secrets, starts the local LightRAG stack, and launches the Aspire AppHost.
+When setup finishes, stop the application with `Ctrl+C`. For subsequent runs:
 
-The installer now selects the global LLM and embedding providers independently; the Azure-only wording in older setup notes is obsolete. See [LightRAG provider configuration](#lightrag-provider-configuration) for the supported bindings and variables.
+```bash
+cd ntg-agent
+./ntg run
+```
+
+If you already cloned the repository, run `./install-local.sh` from its root directory instead.
 
 ### Quick start (Windows via WSL2)
 
-The same script is the supported path on Windows — it runs inside WSL2:
+1. **Install WSL2 and Ubuntu.** Run this command in PowerShell as Administrator, then follow the prompts:
+   ```powershell
+   wsl --install
+   ```
+2. **Set up Docker.** Install and start Docker using Docker Desktop (optional) or another Docker environment that is accessible from WSL2.
+3. **Clone and install NTG Agent.** Open your Ubuntu/WSL terminal and run:
+   ```bash
+   git clone https://github.com/nashtech-garage/ntg-agent.git
+   cd ntg-agent
+   ./install-local.sh
+   ```
+   Keep the repository in the WSL2 Linux filesystem (for example, `~/ntg-agent`) rather than under `/mnt/c/` for better build and file-watching performance.
 
-1. Install WSL2 with the default Ubuntu distro: `wsl --install` in an admin PowerShell, then reboot and create your Linux user.
-2. Install [Docker Desktop](https://docs.docker.com/desktop/setup/install/windows-install/) with the **WSL2 backend**, and enable your distro under *Settings → Resources → WSL integration*.
-3. Inside the WSL shell, use a checkout in the WSL filesystem (`~/ntg-agent`, not `/mnt/c/...` — file watching and builds are unreliable and slow on the Windows mount), then run `./install-local.sh` from the repository root for the first setup. The script apt-installs the remaining prerequisites (.NET 11 SDK, Node ≥ 20, git); Docker itself is left to Docker Desktop.
+The installer configures the environment and starts the application. Open the Aspire Dashboard URL printed in the terminal; it should be accessible from your Windows browser via `localhost`.
 
-The dashboard is reachable from your Windows browser at `https://localhost:17050` (WSL2 forwards localhost automatically). The HTTPS dev certificate is generated inside WSL and won't be trusted by the Windows browser — accept the certificate warning, or run `dotnet dev-certs https --export-path` in WSL and import it into the Windows certificate store.
+Stop the application with `Ctrl+C`. To start it again from the repository directory:
 
-The AppHost orchestrates everything: it starts a SQL Server container, runs EF migrations for Admin and Orchestrator, then launches all 5 services with service discovery and config wiring. No local SQL Server install required.
-
-Run the first setup from the repository root:
-```bash
-./install-local.sh
-```
-
-After stopping the application with `Ctrl+C`, run it again with:
 ```bash
 ./ntg run
 ```
 
-Use `./ntg run` for later development runs after making code changes. It refreshes the AppHost secrets, starts the local LightRAG stack, and launches the Aspire AppHost.
+### What starts locally
 
-Open the Aspire Dashboard URL printed at startup. Resources you'll see:
-- `sqlserver` — SQL Server 2022 container with a persistent volume
-- `db-migrate-admin`, `db-migrate-orchestrator` — one-shot EF migrations (finished)
-- `ntg-agent-mcp-server`, `ntg-agent-orchestrator` — backend services
-- `ntg-agent-webclient` — end-user chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
-- `ntg-agent-admin` — admin dashboard (default admin account: `admin@ntgagent.com` / `Ntg@123`)
-- `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI (default admin account: `admin@ntgagent.com` / `Ntg@123`)
+.NET Aspire starts the application's services and dependencies, including:
 
-The Default Agent's provider is configured automatically on first startup from the selected global LLM settings. To use a different provider or model, open **Agent Management > Agent Default** in the Admin dashboard. Note: GitHub Models is being retired by GitHub (410 brownouts) and is no longer the seeded default.
+- `sqlserver` — SQL Server 2022 container with persistent storage
+- `db-migrate-admin` and `db-migrate-orchestrator` — database migration jobs
+- `ntg-agent-mcp-server` and `ntg-agent-orchestrator` — backend services
+- `ntg-agent-webclient` — chat UI
+- `ntg-agent-admin` — administration UI
+- `ntg-agent-ag-ui-webclient` — CopilotKit AG-UI React chat UI
 
-### LightRAG provider configuration
+The web clients use the default development admin account:
 
-The installer follows LightRAG's `LLM_BINDING` and `EMBEDDING_BINDING` environment contract. The global LLM supports `openai`, `ollama`, `lollms`, `azure_openai`, `bedrock`, and `gemini`. The current LightRAG embedding contract supports `openai`, `ollama`, `lollms`, `azure_openai`, and `bedrock`; Gemini embedding is rejected by the installer because LightRAG does not advertise `gemini` as an embedding binding. The default for both selections is `openai` when left blank.
+- **Email:** `admin@ntgagent.com`
+- **Password:** `Ntg@123`
 
-The main values are stored in `.env` and copied into AppHost user-secrets:
+Change the default password before using the application in any shared or non-local environment.
+
+The Default Agent is configured on first startup using the selected global LLM settings. To change its provider or model, go to **Agent Management > Agent Default** in the Admin dashboard.
+
+## LightRAG provider configuration
+
+The installer lets you select the global LLM and embedding providers independently. The default provider for both is `openai` if no selection is made.
+
+Supported LLM bindings:
+
+- `openai`
+- `ollama`
+- `lollms`
+- `azure_openai`
+- `bedrock`
+- `gemini`
+
+Supported embedding bindings:
+
+- `openai`
+- `ollama`
+- `lollms`
+- `azure_openai`
+- `bedrock`
+
+Gemini embeddings are not currently supported by the installer's LightRAG embedding configuration.
+
+Configuration is stored in `.env` and copied to AppHost user-secrets.
 
 | Purpose | Variables |
 | --- | --- |
@@ -90,56 +126,62 @@ The main values are stored in `.env` and copied into AppHost user-secrets:
 | Embeddings | `LIGHTRAG_EMBEDDING_BINDING`, `LIGHTRAG_EMBEDDING_ENDPOINT`, `LIGHTRAG_EMBEDDING_API_KEY`, `LIGHTRAG_EMBEDDING_MODEL` |
 | LightRAG image | `LIGHTRAG_IMAGE_TAG` |
 | Azure OpenAI | `LIGHTRAG_AZURE_API_VERSION`, `LIGHTRAG_AZURE_EMBEDDING_API_VERSION` |
-| AWS Bedrock | `LIGHTRAG_AWS_REGION` plus either `LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK` or an access-key/secret-key pair |
+| AWS Bedrock | `LIGHTRAG_AWS_REGION` and either `LIGHTRAG_AWS_BEARER_TOKEN_BEDROCK` or an access-key/secret-key pair |
 | Ollama | `LIGHTRAG_OLLAMA_LLM_NUM_CTX` |
 
-Provider defaults include OpenAI at `https://api.openai.com/v1`, Ollama at `http://localhost:11434`, Gemini at `DEFAULT_GEMINI_ENDPOINT`, Bedrock at `DEFAULT_BEDROCK_ENDPOINT`, and lollms at `http://localhost:9600`. For Docker-hosted Ollama or lollms, use an address reachable from the container, such as `http://host.docker.internal:11434`.
+Default endpoints include:
 
-These settings are applied to every per-agent LightRAG container. Changing a binding, endpoint, model, credential, or provider-specific option causes that container to be recreated; changing `EMBEDDING_DIM` also resets that agent's vector schema because existing vectors cannot be mixed across dimensions. The authoritative upstream examples are [LightRAG `env.example`](https://github.com/HKUDS/LightRAG/blob/main/env.example) and [LightRAG `env.docker-compose-full`](https://github.com/HKUDS/LightRAG/blob/main/env.docker-compose-full).
+| Provider | Endpoint |
+| --- | --- |
+| OpenAI | `https://api.openai.com/v1` |
+| Ollama | `http://localhost:11434` |
+| lollms | `http://localhost:9600` |
+| Gemini | `DEFAULT_GEMINI_ENDPOINT` |
+| Bedrock | `DEFAULT_BEDROCK_ENDPOINT` |
+
+If Ollama or lollms runs in a Docker container, use an endpoint reachable from that container (for example, `http://host.docker.internal:11434` for Ollama).
+
+These settings are applied to each agent's LightRAG container. Changing provider settings, endpoints, models, credentials, or provider-specific options recreates the container. Changing `EMBEDDING_DIM` also resets that agent's vector schema because vectors with different dimensions cannot be mixed.
+
+For the full provider environment reference, see LightRAG's [env.example](https://github.com/HKUDS/LightRAG/blob/main/env.example) and [Docker Compose environment file](https://github.com/HKUDS/LightRAG/blob/main/env.docker-compose-full).
 
 ## Dev shortcuts (`ntg`)
 
-`./ntg` is a small launcher for the commands you run all the time, so you don't have to
-memorize or retype them. No installation required (pure bash).
+`./ntg` is a Bash-based helper for common development commands. No installation is required.
 
 ```bash
-./ntg            # interactive menu of available commands
-./ntg help       # list commands with descriptions
-./ntg run        # dotnet run the AppHost AND auto-open the Aspire dashboard
-./ntg ports      # show which project ports are in use
-./ntg lightrag-dashboard # pick a running agent and open its LightRAG WebUI in the browser
+./ntg                    # Open the interactive command menu
+./ntg help               # List commands
+./ntg run                 # Run the AppHost and open the Aspire Dashboard
+./ntg ports               # Show project port usage
+./ntg lightrag-dashboard  # Select an agent and open its LightRAG WebUI
 ```
 
-**Adding your own shortcut** is meant to be trivial:
+### Add a shortcut
+
+Create a new command from the template:
 
 ```bash
-./ntg new <name>           # creates scripts/dev-commands/<name>.sh from a template
-# edit that file: update the "# desc:" line and add your commands
-./ntg <name>               # run it — it also shows up in `./ntg` and `./ntg help` automatically
+./ntg new <name>
 ```
 
-Each command is a standalone bash file in `scripts/dev-commands/`; the filename is the
-command name and its `# desc:` header is the menu description. Files starting with `_` are
-hidden helpers.
+Edit the generated file in `scripts/dev-commands/<name>.sh`: update its `# desc:` line and add your commands. Run it with:
 
-## Using other LLM models
-NTG Agent supports multiple LLM model providers: GitHub Model, Azure Open AI, Google Gemini
+```bash
+./ntg <name>
+```
 
-### Google Gemini
+It will also appear in the interactive menu and `./ntg help`. Each command is a standalone Bash script in `scripts/dev-commands/`. Scripts whose names start with `_` are treated as hidden helpers.
 
-Setup [Gemini API](https://aistudio.google.com/): Create your API key in Google AI Studio https://aistudio.google.com/api-keys
-The Provider Endpoint: https://generativelanguage.googleapis.com/v1beta/
+## Authentication
 
-## How authentication work
-
-To get started easily, we use the shared cookies approach. In NTG.Agent.Admin, we add YARP as a BFF (Backend for Frontend), which forwards API requests to NTG.Agent.Orchestrator.
-Currently, it only works for Blazor WebAssembly. Cookies are not included when the request is made from the server (Blazor).
+NTG Agent uses shared cookies. The Admin application uses YARP as a Backend-for-Frontend (BFF) to forward API requests to NTG.Agent.Orchestrator. This approach currently supports Blazor WebAssembly clients; cookies are not sent with server-side Blazor requests.
 
 ## Knowledge providers
 
-Document knowledge (upload, search, RAG) is served by a pluggable provider behind
-`IKnowledgeService` / `IKnowledgeProvisioner` (in `NTG.Agent.Common`). The Orchestrator
-selects the provider from configuration, so backends can be swapped without code changes:
+Document upload, search, and RAG are handled through the `IKnowledgeService` and `IKnowledgeProvisioner` abstractions in `NTG.Agent.Common`. The Orchestrator selects the provider through configuration, allowing the implementation to be changed without modifying the application flow.
+
+Configure the provider in app settings:
 
 ```json
 {
@@ -149,43 +191,16 @@ selects the provider from configuration, so backends can be swapped without code
 }
 ```
 
-- `LightRag` (default) — one LightRAG container per agent, implemented in the
-  `NTG.Agent.LightRag` project. The Orchestrator only provides two small EF-backed
-  stores (agent port reservations, document ingestion status).
-
-## Azure AI Document Intelligence Configuration (Optional)
-
-Azure AI Document Intelligence enables file upload in the chat, allowing users to attach documents (PDFs, images, Office files, etc.) and ask questions about their content. **This feature is entirely optional** — the chat works normally without it.
-
-To set it up, follow the official guide to create an Azure AI Document Intelligence resource:
-[Create a Document Intelligence resource](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/how-to-guides/create-document-intelligence-resource?view=doc-intel-4.0.0)
-
-Once you have the resource endpoint and API key, add the following to your user secrets or `appsettings.Development.json` in the **NTG.Agent.Orchestrator** project:
-
-```json
-{
-  "Azure": {
-    "DocumentIntelligence": {
-      "IsEnabled": true,
-      "Endpoint": "https://<your-resource-name>.cognitiveservices.azure.com/",
-      "ApiKey": "<your-api-key>"
-    }
-  }
-}
-```
-
-- `IsEnabled` defaults to `false`. Set it to `true` only when you have a valid Azure subscription and resource configured.
-- When `IsEnabled` is `false`, the file upload button is hidden in the chat UI and no OCR processing is performed.
-- The API key is sensitive — use [user secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) in development and environment variables or Azure Key Vault in production. Do not commit it to source control.
+- **`LightRag` (default):** Creates one LightRAG container per agent. The implementation is in `NTG.Agent.LightRag`. The Orchestrator maintains EF-backed stores for agent port reservations and document ingestion status.
 
 ## Contributing
 
-- Give us a star
-- Reporting a bug
-- Participate discussions
-- Propose new features
-- Submit pull requests. If you are new to GitHub, consider to [learn how to contribute to a project through forking](https://docs.github.com/en/get-started/quickstart/contributing-to-projects)
+Contributions are welcome:
 
-By contributing, you agree that your contributions will be licensed under Apache-2.0 license. 
+- Star the project
+- Report bugs
+- Join discussions
+- Suggest features
+- Submit pull requests. If you're new to GitHub contributions, see [Contributing to projects through forking](https://docs.github.com/en/get-started/quickstart/contributing-to-projects).
 
-
+By contributing, you agree that your contributions will be licensed under the Apache-2.0 license.
