@@ -1,7 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.5" />
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -10,23 +8,18 @@
     <IsAspireHost>true</IsAspireHost>
     <AspireUseCliBundle>true</AspireUseCliBundle>
     <UserSecretsId>f0c5a2e4-6978-4c4b-83e7-7566113bdd05</UserSecretsId>
-    <!-- AddNextJsApp remains marked experimental. -->
-    <NoWarn>$(NoWarn);ASPIREJAVASCRIPT001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <PackageReference Include="Aspire.Hosting.SqlServer" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NTG.Agent.Admin\NTG.Agent.Admin\NTG.Agent.Admin.csproj" />
-    <ProjectReference Include="..\NTG.Agent.MCP.Server\NTG.Agent.MCP.Server.csproj" />
-    <ProjectReference Include="..\NTG.Agent.Orchestrator\NTG.Agent.Orchestrator.csproj" />
     <ProjectReference Include="..\NTG.Agent.ServiceDefaults\NTG.Agent.ServiceDefaults.csproj" IsAspireProjectResource="false" />
-    <ProjectReference Include="..\NTG.Agent.WebClient\NTG.Agent.WebClient\NTG.Agent.WebClient.csproj" />
   </ItemGroup>
 
 </Project>
