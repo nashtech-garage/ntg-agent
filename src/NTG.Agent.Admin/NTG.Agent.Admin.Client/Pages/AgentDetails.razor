@@ -144,6 +144,17 @@
                                     Agent Settings
                                 </button>
                             </li>
+                            @if (agentDetail.AgentKind == AgentKind.Agent)
+                            {
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link @(activeTab == subAgentsTab ? "active" : "") d-flex align-items-center"
+                                            @onclick="() => SetActiveTab(subAgentsTab)"
+                                            type="button" role="tab">
+                                        <i class="bi bi-diagram-3 me-2"></i>
+                                        Sub-Agents
+                                    </button>
+                                </li>
+                            }
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link @(activeTab == toolsTab ? "active" : "") d-flex align-items-center"
                                         @onclick="() => SetActiveTab(toolsTab)"
@@ -151,6 +162,14 @@
                                     <i class="bi bi-tools me-2"></i>
                                     Tools
                                     <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @(activeTab == skillsTab ? "active" : "") d-flex align-items-center"
+                                        @onclick="() => SetActiveTab(skillsTab)"
+                                        type="button" role="tab">
+                                    <i class="bi bi-puzzle me-2"></i>
+                                    Skills
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
@@ -184,11 +203,21 @@
                                         <i class="bi bi-gear me-2"></i>
                                         <span>Agent Settings</span>
                                     }
+                                    else if (activeTab == subAgentsTab)
+                                    {
+                                        <i class="bi bi-diagram-3 me-2"></i>
+                                        <span>Sub-Agents</span>
+                                    }
                                     else if (activeTab == toolsTab)
                                     {
                                         <i class="bi bi-tools me-2"></i>
                                         <span>Tools</span>
                                         <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
+                                    }
+                                    else if (activeTab == skillsTab)
+                                    {
+                                        <i class="bi bi-puzzle me-2"></i>
+                                        <span>Skills</span>
                                     }
                                 else if (activeTab == documentsTab)
                                 {
@@ -211,12 +240,29 @@
                                         Agent Settings
                                     </button>
                                 </li>
+                                @if (agentDetail.AgentKind == AgentKind.Agent)
+                                {
+                                    <li>
+                                        <button class="dropdown-item @(activeTab == subAgentsTab ? "active" : "")"
+                                                @onclick="() => SetActiveTab(subAgentsTab)" type="button">
+                                            <i class="bi bi-diagram-3 me-2"></i>
+                                            Sub-Agents
+                                        </button>
+                                    </li>
+                                }
                                 <li>
                                     <button class="dropdown-item @(activeTab == toolsTab ? "active" : "")"
                                             @onclick="() => SetActiveTab(toolsTab)" type="button">
                                         <i class="bi bi-tools me-2"></i>
                                         Tools
                                         <span class="badge bg-secondary ms-2">@agentDetail.ToolCount</span>
+                                    </button>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item @(activeTab == skillsTab ? "active" : "")"
+                                            @onclick="() => SetActiveTab(skillsTab)" type="button">
+                                        <i class="bi bi-puzzle me-2"></i>
+                                        Skills
                                     </button>
                                 </li>
                                 <li>
@@ -279,10 +325,10 @@
                                     </div>
                                 </div>
                             }
-                            else if (activeTab == toolsTab)
+                            else if (activeTab == subAgentsTab || activeTab == toolsTab || activeTab == skillsTab)
                             {
                                 <div class="tab-pane fade show active p-2 p-md-4">
-                                    <ToolManagementTab AgentDetail="agentDetail" />
+                                    <ToolManagementTab AgentDetail="agentDetail" ActiveTab="@activeTab" />
                                 </div>
                             }
                             else if (activeTab == accessTab)
@@ -360,7 +406,9 @@
 
     private const string settingsTab = "settings";
     private const string documentsTab = "documents";
+    private const string subAgentsTab = "sub-agents";
     private const string toolsTab = "tools";
+    private const string skillsTab = "skills";
     private const string accessTab = "access";
     private string activeTab = settingsTab;
     private int documentCount = 0;
