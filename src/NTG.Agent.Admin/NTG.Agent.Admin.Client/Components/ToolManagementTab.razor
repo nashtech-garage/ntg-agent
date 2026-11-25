@@ -3,40 +3,10 @@
 @inject AgentClient AgentClient
 @inject SkillClient SkillClient
 
-<div class="tab-pane fade show active" id="mcp-tools" role="tabpanel">
+<div>
     <div class="row">
         <div class="col-lg-8">
-            <ul class="nav nav-tabs mb-3" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link @(activeSubTab == mcpTab ? "active" : "")"
-                            @onclick="() => SetActiveSubTab(mcpTab)"
-                            type="button" role="tab">
-                        <i class="bi bi-tools me-2"></i>
-                        MCP & Built-in Tools
-                    </button>
-                </li>
-                @if (AgentDetail.AgentKind == AgentKind.Agent)
-                {
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link @(activeSubTab == subAgentsTab ? "active" : "")"
-                                @onclick="() => SetActiveSubTab(subAgentsTab)"
-                                type="button" role="tab">
-                            <i class="bi bi-diagram-3 me-2"></i>
-                            Sub-Agents
-                        </button>
-                    </li>
-                }
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link @(activeSubTab == skillsTab ? "active" : "")"
-                            @onclick="() => SetActiveSubTab(skillsTab)"
-                            type="button" role="tab">
-                        <i class="bi bi-puzzle me-2"></i>
-                        Skills
-                    </button>
-                </li>
-            </ul>
-
-            @if (activeSubTab == mcpTab)
+            @if (ActiveTab == toolsTab)
             {
                 <!-- === MCP Server Section === -->
                 <div class="mb-4">
@@ -143,7 +113,7 @@
                     </button>
                 </div>
             }
-            else if (activeSubTab == subAgentsTab)
+            else if (ActiveTab == subAgentsTab && AgentDetail.AgentKind == AgentKind.Agent)
             {
                 <div class="mb-3">
                     <h5 class="mb-1">Sub-Agents</h5>
@@ -214,7 +184,7 @@
                     </button>
                 </div>
             }
-            else if (activeSubTab == skillsTab)
+            else if (ActiveTab == skillsTab)
             {
                 <div class="mb-3">
                     <h5 class="mb-1">Skills</h5>
@@ -285,6 +255,8 @@
 
     [Parameter]
     public AgentDetail AgentDetail { get; set; } = null!;
+    [Parameter]
+    public string ActiveTab { get; set; } = "tools";
 
     private string mcpEndpoint = "http://localhost:5136";
     private bool isConnecting = false;
@@ -305,10 +277,9 @@
     private bool skillsStatusIsError;
     private bool isSavingSkills;
 
-    private const string mcpTab = "mcp";
+    private const string toolsTab = "tools";
     private const string subAgentsTab = "sub-agents";
     private const string skillsTab = "skills";
-    private string activeSubTab = mcpTab;
 
     protected override async Task OnInitializedAsync()
     {
@@ -340,11 +311,6 @@
                 statusMessage = string.Empty;
             }
         }
-    }
-
-    private void SetActiveSubTab(string tab)
-    {
-        activeSubTab = tab;
     }
 
     private void HandleEndpointInput(ChangeEventArgs e)
